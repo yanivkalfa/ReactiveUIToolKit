@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -37,6 +38,30 @@ namespace ReactiveUITK.Elements
             next ??= s_emptyProps;
             TryDiffProp<string>(previous, next, "text", v => te.text = v ?? string.Empty);
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is TextElement te && props is TextElementProps tp)
+            {
+                if (tp.Text != null)
+                    te.text = tp.Text;
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is TextElement te
+                && prev is TextElementProps tp
+                && next is TextElementProps tn
+            )
+            {
+                if (tp.Text != tn.Text)
+                    te.text = tn.Text ?? string.Empty;
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

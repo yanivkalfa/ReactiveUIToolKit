@@ -134,13 +134,15 @@ public class EmitterTests
         // @foreach ΓåÆ IIFE with list-building loop or .Select()
         Assert.True(
             result.SourceContains(".Select(") || result.SourceContains("foreach"),
-            "Expected .Select( or foreach loop for @foreach");
+            "Expected .Select( or foreach loop for @foreach"
+        );
     }
 
     [Fact]
     public void ForeachDirective_WithSetupCode_GeneratesIIFE()
     {
-        var src = Wrap("""
+        var src = Wrap(
+            """
             <box>
                 @foreach (var entry in log) {
                     var a = "test";
@@ -150,13 +152,25 @@ public class EmitterTests
                 }
                 <label text="after" />
             </box>
-            """);
+            """
+        );
         var result = GeneratorTestHelper.Run(src);
 
-        Assert.True(result.SourceWasProduced,
-            "Expected generated source.\n" + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
-        Assert.True(result.SourceContains("var a = \"test\""),
-            "Expected setup code in output. Generated:\n" + (result.GeneratedSource ?? "<null>"));
+        Assert.True(
+            result.SourceWasProduced,
+            "Expected generated source.\n"
+                + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"))
+        );
+        Assert.True(
+            result.SourceContains("var a = \"test\""),
+            "Expected setup code in output. Generated:\n" + (result.GeneratedSource ?? "<null>")
+        );
+        // Inner per-iteration IIFE should NOT exist (OPT-10)
+        Assert.False(
+            result.SourceContains("Func<global::ReactiveUITK.Core.VirtualNode>>)"),
+            "Inner per-iteration IIFE should be eliminated (OPT-10).\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
     }
 
     [Fact]
@@ -183,24 +197,44 @@ public class EmitterTests
             """;
         var result = GeneratorTestHelper.Run(src);
 
-        Assert.True(result.SourceWasProduced,
+        Assert.True(
+            result.SourceWasProduced,
             "Expected generated source but got diagnostics:\n"
-            + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
+                + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"))
+        );
 
-        // Verify structure ΓÇö IIFE brace balance must be correct
-        Assert.True(result.SourceContains("var prefix = \"[LOG] \""),
-            "Expected foreach setup code in generated output.\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
+        // Verify structure — outer IIFE brace balance must be correct
+        Assert.True(
+            result.SourceContains("var prefix = \"[LOG] \""),
+            "Expected foreach setup code in generated output.\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
 
-        // Verify the closing pattern matches EmitForNode/EmitWhileNode: ); } return __r.ToArray(); }))()
-        Assert.True(result.SourceContains("} return __r.ToArray(); }))()"),
-            "IIFE must have exactly 2 closing braces (foreach body + IIFE lambda).\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
-        Assert.False(result.SourceContains("}} return __r.ToArray();"),
-            "Double '}}' in plain string = 4 braces (bug). Must use single '}' each.\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
+        // Verify body code is inlined directly (no inner per-iteration IIFE)
+        Assert.True(
+            result.SourceContains("__r.Add("),
+            "Expected __r.Add() for inlined return.\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
+
+        // Verify the closing pattern: foreach body brace + outer IIFE brace
+        Assert.True(
+            result.SourceContains("} return __r.ToArray(); }))()"),
+            "Outer IIFE must have exactly 2 closing braces (foreach body + IIFE lambda).\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
+        Assert.False(
+            result.SourceContains("}} return __r.ToArray();"),
+            "Double '}}' in plain string = 4 braces (bug). Must use single '}' each.\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
 
         // Verify no false UITKX0014 (hook in loop)
-        Assert.False(result.HasDiagnostic("UITKX0014"),
+        Assert.False(
+            result.HasDiagnostic("UITKX0014"),
             "UITKX0014 should NOT fire ΓÇö hooks are at component top level, not inside @foreach.\n"
-            + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
+                + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"))
+        );
     }
 
     [Fact]
@@ -277,7 +311,10 @@ public class EmitterTests
 
         Assert.True(result.SourceWasProduced);
         // @if without @else should produce `: null` in the ternary
-        Assert.True(result.SourceContains(": null") || result.SourceContains("(VirtualNode)null"), "Missing @else should generate null fallback");
+        Assert.True(
+            result.SourceContains(": null") || result.SourceContains("(VirtualNode)null"),
+            "Missing @else should generate null fallback"
+        );
     }
 
     // ΓöÇΓöÇ Key attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -1090,9 +1127,117 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src, "Test.uitkx");
         Assert.True(result.SourceWasProduced, "No source produced");
         Assert.False(result.SourceContains("= <Box>"), "Raw bare JSX leaked into generated source");
-        Assert.True(result.SourceContains("V.Box("), "Expected V.Box() call from the bare assignment");
-        Assert.True(result.SourceContains("V.Label("), "Expected V.Label() inside the bare-assigned Box");
+        Assert.True(
+            result.SourceContains("V.Box("),
+            "Expected V.Box() call from the bare assignment"
+        );
+        Assert.True(
+            result.SourceContains("V.Label("),
+            "Expected V.Label() inside the bare-assigned Box"
+        );
     }
 
-}
+    // ── RewriteReturnsForInline unit tests ──────────────────────────────
 
+    [Theory]
+    [InlineData("return null;", "continue;")]
+    [InlineData("  return null;", "  continue;")]
+    [InlineData("return null ;", "continue;")]
+    public void RewriteReturns_ReturnNull_BecomesContinue(string input, string expected)
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void RewriteReturns_ReturnExpr_BecomesAddContinue()
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            "return V.Label();",
+            "__r"
+        );
+        Assert.Equal("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_ReturnParenExpr_UnwrapsParens()
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            "return (V.Label());",
+            "__r"
+        );
+        Assert.Equal("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_SetupCodeThenReturn_PreservesSetup()
+    {
+        var input = "var x = 1; return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Equal("var x = 1; __r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_GuardReturnNull_ThenReturnExpr()
+    {
+        var input = "if (x) { return null; } return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Equal("if (x) { continue; } __r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_LambdaReturnNotRewritten()
+    {
+        var input = "Func<int> f = () => { return 42; }; return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Contains("return 42;", result);
+        Assert.Contains("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_StringWithReturnNotRewritten()
+    {
+        var input = "var s = \"return null;\"; return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Contains("\"return null;\"", result);
+        Assert.Contains("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_BreakAndContinuePassThrough()
+    {
+        var input = "if (i < 3) { continue; } if (i > 6) { break; } return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Contains("continue;", result);
+        Assert.Contains("break;", result);
+        Assert.Contains("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_CustomListVar()
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            "return V.Box();",
+            "__items"
+        );
+        Assert.Equal("__items.Add(V.Box()); continue;", result);
+    }
+}

@@ -9,6 +9,21 @@ namespace ReactiveUITK.Props.Typed
         public Sprite Sprite { get; set; }
         public string ScaleMode { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ImageProps o)
+                return false;
+            if (Texture != o.Texture)
+                return false;
+            if (Sprite != o.Sprite)
+                return false;
+            if (ScaleMode != o.ScaleMode)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -25,6 +40,18 @@ namespace ReactiveUITK.Props.Typed
                 dict["scaleMode"] = ScaleMode;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            Texture = null;
+            Sprite = null;
+            ScaleMode = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ImageProps>.Return(this);
         }
     }
 }

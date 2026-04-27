@@ -1,0 +1,361 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTypes.C
+
+module GameLogic {
+  public static class Tick {
+
+    // ───── Initial state ─────
+
+    public static GameState CreateInitialState() {
+      var map = DoomMaps.Level1();
+      return new GameState {
+        Player = DoomMaps.Level1Player(),
+        Enemies = DoomMaps.Level1Enemies(),
+        Pickups = DoomMaps.Level1Pickups(),
+        Frame = CastFrame(DoomMaps.Level1Player(), map),
+        Score = 0,
+        Level = 1,
+        GameOver = false,
+        Victory = false,
+        PhaseTimer = 0f,
+      };
+    }
+
+    // ───── Main tick ─────
+
+    public static GameState Update(
+    GameState st,
+    float dt,
+    bool fwd, bool back, bool left, bool right,
+    bool turnLeft, bool turnRight,
+    bool shoot,
+    MapDef map,
+    System.Random rng
+    ) {
+      if (st.GameOver || st.Victory) return st;
+
+      var p = st.Player;
+      if (!p.Alive) {
+        st.PhaseTimer += dt;
+        if (st.PhaseTimer > 2f) st.GameOver = true;
+        return st;
+      }
+
+      // ── Turn ──
+      if (turnLeft) p.Angle -= TURN_SPEED * dt;
+      if (turnRight) p.Angle += TURN_SPEED * dt;
+
+      // ── Move ──
+      float moveX = 0f, moveY = 0f;
+      float cosA = Mathf.Cos(p.Angle);
+      float sinA = Mathf.Sin(p.Angle);
+      if (fwd) { moveX += cosA * MOVE_SPEED * dt; moveY += sinA * MOVE_SPEED * dt; }
+      if (back) { moveX -= cosA * MOVE_SPEED * dt; moveY -= sinA * MOVE_SPEED * dt; }
+      if (left) { moveX += sinA * STRAFE_SPEED * dt; moveY -= cosA * STRAFE_SPEED * dt; }
+      if (right) { moveX -= sinA * STRAFE_SPEED * dt; moveY += cosA * STRAFE_SPEED * dt; }
+
+      // Collision detection (slide along walls)
+      float newX = p.X + moveX;
+      float newY = p.Y + moveY;
+      if (!map.IsWall((int)(newX + PLAYER_RADIUS), (int)p.Y) &&
+      !map.IsWall((int)(newX - PLAYER_RADIUS), (int)p.Y))
+      p.X = newX;
+      if (!map.IsWall((int)p.X, (int)(newY + PLAYER_RADIUS)) &&
+      !map.IsWall((int)p.X, (int)(newY - PLAYER_RADIUS)))
+      p.Y = newY;
+
+      // Head bob
+      if (Mathf.Abs(moveX) > 0.001f || Mathf.Abs(moveY) > 0.001f)
+      p.BobTimer += dt * 8f;
+      else
+      p.BobTimer = 0f;
+
+      // ── Shoot ──
+      p.ShootCooldown -= dt;
+      if (shoot && p.ShootCooldown <= 0f) {
+        float cooldown = p.Weapon switch {
+          WeaponType.Pistol => SHOOT_COOLDOWN_PISTOL,
+          WeaponType.Shotgun => SHOOT_COOLDOWN_SHOTGUN,
+          WeaponType.Chaingun => SHOOT_COOLDOWN_CHAINGUN,
+          _ => SHOOT_COOLDOWN_PISTOL,
+        };
+        int damage = p.Weapon switch {
+          WeaponType.Pistol => PISTOL_DAMAGE,
+          WeaponType.Shotgun => SHOTGUN_DAMAGE,
+          WeaponType.Chaingun => CHAINGUN_DAMAGE,
+          _ => PISTOL_DAMAGE,
+        };
+        bool hasAmmo = p.Weapon switch {
+          WeaponType.Pistol => p.AmmoPistol > 0,
+          WeaponType.Shotgun => p.AmmoShotgun > 0,
+          WeaponType.Chaingun => p.AmmoChaingun > 0,
+          _ => false,
+        };
+        if (hasAmmo) {
+          p.ShootCooldown = cooldown;
+          switch (p.Weapon) {
+            case WeaponType.Pistol: p.AmmoPistol--; break;
+            case WeaponType.Shotgun: p.AmmoShotgun--; break;
+            case WeaponType.Chaingun: p.AmmoChaingun--; break;
+          }
+          // Hitscan: find closest enemy in crosshair
+          HitscanEnemy(ref st, p, damage, map);
+        }
+      }
+
+      // ── Pickups ──
+      for (int i = 0; i < st.Pickups.Count; i++) {
+        var pk = st.Pickups[i];
+        if (pk.Collected) continue;
+        float dx = pk.X - p.X;
+        float dy = pk.Y - p.Y;
+        if (dx * dx + dy * dy < 0.5f) {
+          pk.Collected = true;
+          st.Pickups[i] = pk;
+          switch (pk.Type) {
+            case PickupType.Health: p.Health = Mathf.Min(p.Health + 25, 100); break;
+            case PickupType.Armor: p.Armor = Mathf.Min(p.Armor + 25, 100); break;
+            case PickupType.Ammo: p.AmmoPistol += 20; break;
+            case PickupType.Shotgun: p.Weapon = WeaponType.Shotgun; p.AmmoShotgun += 8; break;
+            case PickupType.Chaingun: p.Weapon = WeaponType.Chaingun; p.AmmoChaingun += 40; break;
+          }
+        }
+      }
+
+      // ── Enemy AI ──
+      int aliveCount = 0;
+      for (int i = 0; i < st.Enemies.Count; i++) {
+        var e = st.Enemies[i];
+        if (e.AI == EnemyAI.Dead) continue;
+        if (e.AI == EnemyAI.Dying) {
+          e.DieTimer -= dt;
+          if (e.DieTimer <= 0f) e.AI = EnemyAI.Dead;
+          st.Enemies[i] = e;
+          continue;
+        }
+        aliveCount++;
+
+        float edx = p.X - e.X;
+        float edy = p.Y - e.Y;
+        float dist = Mathf.Sqrt(edx * edx + edy * edy);
+        e.DistToPlayer = dist;
+
+        // Detection: wake up if close enough
+        if (e.AI == EnemyAI.Idle && dist < 8f) {
+          e.AI = EnemyAI.Chasing;
+        }
+
+        if (e.AI == EnemyAI.Chasing) {
+          // Move towards player
+          if (dist > 0.01f) {
+            float speed = ENEMY_SPEED * dt;
+            float nx = e.X + (edx / dist) * speed;
+            float ny = e.Y + (edy / dist) * speed;
+            if (!map.IsWall((int)nx, (int)ny)) {
+              e.X = nx;
+              e.Y = ny;
+            }
+          }
+
+          // Attack range
+          if (dist < ENEMY_ATTACK_RANGE) {
+            e.AI = EnemyAI.Attacking;
+            e.AttackCooldown = ENEMY_ATTACK_COOLDOWN;
+          }
+        }
+
+        if (e.AI == EnemyAI.Attacking) {
+          e.AttackCooldown -= dt;
+          if (e.AttackCooldown <= 0f) {
+            // Deal damage
+            int dmg = e.Kind switch {
+              EnemyKind.Imp => IMP_DAMAGE,
+              EnemyKind.Demon => DEMON_DAMAGE,
+              EnemyKind.Baron => BARON_DAMAGE,
+              _ => IMP_DAMAGE,
+            };
+            if (p.Armor > 0) {
+              int absorbed = Mathf.Min(p.Armor, dmg / 2);
+              p.Armor -= absorbed;
+              dmg -= absorbed;
+            }
+            p.Health -= dmg;
+            e.AttackCooldown = ENEMY_ATTACK_COOLDOWN;
+
+            if (p.Health <= 0) {
+              p.Health = 0;
+              p.Alive = false;
+              st.PhaseTimer = 0f;
+            }
+          }
+
+          // If player moves away, chase again
+          float edx2 = p.X - e.X;
+          float edy2 = p.Y - e.Y;
+          float dist2 = Mathf.Sqrt(edx2 * edx2 + edy2 * edy2);
+          if (dist2 > ENEMY_ATTACK_RANGE * 1.5f) {
+            e.AI = EnemyAI.Chasing;
+          }
+        }
+
+        st.Enemies[i] = e;
+      }
+
+      // Victory check
+      if (aliveCount == 0) {
+        st.Victory = true;
+      }
+
+      st.Player = p;
+      st.Frame = CastFrame(p, map);
+      return st;
+    }
+
+    // ───── Hitscan ─────
+
+    private static void HitscanEnemy(ref GameState st, PlayerState p, int damage, MapDef map) {
+      float cosA = Mathf.Cos(p.Angle);
+      float sinA = Mathf.Sin(p.Angle);
+
+      // Find closest enemy in a narrow cone (±5°)
+      int bestIdx = -1;
+      float bestDist = float.MaxValue;
+
+      for (int i = 0; i < st.Enemies.Count; i++) {
+        var e = st.Enemies[i];
+        if (e.AI == EnemyAI.Dead || e.AI == EnemyAI.Dying) continue;
+
+        float dx = e.X - p.X;
+        float dy = e.Y - p.Y;
+        float dist = Mathf.Sqrt(dx * dx + dy * dy);
+        if (dist < 0.01f || dist > 20f) continue;
+
+        // Angle to enemy
+        float angleToEnemy = Mathf.Atan2(dy, dx);
+        float diff = angleToEnemy - p.Angle;
+        // Normalize to -PI..PI
+        while (diff > Mathf.PI) diff -= 2f * Mathf.PI;
+        while (diff < -Mathf.PI) diff += 2f * Mathf.PI;
+
+        // Cone check (±5° = ±0.087 radians)
+        if (Mathf.Abs(diff) > 0.087f) continue;
+
+        // Wall occlusion check — step along ray to see if a wall is closer
+        bool blocked = false;
+        float step = 0.2f;
+        for (float t = step; t < dist; t += step) {
+          float cx = p.X + cosA * t;
+          float cy = p.Y + sinA * t;
+          if (map.IsWall((int)cx, (int)cy)) { blocked = true; break; }
+        }
+        if (blocked) continue;
+
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+
+      if (bestIdx >= 0) {
+        var e = st.Enemies[bestIdx];
+        e.Health -= damage;
+        if (e.Health <= 0) {
+          e.AI = EnemyAI.Dying;
+          e.DieTimer = 0.5f;
+          st.Score += e.Kind switch {
+            EnemyKind.Imp => SCORE_IMP,
+            EnemyKind.Demon => SCORE_DEMON,
+            EnemyKind.Baron => SCORE_BARON,
+            _ => 100,
+          };
+        }
+        st.Enemies[bestIdx] = e;
+      }
+    }
+
+    // ───── Raycaster ─────
+
+    public static FrameData CastFrame(PlayerState p, MapDef map) {
+      var strips = new WallStrip[VIEW_W];
+
+      for (int col = 0; col < VIEW_W; col++) {
+        float screenX = (2f * col / VIEW_W) - 1f; // -1 to +1
+        float rayAngle = p.Angle + Mathf.Atan(screenX * Mathf.Tan(HALF_FOV));
+        float cosR = Mathf.Cos(rayAngle);
+        float sinR = Mathf.Sin(rayAngle);
+
+        // DDA raycasting
+        int mapX = (int)p.X;
+        int mapY = (int)p.Y;
+
+        float deltaDistX = cosR == 0 ? 1e30f : Mathf.Abs(1f / cosR);
+        float deltaDistY = sinR == 0 ? 1e30f : Mathf.Abs(1f / sinR);
+
+        float sideDistX, sideDistY;
+        int stepX, stepY;
+
+        if (cosR < 0) {
+          stepX = -1;
+          sideDistX = (p.X - mapX) * deltaDistX;
+        } else {
+          stepX = 1;
+          sideDistX = (mapX + 1f - p.X) * deltaDistX;
+        }
+        if (sinR < 0) {
+          stepY = -1;
+          sideDistY = (p.Y - mapY) * deltaDistY;
+        } else {
+          stepY = 1;
+          sideDistY = (mapY + 1f - p.Y) * deltaDistY;
+        }
+
+        bool hitVertical = false;
+        int wallType = 1;
+
+        for (int step = 0; step < 64; step++) {
+          if (sideDistX < sideDistY) {
+            sideDistX += deltaDistX;
+            mapX += stepX;
+            hitVertical = true;
+          } else {
+            sideDistY += deltaDistY;
+            mapY += stepY;
+            hitVertical = false;
+          }
+
+          CellType cell = map.At(mapX, mapY);
+          if (cell != CellType.Empty) {
+            wallType = (int)cell;
+            break;
+          }
+        }
+
+        float perpDist;
+        if (hitVertical)
+        perpDist = sideDistX - deltaDistX;
+        else
+        perpDist = sideDistY - deltaDistY;
+
+        if (perpDist < 0.01f) perpDist = 0.01f;
+
+        float projHeight = VIEW_H / perpDist;
+        float brightness = Mathf.Clamp01(1f - perpDist / 12f);
+        if (hitVertical) brightness *= 0.7f; // darker side walls
+
+        strips[col] = new WallStrip {
+          Height = projHeight,
+          Brightness = brightness,
+          WallType = wallType,
+          HitVertical = hitVertical,
+          Distance = perpDist,
+        };
+      }
+
+      return new FrameData { Strips = strips, Fps = 0, Elapsed = 0 };
+    }
+  }
+}

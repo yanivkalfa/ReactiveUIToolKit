@@ -27,8 +27,8 @@ namespace ReactiveUITK.SourceGenerator
     /// Diagnostics produced:
     ///   UITKX0001   — unknown lowercase built-in element (warning)
     ///   UITKX0005   — missing required @namespace / @component directive (error)
-    ///   UITKX0006   — @component name ≠ filename (warning)
     ///   UITKX0008   — unknown PascalCase function component (warning)
+    ///   UITKX0103   — @component name ≠ filename (warning, aligned with analyzer)
     ///   UITKX03xx   — parse errors
     /// </summary>
     public static class UitkxPipeline

@@ -1,6 +1,23 @@
 {
   "entries": [
     {
+      "date": "2026-04-27",
+      "versions": {
+        "vscode": "1.1.5",
+        "vs2022": "1.1.5"
+      },
+      "shared": [
+        "Fix: cross-document Ref<T> unification — useRef<T>() now returns canonical global::ReactiveUITK.Core.Ref<T> in virtual docs, eliminating false CS1503 when passing refs to peer hooks (e.g. useGalagaGame(boardRef))",
+        "Fix: polyfill stubs (Ref<T>, ReactiveEvent, etc.) now load correctly in workspaces where Unity has not yet compiled — detection scoped to runtime assembly names (ReactiveUITK.Shared/Runtime/Core), no longer suppressed by the LSP-internal ReactiveUITK.Language.dll",
+        "Fix: formatter idempotency for multi-line paren-continuation (e.g. && / || chains) inside nested blocks — no more indent drift on save in files like the Galaga GameScreen sample",
+        "Fix: source-generator diagnostic IDs unified with live analyzer (UITKX0006/0002/0009/0010/0017/0022/0023 → UITKX0103/0109/0106/0104/0108/0120/0121) so the same logical issue surfaces with the same code in both Unity Console and VS Code Problems pane",
+        "Fix: RS2008 'analyzer release tracking' build warning suppressed in the LSP server csproj (warning targets analyzer NuGet packages, not the server EXE)"
+      ],
+      "vscode": [
+        "Fix: removed stray chatHistory / globalState.keys() activation logging — leftover scaffolding from an unrelated experiment"
+      ]
+    },
+    {
       "date": "2026-04-18",
       "versions": {
         "vscode": "1.1.4",

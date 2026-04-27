@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -41,6 +42,34 @@ namespace ReactiveUITK.Elements
             TryDiffProp<float>(previous, next, "highValue", v => sc.highValue = v);
             TryDiffProp<float>(previous, next, "value", v => sc.value = v);
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is Scroller sc && props is ScrollerProps sp)
+            {
+                if (sp.LowValue.HasValue)
+                    sc.lowValue = sp.LowValue.Value;
+                if (sp.HighValue.HasValue)
+                    sc.highValue = sp.HighValue.Value;
+                if (sp.Value.HasValue)
+                    sc.value = sp.Value.Value;
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is Scroller sc && prev is ScrollerProps sp && next is ScrollerProps sn)
+            {
+                if (sp.LowValue != sn.LowValue && sn.LowValue.HasValue)
+                    sc.lowValue = sn.LowValue.Value;
+                if (sp.HighValue != sn.HighValue && sn.HighValue.HasValue)
+                    sc.highValue = sn.HighValue.Value;
+                if (sp.Value != sn.Value && sn.Value.HasValue)
+                    sc.value = sn.Value.Value;
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

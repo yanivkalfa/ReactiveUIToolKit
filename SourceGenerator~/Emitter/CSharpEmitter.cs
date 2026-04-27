@@ -69,6 +69,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private readonly StringBuilder _sb = new StringBuilder(4096);
         private bool _isRootElement = true; // tracks whether the next element is the root
 
+        // Pool-rent statement buffer: collects "var __p_N = ..." statements
+        // that are emitted before the return expression (or before IIFE body code).
+        private StringBuilder _rentBuffer = new StringBuilder();
+        private int _poolVarId;
+
         // Indent constants
         private const string I2 = "        "; // 8sp ΓÇö class member level
         private const string I3 = "            "; // 12sp ΓÇö method body level
@@ -301,11 +306,30 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
             else if (markup.Length == 1)
             {
-                // Single root ΓÇö determine its #line
+                // Single root — capture expression and rent statements separately
                 int srcLine = markup[0].SourceLine;
+
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
+
+                int mark = _sb.Length;
+                EmitNode(markup[0]);
+                string expr = _sb.ToString(mark, _sb.Length - mark);
+                _sb.Length = mark;
+
+                // Emit accumulated pool-rent statements before the return
+                if (_rentBuffer.Length > 0)
+                {
+                    L($"#line hidden");
+                    _sb.Append($"{I3}");
+                    _sb.AppendLine(_rentBuffer.ToString());
+                    L($"#line default");
+                }
+                _rentBuffer = savedRent;
+
                 L($"#line {srcLine} \"{_linePath}\"");
                 _sb.Append($"{I3}return ");
-                EmitNode(markup[0]);
+                _sb.Append(expr);
                 _sb.AppendLine(";");
             }
             else
@@ -594,27 +618,53 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         {
             L("#line hidden");
             // useState
-            L($"{I2}private static (T value, Hooks.StateSetter<T> set) useState<T>(T initial = default) => Hooks.UseState(initial);");
+            L(
+                $"{I2}private static (T value, Hooks.StateSetter<T> set) useState<T>(T initial = default) => Hooks.UseState(initial);"
+            );
             // useEffect / useLayoutEffect
-            L($"{I2}private static void useEffect(global::System.Func<global::System.Action> effectFactory, params object[] deps) => Hooks.UseEffect(effectFactory, deps);");
-            L($"{I2}private static void useLayoutEffect(global::System.Func<global::System.Action> effectFactory, params object[] deps) => Hooks.UseLayoutEffect(effectFactory, deps);");
+            L(
+                $"{I2}private static void useEffect(global::System.Func<global::System.Action> effectFactory, params object[] deps) => Hooks.UseEffect(effectFactory, deps);"
+            );
+            L(
+                $"{I2}private static void useLayoutEffect(global::System.Func<global::System.Action> effectFactory, params object[] deps) => Hooks.UseLayoutEffect(effectFactory, deps);"
+            );
             // useRef (two overloads)
-            L($"{I2}private static global::ReactiveUITK.Core.Ref<T> useRef<T>(T initial = default) => Hooks.UseRef(initial);");
-            L($"{I2}private static global::UnityEngine.UIElements.VisualElement useRef() => Hooks.UseRef();");
+            L(
+                $"{I2}private static global::ReactiveUITK.Core.Ref<T> useRef<T>(T initial = default) => Hooks.UseRef(initial);"
+            );
+            L(
+                $"{I2}private static global::UnityEngine.UIElements.VisualElement useRef() => Hooks.UseRef();"
+            );
             // useCallback / useMemo
-            L($"{I2}private static global::System.Func<T> useCallback<T>(global::System.Func<T> callback, params object[] deps) => Hooks.UseCallback(callback, deps);");
-            L($"{I2}private static T useMemo<T>(global::System.Func<T> factory, params object[] deps) => Hooks.UseMemo(factory, deps);");
+            L(
+                $"{I2}private static global::System.Func<T> useCallback<T>(global::System.Func<T> callback, params object[] deps) => Hooks.UseCallback(callback, deps);"
+            );
+            L(
+                $"{I2}private static T useMemo<T>(global::System.Func<T> factory, params object[] deps) => Hooks.UseMemo(factory, deps);"
+            );
             // useContext / provideContext
             L($"{I2}private static T useContext<T>(string key) => Hooks.UseContext<T>(key);");
-            L($"{I2}private static void provideContext<T>(string key, T value) => Hooks.ProvideContext(key, value);");
-            L($"{I2}private static void provideContext(string key, object value) => Hooks.ProvideContext(key, value);");
+            L(
+                $"{I2}private static void provideContext<T>(string key, T value) => Hooks.ProvideContext(key, value);"
+            );
+            L(
+                $"{I2}private static void provideContext(string key, object value) => Hooks.ProvideContext(key, value);"
+            );
             // useSignal (two overloads)
-            L($"{I2}private static T useSignal<T>(global::ReactiveUITK.Signals.Signal<T> signal) => Hooks.UseSignal(signal);");
-            L($"{I2}private static T useSignal<T>(string key, T initialValue = default) => Hooks.UseSignal(key, initialValue);");
+            L(
+                $"{I2}private static T useSignal<T>(global::ReactiveUITK.Signals.Signal<T> signal) => Hooks.UseSignal(signal);"
+            );
+            L(
+                $"{I2}private static T useSignal<T>(string key, T initialValue = default) => Hooks.UseSignal(key, initialValue);"
+            );
             // useReducer
-            L($"{I2}private static (TState state, global::System.Action<TAction> dispatch) useReducer<TState, TAction>(global::System.Func<TState, TAction, TState> reducer, TState initialState) => Hooks.UseReducer(reducer, initialState);");
+            L(
+                $"{I2}private static (TState state, global::System.Action<TAction> dispatch) useReducer<TState, TAction>(global::System.Func<TState, TAction, TState> reducer, TState initialState) => Hooks.UseReducer(reducer, initialState);"
+            );
             // useDeferredValue
-            L($"{I2}private static T useDeferredValue<T>(T value, params object[] deps) => Hooks.UseDeferredValue(value, deps);");
+            L(
+                $"{I2}private static T useDeferredValue<T>(T value, params object[] deps) => Hooks.UseDeferredValue(value, deps);"
+            );
             L("#line default");
             L("");
         }
@@ -774,30 +824,101 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
             }
 
-            _sb.Append($"V.{res.MethodName}(new {res.PropsTypeName} {{");
+            _sb.Append($"V.{res.MethodName}(");
 
-            bool first = true;
-            foreach (var attr in attrs)
+            // ErrorBoundaryProps extends IProps (not BaseProps) — cannot be pooled
+            bool skipPooling = res.PropsTypeName == "ErrorBoundaryProps";
+
+            if (skipPooling)
             {
-                if (IsKey(attr.Name))
-                    continue;
-                if (!first)
-                    _sb.Append(", ");
-                first = false;
-                _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
+                // Fall back to old-style object initializer
+                _sb.Append($"new {res.PropsTypeName} {{ ");
+                bool first = true;
+                foreach (var attr in attrs)
+                {
+                    if (IsKey(attr.Name))
+                        continue;
+                    if (!first)
+                        _sb.Append(", ");
+                    first = false;
+                    _sb.Append($"{ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
+                }
+                if (injectUssKeys)
+                {
+                    if (!first)
+                        _sb.Append(", ");
+                    _sb.Append(
+                        "ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                    );
+                }
+                _sb.Append($" }}, key: ");
+                _sb.Append(keyExpr);
             }
-
-            if (injectUssKeys)
+            else
             {
-                if (!first)
-                    _sb.Append(", ");
-                _sb.Append(
-                    " ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                // ── Pool-rent emission: Props + Style ──────────────────────
+                int pId = _poolVarId++;
+                string propsVar = $"__p_{pId}";
+                _rentBuffer.Append(
+                    $"var {propsVar} = global::ReactiveUITK.Props.Typed.BaseProps.__Rent<{res.PropsTypeName}>(); "
                 );
-            }
 
-            _sb.Append(" }, key: ");
-            _sb.Append(keyExpr);
+                // Check for style attribute — try to pool it
+                string? styleVarName = null;
+                foreach (var attr in attrs)
+                {
+                    if (IsKey(attr.Name))
+                        continue;
+                    if (string.Equals(ToPropName(attr.Name), "Style", StringComparison.Ordinal))
+                    {
+                        string val = AttrVal(attr.Value);
+                        if (TryExtractNewStyleInit(val, out string? body))
+                        {
+                            int sId = _poolVarId++;
+                            styleVarName = $"__s_{sId}";
+                            _rentBuffer.Append(
+                                $"var {styleVarName} = global::ReactiveUITK.Props.Typed.Style.__Rent(); "
+                            );
+                            // Split initializers and emit assignments
+                            var inits = SplitTopLevelCommas(body);
+                            foreach (var init in inits)
+                            {
+                                string trimmed = init.Trim();
+                                if (trimmed.Length > 0)
+                                    _rentBuffer.Append($"{styleVarName}.{trimmed}; ");
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                // Emit property assignments to _rentBuffer
+                foreach (var attr in attrs)
+                {
+                    if (IsKey(attr.Name))
+                        continue;
+                    string propName = ToPropName(attr.Name);
+                    string val;
+                    if (
+                        string.Equals(propName, "Style", StringComparison.Ordinal)
+                        && styleVarName != null
+                    )
+                        val = styleVarName;
+                    else
+                        val = AttrVal(attr.Value);
+                    _rentBuffer.Append($"{propsVar}.{propName} = {val}; ");
+                }
+
+                if (injectUssKeys)
+                {
+                    _rentBuffer.Append(
+                        $"{propsVar}.ExtraProps = new Dictionary<string, object> {{ {{ \"__ussKeys\", __uitkx_ussKeys }} }}; "
+                    );
+                }
+
+                _sb.Append($"{propsVar}, key: ");
+                _sb.Append(keyExpr);
+            } // end else (!skipPooling)
 
             if (res.AcceptsChildren && !children.IsEmpty)
             {
@@ -1168,14 +1289,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
                 if (branch.BodyCode != null)
                 {
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
                     var code = TransformBodyCode(
                         branch.BodyCode,
                         branch.BodyCodeOffset,
                         branch.BodyMarkupRanges,
                         branch.BodyBareJsxRanges
                     );
+                    string rentStmts = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
                     _sb.Append(code);
                     _sb.Append(" ");
+                    if (rentStmts.Length > 0)
+                        _sb.Append(rentStmts);
                 }
                 _sb.Append("} ");
             }
@@ -1189,17 +1316,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             _sb.Append($"for ({fn.ForExpression}) {{ ");
             if (fn.BodyCode != null)
             {
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 var code = TransformBodyCode(
                     fn.BodyCode,
                     fn.BodyCodeOffset,
                     fn.BodyMarkupRanges,
                     fn.BodyBareJsxRanges
                 );
-                _sb.Append(
-                    $"__r.Add(((System.Func<{QVNode}>)(() => {{ {code} return ({QVNode})null; }}))());"
-                );
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
+                string inlined = RewriteReturnsForInline(code, "__r");
+                _sb.Append($"{rentStmts}{inlined} ");
             }
-            _sb.Append(" } return __r.ToArray(); }))()");
+            _sb.Append("} return __r.ToArray(); }))()");
         }
 
         private void EmitWhileNode(WhileNode wn)
@@ -1209,38 +1339,43 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             _sb.Append($"while ({wn.Condition}) {{ ");
             if (wn.BodyCode != null)
             {
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 var code = TransformBodyCode(
                     wn.BodyCode,
                     wn.BodyCodeOffset,
                     wn.BodyMarkupRanges,
                     wn.BodyBareJsxRanges
                 );
-                _sb.Append(
-                    $"__r.Add(((System.Func<{QVNode}>)(() => {{ {code} return ({QVNode})null; }}))());"
-                );
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
+                string inlined = RewriteReturnsForInline(code, "__r");
+                _sb.Append($"{rentStmts}{inlined} ");
             }
-            _sb.Append(" } return __r.ToArray(); }))()");
+            _sb.Append("} return __r.ToArray(); }))()");
         }
 
         private void EmitForeachNode(ForeachNode forn)
         {
-            // Always use IIFE with nested IIFE per iteration
             _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
             _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
             _sb.Append($"foreach ({forn.IteratorDeclaration} in {forn.CollectionExpression}) {{ ");
             if (forn.BodyCode != null)
             {
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 var code = TransformBodyCode(
                     forn.BodyCode,
                     forn.BodyCodeOffset,
                     forn.BodyMarkupRanges,
                     forn.BodyBareJsxRanges
                 );
-                _sb.Append(
-                    $"__r.Add(((System.Func<{QVNode}>)(() => {{ {code} return ({QVNode})null; }}))());"
-                );
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
+                string inlined = RewriteReturnsForInline(code, "__r");
+                _sb.Append($"{rentStmts}{inlined} ");
             }
-            _sb.Append(" } return __r.ToArray(); }))()");
+            _sb.Append("} return __r.ToArray(); }))()");
         }
 
         private void EmitSwitchNode(SwitchNode sw)
@@ -1253,14 +1388,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.Append(c.ValueExpression == null ? "default: " : $"case {c.ValueExpression}: ");
                 if (c.BodyCode != null)
                 {
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
                     var code = TransformBodyCode(
                         c.BodyCode,
                         c.BodyCodeOffset,
                         c.BodyMarkupRanges,
                         c.BodyBareJsxRanges
                     );
+                    string rentStmts = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
                     _sb.Append("{ ");
                     _sb.Append(code);
+                    if (rentStmts.Length > 0)
+                        _sb.Append(" ").Append(rentStmts);
                     _sb.Append(" } ");
                 }
             }
@@ -1526,10 +1667,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     MarkupEndIndex: jsxText.Length
                 );
                 var miniDiags = new List<ParseDiagnostic>();
-                var nodes = UitkxParser.Parse(jsxText, _filePath, miniDirectives, miniDiags, lineOffset: line - 1);
+                var nodes = UitkxParser.Parse(
+                    jsxText,
+                    _filePath,
+                    miniDirectives,
+                    miniDiags,
+                    lineOffset: line - 1
+                );
 
                 if (nodes.Length > 0)
                 {
+                    // Save rent buffer — inline JSX may produce rent statements
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
+
                     // Emit the parsed node(s) into a temporary buffer.
                     int savedLen = _sb.Length;
                     if (nodes.Length == 1)
@@ -1542,6 +1693,24 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     }
                     string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                     _sb.Length = savedLen;
+
+                    // Insert rent statements at the last statement boundary
+                    string inlineRent = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
+                    if (inlineRent.Length > 0)
+                    {
+                        int insertPos = 0;
+                        for (int si = spliced.Length - 1; si >= 0; si--)
+                        {
+                            char ch = spliced[si];
+                            if (ch == ';' || ch == '}')
+                            {
+                                insertPos = si + 1;
+                                break;
+                            }
+                        }
+                        spliced.Insert(insertPos, inlineRent);
+                    }
                     spliced.Append(emittedCs.Trim());
                 }
                 else
@@ -1635,10 +1804,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     MarkupEndIndex: jsxText.Length
                 );
                 var miniDiags = new List<ParseDiagnostic>();
-                var nodes = UitkxParser.Parse(jsxText, _filePath, miniDirectives, miniDiags, lineOffset: line - 1);
+                var nodes = UitkxParser.Parse(
+                    jsxText,
+                    _filePath,
+                    miniDirectives,
+                    miniDiags,
+                    lineOffset: line - 1
+                );
 
                 if (nodes.Length > 0)
                 {
+                    // Save rent buffer — inline JSX may produce rent statements
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
+
                     int savedLen = _sb.Length;
                     if (nodes.Length == 1)
                     {
@@ -1656,6 +1835,32 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         );
                     string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                     _sb.Length = savedLen;
+
+                    // Inline rent statements before the expression at the splice point
+                    string inlineRent = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
+                    if (inlineRent.Length > 0)
+                    {
+                        // Find the last statement boundary in the accumulated text.
+                        // Rent statements are C# declarations that must appear as
+                        // standalone statements — they cannot follow 'return' or
+                        // 'yield return'. Insert them right after the last ';' or '}'
+                        // (i.e. the end of the previous statement or block), or at
+                        // position 0 if there is no prior boundary.
+                        // NOTE: '{' is deliberately excluded — it could be an object
+                        // or collection initializer brace, not a statement block.
+                        int insertPos = 0;
+                        for (int si = spliced.Length - 1; si >= 0; si--)
+                        {
+                            char ch = spliced[si];
+                            if (ch == ';' || ch == '}')
+                            {
+                                insertPos = si + 1;
+                                break;
+                            }
+                        }
+                        spliced.Insert(insertPos, inlineRent);
+                    }
                     spliced.Append(emittedCs.Trim());
                 }
                 else
@@ -1689,6 +1894,419 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return code;
         }
 
+        /// <summary>
+        /// Rewrites top-level <c>return EXPR;</c> statements in transformed body code
+        /// so the code can be inlined directly inside a loop body instead of an IIFE lambda.
+        /// <list type="bullet">
+        ///   <item><c>return null;</c> → <c>continue;</c></item>
+        ///   <item><c>return EXPR;</c> → <c>listVar.Add(EXPR); continue;</c></item>
+        /// </list>
+        /// Returns inside nested lambda bodies (<c>=> { ... }</c>) are left untouched.
+        /// </summary>
+        internal static string RewriteReturnsForInline(string code, string listVar)
+        {
+            if (string.IsNullOrEmpty(code))
+                return code;
+
+            var result = new StringBuilder(code.Length + 64);
+            int len = code.Length;
+            int lambdaDepth = 0; // depth inside => { } lambda bodies
+
+            // Stack tracking which braces are lambda-body openers.
+            // When we see => {, we push true; for other {, we push false.
+            // On }, we pop and adjust lambdaDepth accordingly.
+            var braceIsLambda = new Stack<bool>();
+
+            int i = 0;
+            while (i < len)
+            {
+                char c = code[i];
+
+                // ── Skip string literals ──
+                if (c == '"')
+                {
+                    // Verbatim string @"..."
+                    if (i > 0 && code[i - 1] == '@')
+                    {
+                        result.Append(c);
+                        i++;
+                        while (i < len)
+                        {
+                            result.Append(code[i]);
+                            if (code[i] == '"')
+                            {
+                                if (i + 1 < len && code[i + 1] == '"')
+                                {
+                                    result.Append(code[i + 1]);
+                                    i += 2;
+                                }
+                                else
+                                {
+                                    i++;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                i++;
+                            }
+                        }
+                        continue;
+                    }
+                    // Regular string "..."
+                    result.Append(c);
+                    i++;
+                    while (i < len)
+                    {
+                        result.Append(code[i]);
+                        if (code[i] == '\\')
+                        {
+                            i++;
+                            if (i < len)
+                            {
+                                result.Append(code[i]);
+                                i++;
+                            }
+                        }
+                        else if (code[i] == '"')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+
+                // ── Skip char literals ──
+                if (c == '\'')
+                {
+                    result.Append(c);
+                    i++;
+                    while (i < len)
+                    {
+                        result.Append(code[i]);
+                        if (code[i] == '\\')
+                        {
+                            i++;
+                            if (i < len)
+                            {
+                                result.Append(code[i]);
+                                i++;
+                            }
+                        }
+                        else if (code[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+
+                // ── Skip line comments ──
+                if (c == '/' && i + 1 < len && code[i + 1] == '/')
+                {
+                    while (i < len && code[i] != '\n')
+                    {
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    continue;
+                }
+
+                // ── Skip block comments ──
+                if (c == '/' && i + 1 < len && code[i + 1] == '*')
+                {
+                    result.Append(code[i]);
+                    result.Append(code[i + 1]);
+                    i += 2;
+                    while (i < len)
+                    {
+                        if (code[i] == '*' && i + 1 < len && code[i + 1] == '/')
+                        {
+                            result.Append(code[i]);
+                            result.Append(code[i + 1]);
+                            i += 2;
+                            break;
+                        }
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    continue;
+                }
+
+                // ── Track => { for lambda body detection ──
+                if (c == '=' && i + 1 < len && code[i + 1] == '>')
+                {
+                    result.Append('=');
+                    result.Append('>');
+                    i += 2;
+                    // Skip whitespace after =>
+                    while (
+                        i < len
+                        && (code[i] == ' ' || code[i] == '\t' || code[i] == '\r' || code[i] == '\n')
+                    )
+                    {
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    // If next char is {, this is a lambda body
+                    if (i < len && code[i] == '{')
+                    {
+                        braceIsLambda.Push(true);
+                        lambdaDepth++;
+                        result.Append('{');
+                        i++;
+                    }
+                    continue;
+                }
+
+                // ── Track braces ──
+                if (c == '{')
+                {
+                    braceIsLambda.Push(false);
+                    result.Append(c);
+                    i++;
+                    continue;
+                }
+                if (c == '}')
+                {
+                    if (braceIsLambda.Count > 0 && braceIsLambda.Pop())
+                        lambdaDepth--;
+                    result.Append(c);
+                    i++;
+                    continue;
+                }
+
+                // ── Detect 'return' keyword at lambda depth 0 ──
+                if (
+                    lambdaDepth == 0
+                    && c == 'r'
+                    && i + 5 < len
+                    && code[i + 1] == 'e'
+                    && code[i + 2] == 't'
+                    && code[i + 3] == 'u'
+                    && code[i + 4] == 'r'
+                    && code[i + 5] == 'n'
+                    && (i + 6 >= len || !char.IsLetterOrDigit(code[i + 6]) && code[i + 6] != '_')
+                )
+                {
+                    // Verify this is not part of a larger identifier by checking char before
+                    if (i > 0 && (char.IsLetterOrDigit(code[i - 1]) || code[i - 1] == '_'))
+                    {
+                        result.Append(c);
+                        i++;
+                        continue;
+                    }
+
+                    int afterReturn = i + 6;
+
+                    // Skip whitespace after 'return'
+                    int exprStart = afterReturn;
+                    while (
+                        exprStart < len
+                        && (
+                            code[exprStart] == ' '
+                            || code[exprStart] == '\t'
+                            || code[exprStart] == '\r'
+                            || code[exprStart] == '\n'
+                        )
+                    )
+                        exprStart++;
+
+                    // Case 1: return null;
+                    if (
+                        exprStart + 4 < len
+                        && code[exprStart] == 'n'
+                        && code[exprStart + 1] == 'u'
+                        && code[exprStart + 2] == 'l'
+                        && code[exprStart + 3] == 'l'
+                    )
+                    {
+                        int afterNull = exprStart + 4;
+                        // Skip whitespace
+                        while (
+                            afterNull < len
+                            && (
+                                code[afterNull] == ' '
+                                || code[afterNull] == '\t'
+                                || code[afterNull] == '\r'
+                                || code[afterNull] == '\n'
+                            )
+                        )
+                            afterNull++;
+                        if (afterNull < len && code[afterNull] == ';')
+                        {
+                            result.Append("continue;");
+                            i = afterNull + 1;
+                            continue;
+                        }
+                    }
+
+                    // Case 2: return (EXPR); — unwrap outer parens
+                    // Case 3: return EXPR;
+                    // Find the matching ';' at depth 0 (accounting for nested parens/braces)
+                    int semi = FindStatementEnd(code, exprStart);
+                    if (semi >= 0)
+                    {
+                        string expr = code.Substring(exprStart, semi - exprStart).Trim();
+
+                        // Unwrap a single layer of outer parentheses if present:
+                        // return (V.Element(...));  →  expr = "(V.Element(...))"
+                        // We want the inner expression without the outer parens.
+                        if (expr.Length >= 2 && expr[0] == '(')
+                        {
+                            int matchClose = FindMatchingClose(expr, 0, '(', ')');
+                            if (matchClose == expr.Length - 1)
+                                expr = expr.Substring(1, expr.Length - 2).Trim();
+                        }
+
+                        result.Append(listVar).Append(".Add(").Append(expr).Append("); continue;");
+                        i = semi + 1;
+                        continue;
+                    }
+                }
+
+                result.Append(c);
+                i++;
+            }
+
+            return result.ToString();
+        }
+
+        /// <summary>
+        /// Finds the end-of-statement semicolon for a <c>return</c> expression,
+        /// respecting nested parentheses, braces, brackets, strings, and chars.
+        /// Returns the index of the <c>;</c> or -1 if not found.
+        /// </summary>
+        private static int FindStatementEnd(string code, int start)
+        {
+            int depth = 0; // paren + brace + bracket depth
+            int i = start;
+            int len = code.Length;
+
+            while (i < len)
+            {
+                char c = code[i];
+
+                if (c == '"')
+                {
+                    if (i > 0 && code[i - 1] == '@')
+                    {
+                        i++;
+                        while (i < len)
+                        {
+                            if (code[i] == '"')
+                            {
+                                if (i + 1 < len && code[i + 1] == '"')
+                                {
+                                    i += 2;
+                                }
+                                else
+                                {
+                                    i++;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                i++;
+                            }
+                        }
+                        continue;
+                    }
+                    i++;
+                    while (i < len)
+                    {
+                        if (code[i] == '\\')
+                        {
+                            i += 2;
+                        }
+                        else if (code[i] == '"')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+                if (c == '\'')
+                {
+                    i++;
+                    while (i < len)
+                    {
+                        if (code[i] == '\\')
+                        {
+                            i += 2;
+                        }
+                        else if (code[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+
+                if (c == '(' || c == '{' || c == '[')
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+                if (c == ')' || c == '}' || c == ']')
+                {
+                    depth--;
+                    i++;
+                    continue;
+                }
+
+                if (c == ';' && depth == 0)
+                    return i;
+
+                i++;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Finds the index of the matching closing character for an opening
+        /// delimiter at <paramref name="start"/>.
+        /// Returns -1 if no match is found.
+        /// </summary>
+        private static int FindMatchingClose(string s, int start, char open, char close)
+        {
+            int depth = 0;
+            for (int i = start; i < s.Length; i++)
+            {
+                if (s[i] == open)
+                    depth++;
+                else if (s[i] == close)
+                {
+                    depth--;
+                    if (depth == 0)
+                        return i;
+                }
+            }
+            return -1;
+        }
+
         private static bool IsKey(string name) =>
             string.Equals(name, "key", StringComparison.OrdinalIgnoreCase);
 
@@ -1710,6 +2328,107 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         }
 
         // ΓöÇΓöÇ String / variable helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+        // ── Pool-rent style expression parsing ──────────────────────────
+
+        /// <summary>
+        /// Tries to extract the initializer body from a <c>new Style { ... }</c> expression.
+        /// Returns true if the expression is a simple <c>new Style { PropertySetter, ... }</c>.
+        /// Returns false for non-matching expressions (variables, ternaries, tuple syntax).
+        /// </summary>
+        private static bool TryExtractNewStyleInit(string expr, out string? body)
+        {
+            body = null;
+            if (expr == null)
+                return false;
+
+            string trimmed = expr.Trim();
+
+            // Must start with "new Style" or "new Style{"
+            int idx;
+            if (trimmed.StartsWith("new Style{", StringComparison.Ordinal))
+                idx = "new Style".Length;
+            else if (trimmed.StartsWith("new Style {", StringComparison.Ordinal))
+                idx = "new Style ".Length;
+            else
+                return false;
+
+            // Find the opening brace
+            int braceOpen = trimmed.IndexOf('{', idx);
+            if (braceOpen < 0)
+                return false;
+
+            // Find matching closing brace
+            int depth = 0;
+            int braceClose = -1;
+            for (int i = braceOpen; i < trimmed.Length; i++)
+            {
+                char c = trimmed[i];
+                if (c == '{')
+                    depth++;
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        braceClose = i;
+                        break;
+                    }
+                }
+            }
+            if (braceClose < 0)
+                return false;
+
+            // Must be the entire expression (nothing significant after closing brace)
+            string after = trimmed.Substring(braceClose + 1).Trim();
+            if (after.Length > 0)
+                return false;
+
+            body = trimmed.Substring(braceOpen + 1, braceClose - braceOpen - 1).Trim();
+            if (body.Length == 0)
+            {
+                body = "";
+                return true;
+            } // empty Style
+
+            // Reject tuple initializer syntax: "(StyleKeys.X, val)" — starts with '('
+            if (body[0] == '(')
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Splits a string on top-level commas, respecting nested (), {}, [].
+        /// Does not track &lt;&gt; (ambiguous with comparison operators).
+        /// </summary>
+        private static List<string> SplitTopLevelCommas(string text)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(text))
+                return result;
+
+            int depth = 0;
+            int start = 0;
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == '(' || c == '{' || c == '[')
+                    depth++;
+                else if (c == ')' || c == '}' || c == ']')
+                    depth--;
+                else if (c == ',' && depth == 0)
+                {
+                    result.Add(text.Substring(start, i - start));
+                    start = i + 1;
+                }
+            }
+            if (start < text.Length)
+                result.Add(text.Substring(start));
+            return result;
+        }
+
+        // ── String / variable helpers ───────────────────────────────────
 
         private static string EscStr(string s) =>
             s.Replace("\\", "\\\\")

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core.Fiber
@@ -57,6 +58,27 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     adapter.ApplyProperties(element, newProps);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Apply typed properties to an element using the adapter's typed pipeline.
+        /// Avoids dictionary allocation and iteration.
+        /// </summary>
+        public void ApplyTypedProperties(
+            VisualElement element,
+            string elementType,
+            BaseProps oldProps,
+            BaseProps newProps
+        )
+        {
+            var adapter = _registry.Resolve(elementType);
+            if (adapter is ITypedElementAdapter typed && newProps != null)
+            {
+                if (oldProps != null)
+                    typed.ApplyTypedDiff(element, oldProps, newProps);
+                else
+                    typed.ApplyTypedFull(element, newProps);
             }
         }
 

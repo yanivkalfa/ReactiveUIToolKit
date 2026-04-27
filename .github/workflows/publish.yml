@@ -398,15 +398,20 @@ jobs:
             exit 1
           }
           Write-Host "Using: $($pub.FullName)"
-          $proc = Start-Process -FilePath $pub.FullName -ArgumentList @(
-            'publish',
-            '-payload', "${{ steps.find_vsix.outputs.VSIX_PATH }}",
-            '-publishManifest', 'publishManifest.json',
-            '-personalAccessToken', $env:MARKETPLACE_TOKEN
-          ) -Wait -PassThru -NoNewWindow
-          if ($proc.ExitCode -ne 0) {
-            Write-Host "::error::VsixPublisher failed with exit code $($proc.ExitCode)"
-            exit $proc.ExitCode
+          $output = & $pub.FullName publish `
+            -payload "${{ steps.find_vsix.outputs.VSIX_PATH }}" `
+            -publishManifest publishManifest.json `
+            -personalAccessToken $env:MARKETPLACE_TOKEN 2>&1 | Out-String
+          $exitCode = $LASTEXITCODE
+          Write-Host $output
+          $uploaded = $output -match 'Uploaded'
+          if ($uploaded) {
+            Write-Host "Marketplace upload confirmed"
+          } elseif ($exitCode -ne 0) {
+            Write-Host "::error::VsixPublisher failed (exit code $exitCode) and no upload confirmation found"
+            exit $exitCode
+          } else {
+            Write-Host "::warning::VsixPublisher exited cleanly but no upload confirmation found in output"
           }
 
       - name: Tag published version

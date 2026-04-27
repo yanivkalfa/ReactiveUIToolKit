@@ -1,0 +1,22 @@
+@namespace Samples.DoomGame
+@using static Samples.DoomGame.DoomTypes
+
+component DoomHUD(
+  int health,
+  int armor,
+  int ammo,
+  string weaponName,
+  int score,
+  float fps
+) {
+  return (
+    <VisualElement style={HudStyles.Bar}>
+      <Label text={$"HP: {health}"} style={HudStyles.HealthLabel} />
+      <Label text={$"ARM: {armor}"} style={HudStyles.ArmorLabel} />
+      <Label text={$"AMMO: {ammo}"} style={HudStyles.AmmoLabel} />
+      <Label text={weaponName} style={HudStyles.WeaponLabel} />
+      <Label text={$"SCORE: {score}"} style={HudStyles.StatLabel} />
+      <Label text={$"FPS: {fps:F0}"} style={HudStyles.StatLabel} />
+    </VisualElement>
+  );
+}
