@@ -64,6 +64,10 @@ module DoomTypes {
     public float CeilingZ;
     // Phase 4: sector special (lighting/damage). None by default.
     public SectorSpecial Special;
+    // Phase 7: open-air ceiling. When true, the ceiling renders as sky and
+    // the player is not bonked; the cell behaves as if CeilingZ = +infinity
+    // for vertical movement.
+    public bool IsSky;
   }
 
   public struct MapDef {
@@ -86,6 +90,29 @@ module DoomTypes {
         return c.DoorState < 200;
       }
       return false;
+    }
+
+    // Phase 7: Z-aware blocking. The cell blocks the actor if either its
+    // floor is more than `stepHeight` above the actor's feet, or its ceiling
+    // is below the actor's head. Walls remain infinite blockers. Sky cells
+    // ignore the ceiling check entirely.
+    public bool BlocksMovementZ(int x, int y, float footZ, float headZ, float stepHeight) {
+      var c = AtSafe(x, y);
+      if (c.Kind == CellKind.Wall) return true;
+      if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue || c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
+        if (c.DoorState < 200) return true;
+      }
+      float floor = c.FloorZ;
+      float ceil = c.CeilingZ <= 0f ? 1.5f : c.CeilingZ;
+      if (floor - footZ > stepHeight) return true;
+      if (!c.IsSky && ceil < headZ - 0.001f) return true;
+      return false;
+    }
+
+    // Phase 7: floor height the actor would stand on at this cell.
+    public float FloorAt(int x, int y) {
+      var c = AtSafe(x, y);
+      return c.FloorZ;
     }
 
     public bool BlocksRays(int x, int y) {
@@ -380,16 +407,16 @@ module DoomTypes {
           if (c.Kind == CellKind.Wall) continue;
           var s = new Sector {
             FloorZ = c.FloorZ,
-            CeilingZ = c.CeilingZ <= 0f ? 1.5f : c.CeilingZ,
+            CeilingZ = c.IsSky ? 64f : (c.CeilingZ <= 0f ? 1.5f : c.CeilingZ),
             Light = c.LightLevel == 0 ? (byte)200 : c.LightLevel,
             FloorTex = c.FloorTexIdx,
             CeilingTex = c.CeilingTexIdx,
             Special = c.Special,
             Tag = c.Tag,
-            IsSky = false,
+            IsSky = c.IsSky,
             LineIds = new List<int>(4),
             ExtraFloors = null,
-            TargetCeilingZ = c.CeilingZ <= 0f ? 1.5f : c.CeilingZ,
+            TargetCeilingZ = c.IsSky ? 64f : (c.CeilingZ <= 0f ? 1.5f : c.CeilingZ),
             TargetFloorZ = c.FloorZ,
             CeilingSpeed = 0f, FloorSpeed = 0f, DoorWaitTimer = 0f,
           };

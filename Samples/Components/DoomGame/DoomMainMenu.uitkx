@@ -76,6 +76,11 @@ component DoomMainMenu(
           onClick={_ => onLevelChange(3)}
           style={BtnStyle(level == 3)}
         />
+        <Button
+          text="E1M4: Outpost (3D)"
+          onClick={_ => onLevelChange(4)}
+          style={BtnStyle(level == 4)}
+        />
       </VisualElement>
       <VisualElement
         style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row, MarginBottom = 36, AlignItems = Align.Center }}

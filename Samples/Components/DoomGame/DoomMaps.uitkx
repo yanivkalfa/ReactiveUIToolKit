@@ -121,6 +121,44 @@ module DoomMaps {
       return this;
     }
 
+    // Phase 7: raised platform / step. Sets per-cell FloorZ on an existing
+    // walkable cell. Use STEP_HEIGHT (0.4) units for a single step.
+    public MapBuilder Step(int x0, int y0, int x1, int y1, float floorZ) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.FloorZ = floorZ;
+        }
+      }
+      return this;
+    }
+
+    // Phase 7: low ceiling / overhang. Sets per-cell CeilingZ.
+    public MapBuilder LowCeiling(int x0, int y0, int x1, int y1, float ceilZ) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.CeilingZ = ceilZ;
+        }
+      }
+      return this;
+    }
+
+    // Phase 7: open-air ceiling. Player can jump as high as they like and
+    // looks up into sky.
+    public MapBuilder Sky(int x0, int y0, int x1, int y1) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.IsSky = true;
+        }
+      }
+      return this;
+    }
+
     public MapBuilder PlayerStart(float x, float y, float angle) {
       PX = x; PY = y; PAng = angle; return this;
     }
@@ -205,6 +243,7 @@ module DoomMaps {
       case 1: return Level1();
       case 2: return Level2();
       case 3: return Level3();
+      case 4: return Level4();
       default: return Level1();
     }
   }
@@ -438,6 +477,66 @@ module DoomMaps {
     b.Spawn(MobjKind.Shotgunner, 18.5f, 18.5f);
     b.Spawn(MobjKind.Shotgunner, 38.5f, 18.5f);
     b.Spawn(MobjKind.Baron, 28.5f, 8.5f, Mathf.PI / 2f);
+
+    return b.Build();
+  }
+
+  // E1M4 — "Outpost" — Phase 7 showcase: open courtyard with sky, stair
+  // staircase, raised platform you must jump or climb onto, and a low tunnel
+  // you must crouch through.
+  public static LevelStart Level4() {
+    var b = new MapBuilder(40, 40, "E1M4: Outpost");
+
+    // Outdoor courtyard floor (grass under sky)
+    b.Fill(2, 2, 37, 37, (byte)F_GRASS, (byte)F_GRASS, 230);
+    b.Border((byte)W_BRICK_GREY);
+    b.Sky(2, 2, 37, 37);
+
+    // Player starts in the south, looking north.
+    b.PlayerStart(8.5f, 32.5f, -Mathf.PI / 2f);
+
+    // Stairs going up north toward a raised plateau (4 steps).
+    b.Step(6, 24, 14, 24, 0.0f);
+    b.Step(6, 23, 14, 23, 0.4f);
+    b.Step(6, 22, 14, 22, 0.8f);
+    b.Step(6, 21, 14, 21, 1.2f);
+    // Plateau on top
+    b.Step(4, 14, 16, 20, 1.6f);
+
+    // Raised pillar of brick to the east (must jump to climb)
+    b.Step(22, 30, 26, 32, 0.7f);
+
+    // Low tunnel west (height 0.7, must crouch). Opens into a small room.
+    b.Box(20, 16, 28, 22, (byte)W_BRICK_GREY);
+    b.Fill(21, 17, 27, 21, (byte)F_TILE, (byte)F_CONCRETE, 160);
+    // Tunnel mouth (open the south wall)
+    b.At(24, 22).Kind = CellKind.Empty;
+    b.At(24, 22).FloorTexIdx = (byte)F_TILE;
+    b.LowCeiling(24, 22, 24, 22, 0.7f);
+    b.LowCeiling(21, 17, 27, 21, 1.4f);
+
+    // A taller "lookout tower" in the NE — sky room with high parapet.
+    b.Box(28, 4, 36, 12, (byte)W_BRICK_RED);
+    b.Fill(29, 5, 35, 11, (byte)F_TILE, (byte)F_TILE, 220);
+    b.Sky(29, 5, 35, 11);
+    // Doorway in
+    b.At(32, 12).Kind = CellKind.Empty; b.At(32, 12).FloorTexIdx = (byte)F_TILE;
+
+    // Exit on the plateau
+    b.Exit(10, 16);
+
+    // Some enemies and pickups
+    b.Spawn(MobjKind.Imp, 10.5f, 18.5f);          // on plateau
+    b.Spawn(MobjKind.Demon, 24.5f, 31.5f);         // near pillar
+    b.Spawn(MobjKind.Cacodemon, 32.5f, 8.5f);      // hovering in tower
+    b.Spawn(MobjKind.Zombieman, 24.5f, 19.5f);     // in tunnel
+    b.Spawn(MobjKind.Shotgunner, 6.5f, 26.5f);     // near stairs
+
+    b.Spawn(MobjKind.PickupHealth, 8.5f, 28.5f);
+    b.Spawn(MobjKind.PickupShells, 12.5f, 16.5f);
+    b.Spawn(MobjKind.PickupShotgun, 24.5f, 31.5f);
+    b.Spawn(MobjKind.PickupArmor, 32.5f, 8.5f);
+    b.Spawn(MobjKind.PickupBullets, 24.5f, 19.5f);
 
     return b.Build();
   }

@@ -917,8 +917,12 @@ module GameLogic {
       byte light = LightFromDist(perp, front.Light);
 
       if (terminal) {
-        // Full wall from front.FloorZ to front.CeilingZ
-        float top = horizon - (front.CeilingZ - viewZ) * scale;
+        // Full wall from front.FloorZ to front.CeilingZ. Sky sectors get a
+        // capped wall height so the sky shows above the surrounding parapet.
+        float ceilForWall = front.IsSky
+          ? Mathf.Min(front.CeilingZ, front.FloorZ + 2.5f)
+          : front.CeilingZ;
+        float top = horizon - (ceilForWall - viewZ) * scale;
         float bot = horizon - (front.FloorZ - viewZ) * scale;
         depthOut = perp;
         return new ColumnInfo {
@@ -1137,15 +1141,45 @@ module GameLogic {
     // X axis
     if (!CollidesAt(ref st, nx, y, radius, isPlayer, selfIdx)) x = nx;
     if (!CollidesAt(ref st, x, ny, radius, isPlayer, selfIdx)) y = ny;
+
+    // Phase 7: step-up. After horizontal motion, snap player Z up to the
+    // tallest cell footprint they're standing on (within STEP_HEIGHT).
+    if (isPlayer) {
+      float footZ = st.Player.Z;
+      int gx0 = (int)(x - radius), gx1 = (int)(x + radius);
+      int gy0 = (int)(y - radius), gy1 = (int)(y + radius);
+      float bestFloor = 0f;
+      for (int gy = gy0; gy <= gy1; gy++) {
+        for (int gx = gx0; gx <= gx1; gx++) {
+          float fz = st.Map.FloorAt(gx, gy);
+          if (fz > bestFloor && fz - footZ <= C.STEP_HEIGHT + 0.001f) bestFloor = fz;
+        }
+      }
+      // Only auto-snap up while on or near the ground; jumping/falling is
+      // handled by gravity in UpdatePlayerVertical.
+      if (bestFloor > footZ && Mathf.Abs(st.Player.ZVel) < 0.01f) {
+        st.Player.Z = bestFloor;
+        st.Player.ZVel = 0f;
+      }
+    }
   }
 
   private static bool CollidesAt(ref GameState st, float x, float y, float r, bool isPlayer, int selfIdx) {
-    // wall collision with circle vs cell
+    // wall collision with circle vs cell. For the player we use Z-aware
+    // blocking so they can step over short ledges and crouch under low
+    // ceilings; monsters retain the old 2D blocker semantics.
     int gx0 = (int)(x - r), gx1 = (int)(x + r);
     int gy0 = (int)(y - r), gy1 = (int)(y + r);
+    float footZ = isPlayer ? st.Player.Z : 0f;
+    float headZ = isPlayer
+      ? st.Player.Z + (st.Player.ViewHeight < C.PLAYER_VIEW_HEIGHT ? C.CROUCH_HEIGHT + 0.15f : C.PLAYER_HEIGHT)
+      : 0.7f;
     for (int gy = gy0; gy <= gy1; gy++) {
       for (int gx = gx0; gx <= gx1; gx++) {
-        if (st.Map.BlocksMovement(gx, gy)) {
+        bool blocks = isPlayer
+          ? st.Map.BlocksMovementZ(gx, gy, footZ, headZ, C.STEP_HEIGHT)
+          : st.Map.BlocksMovement(gx, gy);
+        if (blocks) {
           float cx = Mathf.Clamp(x, gx, gx + 1);
           float cy = Mathf.Clamp(y, gy, gy + 1);
           float ddx = x - cx, ddy = y - cy;
