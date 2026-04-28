@@ -1,0 +1,276 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTextures
+
+component DoomGameScreen(
+  int restartVersion,
+  int level,
+  Difficulty difficulty,
+  Action onExit,
+  Action onNextLevel
+) {
+  var viewRef = useRef<VisualElement?>(null);
+  var (state, restart, onKeyDown, onPointerMove, onPointerDown, onPointerUp) = useDoomGame(viewRef, level, difficulty);
+
+  var prevVersion = useRef(restartVersion);
+  if (prevVersion.Current != restartVersion) {
+    prevVersion.Current = restartVersion;
+    restart();
+  }
+
+  var hurtAlpha = state.Player.HurtFlash * 0.6f;
+  var pickupAlpha = state.Player.PickupFlash * 0.35f;
+  var muzzleAlpha = state.Player.MuzzleFlash > 0 ? 1f : 0f;
+
+  var black = new Color(0f, 0f, 0f, 1f);
+  var border = new Color(0.7f, 0.5f, 0.2f, 1f);
+  var white = new Color(1f, 1f, 1f, 1f);
+  var msgClr = new Color(0.95f, 0.85f, 0.40f, 1f);
+
+  return (
+    <VisualElement
+      ref={viewRef}
+      focusable={true}
+      tabIndex={0}
+      onKeyDownCapture={onKeyDown}
+      onPointerMove={onPointerMove}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      style={new Style{
+        Width = C.VIEWPORT_W, Height = C.VIEWPORT_H + C.HUD_HEIGHT,
+        AlignSelf = Align.Center, MarginTop = 16,
+        BackgroundColor = black,
+        BorderTopWidth = 2, BorderRightWidth = 2, BorderBottomWidth = 2, BorderLeftWidth = 2,
+        BorderTopColor = border, BorderRightColor = border, BorderBottomColor = border, BorderLeftColor = border,
+      }}
+    >
+      // ── 3D viewport ──
+      <VisualElement
+        style={new Style{
+          Width = C.VIEWPORT_W, Height = C.VIEWPORT_H,
+          Position = UnityEngine.UIElements.Position.Relative,
+          Overflow = UnityEngine.UIElements.Overflow.Hidden,
+        }}
+      >
+        // Sky
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0,
+            Width = C.VIEWPORT_W, Height = C.VIEWPORT_H * 0.5f + state.Player.Pitch,
+            BackgroundImage = DoomTextures.Sky,
+            BackgroundSize = new BackgroundSize(new Length(C.VIEWPORT_W * 1.5f, LengthUnit.Pixel), new Length(C.VIEWPORT_H * 0.5f + 250f, LengthUnit.Pixel)),
+            BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(-((state.Player.Angle / (2f * Mathf.PI)) * C.VIEWPORT_W * 1.5f) % (C.VIEWPORT_W * 1.5f), LengthUnit.Pixel)),
+            BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+          }}
+        />
+        // Floor bands
+        @foreach (var i in System.Linq.Enumerable.Range(0, 10)) {
+          float t = i / 10f;
+          float horizonY = C.VIEWPORT_H * 0.5f + state.Player.Pitch;
+          float floorH = C.VIEWPORT_H - horizonY;
+          float bandTop = horizonY + floorH * t;
+          float bandHeight = floorH / 10f + 1f;
+          float shade = Mathf.Lerp(0.08f, 0.30f, t);
+
+          return (
+            <VisualElement
+              key={"floor-" + i.ToString()}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = bandTop, Width = C.VIEWPORT_W, Height = bandHeight,
+                BackgroundColor = new Color(shade * 0.9f, shade * 0.85f, shade * 0.75f, 1f),
+              }}
+            />
+          );
+        }
+        // Wall strips
+        @foreach (var i in System.Linq.Enumerable.Range(0, C.VIEW_W)) {
+          var col = state.Frame.Columns[i].Main;
+          if (col.IsSky)
+
+          return (
+            <VisualElement
+              key={"w" + i.ToString()}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = i * C.STRIP_W, Top = top,
+                Width = C.STRIP_W + 0.6f, Height = h,
+                BackgroundImage = tex,
+                BackgroundSize = new BackgroundSize(new Length(bgWidth, LengthUnit.Pixel), new Length(h, LengthUnit.Pixel)),
+                BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(bgOffsetX, LengthUnit.Pixel)),
+                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+                BackgroundImageTint = new Color(lightF, lightF * vertDim, lightF * vertDim, 1f),
+              }}
+            />
+          );
+        }
+        // Sprite billboards
+        @foreach (var sprite in DoomGameScreenLogic.BuildSpriteList(state)) {
+          return (
+            <VisualElement
+              key={"s" + sprite.Id.ToString()}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = sprite.ScreenX - sprite.Size * 0.5f,
+                Top  = sprite.ScreenY - sprite.Size * 0.5f + state.Player.Pitch,
+                Width = sprite.Size, Height = sprite.Size,
+                BackgroundImage = DoomTextures.Sprites[sprite.SpriteIdx],
+                BackgroundImageTint = new Color(sprite.Tint.r / 255f * sprite.Light, sprite.Tint.g / 255f * sprite.Light, sprite.Tint.b / 255f * sprite.Light, 1f),
+              }}
+            />
+          );
+        }
+        // Weapon HUD
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = (C.VIEWPORT_W - 256) * 0.5f + Mathf.Sin(state.Player.BobT) * 6f,
+            Bottom = -10 + Mathf.Abs(Mathf.Sin(state.Player.BobT)) * 6f,
+            Width = 256, Height = 192,
+            BackgroundImage = DoomTextures.Weapons[(int)state.Player.Weapon],
+          }}
+        />
+        // Muzzle flash
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = (C.VIEWPORT_W - 256) * 0.5f + Mathf.Sin(state.Player.BobT) * 6f,
+            Bottom = -10 + Mathf.Abs(Mathf.Sin(state.Player.BobT)) * 6f,
+            Width = 256, Height = 192,
+            BackgroundImage = DoomTextures.Weapons[7],
+            Opacity = muzzleAlpha,
+          }}
+        />
+        // Crosshair
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = C.VIEWPORT_W * 0.5f - 4, Top = C.VIEWPORT_H * 0.5f - 4 + state.Player.Pitch,
+            Width = 8, Height = 8,
+            BorderTopLeftRadius = 4, BorderTopRightRadius = 4, BorderBottomLeftRadius = 4, BorderBottomRightRadius = 4,
+            BackgroundColor = new Color(0.95f, 0.95f, 0.5f, 0.7f),
+          }}
+        />
+        // Hurt flash
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+            BackgroundColor = new Color(0.85f, 0.05f, 0.05f, hurtAlpha),
+          }}
+        />
+        // Pickup flash
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+            BackgroundColor = new Color(0.95f, 0.85f, 0.2f, pickupAlpha),
+          }}
+        />
+        // Pickup message
+        @if (state.Player.MessageTimer > 0) {
+          return (
+            <Label
+              text={state.Player.MessageText}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute, Top = 12, Left = 0, Right = 0,
+                TextAlign = TextAnchor.MiddleCenter, Color = msgClr,
+                FontSize = 14, UnityFontStyle = FontStyle.Bold,
+              }}
+            />
+          );
+        }
+      </VisualElement>
+      // ── HUD ──
+      <DoomHUD
+        health={state.Player.Health}
+        armor={state.Player.Armor}
+        armorClass={state.Player.ArmorClass}
+        weapon={state.Player.Weapon}
+        ammo={state.Player.Ammo}
+        ownedWeapons={state.Player.OwnedWeapons}
+        keys={state.Player.Keys}
+        score={state.Score}
+        killCount={state.KillCount}
+        killTotal={state.KillTotal}
+        mapName={state.Map.Name}
+        faceState={state.Player.FaceState}
+      />
+      // ── Overlays ──
+      @if (state.GameOver) {
+        return (
+          <VisualElement
+            style={new Style{
+              Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+              JustifyContent = Justify.Center, AlignItems = Align.Center,
+              BackgroundColor = new Color(0f, 0f, 0f, 0.7f),
+            }}
+          >
+            <Label
+              text="YOU DIED"
+              style={new Style{
+                FontSize = 64, Color = new Color(0.95f, 0.15f, 0.10f, 1f),
+                UnityFontStyle = FontStyle.Bold, MarginBottom = 24,
+              }}
+            />
+            <VisualElement
+              style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row }}
+            >
+              <Button
+                text="Restart"
+                onClick={_ => restart()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44, MarginRight = 12 }}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => onExit()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44 }}
+              />
+            </VisualElement>
+          </VisualElement>
+        );
+      }
+      @if (state.Victory) {
+        return (
+          <VisualElement
+            style={new Style{
+              Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+              JustifyContent = Justify.Center, AlignItems = Align.Center,
+              BackgroundColor = new Color(0f, 0f, 0f, 0.7f),
+            }}
+          >
+            <Label
+              text="LEVEL COMPLETE"
+              style={new Style{
+                FontSize = 48, Color = new Color(0.4f, 0.95f, 0.4f, 1f),
+                UnityFontStyle = FontStyle.Bold, MarginBottom = 12,
+              }}
+            />
+            <Label
+              text={"Kills: " + state.KillCount.ToString() + " / " + state.KillTotal.ToString() + "    Score: " + state.Score.ToString()}
+              style={new Style{ FontSize = 18, Color = white, MarginBottom = 24 }}
+            />
+            <VisualElement
+              style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row }}
+            >
+              <Button
+                text={level < 3 ? "Next Level" : "Finish"}
+                onClick={_ => onNextLevel()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44, MarginRight = 12 }}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => onExit()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44 }}
+              />
+            </VisualElement>
+          </VisualElement>
+        );
+      }
+    </VisualElement>
+  );
+}

@@ -3,82 +3,422 @@
 @using System.Collections.Generic
 @using UnityEngine
 @using static Samples.DoomGame.DoomTypes
-@using static Samples.DoomGame.DoomTypes.C
+@using static Samples.DoomGame.DoomTextures
 
 module DoomMaps {
-  // ───── Level 1 ─────
+  public struct LevelStart {
+    public MapDef Map;
+    public float PlayerX, PlayerY, PlayerAngle;
+    public List<Mobj> Mobjs;
+  }
 
-  public static MapDef Level1() {
-    int w = 16;
-    int h = 16;
-    // 1=Wall1, 2=Wall2, 3=Wall3, 4=Wall4, 0=Empty
-    int[] raw = {
-      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-      1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-      1,0,0,2,2,0,0,0,0,0,3,3,0,0,0,1,
-      1,0,0,2,2,0,0,0,0,0,3,3,0,0,0,1,
-      1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,4,4,4,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,4,0,4,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,4,0,4,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-      1,0,0,3,0,0,0,0,0,0,0,2,0,0,0,1,
-      1,0,0,3,0,0,0,0,0,0,0,2,0,0,0,1,
-      1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    };
+  // ───── Builder ─────
 
-    var cells = new CellType[raw.Length];
-    for (int i = 0; i < raw.Length; i++) {
-      cells[i] = raw[i] switch {
-        1 => CellType.Wall1,
-        2 => CellType.Wall2,
-        3 => CellType.Wall3,
-        4 => CellType.Wall4,
-        _ => CellType.Empty,
-      };
+  public class MapBuilder {
+    public int W, H;
+    public Cell[] Cells;
+    public string Name;
+    public List<Mobj> Mobjs = new List<Mobj>();
+    public float PX, PY, PAng;
+
+    public MapBuilder(int w, int h, string name) {
+      W = w; H = h; Name = name;
+      Cells = new Cell[w * h];
+      for (int i = 0; i < Cells.Length; i++) {
+        Cells[i] = new Cell {
+          Kind = CellKind.Empty,
+          WallTexIdx = (byte)W_BRICK_GREY,
+          FloorTexIdx = (byte)F_CONCRETE,
+          CeilingTexIdx = (byte)F_CONCRETE,
+          LightLevel = 200,
+        };
+      }
     }
 
-    return new MapDef { Width = w, Height = h, Cells = cells };
+    public ref Cell At(int x, int y) {
+      return ref Cells[y * W + x];
+    }
+
+    public MapBuilder Border(byte wallTex) {
+      for (int x = 0; x < W; x++) {
+        ref var top = ref At(x, 0); top.Kind = CellKind.Wall; top.WallTexIdx = wallTex;
+        ref var bot = ref At(x, H-1); bot.Kind = CellKind.Wall; bot.WallTexIdx = wallTex;
+      }
+      for (int y = 0; y < H; y++) {
+        ref var l = ref At(0, y); l.Kind = CellKind.Wall; l.WallTexIdx = wallTex;
+        ref var r = ref At(W-1, y); r.Kind = CellKind.Wall; r.WallTexIdx = wallTex;
+      }
+      return this;
+    }
+
+    public MapBuilder Fill(int x0, int y0, int x1, int y1, byte floorTex, byte ceilTex, byte light) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.Kind = CellKind.Empty;
+          c.FloorTexIdx = floorTex;
+          c.CeilingTexIdx = ceilTex;
+          c.LightLevel = light;
+        }
+      }
+      return this;
+    }
+
+    public MapBuilder Box(int x0, int y0, int x1, int y1, byte wallTex) {
+      for (int x = x0; x <= x1; x++) {
+        if (x >= 0 && x < W) {
+          if (y0 >= 0 && y0 < H) { ref var c = ref At(x, y0); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+          if (y1 >= 0 && y1 < H) { ref var c = ref At(x, y1); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+        }
+      }
+      for (int y = y0; y <= y1; y++) {
+        if (y >= 0 && y < H) {
+          if (x0 >= 0 && x0 < W) { ref var c = ref At(x0, y); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+          if (x1 >= 0 && x1 < W) { ref var c = ref At(x1, y); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+        }
+      }
+      return this;
+    }
+
+    public MapBuilder Wall(int x, int y, byte wallTex) {
+      if (x < 0 || x >= W || y < 0 || y >= H) return this;
+      ref var c = ref At(x, y);
+      c.Kind = CellKind.Wall; c.WallTexIdx = wallTex;
+      return this;
+    }
+
+    public MapBuilder Door(int x, int y, CellKind kind = CellKind.Door) {
+      if (x < 0 || x >= W || y < 0 || y >= H) return this;
+      ref var c = ref At(x, y);
+      c.Kind = kind;
+      c.WallTexIdx = kind == CellKind.DoorBlue ? (byte)W_DOOR_BLUE
+      : kind == CellKind.DoorYellow ? (byte)W_DOOR_YELLOW
+      : kind == CellKind.DoorRed ? (byte)W_DOOR_RED
+      : (byte)W_DOOR;
+      c.DoorState = 0;
+      c.DoorTimer = 0;
+      return this;
+    }
+
+    public MapBuilder Exit(int x, int y) {
+      if (x < 0 || x >= W || y < 0 || y >= H) return this;
+      ref var c = ref At(x, y);
+      c.Kind = CellKind.Exit;
+      c.WallTexIdx = (byte)W_EXIT;
+      return this;
+    }
+
+    public MapBuilder Liquid(int x0, int y0, int x1, int y1, byte tex) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.Kind = CellKind.Liquid;
+          c.FloorTexIdx = tex;
+        }
+      }
+      return this;
+    }
+
+    public MapBuilder PlayerStart(float x, float y, float angle) {
+      PX = x; PY = y; PAng = angle; return this;
+    }
+
+    public MapBuilder Spawn(MobjKind kind, float x, float y, float angle = 0f) {
+      var m = new Mobj {
+        Id = 0, // assigned later
+        Kind = kind,
+        State = (kind >= MobjKind.PickupHealth) ? AIState.Idle : AIState.Idle,
+        X = x, Y = y, Angle = angle,
+        Health = HealthFor(kind),
+        Radius = RadiusFor(kind),
+        AnimFrame = 0,
+      };
+      Mobjs.Add(m);
+      return this;
+    }
+
+    public LevelStart Build() {
+      return new LevelStart {
+        Map = new MapDef { Width = W, Height = H, Cells = Cells, Name = Name },
+        PlayerX = PX, PlayerY = PY, PlayerAngle = PAng,
+        Mobjs = Mobjs,
+      };
+    }
   }
 
-  public static List<EnemyState> Level1Enemies() {
-    return new List<EnemyState> {
-      new EnemyState { Id = 1, Kind = EnemyKind.Imp, AI = EnemyAI.Idle, X = 7.5f, Y = 3.5f, Health = IMP_HEALTH, AttackCooldown = 0f },
-      new EnemyState { Id = 2, Kind = EnemyKind.Imp, AI = EnemyAI.Idle, X = 12.5f, Y = 5.5f, Health = IMP_HEALTH, AttackCooldown = 0f },
-      new EnemyState { Id = 3, Kind = EnemyKind.Demon, AI = EnemyAI.Idle, X = 3.5f, Y = 10.5f, Health = DEMON_HEALTH, AttackCooldown = 0f },
-      new EnemyState { Id = 4, Kind = EnemyKind.Imp, AI = EnemyAI.Idle, X = 10.5f, Y = 12.5f, Health = IMP_HEALTH, AttackCooldown = 0f },
-      new EnemyState { Id = 5, Kind = EnemyKind.Baron, AI = EnemyAI.Idle, X = 7.5f, Y = 7.5f, Health = BARON_HEALTH, AttackCooldown = 0f },
-    };
+  public static int HealthFor(MobjKind k) {
+    switch (k) {
+      case MobjKind.Imp: return C.HP_IMP;
+      case MobjKind.Demon: return C.HP_DEMON;
+      case MobjKind.Baron: return C.HP_BARON;
+      case MobjKind.Cacodemon: return C.HP_CACO;
+      case MobjKind.LostSoul: return C.HP_LOST;
+      case MobjKind.Zombieman: return C.HP_ZOMBIE;
+      case MobjKind.Shotgunner: return C.HP_SHOTG;
+      case MobjKind.Barrel: return C.HP_BARREL;
+      default: return 1;
+    }
   }
 
-  public static List<PickupState> Level1Pickups() {
-    return new List<PickupState> {
-      new PickupState { Id = 1, Type = PickupType.Health, X = 2.5f, Y = 2.5f },
-      new PickupState { Id = 2, Type = PickupType.Ammo, X = 13.5f, Y = 2.5f },
-      new PickupState { Id = 3, Type = PickupType.Shotgun, X = 5.5f, Y = 8.5f },
-      new PickupState { Id = 4, Type = PickupType.Health, X = 13.5f, Y = 13.5f },
-      new PickupState { Id = 5, Type = PickupType.Armor, X = 2.5f, Y = 13.5f },
-    };
+  public static float RadiusFor(MobjKind k) {
+    switch (k) {
+      case MobjKind.Cacodemon:
+      case MobjKind.Baron: return 0.42f;
+      case MobjKind.Demon: return 0.36f;
+      case MobjKind.Barrel: return 0.25f;
+      case MobjKind.ImpFireball:
+      case MobjKind.BaronBall:
+      case MobjKind.CacoBall:
+      case MobjKind.PlasmaProj:
+      case MobjKind.RocketProj:
+      case MobjKind.BfgProj: return 0.12f;
+      default: return 0.3f;
+    }
   }
 
-  public static PlayerState Level1Player() {
-    return new PlayerState {
-      X = 2.5f,
-      Y = 1.5f,
-      Angle = Mathf.PI / 2f, // facing south
-      Health = START_HEALTH,
-      Armor = START_ARMOR,
-      Weapon = WeaponType.Pistol,
-      AmmoPistol = START_AMMO_PISTOL,
-      AmmoShotgun = 0,
-      AmmoChaingun = 0,
-      ShootCooldown = 0f,
-      BobTimer = 0f,
-      Alive = true,
-    };
+  // ───── Levels ─────
+
+  public static LevelStart BuildLevel(int level) {
+    switch (level) {
+      case 1: return Level1();
+      case 2: return Level2();
+      case 3: return Level3();
+      default: return Level1();
+    }
+  }
+
+  // E1M1 — "Hangar" — intro corridor → main hall → key door → exit
+  public static LevelStart Level1() {
+    var b = new MapBuilder(48, 48, "E1M1: Hangar");
+    // outer arena
+    b.Fill(1, 1, 46, 46, (byte)F_CONCRETE, (byte)F_CONCRETE, 200);
+    b.Border((byte)W_TECH_PANEL);
+
+    // starting corridor (bottom)
+    b.Fill(20, 38, 28, 46, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.Box(19, 37, 29, 47, (byte)W_TECH_PANEL);
+    b.Fill(20, 38, 28, 46, (byte)F_TILE, (byte)F_CONCRETE, 220);
+
+    // hub (center)
+    b.Fill(10, 18, 38, 36, (byte)F_TILE, (byte)F_CONCRETE, 200);
+    b.Box(9, 17, 39, 37, (byte)W_TECH_PANEL);
+    b.Fill(10, 18, 38, 36, (byte)F_TILE, (byte)F_CONCRETE, 200);
+
+    // door from corridor → hub
+    b.Fill(20, 36, 28, 38, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.Door(24, 37);
+
+    // pillars in hub
+    b.Wall(16, 24, (byte)W_BRICK_RED);
+    b.Wall(16, 30, (byte)W_BRICK_RED);
+    b.Wall(32, 24, (byte)W_BRICK_RED);
+    b.Wall(32, 30, (byte)W_BRICK_RED);
+
+    // side wing west - has shotgun + ammo
+    b.Fill(2, 20, 8, 34, (byte)F_TILE, (byte)F_CONCRETE, 180);
+    b.Box(1, 19, 9, 35, (byte)W_BRICK_GREY);
+    b.Fill(2, 20, 8, 34, (byte)F_TILE, (byte)F_CONCRETE, 180);
+    b.Fill(8, 26, 10, 28, (byte)F_TILE, (byte)F_CONCRETE, 180);
+    b.At(9, 26).Kind = CellKind.Empty; b.At(9, 27).Kind = CellKind.Empty; b.At(9, 28).Kind = CellKind.Empty;
+
+    // side wing east - blue key here
+    b.Fill(40, 20, 45, 34, (byte)F_TILE, (byte)F_CONCRETE, 160);
+    b.Box(39, 19, 46, 35, (byte)W_HELL_STONE);
+    b.Fill(40, 20, 45, 34, (byte)F_TILE, (byte)F_CONCRETE, 160);
+    b.At(39, 26).Kind = CellKind.Empty; b.At(39, 27).Kind = CellKind.Empty; b.At(39, 28).Kind = CellKind.Empty;
+
+    // north wing — exit room (locked by blue door)
+    b.Fill(18, 4, 30, 16, (byte)F_TILE, (byte)F_CONCRETE, 230);
+    b.Box(17, 3, 31, 17, (byte)W_BRICK_RED);
+    b.Fill(18, 4, 30, 16, (byte)F_TILE, (byte)F_CONCRETE, 230);
+    b.At(22, 17).Kind = CellKind.Empty; b.At(23, 17).Kind = CellKind.Empty;
+    b.At(25, 17).Kind = CellKind.Empty; b.At(26, 17).Kind = CellKind.Empty;
+    b.Door(24, 17, CellKind.DoorBlue);
+    b.Exit(24, 4);
+
+    // player start
+    b.PlayerStart(24.5f, 44.5f, -Mathf.PI / 2f); // facing north (-Y? we use +Y as forward, let's say angle=0 = +X, PI/2 = +Y)
+    b.PlayerStart(24.5f, 44.5f, -Mathf.PI / 2f);
+
+    // enemies + items
+    b.Spawn(MobjKind.PickupShotgun, 5.5f, 27.5f);
+    b.Spawn(MobjKind.PickupShells, 6.5f, 26.5f);
+    b.Spawn(MobjKind.PickupShells, 6.5f, 28.5f);
+    b.Spawn(MobjKind.PickupBullets, 24.5f, 41.5f);
+    b.Spawn(MobjKind.PickupHealth, 21.5f, 41.5f);
+    b.Spawn(MobjKind.PickupHealth, 27.5f, 41.5f);
+    b.Spawn(MobjKind.PickupArmor, 24.5f, 33.5f);
+
+    b.Spawn(MobjKind.KeyBlue, 43.5f, 27.5f);
+    b.Spawn(MobjKind.PickupBullets, 42.5f, 24.5f);
+    b.Spawn(MobjKind.Barrel, 20.5f, 26.5f);
+    b.Spawn(MobjKind.Barrel, 28.5f, 26.5f);
+    b.Spawn(MobjKind.Barrel, 24.5f, 22.5f);
+
+    // monsters
+    b.Spawn(MobjKind.Zombieman, 14.5f, 24.5f, 0f);
+    b.Spawn(MobjKind.Zombieman, 34.5f, 30.5f, Mathf.PI);
+    b.Spawn(MobjKind.Zombieman, 24.5f, 22.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Imp, 4.5f, 24.5f, 0f);
+    b.Spawn(MobjKind.Imp, 4.5f, 31.5f, 0f);
+    b.Spawn(MobjKind.Imp, 43.5f, 22.5f, Mathf.PI);
+    b.Spawn(MobjKind.Imp, 43.5f, 32.5f, Mathf.PI);
+    b.Spawn(MobjKind.Shotgunner, 22.5f, 8.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Shotgunner, 26.5f, 8.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Demon, 24.5f, 13.5f, Mathf.PI / 2f);
+
+    return b.Build();
+  }
+
+  // E1M2 — "Toxin Refinery" — bigger maze with nukage and demons
+  public static LevelStart Level2() {
+    var b = new MapBuilder(48, 48, "E1M2: Toxin Refinery");
+    b.Fill(1, 1, 46, 46, (byte)F_TILE, (byte)F_CONCRETE, 180);
+    b.Border((byte)W_TECH_PANEL);
+
+    // central courtyard
+    b.Fill(16, 16, 32, 32, (byte)F_TILE, (byte)F_CONCRETE, 200);
+
+    // nukage moat surrounding center
+    b.Liquid(14, 22, 15, 26, (byte)F_NUKAGE);
+    b.Liquid(33, 22, 34, 26, (byte)F_NUKAGE);
+    b.Liquid(22, 14, 26, 15, (byte)F_NUKAGE);
+    b.Liquid(22, 33, 26, 34, (byte)F_NUKAGE);
+
+    // 4 corner rooms connected via doors
+    b.Box(2, 2, 14, 14, (byte)W_BRICK_GREY);
+    b.Fill(3, 3, 13, 13, (byte)F_TILE, (byte)F_CONCRETE, 170);
+    b.At(14, 8).Kind = CellKind.Empty;
+    b.Door(14, 8);
+
+    b.Box(34, 2, 46, 14, (byte)W_HELL_STONE);
+    b.Fill(35, 3, 45, 13, (byte)F_TILE, (byte)F_CONCRETE, 150);
+    b.At(34, 8).Kind = CellKind.Empty;
+    b.Door(34, 8, CellKind.DoorRed);
+
+    b.Box(2, 34, 14, 46, (byte)W_WOOD);
+    b.Fill(3, 35, 13, 45, (byte)F_TILE, (byte)F_CONCRETE, 200);
+    b.At(14, 40).Kind = CellKind.Empty;
+    b.Door(14, 40);
+
+    b.Box(34, 34, 46, 46, (byte)W_MARBLE);
+    b.Fill(35, 35, 45, 45, (byte)F_TILE, (byte)F_CONCRETE, 230);
+    b.At(34, 40).Kind = CellKind.Empty;
+    b.Door(34, 40, CellKind.DoorYellow);
+    b.Exit(45, 40);
+
+    // player start
+    b.PlayerStart(24.5f, 24.5f, 0f);
+
+    // weapons
+    b.Spawn(MobjKind.PickupChaingun, 24.5f, 18.5f);
+    b.Spawn(MobjKind.PickupShotgun, 24.5f, 30.5f);
+
+    // keys
+    b.Spawn(MobjKind.KeyRed, 8.5f, 8.5f); // SW corner
+    b.Spawn(MobjKind.KeyYellow, 8.5f, 40.5f); // NW corner — wait actually y axis: top=0
+    // ammo + health
+    b.Spawn(MobjKind.PickupBullets, 24.5f, 22.5f);
+    b.Spawn(MobjKind.PickupShells, 22.5f, 24.5f);
+    b.Spawn(MobjKind.PickupShells, 26.5f, 24.5f);
+    b.Spawn(MobjKind.PickupHealth, 20.5f, 28.5f);
+    b.Spawn(MobjKind.PickupHealth, 28.5f, 28.5f);
+    b.Spawn(MobjKind.PickupArmorBlue, 40.5f, 40.5f);
+
+    // monsters
+    b.Spawn(MobjKind.Imp, 18.5f, 18.5f, 0f);
+    b.Spawn(MobjKind.Imp, 30.5f, 18.5f, Mathf.PI);
+    b.Spawn(MobjKind.Imp, 18.5f, 30.5f, 0f);
+    b.Spawn(MobjKind.Imp, 30.5f, 30.5f, Mathf.PI);
+    b.Spawn(MobjKind.Demon, 7.5f, 7.5f);
+    b.Spawn(MobjKind.Demon, 7.5f, 11.5f);
+    b.Spawn(MobjKind.Shotgunner, 41.5f, 7.5f, Mathf.PI);
+    b.Spawn(MobjKind.Shotgunner, 41.5f, 11.5f, Mathf.PI);
+    b.Spawn(MobjKind.Imp, 7.5f, 41.5f, 0f);
+    b.Spawn(MobjKind.Demon, 41.5f, 41.5f, Mathf.PI);
+    b.Spawn(MobjKind.Cacodemon, 37.5f, 37.5f);
+    b.Spawn(MobjKind.Zombieman, 24.5f, 5.5f);
+    b.Spawn(MobjKind.Zombieman, 24.5f, 43.5f);
+    b.Spawn(MobjKind.Zombieman, 5.5f, 24.5f);
+    b.Spawn(MobjKind.Zombieman, 43.5f, 24.5f);
+    b.Spawn(MobjKind.Barrel, 22.5f, 22.5f);
+    b.Spawn(MobjKind.Barrel, 26.5f, 22.5f);
+    b.Spawn(MobjKind.Barrel, 22.5f, 26.5f);
+    b.Spawn(MobjKind.Barrel, 26.5f, 26.5f);
+
+    return b.Build();
+  }
+
+  // E1M3 — "Phobos Lab" — open arena with high-tier weapons + Baron
+  public static LevelStart Level3() {
+    var b = new MapBuilder(56, 56, "E1M3: Phobos Lab");
+    b.Fill(1, 1, 54, 54, (byte)F_TILE, (byte)F_CONCRETE, 200);
+    b.Border((byte)W_HELL_STONE);
+
+    // center pit of blood
+    b.Liquid(24, 24, 32, 32, (byte)F_BLOOD);
+
+    // 4 pillars of fire
+    b.Wall(20, 20, (byte)W_HELL_STONE);
+    b.Wall(36, 20, (byte)W_HELL_STONE);
+    b.Wall(20, 36, (byte)W_HELL_STONE);
+    b.Wall(36, 36, (byte)W_HELL_STONE);
+
+    // weapon bunkers in 4 corners
+    b.Box(4, 4, 12, 12, (byte)W_TECH_PANEL); b.Fill(5, 5, 11, 11, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(12, 8).Kind = CellKind.Empty;
+    b.Box(44, 4, 52, 12, (byte)W_TECH_PANEL); b.Fill(45, 5, 51, 11, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(44, 8).Kind = CellKind.Empty;
+    b.Box(4, 44, 12, 52, (byte)W_TECH_PANEL); b.Fill(5, 45, 11, 51, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(12, 48).Kind = CellKind.Empty;
+    b.Box(44, 44, 52, 52, (byte)W_TECH_PANEL); b.Fill(45, 45, 51, 51, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(44, 48).Kind = CellKind.Empty;
+
+    // exit teleporter pad
+    b.Exit(28, 4);
+
+    b.PlayerStart(28.5f, 50.5f, -Mathf.PI / 2f);
+
+    // weapons
+    b.Spawn(MobjKind.PickupShotgun, 8.5f, 8.5f);
+    b.Spawn(MobjKind.PickupChaingun, 48.5f, 8.5f);
+    b.Spawn(MobjKind.PickupRocketLauncher, 8.5f, 48.5f);
+    b.Spawn(MobjKind.PickupPlasma, 48.5f, 48.5f);
+    b.Spawn(MobjKind.PickupBFG, 28.5f, 28.5f);
+
+    // ammo galore
+    b.Spawn(MobjKind.PickupShells, 9.5f, 7.5f);
+    b.Spawn(MobjKind.PickupShells, 9.5f, 9.5f);
+    b.Spawn(MobjKind.PickupBullets, 47.5f, 7.5f);
+    b.Spawn(MobjKind.PickupBullets, 47.5f, 9.5f);
+    b.Spawn(MobjKind.PickupRockets, 9.5f, 47.5f);
+    b.Spawn(MobjKind.PickupRockets, 9.5f, 49.5f);
+    b.Spawn(MobjKind.PickupCells, 47.5f, 47.5f);
+    b.Spawn(MobjKind.PickupCells, 47.5f, 49.5f);
+
+    b.Spawn(MobjKind.PickupArmorBlue, 28.5f, 36.5f);
+    b.Spawn(MobjKind.PickupHealth, 26.5f, 50.5f);
+    b.Spawn(MobjKind.PickupHealth, 30.5f, 50.5f);
+
+    // demonic horde
+    b.Spawn(MobjKind.Imp, 14.5f, 14.5f);
+    b.Spawn(MobjKind.Imp, 42.5f, 14.5f);
+    b.Spawn(MobjKind.Imp, 14.5f, 42.5f);
+    b.Spawn(MobjKind.Imp, 42.5f, 42.5f);
+    b.Spawn(MobjKind.Demon, 22.5f, 16.5f);
+    b.Spawn(MobjKind.Demon, 34.5f, 16.5f);
+    b.Spawn(MobjKind.Demon, 22.5f, 40.5f);
+    b.Spawn(MobjKind.Demon, 34.5f, 40.5f);
+    b.Spawn(MobjKind.Cacodemon, 16.5f, 28.5f);
+    b.Spawn(MobjKind.Cacodemon, 40.5f, 28.5f);
+    b.Spawn(MobjKind.LostSoul, 28.5f, 14.5f);
+    b.Spawn(MobjKind.LostSoul, 28.5f, 42.5f);
+    b.Spawn(MobjKind.Shotgunner, 18.5f, 18.5f);
+    b.Spawn(MobjKind.Shotgunner, 38.5f, 18.5f);
+    b.Spawn(MobjKind.Baron, 28.5f, 8.5f, Mathf.PI / 2f);
+
+    return b.Build();
   }
 }

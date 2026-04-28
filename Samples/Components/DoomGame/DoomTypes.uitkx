@@ -4,133 +4,272 @@
 @using UnityEngine
 
 module DoomTypes {
-  // ───── Enums ─────
-
   public enum GameScreen { MainMenu, Game }
-  public enum CellType { Empty, Wall1, Wall2, Wall3, Wall4, Door }
-  public enum EnemyKind { Imp, Demon, Baron }
-  public enum EnemyAI { Idle, Chasing, Attacking, Dying, Dead }
-  public enum WeaponType { Pistol, Shotgun, Chaingun }
-  public enum PickupType { Health, Armor, Ammo, Shotgun, Chaingun }
+  public enum Difficulty { Easy = 0, Normal = 1, Hard = 2 }
 
-  // ───── Map ─────
+  public enum CellKind : byte {
+    Empty = 0,
+    Wall = 1,
+    Door = 2,
+    DoorBlue = 3,
+    DoorYellow = 4,
+    DoorRed = 5,
+    Exit = 6,
+    Liquid = 7,
+  }
+
+  public enum WeaponType : byte {
+    Fist = 0, Pistol = 1, Shotgun = 2, Chaingun = 3,
+    RocketLauncher = 4, PlasmaRifle = 5, BFG9000 = 6,
+  }
+
+  public enum AmmoType : byte {
+    Bullets = 0, Shells = 1, Rockets = 2, Cells = 3, None = 255,
+  }
+
+  [Flags]
+  public enum KeyCard : byte {
+    None = 0, Blue = 1, Yellow = 2, Red = 4,
+  }
+
+  public enum MobjKind : byte {
+    Player,
+    Imp, Demon, Baron, Cacodemon, LostSoul, Zombieman, Shotgunner,
+    ImpFireball, BaronBall, CacoBall, RocketProj, PlasmaProj, BfgProj,
+    Explosion,
+    PickupHealth, PickupArmor, PickupArmorBlue,
+    PickupBullets, PickupShells, PickupRockets, PickupCells,
+    PickupShotgun, PickupChaingun, PickupRocketLauncher, PickupPlasma, PickupBFG,
+    KeyBlue, KeyYellow, KeyRed,
+    Barrel, Light, Corpse,
+  }
+
+  public enum AIState : byte {
+    Idle, Hunting, Attacking, Pain, Dying, Dead,
+  }
+
+  public struct Cell {
+    public CellKind Kind;
+    public byte WallTexIdx;
+    public byte FloorTexIdx;
+    public byte CeilingTexIdx;
+    public byte LightLevel;
+    public byte DoorState; // 0=closed, 255=open
+    public byte DoorTimer;
+    public byte Tag;
+  }
 
   public struct MapDef {
     public int Width;
     public int Height;
-    public CellType[] Cells;
+    public Cell[] Cells;
+    public string Name;
 
-    public CellType At(int x, int y) {
-      if (x < 0 || x >= Width || y < 0 || y >= Height) return CellType.Wall1;
+    public Cell AtSafe(int x, int y) {
+      if (x < 0 || x >= Width || y < 0 || y >= Height) {
+        return new Cell { Kind = CellKind.Wall, WallTexIdx = 0, LightLevel = 200 };
+      }
       return Cells[y * Width + x];
     }
 
-    public bool IsWall(int x, int y) {
-      return At(x, y) != CellType.Empty;
+    public bool BlocksMovement(int x, int y) {
+      var c = AtSafe(x, y);
+      if (c.Kind == CellKind.Wall) return true;
+      if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue || c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
+        return c.DoorState < 200;
+      }
+      return false;
+    }
+
+    public bool BlocksRays(int x, int y) {
+      var c = AtSafe(x, y);
+      if (c.Kind == CellKind.Wall) return true;
+      if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue || c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
+        return c.DoorState < 250;
+      }
+      return false;
     }
   }
 
-  // ───── Structs ─────
-
   public struct PlayerState {
-    public float X;
-    public float Y;
-    public float Angle; // radians
+    public float X, Y;
+    public float Angle;
+    public float Pitch; // pixels of Y-shear
     public int Health;
     public int Armor;
+    public byte ArmorClass; // 0=none 1=green 2=blue
     public WeaponType Weapon;
-    public int AmmoPistol;
-    public int AmmoShotgun;
-    public int AmmoChaingun;
+    public int[] Ammo;
+    public bool[] OwnedWeapons;
+    public KeyCard Keys;
     public float ShootCooldown;
-    public float BobTimer;
+    public float MuzzleFlash;
+    public float BobT;
     public bool Alive;
+    public int FaceState; // 0=god,1..5=hp buckets,6=hurt,7=dead
+    public float FaceTimer;
+    public byte LastDamageDir; // 0=front 1=right 2=behind 3=left
+    public float HurtFlash;
+    public float PickupFlash;
+    public float MessageTimer;
+    public string MessageText;
   }
 
-  public struct EnemyState {
+  public struct Mobj {
     public int Id;
-    public EnemyKind Kind;
-    public EnemyAI AI;
-    public float X;
-    public float Y;
+    public MobjKind Kind;
+    public AIState State;
+    public float X, Y;
+    public float MomX, MomY;
+    public float Angle;
     public int Health;
+    public float StateTimer;
     public float AttackCooldown;
-    public float DieTimer;
-    public float DistToPlayer; // computed each frame for sorting
-  }
-
-  public struct PickupState {
-    public int Id;
-    public PickupType Type;
-    public float X;
-    public float Y;
+    public int OwnerId;
+    public int Damage;
+    public float Radius;
     public bool Collected;
+    public byte AnimFrame;
   }
 
-  // ───── Column strip for rendering ─────
-
-  public struct WallStrip {
-    public float Height; // projected wall height in pixels
-    public float Brightness; // 0..1, based on distance
-    public int WallType; // which wall color
-    public bool HitVertical; // N/S vs E/W face for shading
-    public float Distance; // raw distance for sprite clipping
+  public struct WallSeg {
+    public float TopPx;
+    public float BotPx;
+    public float Distance;
+    public byte WallTexIdx;
+    public float TexU;
+    public byte LightLevel;
+    public bool HitVertical;
+    public bool IsSky;
   }
 
-  // ───── Frame data (output of raycaster) ─────
+  public struct ColumnInfo {
+    public WallSeg Main;
+  }
 
   public struct FrameData {
-    public WallStrip[] Strips;
-    public float Fps;
-    public float Elapsed;
+    public ColumnInfo[] Columns;
+    public float[] DepthBuffer;
   }
 
   public struct GameState {
     public PlayerState Player;
-    public List<EnemyState> Enemies;
-    public List<PickupState> Pickups;
+    public Mobj[] Mobjs;
+    public int MobjCount;
+    public int NextMobjId;
+    public MapDef Map;
     public FrameData Frame;
-    public int Score;
     public int Level;
+    public int Score;
+    public int KillCount, KillTotal;
+    public int Tic;
     public bool GameOver;
     public bool Victory;
-    public float PhaseTimer;
+    public Difficulty Difficulty;
+    public int RngSeed;
+    public float TimeAccum;
   }
 
-  // ───── Constants ─────
+  public struct InputCmd {
+    public bool Forward, Back, StrafeLeft, StrafeRight;
+    public bool TurnLeft, TurnRight;
+    public bool Attack, Use, Run;
+    public byte WeaponSwitch;
+    public float YawDelta;
+    public float PitchDelta;
+  }
 
   public static class C {
-    public const int VIEW_W = 320; // number of raycasting columns
-    public const int VIEW_H = 200; // viewport height in pixels
-    public const int VIEWPORT_W = 640; // rendered viewport width
-    public const int VIEWPORT_H = 400; // rendered viewport height
-    public const float STRIP_W = 2f; // pixel width of each strip (640/320)
-    public const float FOV = 1.0472f; // 60 degrees in radians
+    public const int VIEW_W = 320;
+    public const int VIEW_H = 200;
+    public const int VIEWPORT_W = 800;
+    public const int VIEWPORT_H = 500;
+    public const int HUD_HEIGHT = 90;
+    public const float STRIP_W = 2.5f;
+
+    public const float FOV = 1.0472f;
     public const float HALF_FOV = FOV / 2f;
-    public const float MOVE_SPEED = 3.0f;
-    public const float STRAFE_SPEED = 2.5f;
-    public const float TURN_SPEED = 2.5f;
-    public const float PLAYER_RADIUS = 0.25f;
-    public const float SHOOT_COOLDOWN_PISTOL = 0.4f;
-    public const float SHOOT_COOLDOWN_SHOTGUN = 0.8f;
-    public const float SHOOT_COOLDOWN_CHAINGUN = 0.12f;
-    public const int PISTOL_DAMAGE = 15;
-    public const int SHOTGUN_DAMAGE = 60;
-    public const int CHAINGUN_DAMAGE = 12;
-    public const float ENEMY_SPEED = 1.5f;
-    public const float ENEMY_ATTACK_RANGE = 1.5f;
-    public const float ENEMY_ATTACK_COOLDOWN = 1.0f;
-    public const int IMP_HEALTH = 40;
-    public const int DEMON_HEALTH = 80;
-    public const int BARON_HEALTH = 200;
-    public const int IMP_DAMAGE = 10;
-    public const int DEMON_DAMAGE = 20;
-    public const int BARON_DAMAGE = 40;
+
+    public const float MOVE_SPEED = 4.0f;
+    public const float RUN_MULT = 1.6f;
+    public const float STRAFE_SPEED = 3.5f;
+    public const float TURN_SPEED = 2.6f;
+    public const float MAX_PITCH = 50f;
+    public const float MOUSE_YAW_SENS = 0.008f;
+    public const float MOUSE_PITCH_SENS = 0.15f;
+    public const float PLAYER_RADIUS = 0.28f;
+
+    public const float COOLDOWN_FIST = 0.35f;
+    public const float COOLDOWN_PISTOL = 0.32f;
+    public const float COOLDOWN_SHOTGUN = 0.85f;
+    public const float COOLDOWN_CHAIN = 0.10f;
+    public const float COOLDOWN_ROCKET = 1.0f;
+    public const float COOLDOWN_PLASMA = 0.10f;
+    public const float COOLDOWN_BFG = 1.5f;
+
+    public const int DMG_FIST = 8;
+    public const int DMG_PISTOL = 14;
+    public const int DMG_PELLET = 9;
+    public const int DMG_CHAIN = 11;
+    public const int DMG_ROCKET = 100;
+    public const int DMG_PLASMA = 18;
+    public const int DMG_BFG = 350;
+    public const int DMG_BARREL = 90;
+
+    public const int MAX_BULLETS = 200;
+    public const int MAX_SHELLS = 50;
+    public const int MAX_ROCKETS = 50;
+    public const int MAX_CELLS = 300;
+
+    public const int START_HEALTH = 100;
+
+    public const int HP_IMP = 60;
+    public const int HP_DEMON = 150;
+    public const int HP_BARON = 800;
+    public const int HP_CACO = 400;
+    public const int HP_LOST = 100;
+    public const int HP_ZOMBIE = 20;
+    public const int HP_SHOTG = 30;
+    public const int HP_BARREL = 20;
+
+    public const int DMG_IMP_MELEE = 12;
+    public const int DMG_IMP_BALL = 18;
+    public const int DMG_DEMON_BITE = 22;
+    public const int DMG_BARON_CLAW = 30;
+    public const int DMG_BARON_BALL = 60;
+    public const int DMG_CACO_BALL = 28;
+    public const int DMG_LOST_RAM = 14;
+    public const int DMG_ZOMBIE = 9;
+    public const int DMG_SHOTG = 12;
+
+    public const float SPEED_IMP = 1.7f;
+    public const float SPEED_DEMON = 2.6f;
+    public const float SPEED_BARON = 1.5f;
+    public const float SPEED_CACO = 1.4f;
+    public const float SPEED_LOST = 3.5f;
+    public const float SPEED_ZOMBIE = 1.4f;
+    public const float SPEED_SHOTG = 1.5f;
+
+    public const float SPEED_IMPBALL = 9f;
+    public const float SPEED_BARONBALL = 11f;
+    public const float SPEED_CACOBALL = 9f;
+    public const float SPEED_ROCKET = 14f;
+    public const float SPEED_PLASMA = 22f;
+    public const float SPEED_BFG = 20f;
+
     public const int SCORE_IMP = 100;
     public const int SCORE_DEMON = 200;
-    public const int SCORE_BARON = 500;
-    public const int START_HEALTH = 100;
-    public const int START_ARMOR = 0;
-    public const int START_AMMO_PISTOL = 50;
+    public const int SCORE_BARON = 1500;
+    public const int SCORE_CACO = 600;
+    public const int SCORE_LOST = 80;
+    public const int SCORE_ZOMBIE = 60;
+    public const int SCORE_SHOTG = 90;
+    public const int SCORE_BARREL = 10;
+
+    public const int MAX_MOBJS = 256;
+    public const float SIGHT_RANGE = 18f;
+    public const float MELEE_RANGE = 1.4f;
+
+    public const float MAX_RAY = 32f;
   }
 }

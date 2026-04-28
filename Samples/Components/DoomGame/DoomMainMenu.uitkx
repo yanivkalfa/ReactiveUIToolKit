@@ -1,0 +1,123 @@
+@namespace Samples.DoomGame
+@using System
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+
+component DoomMainMenu(
+  int level,
+  Difficulty difficulty,
+  Action<int> onLevelChange,
+  Action<Difficulty> onDifficultyChange,
+  Action onStart
+) {
+  var bg = new Color(0.06f, 0.05f, 0.05f, 1f);
+  var titleClr = new Color(0.95f, 0.20f, 0.15f, 1f);
+  var subtitleClr = new Color(0.85f, 0.70f, 0.40f, 1f);
+  var labelClr = new Color(0.95f, 0.85f, 0.50f, 1f);
+  var btnFace = new Color(0.18f, 0.05f, 0.05f, 1f);
+  var btnText = new Color(0.95f, 0.95f, 0.85f, 1f);
+  var btnBorder = new Color(0.85f, 0.40f, 0.20f, 1f);
+  var btnSelected = new Color(0.40f, 0.10f, 0.05f, 1f);
+  var hintClr = new Color(0.60f, 0.50f, 0.30f, 1f);
+
+  Style BtnStyle(bool isSel) {
+    return new Style{
+      FontSize = 13, Height = 32, MarginLeft = 4, MarginRight = 4, PaddingLeft = 14, PaddingRight = 14,
+      BackgroundColor = isSel ? btnSelected : btnFace,
+      Color = btnText,
+      BorderTopWidth = 2, BorderRightWidth = 2, BorderBottomWidth = 2, BorderLeftWidth = 2,
+      BorderTopColor = btnBorder, BorderRightColor = btnBorder, BorderBottomColor = btnBorder, BorderLeftColor = btnBorder,
+      BorderTopLeftRadius = 2, BorderTopRightRadius = 2, BorderBottomLeftRadius = 2, BorderBottomRightRadius = 2,
+      UnityFontStyle = isSel ? FontStyle.Bold : FontStyle.Normal,
+    };
+  }
+
+  return (
+    <VisualElement
+      style={new Style{
+        FlexGrow = 1f, AlignItems = Align.Center, JustifyContent = Justify.Center, BackgroundColor = bg,
+      }}
+    >
+      <Label
+        text="DOOM"
+        style={new Style{
+          FontSize = 96, Color = titleClr, UnityFontStyle = FontStyle.Bold,
+          MarginBottom = 4, TextAlign = TextAnchor.MiddleCenter,
+        }}
+      />
+      <Label
+        text="(in UITKX)"
+        style={new Style{
+          FontSize = 18, Color = subtitleClr, MarginBottom = 30,
+          UnityFontStyle = FontStyle.Italic, TextAlign = TextAnchor.MiddleCenter,
+        }}
+      />
+      <VisualElement
+        style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row, MarginBottom = 28, AlignItems = Align.Center }}
+      >
+        <Label
+          text="EPISODE 1   —"
+          style={new Style{ Color = labelClr, FontSize = 16, MarginRight = 12 }}
+        />
+        <Button
+          text="E1M1: Hangar"
+          onClick={_ => onLevelChange(1)}
+          style={BtnStyle(level == 1)}
+        />
+        <Button
+          text="E1M2: Toxin Refinery"
+          onClick={_ => onLevelChange(2)}
+          style={BtnStyle(level == 2)}
+        />
+        <Button
+          text="E1M3: Phobos Lab"
+          onClick={_ => onLevelChange(3)}
+          style={BtnStyle(level == 3)}
+        />
+      </VisualElement>
+      <VisualElement
+        style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row, MarginBottom = 36, AlignItems = Align.Center }}
+      >
+        <Label
+          text="DIFFICULTY  —"
+          style={new Style{ Color = labelClr, FontSize = 16, MarginRight = 12 }}
+        />
+        <Button
+          text="I'm too young to die"
+          onClick={_ => onDifficultyChange(Difficulty.Easy)}
+          style={BtnStyle(difficulty == Difficulty.Easy)}
+        />
+        <Button
+          text="Hurt me plenty"
+          onClick={_ => onDifficultyChange(Difficulty.Normal)}
+          style={BtnStyle(difficulty == Difficulty.Normal)}
+        />
+        <Button
+          text="Ultra-violence"
+          onClick={_ => onDifficultyChange(Difficulty.Hard)}
+          style={BtnStyle(difficulty == Difficulty.Hard)}
+        />
+      </VisualElement>
+      <Button
+        text="▶  START GAME"
+        onClick={_ => onStart()}
+        style={new Style{
+          FontSize = 22, Width = 280, Height = 60,
+          BackgroundColor = new Color(0.5f, 0.1f, 0.05f, 1f),
+          Color = btnText, UnityFontStyle = FontStyle.Bold,
+          BorderTopWidth = 3, BorderRightWidth = 3, BorderBottomWidth = 3, BorderLeftWidth = 3,
+          BorderTopColor = btnBorder, BorderRightColor = btnBorder, BorderBottomColor = btnBorder, BorderLeftColor = btnBorder,
+          BorderTopLeftRadius = 4, BorderTopRightRadius = 4, BorderBottomLeftRadius = 4, BorderBottomRightRadius = 4,
+        }}
+      />
+      <Label
+        text="WASD = move    |    Mouse = look    |    Click = shoot    |    1-7 = weapons    |    E = use door    |    Shift = run"
+        style={new Style{
+          MarginTop = 36, Color = hintClr, FontSize = 12,
+        }}
+      />
+    </VisualElement>
+  );
+}

@@ -1,0 +1,94 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTextures
+
+module DoomGameScreenLogic {
+  public struct SpriteEntry {
+    public int Id;
+    public int SpriteIdx;
+    public float ScreenX;
+    public float ScreenY;
+    public float Size;
+    public float Distance;
+    public Color32 Tint;
+    public float Light;
+  }
+
+  public static List<SpriteEntry> BuildSpriteList(GameState state) {
+    var list = new List<SpriteEntry>(64);
+    var p = state.Player;
+    float cosA = Mathf.Cos(p.Angle), sinA = Mathf.Sin(p.Angle);
+    float halfH = C.VIEWPORT_H * 0.5f;
+    float planeScale = halfH / Mathf.Tan(C.HALF_FOV);
+    var depth = state.Frame.DepthBuffer;
+    float widthScale = C.VIEWPORT_W / (float)C.VIEW_W;
+
+    for (int i = 1; i <= state.MobjCount; i++) {
+      var m = state.Mobjs[i];
+      if (m.Id == 0) continue;
+      if (m.Kind == MobjKind.Light) continue;
+      if (GameLogic.IsMonster(m.Kind) && m.State == AIState.Dead) continue;
+
+      float dx = m.X - p.X, dy = m.Y - p.Y;
+      // forward = (cos a, sin a); right = (-sin a, cos a)
+      float ty = dx * cosA + dy * sinA; // depth along view direction
+      float tx = -dx * sinA + dy * cosA; // lateral, +right
+      if (ty < 0.2f) continue;
+
+      float screenX = (C.VIEWPORT_W * 0.5f) + (tx / ty) * planeScale;
+      float spriteH = (1.0f / ty) * planeScale * SpriteScale(m.Kind);
+      float screenY = (C.VIEWPORT_H * 0.5f) + (SpriteVerticalAnchor(m.Kind) / ty) * planeScale;
+
+      int dcol = (int)(screenX / widthScale);
+      if (dcol >= 0 && dcol < depth.Length && ty > depth[dcol] + 0.05f) continue;
+
+      float lightFade = Mathf.Clamp01(1f - ty / 16f);
+      float light = 0.35f + 0.65f * lightFade;
+
+      list.Add(new SpriteEntry {
+        Id = m.Id,
+        SpriteIdx = GameLogic.SpriteIndexForMobj(m.Kind),
+        ScreenX = screenX,
+        ScreenY = screenY,
+        Size = spriteH,
+        Distance = ty,
+        Tint = GameLogic.TintForMobj(m.Kind, m.State),
+        Light = light,
+      });
+    }
+    list.Sort((a, b) => b.Distance.CompareTo(a.Distance));
+    return list;
+  }
+
+  public static float SpriteScale(MobjKind k) {
+    switch (k) {
+      case MobjKind.Baron: return 1.6f;
+      case MobjKind.Cacodemon: return 1.4f;
+      case MobjKind.Demon: return 1.2f;
+      case MobjKind.Barrel: return 0.8f;
+      case MobjKind.PickupHealth:
+      case MobjKind.PickupArmor:
+      case MobjKind.PickupArmorBlue:
+      case MobjKind.PickupBullets:
+      case MobjKind.PickupShells:
+      case MobjKind.PickupRockets:
+      case MobjKind.PickupCells: return 0.6f;
+      case MobjKind.KeyBlue: case MobjKind.KeyYellow: case MobjKind.KeyRed: return 0.55f;
+      case MobjKind.ImpFireball: case MobjKind.BaronBall: case MobjKind.CacoBall:
+      case MobjKind.PlasmaProj: case MobjKind.RocketProj: case MobjKind.BfgProj: return 0.6f;
+      case MobjKind.Explosion: return 1.6f;
+      default: return 1.0f;
+    }
+  }
+
+  public static float SpriteVerticalAnchor(MobjKind k) {
+    if (k == MobjKind.Cacodemon) return 0f;
+    if (k == MobjKind.LostSoul) return -0.05f;
+    if (GameLogic.IsProjectile(k)) return -0.05f;
+    if (k == MobjKind.Explosion) return -0.05f;
+    return 0.15f;
+  }
+}

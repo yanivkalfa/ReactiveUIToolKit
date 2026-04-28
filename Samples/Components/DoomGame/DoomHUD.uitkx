@@ -1,0 +1,186 @@
+@namespace Samples.DoomGame
+@using System
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+
+component DoomHUD(
+  int health,
+  int armor,
+  byte armorClass,
+  WeaponType weapon,
+  int[] ammo,
+  bool[] ownedWeapons,
+  KeyCard keys,
+  int score,
+  int killCount,
+  int killTotal,
+  string mapName,
+  int faceState
+) {
+  var barBg = new Color(0.12f, 0.10f, 0.08f, 1f);
+  var panelBg = new Color(0.20f, 0.16f, 0.10f, 1f);
+  var topBorder = new Color(0.85f, 0.55f, 0.20f, 1f);
+  var redNum = new Color(0.95f, 0.20f, 0.15f, 1f);
+  var labelClr = new Color(0.85f, 0.70f, 0.35f, 1f);
+  var dimClr = new Color(0.45f, 0.40f, 0.30f, 1f);
+
+  var ammoLabels = new[] { "BUL", "SHL", "RKT", "CEL" };
+  var ammoMax = new[] { C.MAX_BULLETS, C.MAX_SHELLS, C.MAX_ROCKETS, C.MAX_CELLS };
+
+  string CurrentAmmoLabel() {
+    switch (weapon) {
+      case WeaponType.Pistol: case WeaponType.Chaingun: return ammo[0].ToString();
+      case WeaponType.Shotgun: return ammo[1].ToString();
+      case WeaponType.RocketLauncher: return ammo[2].ToString();
+      case WeaponType.PlasmaRifle: case WeaponType.BFG9000: return ammo[3].ToString();
+      default: return "—";
+    }
+  }
+
+  Style PanelStyle(int width) {
+    return new Style{
+      Width = width, MarginRight = 4,
+      BackgroundColor = panelBg, PaddingLeft = 6, PaddingRight = 6, PaddingTop = 4, PaddingBottom = 4,
+      BorderTopWidth = 1, BorderRightWidth = 1, BorderBottomWidth = 1, BorderLeftWidth = 1,
+      BorderTopColor = topBorder, BorderRightColor = topBorder, BorderBottomColor = topBorder, BorderLeftColor = topBorder,
+      BorderTopLeftRadius = 2, BorderTopRightRadius = 2, BorderBottomLeftRadius = 2, BorderBottomRightRadius = 2,
+      AlignItems = Align.Center,
+    };
+  }
+
+  VirtualNode KeyDot(Color color, bool on) {
+    var dim = new Color(color.r * 0.15f, color.g * 0.15f, color.b * 0.15f, 1f);
+    var dotBorder = new Color(0.4f, 0.4f, 0.4f, 1f);
+    return (
+      <VisualElement
+        style={new Style{
+          Width = 14, Height = 14, MarginBottom = 2,
+          BackgroundColor = on ? (color) : (dim),
+          BorderTopLeftRadius = 3, BorderTopRightRadius = 3, BorderBottomLeftRadius = 3, BorderBottomRightRadius = 3,
+          BorderTopWidth = 1, BorderRightWidth = 1, BorderBottomWidth = 1, BorderLeftWidth = 1,
+          BorderTopColor = dotBorder, BorderRightColor = dotBorder, BorderBottomColor = dotBorder, BorderLeftColor = dotBorder,
+        }}
+      />
+    );
+  }
+
+  return (
+    <VisualElement
+      style={new Style{
+        Height = C.HUD_HEIGHT, Width = C.VIEWPORT_W,
+        FlexDirection = UnityEngine.UIElements.FlexDirection.Row,
+        BackgroundColor = barBg,
+        BorderTopWidth = 3, BorderTopColor = topBorder,
+        PaddingLeft = 8, PaddingRight = 8, PaddingTop = 6, PaddingBottom = 6,
+      }}
+    >
+      // AMMO panel
+      <VisualElement style={PanelStyle(92)}>
+        <Label
+          text="AMMO"
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+        />
+        <Label
+          text={CurrentAmmoLabel()}
+          style={new Style{ Color = redNum, FontSize = 34, UnityFontStyle = FontStyle.Bold }}
+        />
+      </VisualElement>
+      // HEALTH panel
+      <VisualElement style={PanelStyle(110)}>
+        <Label
+          text="HEALTH"
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+        />
+        <Label
+          text={health.ToString() + "%"}
+          style={new Style{ Color = redNum, FontSize = 34, UnityFontStyle = FontStyle.Bold }}
+        />
+      </VisualElement>
+      // ARMS grid
+      <VisualElement style={PanelStyle(140)}>
+        <Label
+          text="ARMS"
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+        />
+        <VisualElement
+          style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row, FlexWrap = Wrap.Wrap, MarginTop = 2 }}
+        >
+          @foreach (var i in System.Linq.Enumerable.Range(1, 6)) {
+            var owned = i < ownedWeapons.Length && ownedWeapons[i];
+
+            return (
+              <Label
+                key={"arm" + i.ToString()}
+                text={(i + 1).ToString()}
+                style={new Style{
+                  Width = 22, Height = 18, MarginRight = 2, MarginBottom = 2,
+                  TextAlign = TextAnchor.MiddleCenter,
+                  Color = owned ? redNum : dimClr,
+                  FontSize = 14, UnityFontStyle = FontStyle.Bold,
+                }}
+              />
+            );
+          }
+        </VisualElement>
+      </VisualElement>
+      // Face mug
+      <DoomFace frame={faceState} />
+      // ARMOR panel
+      <VisualElement style={PanelStyle(110)}>
+        <Label
+          text={armorClass == 2 ? "MEGA" : "ARMOR"}
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+        />
+        <Label
+          text={armor.ToString() + "%"}
+          style={new Style{ Color = redNum, FontSize = 34, UnityFontStyle = FontStyle.Bold }}
+        />
+      </VisualElement>
+      // KEYS column
+      <VisualElement style={PanelStyle(32)}>
+        @(KeyDot(new Color(0.30f, 0.55f, 1.00f), (keys & KeyCard.Blue)   != 0))
+        @(KeyDot(new Color(0.95f, 0.85f, 0.20f), (keys & KeyCard.Yellow) != 0))
+        @(KeyDot(new Color(0.95f, 0.20f, 0.20f), (keys & KeyCard.Red)    != 0))
+      </VisualElement>
+      // AMMO breakdown
+      <VisualElement style={PanelStyle(120)}>
+        @foreach (var i in System.Linq.Enumerable.Range(0, 4)) {
+          return (
+            <VisualElement
+              key={"a" + i.ToString()}
+              style={new Style{
+                FlexDirection = UnityEngine.UIElements.FlexDirection.Row, JustifyContent = Justify.SpaceBetween, MarginBottom = 1,
+              }}
+            >
+              <Label
+                text={ammoLabels[i]}
+                style={new Style{ Color = labelClr, FontSize = 10 }}
+              />
+              <Label
+                text={ammo[i].ToString() + " / " + ammoMax[i].ToString()}
+                style={new Style{ Color = redNum, FontSize = 11, UnityFontStyle = FontStyle.Bold }}
+              />
+            </VisualElement>
+          );
+        }
+      </VisualElement>
+      // INFO panel
+      <VisualElement style={PanelStyle(150)}>
+        <Label
+          text={mapName}
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+        />
+        <Label
+          text={"KILLS  " + killCount.ToString() + " / " + killTotal.ToString()}
+          style={new Style{ Color = redNum, FontSize = 12 }}
+        />
+        <Label
+          text={"SCORE  " + score.ToString()}
+          style={new Style{ Color = redNum, FontSize = 12 }}
+        />
+      </VisualElement>
+    </VisualElement>
+  );
+}

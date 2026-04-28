@@ -1,0 +1,218 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.InputSystem
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+
+hook useDoomGame(
+  Ref<VisualElement?> viewRef,
+  int level,
+  Difficulty difficulty
+) -> (
+  GameState state,
+  Action restart,
+  KeyboardEventHandler onKeyDown,
+  PointerEventHandler onPointerMove,
+  PointerEventHandler onPointerDown,
+  PointerEventHandler onPointerUp
+) {
+  var initialState = useMemo(() => GameLogic.NewGame(level, difficulty), level + (int)difficulty * 100);
+  var (state, setState) = useState<GameState>(initialState);
+  var stateRef = useRef<GameState>(initialState);
+
+  var inputRef = useRef<InputCmd>(new InputCmd());
+  var pendingYaw = useRef<float>(0f);
+  var pendingPitch = useRef<float>(0f);
+  var pendingWeaponSwitch = useRef<byte>(0);
+  var pendingUse = useRef<bool>(false);
+  var lastTime = useRef<float>(-1f);
+
+  Action restart = () => {
+    var fresh = GameLogic.NewGame(level, difficulty);
+    stateRef.Current = fresh;
+    inputRef.Current = new InputCmd();
+    pendingYaw.Current = 0f; pendingPitch.Current = 0f;
+    pendingWeaponSwitch.Current = 0; pendingUse.Current = false;
+    lastTime.Current = -1f;
+    setState(fresh);
+    var el = viewRef?.Current;
+    if (el != null) el.schedule.Execute(() => el.Focus());
+    UnityEngine.Cursor.lockState = CursorLockMode.Locked;
+    UnityEngine.Cursor.visible = false;
+  };
+
+  KeyboardEventHandler onKeyDown = e => {
+    var c = inputRef.Current;
+    switch (e.KeyCode) {
+      case KeyCode.W: case KeyCode.UpArrow: c.Forward = true; break;
+      case KeyCode.S: case KeyCode.DownArrow: c.Back = true; break;
+      case KeyCode.A: case KeyCode.LeftArrow: c.StrafeLeft = true; break;
+      case KeyCode.D: case KeyCode.RightArrow: c.StrafeRight = true; break;
+      case KeyCode.Q: c.TurnLeft = true; break;
+      case KeyCode.E: pendingUse.Current = true; break;
+      case KeyCode.LeftShift: case KeyCode.RightShift: c.Run = true; break;
+      case KeyCode.Space: c.Attack = true; break;
+      case KeyCode.Alpha1: pendingWeaponSwitch.Current = 1; break;
+      case KeyCode.Alpha2: pendingWeaponSwitch.Current = 2; break;
+      case KeyCode.Alpha3: pendingWeaponSwitch.Current = 3; break;
+      case KeyCode.Alpha4: pendingWeaponSwitch.Current = 4; break;
+      case KeyCode.Alpha5: pendingWeaponSwitch.Current = 5; break;
+      case KeyCode.Alpha6: pendingWeaponSwitch.Current = 6; break;
+      case KeyCode.Alpha7: pendingWeaponSwitch.Current = 7; break;
+      case KeyCode.Escape: UnityEngine.Cursor.lockState = CursorLockMode.None; UnityEngine.Cursor.visible = true; break;
+    }
+    inputRef.Current = c;
+    e.StopPropagation();
+  };
+
+  PointerEventHandler onPointerMove = e => {
+    // Intentionally a no-op: we read raw mouse deltas from Input.GetAxisRaw
+    // inside the ticker (true WoW-style infinite mouse). PointerMoveEvent
+    // delta goes to 0 when the OS cursor is Locked, so it's useless here.
+  };
+
+  PointerEventHandler onPointerDown = e => {
+    var pe = e as ReactivePointerEvent;
+    var c = inputRef.Current;
+    c.Attack = true;
+    inputRef.Current = c;
+    var el = viewRef?.Current;
+    if (el != null) {
+      el.Focus();
+      if (pe != null) el.CapturePointer(pe.PointerId);
+    }
+    // Re-engage cursor lock on click (in case the user pressed Esc earlier).
+    UnityEngine.Cursor.lockState = CursorLockMode.Locked;
+    UnityEngine.Cursor.visible = false;
+  };
+
+  PointerEventHandler onPointerUp = e => {
+    var pe = e as ReactivePointerEvent;
+    var c = inputRef.Current;
+    c.Attack = false;
+    inputRef.Current = c;
+    var el = viewRef?.Current;
+    if (el != null && pe != null && el.HasPointerCapture(pe.PointerId)) {
+      el.ReleasePointer(pe.PointerId);
+    }
+  };
+
+  useEffect(() => {
+    var el = viewRef?.Current;
+    if (el == null) return null;
+    el.schedule.Execute(() => el.Focus());
+
+    // Hide the OS cursor while the pointer is over the viewport.
+    //
+    // PropsApplier.cs:665 makes JSX `style={{cursor:...}}` a no-op, so we MUST
+    // assign `el.style.cursor` directly via C# here. This works inside an
+    // EditorWindow panel (which is what we're in).
+    //
+    // Constraints learned the hard way:
+    //   - Texture must be at least 32×32. 1×1 is silently ignored on Windows.
+    //   - Texture must be Read/Write enabled (procedurally created Texture2D
+    //     always is).
+    //   - alpha=0 is sometimes rejected by the OS; alpha=1/255 is invisible to
+    //     the eye but accepted everywhere.
+    //   - We also assign on the panel's visualTree root, because the cursor
+    //     style does NOT inherit from descendants — if the pointer drifts off
+    //     `el` onto a sibling that hasn't set cursor, the system cursor pops
+    //     back. Setting it on the root catches that.
+    var blankCursorTex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+    var nearlyTransparent = new Color32[32 * 32];
+    for (int i = 0; i < nearlyTransparent.Length; i++) {
+      nearlyTransparent[i] = new Color32(0, 0, 0, 1);
+    }
+    blankCursorTex.SetPixels32(nearlyTransparent);
+    blankCursorTex.Apply();
+
+    var hiddenCursor = new UnityEngine.UIElements.Cursor {
+      texture = blankCursorTex, hotspot = Vector2.zero,
+    };
+    el.style.cursor = new StyleCursor(hiddenCursor);
+    if (el.panel != null && el.panel.visualTree != null) {
+      el.panel.visualTree.style.cursor = new StyleCursor(hiddenCursor);
+    }
+
+    EventCallback<KeyUpEvent> keyUpCb = e => {
+      var c = inputRef.Current;
+      switch (e.keyCode) {
+        case KeyCode.W: case KeyCode.UpArrow: c.Forward = false; break;
+        case KeyCode.S: case KeyCode.DownArrow: c.Back = false; break;
+        case KeyCode.A: case KeyCode.LeftArrow: c.StrafeLeft = false; break;
+        case KeyCode.D: case KeyCode.RightArrow: c.StrafeRight = false; break;
+        case KeyCode.Q: c.TurnLeft = false; break;
+        case KeyCode.LeftShift: case KeyCode.RightShift: c.Run = false; break;
+        case KeyCode.Space: c.Attack = false; break;
+      }
+      inputRef.Current = c;
+      e.StopPropagation();
+    };
+    el.RegisterCallback(keyUpCb);
+
+    // Clear all held keys when the element loses focus or becomes detached —
+    // otherwise a key released while focus was elsewhere stays "down" forever.
+    EventCallback<FocusOutEvent> focusOutCb = e => {
+      var c = inputRef.Current;
+      c.Forward = c.Back = c.StrafeLeft = c.StrafeRight = false;
+      c.TurnLeft = c.TurnRight = c.Run = c.Attack = false;
+      inputRef.Current = c;
+    };
+    el.RegisterCallback(focusOutCb);
+
+    // Sample raw mouse deltas on every Input System frame. Reading from
+    // inside the 16ms ticker would alias the input rate (chunky/dropped
+    // motion). onAfterUpdate fires once per input update with the exact
+    // delta accumulated since the last update.
+    Action onInput = () => {
+      var mouse = Mouse.current;
+      if (mouse == null) return;
+      var d = mouse.delta.ReadValue();
+      pendingYaw.Current += d.x * C.MOUSE_YAW_SENS;
+      pendingPitch.Current -= d.y;
+    };
+    UnityEngine.InputSystem.InputSystem.onAfterUpdate += onInput;
+
+    var ticker = el.schedule.Execute(() => {
+      float now = Time.realtimeSinceStartup;
+      if (lastTime.Current < 0) { lastTime.Current = now; return; }
+      float dt = Mathf.Min(now - lastTime.Current, 0.05f);
+      lastTime.Current = now;
+
+      var cmd = inputRef.Current;
+      cmd.YawDelta = pendingYaw.Current;
+      cmd.PitchDelta = pendingPitch.Current;
+      cmd.WeaponSwitch = pendingWeaponSwitch.Current;
+      cmd.Use = pendingUse.Current;
+      pendingYaw.Current = 0f;
+      pendingPitch.Current = 0f;
+      pendingWeaponSwitch.Current = 0;
+      pendingUse.Current = false;
+
+      var s = stateRef.Current;
+      GameLogic.Tick(ref s, dt, cmd);
+      stateRef.Current = s;
+      setState(s);
+      if (s.GameOver || s.Victory) {
+        if (UnityEngine.Cursor.lockState != CursorLockMode.None) {
+          UnityEngine.Cursor.lockState = CursorLockMode.None;
+          UnityEngine.Cursor.visible = true;
+        }
+      }
+    }).Every(16);
+
+    return () => {
+      ticker.Pause();
+      UnityEngine.InputSystem.InputSystem.onAfterUpdate -= onInput;
+      el.UnregisterCallback(keyUpCb);
+      el.UnregisterCallback(focusOutCb);
+      UnityEngine.Cursor.lockState = CursorLockMode.None;
+      UnityEngine.Cursor.visible = true;
+    };
+  }, viewRef);
+
+  return (state, restart, onKeyDown, onPointerMove, onPointerDown, onPointerUp);
+}
