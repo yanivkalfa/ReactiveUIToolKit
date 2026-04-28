@@ -38,6 +38,11 @@ module GameLogic {
       RngSeed = 12345 + level * 17,
       Tic = 0,
     };
+    // Phase 1: build the parallel sector model (no rendering use yet).
+    st.SectorMap = MapData.FromTiles(st.Map);
+    st.SectorMap.PlayerStart = new Vector2(start.PlayerX, start.PlayerY);
+    st.SectorMap.PlayerStartAngle = start.PlayerAngle;
+    st.Player.ViewHeight = C.PLAYER_VIEW_HEIGHT;
     foreach (var m in start.Mobjs) AddMobj(ref st, m);
     int killTotal = 0;
     for (int i = 1; i < st.MobjCount + 1; i++) {

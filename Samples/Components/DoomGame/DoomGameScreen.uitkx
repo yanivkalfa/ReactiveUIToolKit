@@ -90,7 +90,17 @@ component DoomGameScreen(
         // Wall strips
         @foreach (var i in System.Linq.Enumerable.Range(0, C.VIEW_W)) {
           var col = state.Frame.Columns[i].Main;
-          if (col.IsSky)
+          if (col.IsSky) {
+            return null;
+          }
+
+          float top = col.TopPx;
+          float h = col.BotPx - col.TopPx;
+          var tex = DoomTextures.Walls[col.WallTexIdx];
+          float bgWidth = C.STRIP_W * 64f; // 64 = TEX_W
+          float bgOffsetX = -col.TexU * bgWidth;
+          float lightF = col.LightLevel / 255f;
+          float vertDim = col.HitVertical ? 0.85f : 1f;
 
           return (
             <VisualElement
@@ -103,7 +113,7 @@ component DoomGameScreen(
                 BackgroundSize = new BackgroundSize(new Length(bgWidth, LengthUnit.Pixel), new Length(h, LengthUnit.Pixel)),
                 BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(bgOffsetX, LengthUnit.Pixel)),
                 BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
-                BackgroundImageTint = new Color(lightF, lightF * vertDim, lightF * vertDim, 1f),
+                BackgroundImageTint = new Color(lightF * vertDim, lightF * vertDim, lightF * vertDim, 1f),
               }}
             />
           );
