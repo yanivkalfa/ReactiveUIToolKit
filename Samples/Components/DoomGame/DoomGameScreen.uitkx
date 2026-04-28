@@ -61,21 +61,36 @@ component DoomGameScreen(
         <VisualElement
           style={new Style{
             Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0,
-            Width = C.VIEWPORT_W, Height = C.VIEWPORT_H * 0.5f + state.Player.Pitch,
+            Width = C.VIEWPORT_W, Height = C.VIEWPORT_H * 0.5f + state.Player.Pitch + state.Player.ViewShiftPx,
             BackgroundImage = DoomTextures.Sky,
             BackgroundSize = new BackgroundSize(new Length(C.VIEWPORT_W * 1.5f, LengthUnit.Pixel), new Length(C.VIEWPORT_H * 0.5f + 250f, LengthUnit.Pixel)),
             BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(-((state.Player.Angle / (2f * Mathf.PI)) * C.VIEWPORT_W * 1.5f) % (C.VIEWPORT_W * 1.5f), LengthUnit.Pixel)),
             BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
           }}
         />
-        // Floor bands
+        // Floor bands. Phase 7: properly projected so the floor moves with
+        // the player's eye Z (jump/crouch). Each band represents a depth
+        // slice; closer bands are nearer the bottom of the screen.
         @foreach (var i in System.Linq.Enumerable.Range(0, 10)) {
-          float t = i / 10f;
           float horizonY = C.VIEWPORT_H * 0.5f + state.Player.Pitch;
-          float floorH = C.VIEWPORT_H - horizonY;
-          float bandTop = horizonY + floorH * t;
-          float bandHeight = floorH / 10f + 1f;
-          float shade = Mathf.Lerp(0.08f, 0.30f, t);
+          float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
+          float viewZ = state.Player.Z + (state.Player.ViewHeight <= 0f ? 0.6f : state.Player.ViewHeight);
+          // Depth slices: near (i=0) to far (i=9). 1/d is more useful for Y.
+          float dNear = 0.6f, dFar = 18f;
+          float t0 = i / 10f, t1 = (i + 1) / 10f;
+          // Convert t∈[0,1] to depth via inverse-perspective so bands look even.
+          float d0 = 1f / Mathf.Lerp(1f / dNear, 1f / dFar, t0);
+          float d1 = 1f / Mathf.Lerp(1f / dNear, 1f / dFar, t1);
+          float yNear = horizonY + (viewZ * planeScale) / d0;
+          float yFar  = horizonY + (viewZ * planeScale) / d1;
+          float bandTop = Mathf.Min(yNear, yFar);
+          float bandBot = Mathf.Max(yNear, yFar);
+          // Far bands are above near bands. We want bands FROM near (bottom)
+          // TO far (closer to horizon); ensure we draw all of them visible.
+          if (bandBot > C.VIEWPORT_H) bandBot = C.VIEWPORT_H;
+          if (bandTop < horizonY) bandTop = horizonY;
+          float bandHeight = Mathf.Max(1f, bandBot - bandTop);
+          float shade = Mathf.Lerp(0.30f, 0.08f, t0);
 
           return (
             <VisualElement
@@ -155,7 +170,7 @@ component DoomGameScreen(
               style={new Style{
                 Position = UnityEngine.UIElements.Position.Absolute,
                 Left = sprite.ScreenX - sprite.Size * 0.5f,
-                Top  = sprite.ScreenY - sprite.Size * 0.5f + state.Player.Pitch,
+                Top  = sprite.ScreenY - sprite.Size * 0.5f,
                 Width = sprite.Size, Height = sprite.Size,
                 BackgroundImage = DoomTextures.Sprites[sprite.SpriteIdx],
                 BackgroundImageTint = new Color(sprite.Tint.r / 255f * sprite.Light, sprite.Tint.g / 255f * sprite.Light, sprite.Tint.b / 255f * sprite.Light, 1f),
@@ -188,7 +203,7 @@ component DoomGameScreen(
         <VisualElement
           style={new Style{
             Position = UnityEngine.UIElements.Position.Absolute,
-            Left = C.VIEWPORT_W * 0.5f - 4, Top = C.VIEWPORT_H * 0.5f - 4 + state.Player.Pitch,
+            Left = C.VIEWPORT_W * 0.5f - 4, Top = C.VIEWPORT_H * 0.5f - 4,
             Width = 8, Height = 8,
             BorderTopLeftRadius = 4, BorderTopRightRadius = 4, BorderBottomLeftRadius = 4, BorderBottomRightRadius = 4,
             BackgroundColor = new Color(0.95f, 0.95f, 0.5f, 0.7f),

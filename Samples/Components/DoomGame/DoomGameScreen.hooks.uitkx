@@ -55,6 +55,8 @@ hook useDoomGame(
       case KeyCode.E: pendingUse.Current = true; break;
       case KeyCode.LeftShift: case KeyCode.RightShift: c.Run = true; break;
       case KeyCode.Space: c.Attack = true; break;
+      case KeyCode.V: c.Jump = true; break;
+      case KeyCode.C: c.Crouch = true; break;
       case KeyCode.Alpha1: pendingWeaponSwitch.Current = 1; break;
       case KeyCode.Alpha2: pendingWeaponSwitch.Current = 2; break;
       case KeyCode.Alpha3: pendingWeaponSwitch.Current = 3; break;
@@ -147,6 +149,8 @@ hook useDoomGame(
         case KeyCode.Q: c.TurnLeft = false; break;
         case KeyCode.LeftShift: case KeyCode.RightShift: c.Run = false; break;
         case KeyCode.Space: c.Attack = false; break;
+        case KeyCode.V: c.Jump = false; break;
+        case KeyCode.C: c.Crouch = false; break;
       }
       inputRef.Current = c;
       e.StopPropagation();
@@ -159,6 +163,7 @@ hook useDoomGame(
       var c = inputRef.Current;
       c.Forward = c.Back = c.StrafeLeft = c.StrafeRight = false;
       c.TurnLeft = c.TurnRight = c.Run = c.Attack = false;
+      c.Jump = c.Crouch = false;
       inputRef.Current = c;
     };
     el.RegisterCallback(focusOutCb);

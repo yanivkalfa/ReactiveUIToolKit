@@ -68,6 +68,7 @@ module GameLogic {
 
     UpdatePlayer(ref st, input, dt);
     UpdateDoors(ref st, dt);
+    UpdateSectors(ref st, dt);
 
     for (int i = 1; i <= st.MobjCount; i++) {
       if (st.Mobjs[i].Id == 0) continue;
@@ -120,6 +121,10 @@ module GameLogic {
     if (st.SectorMap.IsValid) {
       p.SectorId = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(p.X, p.Y), p.SectorId);
     }
+
+    // Phase 7: vertical movement — gravity, jump, crouch. Player feet (Z)
+    // are anchored to the current sector floor unless airborne.
+    UpdatePlayerVertical(ref st, ref p, input, dt);
 
     if (Mathf.Abs(dx) > 0.001f || Mathf.Abs(dy) > 0.001f) {
       p.BobT += dt * 8f;
@@ -195,22 +200,68 @@ module GameLogic {
     for (int i = 0; i < n; i++) {
       ref var c = ref st.Map.Cells[i];
       if (c.Kind != CellKind.Door && c.Kind != CellKind.DoorBlue && c.Kind != CellKind.DoorYellow && c.Kind != CellKind.DoorRed) continue;
-      if (c.DoorTimer > 0) {
-        // opening
+      // DoorTimer == 1: opening. DoorTimer == 2: open & waiting. DoorTimer == 3: closing.
+      if (c.DoorTimer == 1) {
         int s = c.DoorState + delta;
-        if (s >= 255) { c.DoorState = 255; c.DoorTimer = 0; }
+        if (s >= 255) {
+          c.DoorState = 255;
+          c.DoorTimer = 2;
+          // store wait countdown in the sector
+          if (hasSectorMap) {
+            int sid = st.SectorMap.CellToSector[i];
+            if (sid >= 0) st.SectorMap.Sectors[sid].DoorWaitTimer = C.DOOR_AUTO_CLOSE_DELAY;
+          }
+        }
         else c.DoorState = (byte)s;
+      } else if (c.DoorTimer == 2) {
+        // waiting open
+        if (hasSectorMap) {
+          int sid = st.SectorMap.CellToSector[i];
+          if (sid >= 0) {
+            ref var sec = ref st.SectorMap.Sectors[sid];
+            sec.DoorWaitTimer -= dt;
+            // Don't close on top of player or monsters: check the cell.
+            int cx = i % st.Map.Width, cy = i / st.Map.Width;
+            bool blocked = ActorInCell(ref st, cx, cy);
+            if (sec.DoorWaitTimer <= 0f && !blocked) {
+              c.DoorTimer = 3;
+            } else if (blocked) {
+              sec.DoorWaitTimer = 1f; // keep checking
+            }
+          }
+        }
+      } else if (c.DoorTimer == 3) {
+        // closing
+        int s = c.DoorState - delta;
+        if (s <= 0) { c.DoorState = 0; c.DoorTimer = 0; }
+        else c.DoorState = (byte)s;
+        // Re-open immediately if blocked
+        int cx2 = i % st.Map.Width, cy2 = i / st.Map.Width;
+        if (ActorInCell(ref st, cx2, cy2)) {
+          c.DoorTimer = 1;
+        }
       }
-      // Phase 2: mirror cell DoorState onto the matching sector's CeilingZ so
-      // the sector raycaster sees the door open. CeilingZ ranges 0 (closed)
-      // to 1 (fully open).
+      // Phase 2/3: mirror cell DoorState onto the matching sector's CeilingZ.
       if (hasSectorMap) {
         int secId = st.SectorMap.CellToSector[i];
         if (secId >= 0) {
-          st.SectorMap.Sectors[secId].CeilingZ = c.DoorState / 255f;
+          st.SectorMap.Sectors[secId].CeilingZ = (c.DoorState / 255f) * 1.5f;
         }
       }
     }
+  }
+
+  // True if the player or any live mobj's footprint overlaps tile (cx,cy).
+  private static bool ActorInCell(ref GameState st, int cx, int cy) {
+    var p = st.Player;
+    if (p.Alive && (int)p.X == cx && (int)p.Y == cy) return true;
+    for (int j = 1; j <= st.MobjCount; j++) {
+      var m = st.Mobjs[j];
+      if (m.Id == 0 || m.Health <= 0) continue;
+      if (!IsMonster(m.Kind) && m.Kind != MobjKind.Barrel) continue;
+      if ((int)m.X == cx && (int)m.Y == cy) return true;
+    }
+    return false;
   }
 
   // ───── Weapons ─────
@@ -277,12 +328,19 @@ module GameLogic {
   private static void SpawnProjectile(ref GameState st, MobjKind kind, int ownerId, int damage, float speed) {
     ref var p = ref st.Player;
     float fwdX = Mathf.Cos(p.Angle), fwdY = Mathf.Sin(p.Angle);
+    // Phase 7: vertical aim — apply pitch slope to projectile motion.
+    float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
+    float pitchSlope = p.Pitch / planeScale;
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
     var m = new Mobj {
       Kind = kind,
       State = AIState.Hunting,
       X = p.X + fwdX * 0.5f, Y = p.Y + fwdY * 0.5f,
+      Z = viewZ,
       MomX = fwdX * speed, MomY = fwdY * speed,
+      ZVel = pitchSlope * speed,
       Angle = p.Angle,
+      Height = DoomMaps.HeightFor(kind),
       Health = 1,
       Damage = damage,
       OwnerId = ownerId,
@@ -341,10 +399,16 @@ module GameLogic {
     ref var m = ref st.Mobjs[idx];
     float nx = m.X + m.MomX * dt;
     float ny = m.Y + m.MomY * dt;
+    float nz = m.Z + m.ZVel * dt;
 
     // wall hit?
     if (st.Map.BlocksMovement((int)nx, (int)ny)) {
       OnProjectileHit(ref st, idx, m.X, m.Y, hitMobjIdx: 0);
+      return;
+    }
+    // floor / ceiling hit (treat sector floor=0, ceiling=1.5 as hard limits for now)
+    if (nz < 0f || nz > 1.5f) {
+      OnProjectileHit(ref st, idx, nx, ny, hitMobjIdx: 0);
       return;
     }
 
@@ -359,19 +423,26 @@ module GameLogic {
       if (t.Health <= 0 && t.Kind != MobjKind.Barrel) continue;
       float dx = t.X - nx, dy = t.Y - ny;
       float r = m.Radius + t.Radius;
-      if (dx * dx + dy * dy < r * r) {
-        hitMobj = j;
-        break;
-      }
+      if (dx * dx + dy * dy >= r * r) continue;
+      // Vertical: projectile Z must overlap target [Z, Z+Height].
+      float tBot = t.Z - 0.05f;
+      float tTop = t.Z + (t.Height > 0f ? t.Height : 0.7f) + 0.05f;
+      if (nz < tBot || nz > tTop) continue;
+      hitMobj = j;
+      break;
     }
     // player hit (only enemy projectiles)
     if (m.OwnerId != -1 && hitMobj == 0) {
       float dx = st.Player.X - nx, dy = st.Player.Y - ny;
       float r = m.Radius + C.PLAYER_RADIUS;
       if (dx * dx + dy * dy < r * r) {
-        Hurt(ref st, ref st.Player, m.Damage, 0);
-        OnProjectileHit(ref st, idx, nx, ny, 0);
-        return;
+        float pBot = st.Player.Z - 0.05f;
+        float pTop = st.Player.Z + (st.Player.ViewHeight <= 0f ? 0.6f : st.Player.ViewHeight) + 0.4f;
+        if (nz >= pBot && nz <= pTop) {
+          Hurt(ref st, ref st.Player, m.Damage, 0);
+          OnProjectileHit(ref st, idx, nx, ny, 0);
+          return;
+        }
       }
     }
     if (hitMobj != 0) {
@@ -379,7 +450,7 @@ module GameLogic {
       return;
     }
 
-    m.X = nx; m.Y = ny;
+    m.X = nx; m.Y = ny; m.Z = nz;
     if ((m.X < 0 || m.X >= st.Map.Width || m.Y < 0 || m.Y >= st.Map.Height)) m.Id = 0;
   }
 
@@ -501,11 +572,21 @@ module GameLogic {
   private static void SpawnEnemyProjectile(ref GameState st, int srcIdx, MobjKind kind, int damage, float speed) {
     ref var src = ref st.Mobjs[srcIdx];
     float ang = src.Angle;
+    // Phase 7: enemy aims at the player's torso. Compute Z slope from src eye
+    // (3/4 of mob height) toward player center (Z + ViewHeight ≈ feet+0.6).
+    float srcEyeZ = src.Z + (src.Height > 0f ? src.Height * 0.75f : 0.6f);
+    float plyCenterZ = st.Player.Z + (st.Player.ViewHeight <= 0f ? 0.6f : st.Player.ViewHeight) - 0.1f;
+    float dx = st.Player.X - src.X, dy = st.Player.Y - src.Y;
+    float horiz = Mathf.Sqrt(dx * dx + dy * dy);
+    float zSlope = horiz > 0.01f ? (plyCenterZ - srcEyeZ) / horiz : 0f;
     var m = new Mobj {
       Kind = kind,
       X = src.X + Mathf.Cos(ang) * 0.5f, Y = src.Y + Mathf.Sin(ang) * 0.5f,
+      Z = srcEyeZ,
       MomX = Mathf.Cos(ang) * speed, MomY = Mathf.Sin(ang) * speed,
+      ZVel = zSlope * speed,
       Angle = ang, Health = 1,
+      Height = DoomMaps.HeightFor(kind),
       Damage = damage,
       OwnerId = src.Id, // monster id, not -1
       Radius = DoomMaps.RadiusFor(kind),
@@ -680,7 +761,81 @@ module GameLogic {
     }
   }
 
-  // ───── Raycaster ─────
+  // Phase 7: vertical physics for the player. Tracks Z (feet height) against
+  // the floor of the player's current sector. Jump applies upward velocity
+  // when on the ground; crouch lowers the view height temporarily.
+  private static void UpdatePlayerVertical(ref GameState st, ref PlayerState p, InputCmd input, float dt) {
+    float floorZ = 0f;
+    float ceilZ = 1f;
+    if (st.SectorMap.IsValid && p.SectorId >= 0) {
+      floorZ = st.SectorMap.Sectors[p.SectorId].FloorZ;
+      ceilZ = st.SectorMap.Sectors[p.SectorId].CeilingZ;
+    }
+    bool onGround = p.Z <= floorZ + 0.001f && p.ZVel <= 0f;
+    // Edge-detect: only jump on the rising edge of the Jump key, not while held.
+    bool jumpEdge = input.Jump && !p.JumpHeldPrev;
+    p.JumpHeldPrev = input.Jump;
+    if (onGround && jumpEdge) {
+      p.ZVel = C.JUMP_VELOCITY;
+      onGround = false;
+    }
+    if (!onGround) {
+      p.ZVel -= C.GRAVITY * dt;
+      p.Z += p.ZVel * dt;
+      if (p.Z <= floorZ) { p.Z = floorZ; p.ZVel = 0f; }
+      // Bonk into ceiling
+      if (p.Z + C.PLAYER_HEIGHT > ceilZ) { p.Z = ceilZ - C.PLAYER_HEIGHT; if (p.ZVel > 0) p.ZVel = 0; }
+    } else {
+      p.Z = floorZ;
+    }
+    // Crouch lowers view height (smooth)
+    float targetView = input.Crouch ? C.CROUCH_HEIGHT : C.PLAYER_VIEW_HEIGHT;
+    p.ViewHeight = Mathf.Lerp(p.ViewHeight, targetView, Mathf.Min(1f, dt * 8f));
+  }
+
+  // Phase 4: animate sector light levels per SectorSpecial. Each sector keeps
+  // its base Light from FromTiles; we modulate it into a runtime override
+  // stored back in Sector.Light so the renderer picks it up automatically.
+  // Base light is preserved in TargetCeilingZ-adjacent fields? No — to avoid
+  // expanding the struct, we recompute every frame from a deterministic phase
+  // tied to Tic + sector index.
+  private static void UpdateSectors(ref GameState st, float dt) {
+    if (!st.SectorMap.IsValid) return;
+    var sectors = st.SectorMap.Sectors;
+    int tic = st.Tic;
+    for (int i = 0; i < sectors.Length; i++) {
+      var sp = sectors[i].Special;
+      if (sp == SectorSpecial.None) continue;
+      byte baseLight = sectors[i].Light;
+      // Reconstruct base from runtime value: store every 32 tics by sampling
+      // from the linedef-MidTex? Simpler: clamp to a known base via integer
+      // derived from sector index (we lose true per-sector base, but our
+      // FromTiles maps light=200 by default).
+      byte baseL = 200;
+      switch (sp) {
+        case SectorSpecial.LightFlicker: {
+          int seed = (tic + i * 7) & 31;
+          // 7/32 frames dim; rest bright
+          sectors[i].Light = seed < 7 ? (byte)(baseL / 3) : baseL;
+          break;
+        }
+        case SectorSpecial.LightBlink: {
+          int phase = (tic + i * 11) & 63;
+          sectors[i].Light = phase < 8 ? (byte)(baseL / 3) : baseL;
+          break;
+        }
+        case SectorSpecial.LightGlow: {
+          // smooth sin wave 0.5..1.0 of base
+          float t = (tic + i * 13) * 0.05f;
+          float w = 0.5f + 0.5f * Mathf.Sin(t);
+          sectors[i].Light = (byte)Mathf.Clamp(baseL * (0.5f + 0.5f * w), 30f, 255f);
+          break;
+        }
+        default: break;
+      }
+    }
+  }
+
 
   // Phase 2: when true, CastFrame uses Raycast.Cast (portal walker on the
   // sector graph). When false, falls back to the original DDA grid walker.
@@ -692,8 +847,13 @@ module GameLogic {
     var cols = st.Frame.Columns;
     var depth = st.Frame.DepthBuffer;
     bool useSector = USE_SECTOR_RAYCAST && st.SectorMap.IsValid && p.SectorId >= 0;
-    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.5f : p.ViewHeight);
+    // Phase 7: real eye height. Walls reproject against this so jump/crouch
+    // actually CHANGES geometry (walls get shorter, you see more floor) rather
+    // than simply tilting the horizon. Sky/floor bands stay anchored to the
+    // pitch-only horizon.
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
     float horizon = C.VIEWPORT_H * 0.5f + p.Pitch;
+    st.Player.ViewShiftPx = 0f;
 
     for (int i = 0; i < C.VIEW_W; i++) {
       float cameraX = 2f * i / (float)C.VIEW_W - 1f; // -1..1
@@ -935,7 +1095,18 @@ module GameLogic {
     var rh = CastRay(ref st, ox, oy, rdx, rdy);
     float wallDist = rh.Distance;
 
-    // any mobj closer along the ray?
+    // Phase 7: vertical aim. Pitch is in pixels of Y-shear; convert to a
+    // vertical slope (dz / horizontal-distance) by dividing by the projection
+    // plane scale used in CastFrame.
+    var p = st.Player;
+    float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
+    // The camera's forward axis projects to screen center (VIEWPORT_H/2).
+    // Horizon visually shifts by p.Pitch px; that same px / planeScale is the
+    // tangent of the pitch angle, which is the bullet's vertical slope.
+    float pitchSlope = p.Pitch / planeScale; // looking up (Pitch>0) -> bullet rises
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+
+    // any mobj closer along the ray? Must also satisfy vertical hit window.
     int bestIdx = -1;
     float bestT = wallDist;
     for (int i = 1; i <= st.MobjCount; i++) {
@@ -947,6 +1118,12 @@ module GameLogic {
       float perpX = dx - rdx * t, perpY = dy - rdy * t;
       float perp2 = perpX * perpX + perpY * perpY;
       if (perp2 > m.Radius * m.Radius) continue;
+      // Vertical: bullet Z at distance t. Slight padding so close encounters
+      // and tall mobjs are forgiving when looking at their belly/feet.
+      float bulletZ = viewZ + pitchSlope * t;
+      float mobjBot = m.Z - 0.05f;
+      float mobjTop = m.Z + (m.Height > 0f ? m.Height : 0.7f) + 0.05f;
+      if (bulletZ < mobjBot || bulletZ > mobjTop) continue;
       bestIdx = i; bestT = t;
     }
     if (bestIdx > 0) {
@@ -1000,6 +1177,10 @@ module GameLogic {
 
   public static void AddMobj(ref GameState st, Mobj m) {
     if (m.Id == 0) m.Id = st.NextMobjId++;
+    // Phase 7: floating mobjs hover above the floor.
+    if (m.Z == 0f && (m.Kind == MobjKind.Cacodemon || m.Kind == MobjKind.LostSoul)) {
+      m.Z = 0.4f;
+    }
     if (st.MobjCount + 1 < st.Mobjs.Length) {
       st.MobjCount++;
       st.Mobjs[st.MobjCount] = m;

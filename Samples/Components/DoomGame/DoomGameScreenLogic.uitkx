@@ -25,6 +25,8 @@ module DoomGameScreenLogic {
     float planeScale = halfH / Mathf.Tan(C.HALF_FOV);
     var depth = state.Frame.DepthBuffer;
     float widthScale = C.VIEWPORT_W / (float)C.VIEW_W;
+    // Phase 7: eye Z so sprites reproject correctly when the player jumps/crouches.
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
 
     for (int i = 1; i <= state.MobjCount; i++) {
       var m = state.Mobjs[i];
@@ -40,7 +42,10 @@ module DoomGameScreenLogic {
 
       float screenX = (C.VIEWPORT_W * 0.5f) + (tx / ty) * planeScale;
       float spriteH = (1.0f / ty) * planeScale * SpriteScale(m.Kind);
-      float screenY = (C.VIEWPORT_H * 0.5f) + (SpriteVerticalAnchor(m.Kind) / ty) * planeScale;
+      // Sprite anchor: feet (m.Z) for floor-standing things, slight lift for
+      // floating mobjs — combined into world Z relative to viewZ.
+      float anchorWorldZ = m.Z + SpriteVerticalAnchor(m.Kind);
+      float screenY = (C.VIEWPORT_H * 0.5f + p.Pitch) - ((anchorWorldZ - viewZ) / ty) * planeScale;
 
       int dcol = (int)(screenX / widthScale);
       if (dcol >= 0 && dcol < depth.Length && ty > depth[dcol] + 0.05f) continue;

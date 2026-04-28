@@ -62,6 +62,8 @@ module DoomTypes {
     // rooms, raised platforms, low ceilings.
     public float FloorZ;
     public float CeilingZ;
+    // Phase 4: sector special (lighting/damage). None by default.
+    public SectorSpecial Special;
   }
 
   public struct MapDef {
@@ -123,6 +125,11 @@ module DoomTypes {
     public float ZVel;       // for jump/gravity (Phase 7)
     public float ViewHeight; // eye offset from feet (default 0.6)
     public int SectorId;     // current sector (-1 = unknown / fallback to grid)
+    // Phase 7: pixel offset added to the horizon line (sky/floor/wall) so
+    // jump/crouch animation stays in sync across all renderers. Computed by
+    // CastFrame from Z + ViewHeight.
+    public float ViewShiftPx;
+    public bool JumpHeldPrev;  // for edge-detection on Jump key
   }
 
   public struct Mobj {
@@ -373,16 +380,16 @@ module DoomTypes {
           if (c.Kind == CellKind.Wall) continue;
           var s = new Sector {
             FloorZ = c.FloorZ,
-            CeilingZ = c.CeilingZ <= 0f ? 1f : c.CeilingZ,
+            CeilingZ = c.CeilingZ <= 0f ? 1.5f : c.CeilingZ,
             Light = c.LightLevel == 0 ? (byte)200 : c.LightLevel,
             FloorTex = c.FloorTexIdx,
             CeilingTex = c.CeilingTexIdx,
-            Special = SectorSpecial.None,
+            Special = c.Special,
             Tag = c.Tag,
             IsSky = false,
             LineIds = new List<int>(4),
             ExtraFloors = null,
-            TargetCeilingZ = c.CeilingZ <= 0f ? 1f : c.CeilingZ,
+            TargetCeilingZ = c.CeilingZ <= 0f ? 1.5f : c.CeilingZ,
             TargetFloorZ = c.FloorZ,
             CeilingSpeed = 0f, FloorSpeed = 0f, DoorWaitTimer = 0f,
           };
@@ -390,7 +397,7 @@ module DoomTypes {
           if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue ||
               c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
             s.CeilingZ = 0f; // closed
-            s.TargetCeilingZ = 1f;
+            s.TargetCeilingZ = 1.5f;
           }
           cellSector[y * W + x] = sectors.Count;
           sectors.Add(s);
@@ -518,9 +525,9 @@ module DoomTypes {
     public const float RUN_MULT = 1.6f;
     public const float STRAFE_SPEED = 3.5f;
     public const float TURN_SPEED = 2.6f;
-    public const float MAX_PITCH = 50f;
+    public const float MAX_PITCH = 200f;
     public const float MOUSE_YAW_SENS = 0.008f;
-    public const float MOUSE_PITCH_SENS = 0.15f;
+    public const float MOUSE_PITCH_SENS = 0.5f;
     public const float PLAYER_RADIUS = 0.28f;
 
     public const float COOLDOWN_FIST = 0.35f;
@@ -601,8 +608,8 @@ module DoomTypes {
     public const float STEP_HEIGHT = 0.4f;       // max floor step the player can walk up
     public const float PLAYER_HEIGHT = 0.9f;     // feet→head
     public const float PLAYER_VIEW_HEIGHT = 0.6f;// feet→eye
-    public const float GRAVITY = 18f;            // units/s² for jump/fall
-    public const float JUMP_VELOCITY = 5.5f;     // initial Z velocity on Jump
+    public const float GRAVITY = 9f;             // units/s² for jump/fall
+    public const float JUMP_VELOCITY = 7.0f;     // initial Z velocity on Jump
     public const float CROUCH_HEIGHT = 0.45f;
     public const float DOOR_OPEN_SPEED = 2.0f;   // units/sec ceiling lerp
     public const float DOOR_AUTO_CLOSE_DELAY = 4f;// seconds

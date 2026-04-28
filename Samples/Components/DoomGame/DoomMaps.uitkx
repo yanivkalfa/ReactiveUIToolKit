@@ -133,6 +133,7 @@ module DoomMaps {
         X = x, Y = y, Angle = angle,
         Health = HealthFor(kind),
         Radius = RadiusFor(kind),
+        Height = HeightFor(kind),
         AnimFrame = 0,
       };
       Mobjs.Add(m);
@@ -175,6 +176,25 @@ module DoomMaps {
       case MobjKind.RocketProj:
       case MobjKind.BfgProj: return 0.12f;
       default: return 0.3f;
+    }
+  }
+
+  public static float HeightFor(MobjKind k) {
+    switch (k) {
+      case MobjKind.Baron: return 1.1f;
+      case MobjKind.Cacodemon: return 0.9f;
+      case MobjKind.Imp:
+      case MobjKind.Zombieman:
+      case MobjKind.Shotgunner: return 0.85f;
+      case MobjKind.Demon: return 0.7f;
+      case MobjKind.LostSoul: return 0.5f;
+      case MobjKind.Barrel: return 0.55f;
+      case MobjKind.PickupHealth: case MobjKind.PickupArmor: case MobjKind.PickupArmorBlue:
+      case MobjKind.PickupBullets: case MobjKind.PickupShells: case MobjKind.PickupRockets: case MobjKind.PickupCells:
+      case MobjKind.PickupShotgun: case MobjKind.PickupChaingun: case MobjKind.PickupRocketLauncher:
+      case MobjKind.PickupPlasma: case MobjKind.PickupBFG:
+      case MobjKind.KeyBlue: case MobjKind.KeyYellow: case MobjKind.KeyRed: return 0.35f;
+      default: return 0.7f;
     }
   }
 
