@@ -42,7 +42,9 @@ module GameLogic {
     st.SectorMap = MapData.FromTiles(st.Map);
     st.SectorMap.PlayerStart = new Vector2(start.PlayerX, start.PlayerY);
     st.SectorMap.PlayerStartAngle = start.PlayerAngle;
+    st.SectorMap.PlayerStartSector = Raycast.PointInSectorFromHint(st.SectorMap, st.SectorMap.PlayerStart, -1);
     st.Player.ViewHeight = C.PLAYER_VIEW_HEIGHT;
+    st.Player.SectorId = st.SectorMap.PlayerStartSector;
     foreach (var m in start.Mobjs) AddMobj(ref st, m);
     int killTotal = 0;
     for (int i = 1; i < st.MobjCount + 1; i++) {
@@ -111,6 +113,13 @@ module GameLogic {
     if (input.StrafeLeft) { dx -= rgtX * strafe * dt; dy -= rgtY * strafe * dt; }
 
     MoveActor(ref st, ref p.X, ref p.Y, dx, dy, C.PLAYER_RADIUS, isPlayer: true);
+
+    // Phase 2: keep player.SectorId tracking the current sector for the
+    // sector-based renderer/collision. Cheap hint-walk; falls back to brute
+    // force if hint fails.
+    if (st.SectorMap.IsValid) {
+      p.SectorId = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(p.X, p.Y), p.SectorId);
+    }
 
     if (Mathf.Abs(dx) > 0.001f || Mathf.Abs(dy) > 0.001f) {
       p.BobT += dt * 8f;
@@ -182,6 +191,7 @@ module GameLogic {
   private static void UpdateDoors(ref GameState st, float dt) {
     int n = st.Map.Cells.Length;
     int delta = (int)Mathf.Clamp(dt * 220f, 1f, 30f);
+    bool hasSectorMap = st.SectorMap.IsValid && st.SectorMap.CellToSector != null;
     for (int i = 0; i < n; i++) {
       ref var c = ref st.Map.Cells[i];
       if (c.Kind != CellKind.Door && c.Kind != CellKind.DoorBlue && c.Kind != CellKind.DoorYellow && c.Kind != CellKind.DoorRed) continue;
@@ -190,6 +200,15 @@ module GameLogic {
         int s = c.DoorState + delta;
         if (s >= 255) { c.DoorState = 255; c.DoorTimer = 0; }
         else c.DoorState = (byte)s;
+      }
+      // Phase 2: mirror cell DoorState onto the matching sector's CeilingZ so
+      // the sector raycaster sees the door open. CeilingZ ranges 0 (closed)
+      // to 1 (fully open).
+      if (hasSectorMap) {
+        int secId = st.SectorMap.CellToSector[i];
+        if (secId >= 0) {
+          st.SectorMap.Sectors[secId].CeilingZ = c.DoorState / 255f;
+        }
       }
     }
   }
@@ -663,17 +682,25 @@ module GameLogic {
 
   // ───── Raycaster ─────
 
+  // Phase 2: when true, CastFrame uses Raycast.Cast (portal walker on the
+  // sector graph). When false, falls back to the original DDA grid walker.
+  // Toggle off if a regression appears — the engine should still play.
+  public const bool USE_SECTOR_RAYCAST = true;
+
   public static void CastFrame(ref GameState st) {
     var p = st.Player;
     var cols = st.Frame.Columns;
     var depth = st.Frame.DepthBuffer;
+    bool useSector = USE_SECTOR_RAYCAST && st.SectorMap.IsValid && p.SectorId >= 0;
 
     for (int i = 0; i < C.VIEW_W; i++) {
       float cameraX = 2f * i / (float)C.VIEW_W - 1f; // -1..1
       float rayAng = p.Angle + Mathf.Atan(cameraX * Mathf.Tan(C.HALF_FOV));
       float rdx = Mathf.Cos(rayAng), rdy = Mathf.Sin(rayAng);
 
-      var hit = CastRay(ref st, p.X, p.Y, rdx, rdy);
+      RayHit hit = useSector
+        ? CastRaySector(ref st, p.X, p.Y, rdx, rdy)
+        : CastRay(ref st, p.X, p.Y, rdx, rdy);
 
       // perspective-correct distance (project onto view direction)
       float perp = hit.Distance * Mathf.Cos(rayAng - p.Angle);
@@ -698,6 +725,52 @@ module GameLogic {
         },
       };
     }
+  }
+
+  // Phase 2: portal-walking raycast that produces the same RayHit shape as the
+  // grid DDA. Walks from player.SectorId through two-sided linedefs until a
+  // solid (one-sided) line or a closed-door portal is hit. Closed-door portal
+  // = neighbor sector with CeilingZ <= FloorZ (door currently closed).
+  private static RayHit CastRaySector(ref GameState st, float ox, float oy, float dx, float dy) {
+    var p = st.Player;
+    Raycast.Cast(st.SectorMap, new Vector2(ox, oy), p.SectorId, new Vector2(dx, dy), out var hits);
+
+    for (int i = 0; i < hits.Count; i++) {
+      var h = hits[i];
+      bool terminal = false;
+      bool isSky = false;
+      bool closedDoor = false;
+      if (h.ToSector < 0) {
+        terminal = true;
+      } else {
+        var nb = st.SectorMap.Sectors[h.ToSector];
+        if (nb.CeilingZ <= nb.FloorZ + 0.001f) { terminal = true; closedDoor = true; }
+        if (nb.IsSky) isSky = true;
+      }
+      if (!terminal) continue;
+
+      var line = st.SectorMap.Lines[h.LinedefId];
+      byte texIdx = line.MidTex;
+      // Front sector light
+      byte lightLevel = (byte)200;
+      if (h.FromSector >= 0) lightLevel = st.SectorMap.Sectors[h.FromSector].Light;
+
+      // Distance must be >= small floor to avoid divide-by-zero.
+      float dist = h.Distance;
+      if (dist < 0.05f) dist = 0.05f;
+
+      return new RayHit {
+        Distance = dist,
+        WallTexIdx = texIdx,
+        TexU = h.U,
+        Light = lightLevel,
+        HitVertical = false, // sector-graph hits don't have axis bias
+        IsSky = isSky,
+      };
+    }
+
+    // Ray escaped without hitting anything (shouldn't happen on closed maps)
+    return new RayHit { Distance = C.MAX_RAY, IsSky = true, Light = 200 };
   }
 
   private struct RayHit {

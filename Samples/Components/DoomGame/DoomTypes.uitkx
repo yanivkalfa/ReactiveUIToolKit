@@ -325,6 +325,12 @@ module DoomTypes {
     public Vector2 PlayerStart;
     public float PlayerStartAngle;
     public int PlayerStartSector;
+    // Phase 2: tile-cell to sector lookup (W*H, -1 if cell is Wall).
+    // Built by FromTiles; lets the legacy door cell animation also drive
+    // the corresponding sector's CeilingZ so the sector renderer sees doors
+    // open/close.
+    public int[] CellToSector;
+    public int CellWidth, CellHeight;
 
     public bool IsValid => Sectors != null && Sectors.Length > 0;
 
@@ -384,7 +390,7 @@ module DoomTypes {
       // 2) Walk all 4-edges of every cell. Each edge becomes either a one-sided
       //    line (cell vs Wall) or a two-sided line (cell vs cell).
       var lines = new List<Linedef>();
-      Action<int, int, int, int, int, int> addLine = (x1, y1, x2, y2, frontSec, backSec) => {
+      Action<int, int, int, int, int, int, byte> addLine = (x1, y1, x2, y2, frontSec, backSec, midTex) => {
         int v1 = getVertex(x1, y1);
         int v2 = getVertex(x2, y2);
         var l = new Linedef {
@@ -394,12 +400,27 @@ module DoomTypes {
           Flags = backSec >= 0 ? LinedefFlags.TwoSided : LinedefFlags.None,
           Special = LineSpecial.None,
           Tag = 0,
-          MidTex = 0, UpperTex = 0, LowerTex = 0,
+          MidTex = midTex, UpperTex = midTex, LowerTex = midTex,
         };
         int li = lines.Count;
         lines.Add(l);
         if (frontSec >= 0) sectors[frontSec].LineIds.Add(li);
         if (backSec >= 0) sectors[backSec].LineIds.Add(li);
+      };
+
+      // Helper: pick wall texture for an edge between cell (x,y) and neighbor (nx,ny).
+      // If neighbor is wall -> use neighbor's WallTexIdx. Otherwise if neighbor is
+      // a door cell, use door's WallTexIdx (so the door renders when closed).
+      Func<int, int, int, int, byte> edgeTex = (x, y, nx, ny) => {
+        Cell self = map.Cells[y * W + x];
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) return self.WallTexIdx;
+        Cell nb = map.Cells[ny * W + nx];
+        if (nb.Kind == CellKind.Wall || nb.Kind == CellKind.Exit) return nb.WallTexIdx;
+        if (nb.Kind == CellKind.Door || nb.Kind == CellKind.DoorBlue ||
+            nb.Kind == CellKind.DoorYellow || nb.Kind == CellKind.DoorRed) {
+          return nb.WallTexIdx;
+        }
+        return self.WallTexIdx;
       };
 
       // For each non-wall cell, emit its right and bottom edges.
@@ -412,31 +433,37 @@ module DoomTypes {
           if (s < 0) continue;
           // Right edge (between this and (x+1, y))
           int neighborR = (x + 1 < W) ? cellSector[y * W + (x + 1)] : -1;
-          var cellRight = (x + 1 < W) ? map.Cells[y * W + (x + 1)] : default;
+          byte texR = edgeTex(x, y, x + 1, y);
           if (x + 1 >= W || map.Cells[y * W + (x + 1)].Kind == CellKind.Wall) {
-            addLine(x + 1, y, x + 1, y + 1, s, -1);
+            addLine(x + 1, y, x + 1, y + 1, s, -1, texR);
           } else {
-            addLine(x + 1, y, x + 1, y + 1, s, neighborR);
+            addLine(x + 1, y, x + 1, y + 1, s, neighborR, texR);
           }
           // Bottom edge (between this and (x, y+1))
           int neighborB = (y + 1 < H) ? cellSector[(y + 1) * W + x] : -1;
+          byte texB = edgeTex(x, y, x, y + 1);
           if (y + 1 >= H || map.Cells[(y + 1) * W + x].Kind == CellKind.Wall) {
-            addLine(x, y + 1, x + 1, y + 1, s, -1);
+            addLine(x, y + 1, x + 1, y + 1, s, -1, texB);
           } else {
-            addLine(x, y + 1, x + 1, y + 1, s, neighborB);
+            addLine(x, y + 1, x + 1, y + 1, s, neighborB, texB);
           }
           // Top edge (only if topmost row or neighbor above is wall — otherwise
           // already handled by neighbor's bottom edge)
           if (y == 0 || map.Cells[(y - 1) * W + x].Kind == CellKind.Wall) {
-            addLine(x, y, x + 1, y, s, -1);
+            byte texT = edgeTex(x, y, x, y - 1);
+            addLine(x, y, x + 1, y, s, -1, texT);
           }
           // Left edge (only if leftmost col or neighbor left is wall)
           if (x == 0 || map.Cells[y * W + (x - 1)].Kind == CellKind.Wall) {
-            addLine(x, y, x, y + 1, s, -1);
+            byte texL = edgeTex(x, y, x - 1, y);
+            addLine(x, y, x, y + 1, s, -1, texL);
           }
         }
       }
 
+      // 3) Compute player start sector from cellSector lookup if PlayerStart is
+      //    a tile coordinate. Caller will overwrite PlayerStart with the float
+      //    coords; we pre-fill PlayerStartSector from those if possible later.
       return new MapData {
         Vertices = verts.ToArray(),
         Lines = lines.ToArray(),
@@ -445,6 +472,9 @@ module DoomTypes {
         PlayerStart = Vector2.zero,         // filled later
         PlayerStartAngle = 0f,
         PlayerStartSector = -1,
+        CellToSector = cellSector,
+        CellWidth = W,
+        CellHeight = H,
       };
     }
 
