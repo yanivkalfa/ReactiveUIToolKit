@@ -91,4 +91,24 @@ module DoomGameScreenLogic {
     if (k == MobjKind.Explosion) return -0.05f;
     return 0.15f;
   }
+
+  // Phase 3: flattened list of extra wall segs (upper/lower from portals).
+  // The Main seg is rendered separately by the existing wall loop.
+  public struct ExtraSegEntry {
+    public int ColIndex;
+    public WallSeg Seg;
+  }
+
+  public static List<ExtraSegEntry> BuildExtraSegList(GameState state) {
+    var list = new List<ExtraSegEntry>(0);
+    var cols = state.Frame.Columns;
+    for (int i = 0; i < cols.Length; i++) {
+      var ex = cols[i].Extras;
+      if (ex == null) continue;
+      for (int j = 0; j < ex.Length; j++) {
+        list.Add(new ExtraSegEntry { ColIndex = i, Seg = ex[j] });
+      }
+    }
+    return list;
+  }
 }

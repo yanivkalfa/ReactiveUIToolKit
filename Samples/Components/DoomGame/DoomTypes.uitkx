@@ -57,6 +57,11 @@ module DoomTypes {
     public byte DoorState; // 0=closed, 255=open
     public byte DoorTimer;
     public byte Tag;
+    // Phase 3: per-cell floor/ceiling height (world units). When 0 they default
+    // to 0 and 1 respectively in FromTiles (flat rooms). Use to make stepped
+    // rooms, raised platforms, low ceilings.
+    public float FloorZ;
+    public float CeilingZ;
   }
 
   public struct MapDef {
@@ -155,6 +160,10 @@ module DoomTypes {
 
   public struct ColumnInfo {
     public WallSeg Main;
+    // Phase 3+: extra segs above/below Main from portal upper/lower at varying
+    // floor/ceiling heights. May be null. Renderer iterates Extras then draws
+    // Main on top (Main is the closest/most-clipping seg).
+    public WallSeg[] Extras;
   }
 
   public struct FrameData {
@@ -363,8 +372,8 @@ module DoomTypes {
           var c = map.Cells[y * W + x];
           if (c.Kind == CellKind.Wall) continue;
           var s = new Sector {
-            FloorZ = 0f,
-            CeilingZ = 1f,
+            FloorZ = c.FloorZ,
+            CeilingZ = c.CeilingZ <= 0f ? 1f : c.CeilingZ,
             Light = c.LightLevel == 0 ? (byte)200 : c.LightLevel,
             FloorTex = c.FloorTexIdx,
             CeilingTex = c.CeilingTexIdx,
@@ -373,7 +382,8 @@ module DoomTypes {
             IsSky = false,
             LineIds = new List<int>(4),
             ExtraFloors = null,
-            TargetCeilingZ = 1f, TargetFloorZ = 0f,
+            TargetCeilingZ = c.CeilingZ <= 0f ? 1f : c.CeilingZ,
+            TargetFloorZ = c.FloorZ,
             CeilingSpeed = 0f, FloorSpeed = 0f, DoorWaitTimer = 0f,
           };
           // Doors map to closed sectors with CeilingZ=FloorZ (closed) until opened.

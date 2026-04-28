@@ -87,6 +87,35 @@ component DoomGameScreen(
             />
           );
         }
+        // Phase 3: extra wall segs (upper/lower portals). Render BEFORE main
+        // strips so the closer terminal wall stays on top.
+        @foreach (var ex in DoomGameScreenLogic.BuildExtraSegList(state)) {
+          var ecol = ex.Seg;
+          float etop = ecol.TopPx;
+          float eh = ecol.BotPx - ecol.TopPx;
+          if (eh < 1f) {
+            return null;
+          }
+          var etex = DoomTextures.Walls[ecol.WallTexIdx];
+          float ebgWidth = C.STRIP_W * 64f;
+          float ebgOffsetX = -ecol.TexU * ebgWidth;
+          float elightF = ecol.LightLevel / 255f;
+          return (
+            <VisualElement
+              key={"x" + ex.ColIndex.ToString() + "_" + etop.ToString("F0")}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = ex.ColIndex * C.STRIP_W, Top = etop,
+                Width = C.STRIP_W + 0.6f, Height = eh,
+                BackgroundImage = etex,
+                BackgroundSize = new BackgroundSize(new Length(ebgWidth, LengthUnit.Pixel), new Length(eh, LengthUnit.Pixel)),
+                BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(ebgOffsetX, LengthUnit.Pixel)),
+                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+                BackgroundImageTint = new Color(elightF, elightF, elightF, 1f),
+              }}
+            />
+          );
+        }
         // Wall strips
         @foreach (var i in System.Linq.Enumerable.Range(0, C.VIEW_W)) {
           var col = state.Frame.Columns[i].Main;
@@ -201,8 +230,8 @@ component DoomGameScreen(
         armor={state.Player.Armor}
         armorClass={state.Player.ArmorClass}
         weapon={state.Player.Weapon}
-        ammo={state.Player.Ammo}
-        ownedWeapons={state.Player.OwnedWeapons}
+        ammo={(int[])state.Player.Ammo.Clone()}
+        ownedWeapons={(bool[])state.Player.OwnedWeapons.Clone()}
         keys={state.Player.Keys}
         score={state.Score}
         killCount={state.KillCount}

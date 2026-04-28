@@ -692,87 +692,135 @@ module GameLogic {
     var cols = st.Frame.Columns;
     var depth = st.Frame.DepthBuffer;
     bool useSector = USE_SECTOR_RAYCAST && st.SectorMap.IsValid && p.SectorId >= 0;
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.5f : p.ViewHeight);
+    float horizon = C.VIEWPORT_H * 0.5f + p.Pitch;
 
     for (int i = 0; i < C.VIEW_W; i++) {
       float cameraX = 2f * i / (float)C.VIEW_W - 1f; // -1..1
       float rayAng = p.Angle + Mathf.Atan(cameraX * Mathf.Tan(C.HALF_FOV));
       float rdx = Mathf.Cos(rayAng), rdy = Mathf.Sin(rayAng);
+      float angCos = Mathf.Cos(rayAng - p.Angle);
 
-      RayHit hit = useSector
-        ? CastRaySector(ref st, p.X, p.Y, rdx, rdy)
-        : CastRay(ref st, p.X, p.Y, rdx, rdy);
-
-      // perspective-correct distance (project onto view direction)
-      float perp = hit.Distance * Mathf.Cos(rayAng - p.Angle);
-      if (perp < 0.001f) perp = 0.001f;
-      depth[i] = perp;
-
-      float wallH = (C.VIEWPORT_H / perp);
-      float horizon = C.VIEWPORT_H * 0.5f + p.Pitch;
-      float top = horizon - wallH * 0.5f;
-      float bot = horizon + wallH * 0.5f;
-
-      byte light = LightFromDist(perp, hit.Light);
-      cols[i] = new ColumnInfo {
-        Main = new WallSeg {
-          TopPx = top, BotPx = bot,
-          Distance = perp,
-          WallTexIdx = hit.WallTexIdx,
-          TexU = hit.TexU,
-          LightLevel = light,
-          HitVertical = hit.HitVertical,
-          IsSky = hit.IsSky,
-        },
-      };
+      if (useSector) {
+        cols[i] = BuildColumnSector(ref st, p.X, p.Y, rdx, rdy, angCos, viewZ, horizon, out var perpOut);
+        depth[i] = perpOut;
+      } else {
+        var hit = CastRay(ref st, p.X, p.Y, rdx, rdy);
+        float perp = hit.Distance * angCos;
+        if (perp < 0.001f) perp = 0.001f;
+        depth[i] = perp;
+        float wallH = (C.VIEWPORT_H / perp);
+        float top = horizon - wallH * 0.5f;
+        float bot = horizon + wallH * 0.5f;
+        byte light = LightFromDist(perp, hit.Light);
+        cols[i] = new ColumnInfo {
+          Main = new WallSeg {
+            TopPx = top, BotPx = bot,
+            Distance = perp,
+            WallTexIdx = hit.WallTexIdx,
+            TexU = hit.TexU,
+            LightLevel = light,
+            HitVertical = hit.HitVertical,
+            IsSky = hit.IsSky,
+          },
+        };
+      }
     }
   }
 
-  // Phase 2: portal-walking raycast that produces the same RayHit shape as the
-  // grid DDA. Walks from player.SectorId through two-sided linedefs until a
-  // solid (one-sided) line or a closed-door portal is hit. Closed-door portal
-  // = neighbor sector with CeilingZ <= FloorZ (door currently closed).
-  private static RayHit CastRaySector(ref GameState st, float ox, float oy, float dx, float dy) {
-    var p = st.Player;
-    Raycast.Cast(st.SectorMap, new Vector2(ox, oy), p.SectorId, new Vector2(dx, dy), out var hits);
+  // Phase 3: portal-walking column build. Walks hits and emits upper/lower
+  // segs at portals where back ceiling is lower or back floor is higher than
+  // front. Terminal hit (one-sided wall or closed door) becomes Main.
+  private static ColumnInfo BuildColumnSector(
+    ref GameState st, float ox, float oy, float rdx, float rdy,
+    float angCos, float viewZ, float horizon, out float depthOut
+  ) {
+    Raycast.Cast(st.SectorMap, new Vector2(ox, oy), st.Player.SectorId, new Vector2(rdx, rdy), out var hits);
+    List<WallSeg> extras = null;
+    depthOut = C.MAX_RAY;
 
     for (int i = 0; i < hits.Count; i++) {
       var h = hits[i];
-      bool terminal = false;
-      bool isSky = false;
-      bool closedDoor = false;
-      if (h.ToSector < 0) {
-        terminal = true;
-      } else {
-        var nb = st.SectorMap.Sectors[h.ToSector];
-        if (nb.CeilingZ <= nb.FloorZ + 0.001f) { terminal = true; closedDoor = true; }
-        if (nb.IsSky) isSky = true;
+      bool terminal = h.ToSector < 0;
+      Sector front = st.SectorMap.Sectors[h.FromSector];
+      Sector back = default;
+      if (h.ToSector >= 0) {
+        back = st.SectorMap.Sectors[h.ToSector];
+        // Closed door: treat as terminal full-height wall.
+        if (back.CeilingZ <= back.FloorZ + 0.001f) terminal = true;
       }
-      if (!terminal) continue;
-
       var line = st.SectorMap.Lines[h.LinedefId];
-      byte texIdx = line.MidTex;
-      // Front sector light
-      byte lightLevel = (byte)200;
-      if (h.FromSector >= 0) lightLevel = st.SectorMap.Sectors[h.FromSector].Light;
 
-      // Distance must be >= small floor to avoid divide-by-zero.
-      float dist = h.Distance;
-      if (dist < 0.05f) dist = 0.05f;
+      float perp = h.Distance * angCos;
+      if (perp < 0.001f) perp = 0.001f;
+      float scale = C.VIEWPORT_H / perp;
+      byte light = LightFromDist(perp, front.Light);
 
-      return new RayHit {
-        Distance = dist,
-        WallTexIdx = texIdx,
-        TexU = h.U,
-        Light = lightLevel,
-        HitVertical = false, // sector-graph hits don't have axis bias
-        IsSky = isSky,
-      };
+      if (terminal) {
+        // Full wall from front.FloorZ to front.CeilingZ
+        float top = horizon - (front.CeilingZ - viewZ) * scale;
+        float bot = horizon - (front.FloorZ - viewZ) * scale;
+        depthOut = perp;
+        return new ColumnInfo {
+          Main = new WallSeg {
+            TopPx = top, BotPx = bot,
+            Distance = perp,
+            WallTexIdx = line.MidTex,
+            TexU = h.U,
+            LightLevel = light,
+            HitVertical = false,
+            IsSky = h.ToSector >= 0 && back.IsSky,
+          },
+          Extras = extras?.ToArray(),
+        };
+      }
+
+      // Portal hop: emit upper if back ceiling is lower, lower if back floor is higher.
+      if (back.CeilingZ < front.CeilingZ - 0.001f) {
+        float top = horizon - (front.CeilingZ - viewZ) * scale;
+        float bot = horizon - (back.CeilingZ - viewZ) * scale;
+        if (bot > top + 0.5f) {
+          if (extras == null) extras = new List<WallSeg>(2);
+          extras.Add(new WallSeg {
+            TopPx = top, BotPx = bot,
+            Distance = perp,
+            WallTexIdx = line.UpperTex,
+            TexU = h.U,
+            LightLevel = light,
+            HitVertical = false,
+            IsSky = false,
+          });
+        }
+      }
+      if (back.FloorZ > front.FloorZ + 0.001f) {
+        float top = horizon - (back.FloorZ - viewZ) * scale;
+        float bot = horizon - (front.FloorZ - viewZ) * scale;
+        if (bot > top + 0.5f) {
+          if (extras == null) extras = new List<WallSeg>(2);
+          extras.Add(new WallSeg {
+            TopPx = top, BotPx = bot,
+            Distance = perp,
+            WallTexIdx = line.LowerTex,
+            TexU = h.U,
+            LightLevel = light,
+            HitVertical = false,
+            IsSky = false,
+          });
+        }
+      }
     }
 
-    // Ray escaped without hitting anything (shouldn't happen on closed maps)
-    return new RayHit { Distance = C.MAX_RAY, IsSky = true, Light = 200 };
+    // Ray escaped — sky column.
+    return new ColumnInfo {
+      Main = new WallSeg {
+        TopPx = 0, BotPx = 0,
+        Distance = C.MAX_RAY,
+        WallTexIdx = 0, TexU = 0, LightLevel = 200,
+        HitVertical = false, IsSky = true,
+      },
+      Extras = extras?.ToArray(),
+    };
   }
-
   private struct RayHit {
     public float Distance;
     public byte WallTexIdx;
