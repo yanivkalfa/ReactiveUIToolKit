@@ -888,9 +888,25 @@ module GameLogic {
     }
   }
 
-  // Phase 3: portal-walking column build. Walks hits and emits upper/lower
-  // segs at portals where back ceiling is lower or back floor is higher than
-  // front. Terminal hit (one-sided wall or closed door) becomes Main.
+  // Phase 3 + Plan C: portal-walking column build with Doom-style vertical
+  // occlusion clipping. Maintains a per-ray (winTop, winBot) screen-Y window
+  // tightened by every front floor / front ceiling / portal wall surface
+  // crossed. All emitted geometry is pre-clipped to that window — so within
+  // a single column nothing ever overlaps in Y, and the renderer's paint
+  // order becomes correctness-irrelevant.
+  //
+  // Why this beats clamp-and-sort hacks:
+  //  - Stairs DOWN: the lower step's floor band is naturally clipped to the
+  //    upper step's silhouette (winBot = upperFloor.yFar). No phantom
+  //    cliff wall has to be invented — the cliff face is geometrically
+  //    occluded by the upper floor surface from the player's POV, so we
+  //    don't emit it.
+  //  - Step UP: emits a real lower wall (riser) clipped to the window, then
+  //    pushes winBot up. Subsequent floor bands beyond the riser only paint
+  //    in the still-visible top portion.
+  //  - Sky / open ceilings: don't push winTop; sky shows through.
+  //  - Closed door / terminal solid wall: emits Main clipped, ray ends.
+  //  - Window collapses → ray bails early (perf win).
   private static ColumnInfo BuildColumnSector(
     ref GameState st, float ox, float oy, float rdx, float rdy,
     float angCos, float viewZ, float horizon, out float depthOut
@@ -900,17 +916,12 @@ module GameLogic {
     List<FloorBand> bands = null;
     depthOut = C.MAX_RAY;
 
-    // Floor band bookkeeping: each segment between hits paints front.FloorZ
-    // visible on screen from prevPerp (near, large Y) to perp (far, small Y).
+    // Vertical occlusion window. Stuff farther than the current hit can
+    // only paint inside [winTop, winBot]. Tightens monotonically as we
+    // walk the ray, never widens.
+    float winTop = 0f;
+    float winBot = C.VIEWPORT_H;
     float prevPerp = 0.001f;
-    float prevFloorZ = float.NaN;
-    float prevYFar = float.NaN;
-    // True once the ray has crossed a sector whose floor sits at or above the
-    // eye — that floor renders as a solid wall in our view and occludes
-    // everything beyond it. Without this guard, a ray climbing a riser onto
-    // a plateau and continuing would still emit floor bands for the lower
-    // courtyard on the far side, painting through the plateau wall.
-    bool blockedByHighFloor = false;
 
     for (int i = 0; i < hits.Count; i++) {
       var h = hits[i];
@@ -927,110 +938,128 @@ module GameLogic {
       float perp = h.Distance * angCos;
       if (perp < 0.001f) perp = 0.001f;
       float scale = C.VIEWPORT_H / perp;
+      float scaleNear = C.VIEWPORT_H / Mathf.Max(prevPerp, 0.05f);
       byte light = LightFromDist(perp, front.Light);
 
-      // Phase 7: emit a floor band for the segment we just crossed.
-      // Floor at world Z fz at distance d projects to screen Y =
-      //   horizon + (viewZ - fz) * (VIEWPORT_H / d)
       float fz = front.FloorZ;
-      // Skip floor bands for surfaces ABOVE the eye — those aren't visible as
-      // floor (you'd see them as a ceiling from below, not a floor surface).
-      // Also skip floors hidden behind a previously-crossed above-eye riser
-      // (that riser is a wall in our view and occludes everything past it).
-      if (fz < viewZ - 0.001f && !blockedByHighFloor) {
-        float yNear = horizon + (viewZ - fz) * (C.VIEWPORT_H / Mathf.Max(prevPerp, 0.05f));
-        float yFar = horizon + (viewZ - fz) * (C.VIEWPORT_H / perp);
-        // Step-down silhouette clamp: when the ray crosses from a HIGHER
-        // floor into a LOWER one (no riser wall is emitted in this case),
-        // the visual cliff face is filled by the new lower band's projection.
-        // The new band must NOT paint above the silhouette of the higher
-        // sector — otherwise distant ground pixels project above the close
-        // plateau's edge and paint on top of the plateau (see-through boxes).
-        // Clamp BOTH yFar and yNear DOWN to the previous silhouette so the
-        // band stays strictly below it.
-        if (!float.IsNaN(prevYFar) && !float.IsNaN(prevFloorZ) && fz < prevFloorZ - 0.001f) {
-          if (yFar < prevYFar) yFar = prevYFar;
-          if (yNear < prevYFar) yNear = prevYFar;
-        }
-        // Clamp to viewport
-        if (yNear > C.VIEWPORT_H) yNear = C.VIEWPORT_H;
-        if (yFar < horizon) yFar = horizon;
-        if (yNear > yFar + 0.5f) {
+      float cz = front.CeilingZ;
+      // Floor projection at this hit (far edge of the band) and at the
+      // previous hit (near edge of the band).
+      float yFloorFar = horizon + (viewZ - fz) * scale;
+      float yFloorNear = horizon + (viewZ - fz) * scaleNear;
+      // Ceiling projection (only meaningful when cz > viewZ).
+      float yCeilFar = horizon - (cz - viewZ) * scale;
+
+      // ── 1. Emit floor band for the segment we just crossed, clipped to
+      //    the current visibility window. Skip floors at/above the eye —
+      //    those don't render as a floor surface (they look like ceiling).
+      if (fz < viewZ - 0.001f) {
+        float bTop = yFloorFar;
+        float bBot = yFloorNear;
+        if (bTop < winTop) bTop = winTop;
+        if (bBot > winBot) bBot = winBot;
+        if (bBot > bTop + 0.5f) {
           if (bands == null) bands = new List<FloorBand>(4);
-          // Step-down rim: this band's far edge represents a drop into a lower
-          // back-floor. The top edge of the band is the visible silhouette of
-          // the platform you're standing on, looking outward.
-          // Only rim "real" ledges, not tiny staircase steps. Threshold ~0.5
-          // suppresses rims on 0.2-unit stair risers but keeps them on plateaus.
+          // Rim chalk-line is drawn at the far edge of the upper-step's
+          // band when we're about to step down to a lower sector. Drawn
+          // for any meaningful drop (≥ 0.15u so 0.2u stair treads each
+          // get their own line) and only when the band's top edge is the
+          // true unclipped silhouette (not chopped by a higher occluder).
           bool rimAtFar = h.ToSector >= 0
-          && !terminal
-          && (fz - back.FloorZ) >= 0.5f;
+            && !terminal
+            && (fz - back.FloorZ) >= 0.15f
+            && bTop <= yFloorFar + 0.5f;
           bands.Add(new FloorBand {
-            TopPx = yFar, BotPx = yNear, FloorZ = fz,
-            Light = LightFromDist(perp, front.Light),
+            TopPx = bTop, BotPx = bBot, FloorZ = fz,
+            Light = light,
             FloorTex = front.FloorTex,
-            BehindFloorZ = float.IsNaN(prevFloorZ) ? float.NegativeInfinity : prevFloorZ,
+            BehindFloorZ = float.NegativeInfinity,
             RimAtFar = rimAtFar,
           });
         }
-        prevYFar = yFar;
       }
-      prevPerp = perp;
-      prevFloorZ = fz;
-      if (fz >= viewZ - 0.001f) blockedByHighFloor = true;
 
+      // ── 2. Tighten window from the front-sector's own occluders.
+      //    Floor below eye occludes anything beyond at screenY > yFloorFar
+      //    (since farther floor pixels project closer to horizon = smaller
+      //    screenY). So winBot = min(winBot, yFloorFar).
+      //    Ceiling above eye (non-sky) occludes anything beyond above
+      //    yCeilFar. Sky doesn't occlude — it shows through.
+      if (fz < viewZ - 0.001f) {
+        if (yFloorFar < winBot) winBot = yFloorFar;
+      }
+      if (!front.IsSky && cz > viewZ + 0.001f) {
+        if (yCeilFar > winTop) winTop = yCeilFar;
+      }
+
+      // ── 3a. TERMINAL hit (solid wall or closed door). Emit Main clipped
+      //    to current window.
       if (terminal) {
-        // Full wall from front.FloorZ to front.CeilingZ. Sky sectors get a
-        // capped wall height so the sky shows above the surrounding parapet.
         float ceilForWall = front.IsSky
-        ? Mathf.Min(front.CeilingZ, front.FloorZ + 2.5f)
-        : front.CeilingZ;
-        float top = horizon - (ceilForWall - viewZ) * scale;
-        float bot = horizon - (front.FloorZ - viewZ) * scale;
+          ? Mathf.Min(cz, fz + 2.5f)
+          : cz;
+        float wTop = horizon - (ceilForWall - viewZ) * scale;
+        float wBot = horizon - (fz - viewZ) * scale;
+        float unclippedTop = wTop;
+        if (wTop < winTop) wTop = winTop;
+        if (wBot > winBot) wBot = winBot;
         depthOut = perp;
         return new ColumnInfo {
           Main = new WallSeg {
-            TopPx = top, BotPx = bot,
+            TopPx = wTop, BotPx = wBot,
             Distance = perp,
             WallTexIdx = line.MidTex,
             TexU = h.U,
             LightLevel = light,
             HitVertical = false,
             IsSky = h.ToSector >= 0 && back.IsSky,
+            TexOffsetPx = unclippedTop - wTop,
           },
           Extras = extras?.ToArray(),
-          FrontFloorZ = front.FloorZ,
+          FrontFloorZ = fz,
           FloorBands = bands?.ToArray(),
         };
       }
 
-      // Portal hop: emit upper if back ceiling is lower, lower if back floor is higher.
-      if (back.CeilingZ < front.CeilingZ - 0.001f) {
-        float top = horizon - (front.CeilingZ - viewZ) * scale;
-        float bot = horizon - (back.CeilingZ - viewZ) * scale;
-        if (bot > top + 0.5f) {
+      // ── 3b. PORTAL UPPER: back ceiling LOWER than front ceiling. Emit
+      //    upper wall clipped, then push winTop down. Skip for sky-back
+      //    (sky portals show sky above, not a wall).
+      if (back.CeilingZ < front.CeilingZ - 0.001f && !back.IsSky) {
+        float wTop = horizon - (front.CeilingZ - viewZ) * scale;
+        float wBot = horizon - (back.CeilingZ - viewZ) * scale;
+        float cTop = wTop, cBot = wBot;
+        if (cTop < winTop) cTop = winTop;
+        if (cBot > winBot) cBot = winBot;
+        if (cBot > cTop + 0.5f) {
           if (extras == null) extras = new List<WallSeg>(2);
           extras.Add(new WallSeg {
-            TopPx = top, BotPx = bot,
+            TopPx = cTop, BotPx = cBot,
             Distance = perp,
             WallTexIdx = line.UpperTex,
             TexU = h.U,
             LightLevel = light,
             HitVertical = false,
             IsSky = false,
+            TexOffsetPx = wTop - cTop,
           });
         }
+        if (wBot > winTop) winTop = wBot;
       }
+
+      // ── 3c. PORTAL LOWER (step-up): back floor HIGHER than front floor.
+      //    Emit lower wall clipped, then push winBot up.
       if (back.FloorZ > front.FloorZ + 0.001f) {
-        float top = horizon - (back.FloorZ - viewZ) * scale;
-        float bot = horizon - (front.FloorZ - viewZ) * scale;
-        if (bot > top + 0.5f) {
+        float wTop = horizon - (back.FloorZ - viewZ) * scale;
+        float wBot = horizon - (front.FloorZ - viewZ) * scale;
+        float cTop = wTop, cBot = wBot;
+        if (cTop < winTop) cTop = winTop;
+        if (cBot > winBot) cBot = winBot;
+        if (cBot > cTop + 0.5f) {
           if (extras == null) extras = new List<WallSeg>(2);
-          // Only mark as a "riser" (gets chalk-line rim) for real ledges,
-          // not small staircase steps.
+          // Riser flag → chalk-line rim, only for tall steps.
           bool tallStep = (back.FloorZ - front.FloorZ) >= 0.5f;
           extras.Add(new WallSeg {
-            TopPx = top, BotPx = bot,
+            TopPx = cTop, BotPx = cBot,
             Distance = perp,
             WallTexIdx = line.LowerTex,
             TexU = h.U,
@@ -1038,8 +1067,36 @@ module GameLogic {
             HitVertical = false,
             IsSky = false,
             IsRiser = tallStep,
+            TexOffsetPx = wTop - cTop,
           });
         }
+        if (wTop < winBot) winBot = wTop;
+      }
+
+      // ── 3d. PORTAL STEP-DOWN (back floor LOWER than front floor):
+      //    INTENTIONALLY no wall emitted. The cliff face from above is
+      //    geometrically occluded by the upper floor surface — emitting it
+      //    produces "phantom brick stripes" on stairs. The visual "rim" is
+      //    the silhouette = upper band's far edge, already drawn above.
+      //    Beyond this hit, the lower floor's band paints clipped to the
+      //    already-tightened winBot=yFloorFar.
+
+      prevPerp = perp;
+
+      // Window collapsed → nothing past this hit can be visible.
+      if (winBot - winTop < 1f) {
+        depthOut = perp;
+        return new ColumnInfo {
+          Main = new WallSeg {
+            TopPx = 0, BotPx = 0,
+            Distance = perp,
+            WallTexIdx = 0, TexU = 0, LightLevel = light,
+            HitVertical = false, IsSky = false,
+          },
+          Extras = extras?.ToArray(),
+          FrontFloorZ = fz,
+          FloorBands = bands?.ToArray(),
+        };
       }
     }
 

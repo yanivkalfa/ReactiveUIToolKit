@@ -191,6 +191,13 @@ module DoomTypes {
     public bool HitVertical;
     public bool IsSky;
     public bool IsRiser; // true if this extra represents the front-face of a step-up
+    // Plan C: when TopPx was clipped UP by an occlusion window, this stores
+    // the screen-pixel delta (negative) that the renderer must apply to
+    // BackgroundPositionY so texel row 0 stays anchored to the UNCLIPPED
+    // top (= the wall's true world ceiling). Without this, adjacent
+    // columns clipped by different amounts produce diagonal/staircase
+    // texture rows on flat walls.
+    public float TexOffsetPx;
   }
 
   public struct ColumnInfo {

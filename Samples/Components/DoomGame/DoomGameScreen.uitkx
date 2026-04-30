@@ -169,7 +169,7 @@ component DoomGameScreen(
                 BackgroundImage = etex,
                 BackgroundSize = new BackgroundSize(new Length(ebgWidth, LengthUnit.Pixel), new Length(etexPx, LengthUnit.Pixel)),
                 BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(ebgOffsetX, LengthUnit.Pixel)),
-                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(ecol.TexOffsetPx, LengthUnit.Pixel)),
                 BackgroundRepeat = ReactiveUITK.Props.Typed.CssHelpers.BgRepeatY,
                 BackgroundImageTint = new Color(elightF, elightF, elightF, 1f),
               }}
@@ -231,7 +231,7 @@ component DoomGameScreen(
                 BackgroundImage = tex,
                 BackgroundSize = new BackgroundSize(new Length(bgWidth, LengthUnit.Pixel), new Length(texPx, LengthUnit.Pixel)),
                 BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(bgOffsetX, LengthUnit.Pixel)),
-                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(col.TexOffsetPx, LengthUnit.Pixel)),
                 BackgroundRepeat = ReactiveUITK.Props.Typed.CssHelpers.BgRepeatY,
                 BackgroundImageTint = new Color(lightF * vertDim, lightF * vertDim, lightF * vertDim, 1f),
               }}
