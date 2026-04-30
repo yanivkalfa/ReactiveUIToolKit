@@ -60,6 +60,7 @@ module DoomMaps {
           c.FloorTexIdx = floorTex;
           c.CeilingTexIdx = ceilTex;
           c.LightLevel = light;
+          c.IsSky = false; // explicit fill = not outdoors
         }
       }
       return this;
@@ -134,13 +135,15 @@ module DoomMaps {
       return this;
     }
 
-    // Phase 7: low ceiling / overhang. Sets per-cell CeilingZ.
+    // Phase 7: low ceiling / overhang. Sets per-cell CeilingZ. Implicitly
+    // clears the sky flag because a bounded ceiling is the opposite of sky.
     public MapBuilder LowCeiling(int x0, int y0, int x1, int y1, float ceilZ) {
       for (int y = y0; y <= y1; y++) {
         for (int x = x0; x <= x1; x++) {
           if (x < 0 || x >= W || y < 0 || y >= H) continue;
           ref var c = ref At(x, y);
           c.CeilingZ = ceilZ;
+          c.IsSky = false;
         }
       }
       return this;
@@ -495,13 +498,15 @@ module DoomMaps {
     // Player starts in the south, looking north.
     b.PlayerStart(8.5f, 32.5f, -Mathf.PI / 2f);
 
-    // Stairs going up north toward a raised plateau (4 steps).
+    // Stairs going up north toward a raised plateau (smaller rises so you can
+    // walk up without jumping; total ~1.0 over 5 steps).
     b.Step(6, 24, 14, 24, 0.0f);
-    b.Step(6, 23, 14, 23, 0.4f);
-    b.Step(6, 22, 14, 22, 0.8f);
-    b.Step(6, 21, 14, 21, 1.2f);
+    b.Step(6, 23, 14, 23, 0.2f);
+    b.Step(6, 22, 14, 22, 0.4f);
+    b.Step(6, 21, 14, 21, 0.6f);
+    b.Step(6, 20, 14, 20, 0.8f);
     // Plateau on top
-    b.Step(4, 14, 16, 20, 1.6f);
+    b.Step(4, 14, 16, 19, 1.0f);
 
     // Raised pillar of brick to the east (must jump to climb)
     b.Step(22, 30, 26, 32, 0.7f);
@@ -526,11 +531,12 @@ module DoomMaps {
     b.Exit(10, 16);
 
     // Some enemies and pickups
-    b.Spawn(MobjKind.Imp, 10.5f, 18.5f);          // on plateau
-    b.Spawn(MobjKind.Demon, 24.5f, 31.5f);         // near pillar
-    b.Spawn(MobjKind.Cacodemon, 32.5f, 8.5f);      // hovering in tower
-    b.Spawn(MobjKind.Zombieman, 24.5f, 19.5f);     // in tunnel
-    b.Spawn(MobjKind.Shotgunner, 6.5f, 26.5f);     // near stairs
+    // (enemies disabled for Phase 7 traversal testing)
+    // b.Spawn(MobjKind.Imp, 10.5f, 18.5f);
+    // b.Spawn(MobjKind.Demon, 24.5f, 31.5f);
+    // b.Spawn(MobjKind.Cacodemon, 32.5f, 8.5f);
+    // b.Spawn(MobjKind.Zombieman, 24.5f, 19.5f);
+    // b.Spawn(MobjKind.Shotgunner, 6.5f, 26.5f);
 
     b.Spawn(MobjKind.PickupHealth, 8.5f, 28.5f);
     b.Spawn(MobjKind.PickupShells, 12.5f, 16.5f);

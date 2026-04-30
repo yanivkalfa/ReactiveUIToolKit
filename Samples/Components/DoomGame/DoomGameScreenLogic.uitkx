@@ -101,6 +101,7 @@ module DoomGameScreenLogic {
   // The Main seg is rendered separately by the existing wall loop.
   public struct ExtraSegEntry {
     public int ColIndex;
+    public int SegIndex; // index within the column's Extras array (stable key)
     public WallSeg Seg;
   }
 
@@ -111,9 +112,81 @@ module DoomGameScreenLogic {
       var ex = cols[i].Extras;
       if (ex == null) continue;
       for (int j = 0; j < ex.Length; j++) {
-        list.Add(new ExtraSegEntry { ColIndex = i, Seg = ex[j] });
+        list.Add(new ExtraSegEntry { ColIndex = i, SegIndex = j, Seg = ex[j] });
       }
     }
     return list;
+  }
+
+  // Phase 7: per-column floor band entries for rendering.
+  public struct FloorBandEntry {
+    public int ColIndex;
+    public FloorBand Band;
+  }
+
+  public static List<FloorBandEntry> BuildFloorBandList(GameState state) {
+    var list = new List<FloorBandEntry>(0);
+    var cols = state.Frame.Columns;
+    for (int i = 0; i < cols.Length; i++) {
+      var bands = cols[i].FloorBands;
+      if (bands == null) continue;
+      for (int j = 0; j < bands.Length; j++) {
+        list.Add(new FloorBandEntry { ColIndex = i, Band = bands[j] });
+      }
+    }
+    return list;
+  }
+
+  // Phase 7: horizontally merged floor bands. Adjacent columns sharing the
+  // same floor slab (Z quantized to 0.2u) and similar screen Y range collapse
+  // into a single wide rect. Cuts element count from N*B down to a handful.
+  public struct MergedFloorBand {
+    public int ColStart;
+    public int ColEnd; // inclusive
+    public float TopPx;
+    public float BotPx;
+    public int SlabId;
+    public byte Light;
+    public byte FloorTex;
+    public float FloorZ;
+    public int BehindSlabId; // slab immediately behind in the ray (=SlabId if none)
+    public float BehindFloorZ; // FloorZ of slab immediately behind
+    public bool RimAtFar; // far edge is a visible step-down
+  }
+
+  public static List<MergedFloorBand> BuildMergedFloorBands(GameState state) {
+    var output = new List<MergedFloorBand>(256);
+    var cols = state.Frame.Columns;
+    // Per-column FAR → NEAR (reverse of ray-order source) so the closer band
+    // ends up later in the child list and paints OVER farther bands.
+    // UITK has no z-index; later children paint on top. Cross-column ordering
+    // is irrelevant because bands at different X columns don't overlap.
+    //
+    // Combined with the step-down yFar clamp in BuildColumnSector, this
+    // guarantees:
+    //  - Distant lower floors clamped to silhouette → never paint above the
+    //    higher floor's silhouette in pixel space.
+    //  - Even with TopPx ties from the clamp, the closer band always paints
+    //    last because of the deterministic per-column FAR→NEAR loop.
+    //
+    // No global List.Sort: it's not stable; ties on TopPx would randomly
+    // invert order per column and produce flicker / covered closer bands.
+    for (int i = 0; i < cols.Length; i++) {
+      var bands = cols[i].FloorBands;
+      if (bands == null) continue;
+      for (int j = bands.Length - 1; j >= 0; j--) {
+        var b = bands[j];
+        int slab = Mathf.RoundToInt(b.FloorZ * 5f);
+        output.Add(new MergedFloorBand {
+          ColStart = i, ColEnd = i,
+          TopPx = b.TopPx, BotPx = b.BotPx,
+          SlabId = slab, Light = b.Light, FloorTex = b.FloorTex, FloorZ = b.FloorZ,
+          BehindSlabId = slab,
+          BehindFloorZ = b.BehindFloorZ,
+          RimAtFar = b.RimAtFar,
+        });
+      }
+    }
+    return output;
   }
 }

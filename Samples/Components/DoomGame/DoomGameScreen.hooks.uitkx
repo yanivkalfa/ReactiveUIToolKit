@@ -54,8 +54,7 @@ hook useDoomGame(
       case KeyCode.Q: c.TurnLeft = true; break;
       case KeyCode.E: pendingUse.Current = true; break;
       case KeyCode.LeftShift: case KeyCode.RightShift: c.Run = true; break;
-      case KeyCode.Space: c.Attack = true; break;
-      case KeyCode.V: c.Jump = true; break;
+      case KeyCode.Space: c.Jump = true; break;
       case KeyCode.C: c.Crouch = true; break;
       case KeyCode.Alpha1: pendingWeaponSwitch.Current = 1; break;
       case KeyCode.Alpha2: pendingWeaponSwitch.Current = 2; break;
@@ -148,8 +147,7 @@ hook useDoomGame(
         case KeyCode.D: case KeyCode.RightArrow: c.StrafeRight = false; break;
         case KeyCode.Q: c.TurnLeft = false; break;
         case KeyCode.LeftShift: case KeyCode.RightShift: c.Run = false; break;
-        case KeyCode.Space: c.Attack = false; break;
-        case KeyCode.V: c.Jump = false; break;
+        case KeyCode.Space: c.Jump = false; break;
         case KeyCode.C: c.Crouch = false; break;
       }
       inputRef.Current = c;

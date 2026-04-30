@@ -148,15 +148,15 @@ module DoomTypes {
     public float MessageTimer;
     public string MessageText;
     // ── Phase 1 (Sector-engine) additions. Default 0; ignored by current renderer. ──
-    public float Z;          // feet height (0 = ground)
-    public float ZVel;       // for jump/gravity (Phase 7)
+    public float Z; // feet height (0 = ground)
+    public float ZVel; // for jump/gravity (Phase 7)
     public float ViewHeight; // eye offset from feet (default 0.6)
-    public int SectorId;     // current sector (-1 = unknown / fallback to grid)
+    public int SectorId; // current sector (-1 = unknown / fallback to grid)
     // Phase 7: pixel offset added to the horizon line (sky/floor/wall) so
     // jump/crouch animation stays in sync across all renderers. Computed by
     // CastFrame from Z + ViewHeight.
     public float ViewShiftPx;
-    public bool JumpHeldPrev;  // for edge-detection on Jump key
+    public bool JumpHeldPrev; // for edge-detection on Jump key
   }
 
   public struct Mobj {
@@ -175,10 +175,10 @@ module DoomTypes {
     public bool Collected;
     public byte AnimFrame;
     // ── Phase 1 (Sector-engine) additions. Default 0; ignored by current renderer. ──
-    public float Z;        // feet height in world units
-    public float ZVel;     // for projectiles + future jump/gravity
-    public float Height;   // from feet to head
-    public int SectorId;   // current sector (-1 = unknown / fallback to grid)
+    public float Z; // feet height in world units
+    public float ZVel; // for projectiles + future jump/gravity
+    public float Height; // from feet to head
+    public int SectorId; // current sector (-1 = unknown / fallback to grid)
   }
 
   public struct WallSeg {
@@ -190,6 +190,7 @@ module DoomTypes {
     public byte LightLevel;
     public bool HitVertical;
     public bool IsSky;
+    public bool IsRiser; // true if this extra represents the front-face of a step-up
   }
 
   public struct ColumnInfo {
@@ -198,6 +199,22 @@ module DoomTypes {
     // floor/ceiling heights. May be null. Renderer iterates Extras then draws
     // Main on top (Main is the closest/most-clipping seg).
     public WallSeg[] Extras;
+    // Phase 7: world Z of the floor at the terminal wall hit, used as a
+    // fallback when there are no per-portal floor bands.
+    public float FrontFloorZ;
+    // Phase 7: per-sector floor bands along this ray, ordered near→far. Each
+    // band paints from TopPx down to BotPx, colored by FloorZ.
+    public FloorBand[] FloorBands;
+  }
+
+  public struct FloorBand {
+    public float TopPx; // far edge of this floor slab on screen
+    public float BotPx; // near edge (toward bottom of screen)
+    public float FloorZ; // world Z (for color)
+    public byte Light; // sector light, attenuated by distance
+    public byte FloorTex; // sector floor texture index
+    public float BehindFloorZ; // FloorZ of the slab IMMEDIATELY behind this one in the same ray (NaN if none)
+    public bool RimAtFar; // true if the far edge of this band is a visible step-down rim
   }
 
   public struct FrameData {
@@ -250,23 +267,23 @@ module DoomTypes {
   [Flags]
   public enum LinedefFlags : byte {
     None = 0,
-    Impassable = 1,        // even two-sided lines can be flagged solid (rails)
+    Impassable = 1, // even two-sided lines can be flagged solid (rails)
     BlockMonsters = 2,
     TwoSided = 4,
     UpperUnpegged = 8,
     LowerUnpegged = 16,
-    DontDraw = 32,         // automap hint
+    DontDraw = 32, // automap hint
   }
 
   public enum LineSpecial : byte {
     None = 0,
-    UseDoorOpen = 1,        // E-key opens BackSector ceiling
+    UseDoorOpen = 1, // E-key opens BackSector ceiling
     UseDoorBlue = 2,
     UseDoorYellow = 3,
     UseDoorRed = 4,
-    UseLift = 5,            // E-key triggers lift on BackSector floor
-    CrossExit = 6,          // touching this linedef wins the level
-    CrossTeleport = 7,      // touching teleports player to Tag-marked spot
+    UseLift = 5, // E-key triggers lift on BackSector floor
+    CrossExit = 6, // touching this linedef wins the level
+    CrossTeleport = 7, // touching teleports player to Tag-marked spot
     UseSwitchExit = 8,
   }
 
@@ -275,34 +292,34 @@ module DoomTypes {
     LightFlicker = 1,
     LightBlink = 2,
     LightGlow = 3,
-    DamageNukage5 = 4,      // -5 hp/2s while standing
+    DamageNukage5 = 4, // -5 hp/2s while standing
     DamageLava10 = 5,
     Secret = 6,
-    DoorClose30 = 7,        // door auto-close after 30s
+    DoorClose30 = 7, // door auto-close after 30s
   }
 
   public struct Linedef {
-    public int V1, V2;          // vertex indices
-    public int FrontSector;     // sector on the right side of V1→V2
-    public int BackSector;      // -1 if one-sided (solid wall)
+    public int V1, V2; // vertex indices
+    public int FrontSector; // sector on the right side of V1→V2
+    public int BackSector; // -1 if one-sided (solid wall)
     public LinedefFlags Flags;
     public LineSpecial Special;
-    public byte Tag;            // links to sector with same Tag for triggers
-    public byte MidTex;         // wall texture for one-sided / window mid
-    public byte UpperTex;       // shown when neighbor ceiling is lower
-    public byte LowerTex;       // shown when neighbor floor is higher
+    public byte Tag; // links to sector with same Tag for triggers
+    public byte MidTex; // wall texture for one-sided / window mid
+    public byte UpperTex; // shown when neighbor ceiling is lower
+    public byte LowerTex; // shown when neighbor floor is higher
   }
 
   // 3D-floor (Phase 7): an extra walkable plane inside a sector.
   // Multiple ExtraFloors per sector enable basements, balconies, mezzanines.
   public struct ExtraFloor {
-    public float BottomZ;     // bottom of the slab (player walks ON TopZ)
-    public float TopZ;        // top of the slab
-    public byte SideTex;      // texture on the slab's vertical sides
-    public byte TopTex;        // texture on top (what the player walks on)
-    public byte BottomTex;     // texture on the underside (ceiling-of-below)
-    public byte Light;         // light level for this slab's surfaces
-    public bool Solid;         // false = swimmable / shootable through
+    public float BottomZ; // bottom of the slab (player walks ON TopZ)
+    public float TopZ; // top of the slab
+    public byte SideTex; // texture on the slab's vertical sides
+    public byte TopTex; // texture on top (what the player walks on)
+    public byte BottomTex; // texture on the underside (ceiling-of-below)
+    public byte Light; // light level for this slab's surfaces
+    public bool Solid; // false = swimmable / shootable through
   }
 
   public struct Sector {
@@ -313,13 +330,13 @@ module DoomTypes {
     public byte CeilingTex;
     public SectorSpecial Special;
     public byte Tag;
-    public bool IsSky;          // ceiling renders as sky if true
-    public List<int> LineIds;   // linedefs that touch this sector
+    public bool IsSky; // ceiling renders as sky if true
+    public List<int> LineIds; // linedefs that touch this sector
     public List<ExtraFloor> ExtraFloors; // null if no 3D floors
     // Door/lift animation state (Phase 5)
     public float TargetCeilingZ;
     public float TargetFloorZ;
-    public float CeilingSpeed;  // units/sec; 0 = idle
+    public float CeilingSpeed; // units/sec; 0 = idle
     public float FloorSpeed;
     public float DoorWaitTimer; // counts down after open before auto-close
   }
@@ -327,12 +344,12 @@ module DoomTypes {
   // ── Per-frame render data extensions (Phase 2+) ────────────────────────────
 
   public enum SegKind : byte {
-    Mid = 0,        // single solid wall (one-sided line)
-    Upper = 1,      // step-down ceiling neighbor
-    Lower = 2,      // step-up floor neighbor
-    ExtraTop = 3,   // top plane of a 3D floor
-    ExtraBot = 4,   // bottom plane of a 3D floor
-    ExtraSide = 5,  // side wall of a 3D floor
+    Mid = 0, // single solid wall (one-sided line)
+    Upper = 1, // step-down ceiling neighbor
+    Lower = 2, // step-up floor neighbor
+    ExtraTop = 3, // top plane of a 3D floor
+    ExtraBot = 4, // bottom plane of a 3D floor
+    ExtraSide = 5, // side wall of a 3D floor
   }
 
   public struct WallSegV2 {
@@ -341,18 +358,18 @@ module DoomTypes {
     public float Distance;
     public byte WallTexIdx;
     public float TexU;
-    public float TexVStart, TexVEnd;  // for variable-height segs
+    public float TexVStart, TexVEnd; // for variable-height segs
     public byte LightLevel;
     public bool HitVertical;
     public bool IsSky;
     public SegKind Kind;
-    public int SectorId;        // sector this seg belongs to (for sprite ordering)
+    public int SectorId; // sector this seg belongs to (for sprite ordering)
   }
 
   public struct FloorSpan {
-    public int Y;               // screen Y
+    public int Y; // screen Y
     public int LeftCol;
-    public int RightCol;        // inclusive
+    public int RightCol; // inclusive
     public int SectorId;
     public bool IsCeiling;
     public byte Light;
@@ -513,7 +530,7 @@ module DoomTypes {
         Lines = lines.ToArray(),
         Sectors = sectors.ToArray(),
         Name = map.Name,
-        PlayerStart = Vector2.zero,         // filled later
+        PlayerStart = Vector2.zero, // filled later
         PlayerStartAngle = 0f,
         PlayerStartSector = -1,
         CellToSector = cellSector,
@@ -538,12 +555,12 @@ module DoomTypes {
   }
 
   public static class C {
-    public const int VIEW_W = 320;
+    public const int VIEW_W = 160;
     public const int VIEW_H = 200;
     public const int VIEWPORT_W = 800;
     public const int VIEWPORT_H = 500;
     public const int HUD_HEIGHT = 90;
-    public const float STRIP_W = 2.5f;
+    public const float STRIP_W = 5f; // VIEWPORT_W / VIEW_W
 
     public const float FOV = 1.0472f;
     public const float HALF_FOV = FOV / 2f;
@@ -631,14 +648,14 @@ module DoomTypes {
     public const float MAX_RAY = 32f;
 
     // ── Phase 1+ Sector engine constants ──
-    public const int MAX_RAY_HOPS = 16;          // portal traversal cap
-    public const float STEP_HEIGHT = 0.4f;       // max floor step the player can walk up
-    public const float PLAYER_HEIGHT = 0.9f;     // feet→head
+    public const int MAX_RAY_HOPS = 16; // portal traversal cap
+    public const float STEP_HEIGHT = 0.4f; // max floor step the player can walk up
+    public const float PLAYER_HEIGHT = 0.9f; // feet→head
     public const float PLAYER_VIEW_HEIGHT = 0.6f;// feet→eye
-    public const float GRAVITY = 9f;             // units/s² for jump/fall
-    public const float JUMP_VELOCITY = 7.0f;     // initial Z velocity on Jump
+    public const float GRAVITY = 9f; // units/s² for jump/fall
+    public const float JUMP_VELOCITY = 7.0f; // initial Z velocity on Jump
     public const float CROUCH_HEIGHT = 0.45f;
-    public const float DOOR_OPEN_SPEED = 2.0f;   // units/sec ceiling lerp
+    public const float DOOR_OPEN_SPEED = 2.0f; // units/sec ceiling lerp
     public const float DOOR_AUTO_CLOSE_DELAY = 4f;// seconds
     public const float LIFT_SPEED = 1.5f;
   }

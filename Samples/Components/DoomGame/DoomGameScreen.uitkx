@@ -47,6 +47,7 @@ component DoomGameScreen(
         BackgroundColor = black,
         BorderTopWidth = 2, BorderRightWidth = 2, BorderBottomWidth = 2, BorderLeftWidth = 2,
         BorderTopColor = border, BorderRightColor = border, BorderBottomColor = border, BorderLeftColor = border,
+        Overflow = UnityEngine.UIElements.Overflow.Hidden,
       }}
     >
       // ── 3D viewport ──
@@ -68,36 +69,74 @@ component DoomGameScreen(
             BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
           }}
         />
-        // Floor bands. Phase 7: properly projected so the floor moves with
-        // the player's eye Z (jump/crouch). Each band represents a depth
-        // slice; closer bands are nearer the bottom of the screen.
-        @foreach (var i in System.Linq.Enumerable.Range(0, 10)) {
-          float horizonY = C.VIEWPORT_H * 0.5f + state.Player.Pitch;
-          float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
-          float viewZ = state.Player.Z + (state.Player.ViewHeight <= 0f ? 0.6f : state.Player.ViewHeight);
-          // Depth slices: near (i=0) to far (i=9). 1/d is more useful for Y.
-          float dNear = 0.6f, dFar = 18f;
-          float t0 = i / 10f, t1 = (i + 1) / 10f;
-          // Convert t∈[0,1] to depth via inverse-perspective so bands look even.
-          float d0 = 1f / Mathf.Lerp(1f / dNear, 1f / dFar, t0);
-          float d1 = 1f / Mathf.Lerp(1f / dNear, 1f / dFar, t1);
-          float yNear = horizonY + (viewZ * planeScale) / d0;
-          float yFar  = horizonY + (viewZ * planeScale) / d1;
-          float bandTop = Mathf.Min(yNear, yFar);
-          float bandBot = Mathf.Max(yNear, yFar);
-          // Far bands are above near bands. We want bands FROM near (bottom)
-          // TO far (closer to horizon); ensure we draw all of them visible.
-          if (bandBot > C.VIEWPORT_H) bandBot = C.VIEWPORT_H;
-          if (bandTop < horizonY) bandTop = horizonY;
-          float bandHeight = Mathf.Max(1f, bandBot - bandTop);
-          float shade = Mathf.Lerp(0.30f, 0.08f, t0);
+        // Floor backstop: a solid ground-color rect from horizon to bottom of
+        // viewport so any seam between merged floor bands reveals ground, not
+        // the dark void.
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = 0, Top = C.VIEWPORT_H * 0.5f + state.Player.Pitch,
+            Width = C.VIEWPORT_W, Height = C.VIEWPORT_H,
+            BackgroundColor = new Color(0.34f, 0.29f, 0.22f, 1f),
+          }}
+        />
+        // Phase 7: per-sector floor BANDS, horizontally merged. Each ray
+        // crosses one or more sectors; bands of the same Z slab in adjacent
+        // columns collapse into a single wide rect so element count stays low.
+        @foreach (var mb in DoomGameScreenLogic.BuildMergedFloorBands(state)) {
+          // One rect per column per band. Sorted far→near so closer bands
+          // paint on top. Each band uses its column's exact TopPx/BotPx so
+          // there's no merge gap. Bottom-extend by 4px to seal sub-pixel.
+          float top = mb.TopPx;
+          float h = mb.BotPx - top + 4f;
+          if (h < 1f) {
+            return null;
+          }
+          float left = mb.ColStart * C.STRIP_W - 0.5f;
+          float w = C.STRIP_W + 1f;
+          float lift = Mathf.Clamp(mb.FloorZ * 0.10f, -0.1f, 0.25f);
+          float light = mb.Light / 255f;
+          // Floor band must NEVER render darker than the backstop floor color
+          // (0.34, 0.29, 0.22) — otherwise distant bands paint as "dark holes"
+          // on top of the brighter backstop, looking like see-through.
+          // Light attenuation lifts brightness above the backstop near, fades
+          // toward the backstop level far away.
+          float bright = Mathf.Max(1f, 0.6f + light * 0.8f);
+          float r = Mathf.Clamp01((0.34f + lift) * bright);
+          float g = Mathf.Clamp01((0.29f + lift) * bright);
+          float bl = Mathf.Clamp01((0.22f + lift * 0.5f) * bright);
 
           return (
             <VisualElement
-              key={"floor-" + i.ToString()}
+              key={"fb" + mb.ColStart.ToString() + "_" + mb.SlabId.ToString()}
+              pickingMode={PickingMode.Ignore}
               style={new Style{
-                Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = bandTop, Width = C.VIEWPORT_W, Height = bandHeight,
-                BackgroundColor = new Color(shade * 0.9f, shade * 0.85f, shade * 0.75f, 1f),
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = left, Top = top,
+                Width = w, Height = h,
+                BackgroundColor = new Color(r, g, bl, 1f),
+              }}
+            />
+          );
+        }
+        // Step-down rim: when standing on top of a platform looking outward,
+        // the visible silhouette of where the platform ends is the TOP edge
+        // of the front floor band at the portal hop into a lower sector.
+        @foreach (var mb in DoomGameScreenLogic.BuildMergedFloorBands(state)) {
+          if (!mb.RimAtFar) {
+            return null;
+          }
+
+          return (
+            <VisualElement
+              key={"frim" + mb.ColStart.ToString() + "_" + mb.SlabId.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = mb.ColStart * C.STRIP_W - 0.5f, Top = mb.TopPx - 1f,
+                Width = C.STRIP_W + 1f, Height = 2f,
+                BackgroundColor = new Color(0.95f, 0.85f, 0.55f, 1f),
               }}
             />
           );
@@ -114,19 +153,51 @@ component DoomGameScreen(
           var etex = DoomTextures.Walls[ecol.WallTexIdx];
           float ebgWidth = C.STRIP_W * 64f;
           float ebgOffsetX = -ecol.TexU * ebgWidth;
-          float elightF = ecol.LightLevel / 255f;
+          // Tile vertically so 1 world-Z unit = 64 texels (= scale screen px).
+          float etexPx = C.VIEWPORT_H / Mathf.Max(0.1f, ecol.Distance);
+          // Floor min-brightness so distant step risers don't go black.
+          float elightF = Mathf.Max(0.45f, ecol.LightLevel / 255f);
+
           return (
             <VisualElement
-              key={"x" + ex.ColIndex.ToString() + "_" + etop.ToString("F0")}
+              key={"x" + ex.ColIndex.ToString() + "_" + ex.SegIndex.ToString()}
+              pickingMode={PickingMode.Ignore}
               style={new Style{
                 Position = UnityEngine.UIElements.Position.Absolute,
                 Left = ex.ColIndex * C.STRIP_W, Top = etop,
-                Width = C.STRIP_W + 0.6f, Height = eh,
+                Width = C.STRIP_W + 2f, Height = eh,
                 BackgroundImage = etex,
-                BackgroundSize = new BackgroundSize(new Length(ebgWidth, LengthUnit.Pixel), new Length(eh, LengthUnit.Pixel)),
+                BackgroundSize = new BackgroundSize(new Length(ebgWidth, LengthUnit.Pixel), new Length(etexPx, LengthUnit.Pixel)),
                 BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(ebgOffsetX, LengthUnit.Pixel)),
                 BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+                BackgroundRepeat = ReactiveUITK.Props.Typed.CssHelpers.BgRepeatY,
                 BackgroundImageTint = new Color(elightF, elightF, elightF, 1f),
+              }}
+            />
+          );
+        }
+        // Rim outline: chalk-line at the top edge of every step riser.
+        // Adjacent ray columns share the same step boundary so these stack
+        // into one continuous outline along the platform's outer rim.
+        @foreach (var ex in DoomGameScreenLogic.BuildExtraSegList(state)) {
+          var ecol = ex.Seg;
+          if (!ecol.IsRiser) {
+            return null;
+          }
+          float reh = ecol.BotPx - ecol.TopPx;
+          if (reh < 1f) {
+            return null;
+          }
+
+          return (
+            <VisualElement
+              key={"rim" + ex.ColIndex.ToString() + "_" + ex.SegIndex.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = ex.ColIndex * C.STRIP_W, Top = ecol.TopPx,
+                Width = C.STRIP_W + 2f, Height = 2f,
+                BackgroundColor = new Color(0.95f, 0.85f, 0.55f, 1f),
               }}
             />
           );
@@ -143,6 +214,10 @@ component DoomGameScreen(
           var tex = DoomTextures.Walls[col.WallTexIdx];
           float bgWidth = C.STRIP_W * 64f; // 64 = TEX_W
           float bgOffsetX = -col.TexU * bgWidth;
+          // Phase 7: tile vertically. 1 world-Z unit = `texPx` screen pixels =
+          // one full 64-texel tile. So a 2.5u wall shows ~2.5 tile rows; a
+          // 1.5u wall shows ~1.5 tile rows. No more stretching.
+          float texPx = C.VIEWPORT_H / Mathf.Max(0.1f, col.Distance);
           float lightF = col.LightLevel / 255f;
           float vertDim = col.HitVertical ? 0.85f : 1f;
 
@@ -152,11 +227,12 @@ component DoomGameScreen(
               style={new Style{
                 Position = UnityEngine.UIElements.Position.Absolute,
                 Left = i * C.STRIP_W, Top = top,
-                Width = C.STRIP_W + 0.6f, Height = h,
+                Width = C.STRIP_W + 2f, Height = h,
                 BackgroundImage = tex,
-                BackgroundSize = new BackgroundSize(new Length(bgWidth, LengthUnit.Pixel), new Length(h, LengthUnit.Pixel)),
+                BackgroundSize = new BackgroundSize(new Length(bgWidth, LengthUnit.Pixel), new Length(texPx, LengthUnit.Pixel)),
                 BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(bgOffsetX, LengthUnit.Pixel)),
                 BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+                BackgroundRepeat = ReactiveUITK.Props.Typed.CssHelpers.BgRepeatY,
                 BackgroundImageTint = new Color(lightF * vertDim, lightF * vertDim, lightF * vertDim, 1f),
               }}
             />

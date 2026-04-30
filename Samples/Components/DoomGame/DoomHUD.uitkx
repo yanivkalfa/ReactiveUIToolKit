@@ -77,7 +77,7 @@ component DoomHUD(
       }}
     >
       // AMMO panel
-      <VisualElement style={PanelStyle(92)}>
+      <VisualElement style={PanelStyle(78)}>
         <Label
           text="AMMO"
           style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
@@ -88,7 +88,7 @@ component DoomHUD(
         />
       </VisualElement>
       // HEALTH panel
-      <VisualElement style={PanelStyle(110)}>
+      <VisualElement style={PanelStyle(92)}>
         <Label
           text="HEALTH"
           style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
@@ -99,7 +99,7 @@ component DoomHUD(
         />
       </VisualElement>
       // ARMS grid
-      <VisualElement style={PanelStyle(140)}>
+      <VisualElement style={PanelStyle(112)}>
         <Label
           text="ARMS"
           style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
@@ -128,7 +128,7 @@ component DoomHUD(
       // Face mug
       <DoomFace frame={faceState} />
       // ARMOR panel
-      <VisualElement style={PanelStyle(110)}>
+      <VisualElement style={PanelStyle(92)}>
         <Label
           text={armorClass == 2 ? "MEGA" : "ARMOR"}
           style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
@@ -145,7 +145,7 @@ component DoomHUD(
         @(KeyDot(new Color(0.95f, 0.20f, 0.20f), (keys & KeyCard.Red)    != 0))
       </VisualElement>
       // AMMO breakdown
-      <VisualElement style={PanelStyle(120)}>
+      <VisualElement style={PanelStyle(104)}>
         @foreach (var i in System.Linq.Enumerable.Range(0, 4)) {
           return (
             <VisualElement
@@ -167,7 +167,7 @@ component DoomHUD(
         }
       </VisualElement>
       // INFO panel
-      <VisualElement style={PanelStyle(150)}>
+      <VisualElement style={PanelStyle(124)}>
         <Label
           text={mapName}
           style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}

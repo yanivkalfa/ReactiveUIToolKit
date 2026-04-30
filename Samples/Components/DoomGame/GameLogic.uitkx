@@ -897,7 +897,20 @@ module GameLogic {
   ) {
     Raycast.Cast(st.SectorMap, new Vector2(ox, oy), st.Player.SectorId, new Vector2(rdx, rdy), out var hits);
     List<WallSeg> extras = null;
+    List<FloorBand> bands = null;
     depthOut = C.MAX_RAY;
+
+    // Floor band bookkeeping: each segment between hits paints front.FloorZ
+    // visible on screen from prevPerp (near, large Y) to perp (far, small Y).
+    float prevPerp = 0.001f;
+    float prevFloorZ = float.NaN;
+    float prevYFar = float.NaN;
+    // True once the ray has crossed a sector whose floor sits at or above the
+    // eye — that floor renders as a solid wall in our view and occludes
+    // everything beyond it. Without this guard, a ray climbing a riser onto
+    // a plateau and continuing would still emit floor bands for the lower
+    // courtyard on the far side, painting through the plateau wall.
+    bool blockedByHighFloor = false;
 
     for (int i = 0; i < hits.Count; i++) {
       var h = hits[i];
@@ -916,12 +929,62 @@ module GameLogic {
       float scale = C.VIEWPORT_H / perp;
       byte light = LightFromDist(perp, front.Light);
 
+      // Phase 7: emit a floor band for the segment we just crossed.
+      // Floor at world Z fz at distance d projects to screen Y =
+      //   horizon + (viewZ - fz) * (VIEWPORT_H / d)
+      float fz = front.FloorZ;
+      // Skip floor bands for surfaces ABOVE the eye — those aren't visible as
+      // floor (you'd see them as a ceiling from below, not a floor surface).
+      // Also skip floors hidden behind a previously-crossed above-eye riser
+      // (that riser is a wall in our view and occludes everything past it).
+      if (fz < viewZ - 0.001f && !blockedByHighFloor) {
+        float yNear = horizon + (viewZ - fz) * (C.VIEWPORT_H / Mathf.Max(prevPerp, 0.05f));
+        float yFar = horizon + (viewZ - fz) * (C.VIEWPORT_H / perp);
+        // Step-down silhouette clamp: when the ray crosses from a HIGHER
+        // floor into a LOWER one (no riser wall is emitted in this case),
+        // the visual cliff face is filled by the new lower band's projection.
+        // The new band must NOT paint above the silhouette of the higher
+        // sector — otherwise distant ground pixels project above the close
+        // plateau's edge and paint on top of the plateau (see-through boxes).
+        // Clamp BOTH yFar and yNear DOWN to the previous silhouette so the
+        // band stays strictly below it.
+        if (!float.IsNaN(prevYFar) && !float.IsNaN(prevFloorZ) && fz < prevFloorZ - 0.001f) {
+          if (yFar < prevYFar) yFar = prevYFar;
+          if (yNear < prevYFar) yNear = prevYFar;
+        }
+        // Clamp to viewport
+        if (yNear > C.VIEWPORT_H) yNear = C.VIEWPORT_H;
+        if (yFar < horizon) yFar = horizon;
+        if (yNear > yFar + 0.5f) {
+          if (bands == null) bands = new List<FloorBand>(4);
+          // Step-down rim: this band's far edge represents a drop into a lower
+          // back-floor. The top edge of the band is the visible silhouette of
+          // the platform you're standing on, looking outward.
+          // Only rim "real" ledges, not tiny staircase steps. Threshold ~0.5
+          // suppresses rims on 0.2-unit stair risers but keeps them on plateaus.
+          bool rimAtFar = h.ToSector >= 0
+          && !terminal
+          && (fz - back.FloorZ) >= 0.5f;
+          bands.Add(new FloorBand {
+            TopPx = yFar, BotPx = yNear, FloorZ = fz,
+            Light = LightFromDist(perp, front.Light),
+            FloorTex = front.FloorTex,
+            BehindFloorZ = float.IsNaN(prevFloorZ) ? float.NegativeInfinity : prevFloorZ,
+            RimAtFar = rimAtFar,
+          });
+        }
+        prevYFar = yFar;
+      }
+      prevPerp = perp;
+      prevFloorZ = fz;
+      if (fz >= viewZ - 0.001f) blockedByHighFloor = true;
+
       if (terminal) {
         // Full wall from front.FloorZ to front.CeilingZ. Sky sectors get a
         // capped wall height so the sky shows above the surrounding parapet.
         float ceilForWall = front.IsSky
-          ? Mathf.Min(front.CeilingZ, front.FloorZ + 2.5f)
-          : front.CeilingZ;
+        ? Mathf.Min(front.CeilingZ, front.FloorZ + 2.5f)
+        : front.CeilingZ;
         float top = horizon - (ceilForWall - viewZ) * scale;
         float bot = horizon - (front.FloorZ - viewZ) * scale;
         depthOut = perp;
@@ -936,6 +999,8 @@ module GameLogic {
             IsSky = h.ToSector >= 0 && back.IsSky,
           },
           Extras = extras?.ToArray(),
+          FrontFloorZ = front.FloorZ,
+          FloorBands = bands?.ToArray(),
         };
       }
 
@@ -961,6 +1026,9 @@ module GameLogic {
         float bot = horizon - (front.FloorZ - viewZ) * scale;
         if (bot > top + 0.5f) {
           if (extras == null) extras = new List<WallSeg>(2);
+          // Only mark as a "riser" (gets chalk-line rim) for real ledges,
+          // not small staircase steps.
+          bool tallStep = (back.FloorZ - front.FloorZ) >= 0.5f;
           extras.Add(new WallSeg {
             TopPx = top, BotPx = bot,
             Distance = perp,
@@ -969,6 +1037,7 @@ module GameLogic {
             LightLevel = light,
             HitVertical = false,
             IsSky = false,
+            IsRiser = tallStep,
           });
         }
       }
@@ -983,6 +1052,8 @@ module GameLogic {
         HitVertical = false, IsSky = true,
       },
       Extras = extras?.ToArray(),
+      FrontFloorZ = 0f,
+      FloorBands = bands?.ToArray(),
     };
   }
   private struct RayHit {
@@ -1172,13 +1243,13 @@ module GameLogic {
     int gy0 = (int)(y - r), gy1 = (int)(y + r);
     float footZ = isPlayer ? st.Player.Z : 0f;
     float headZ = isPlayer
-      ? st.Player.Z + (st.Player.ViewHeight < C.PLAYER_VIEW_HEIGHT ? C.CROUCH_HEIGHT + 0.15f : C.PLAYER_HEIGHT)
-      : 0.7f;
+    ? st.Player.Z + (st.Player.ViewHeight < C.PLAYER_VIEW_HEIGHT ? C.CROUCH_HEIGHT + 0.15f : C.PLAYER_HEIGHT)
+    : 0.7f;
     for (int gy = gy0; gy <= gy1; gy++) {
       for (int gx = gx0; gx <= gx1; gx++) {
         bool blocks = isPlayer
-          ? st.Map.BlocksMovementZ(gx, gy, footZ, headZ, C.STEP_HEIGHT)
-          : st.Map.BlocksMovement(gx, gy);
+        ? st.Map.BlocksMovementZ(gx, gy, footZ, headZ, C.STEP_HEIGHT)
+        : st.Map.BlocksMovement(gx, gy);
         if (blocks) {
           float cx = Mathf.Clamp(x, gx, gx + 1);
           float cy = Mathf.Clamp(y, gy, gy + 1);
