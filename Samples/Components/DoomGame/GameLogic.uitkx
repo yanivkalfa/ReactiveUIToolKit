@@ -37,6 +37,8 @@ module GameLogic {
       },
       RngSeed = 12345 + level * 17,
       Tic = 0,
+      Tracers = new Tracer[C.MAX_TRACERS],
+      TracerCount = 0,
     };
     // Phase 1: build the parallel sector model (no rendering use yet).
     st.SectorMap = MapData.FromTiles(st.Map);
@@ -83,6 +85,16 @@ module GameLogic {
     if (st.Player.PickupFlash > 0) st.Player.PickupFlash = Mathf.Max(0, st.Player.PickupFlash - dt * 3f);
     if (st.Player.MuzzleFlash > 0) st.Player.MuzzleFlash = Mathf.Max(0, st.Player.MuzzleFlash - dt);
     if (st.Player.MessageTimer > 0) st.Player.MessageTimer = Mathf.Max(0, st.Player.MessageTimer - dt);
+
+    // Phase 8: age hitscan tracers (ms units; capped at LIFE so dead slots
+    // are skipped at render time and naturally overwritten by ring index).
+    if (st.Tracers != null) {
+      float dtMs = dt * 1000f;
+      for (int i = 0; i < st.Tracers.Length; i++) {
+        if (st.Tracers[i].AgeMs < C.TRACER_LIFE_MS)
+        st.Tracers[i].AgeMs = Mathf.Min(C.TRACER_LIFE_MS, st.Tracers[i].AgeMs + dtMs);
+      }
+    }
 
     CastFrame(ref st);
   }
@@ -323,6 +335,32 @@ module GameLogic {
     if (hit.HitMobj && hit.MobjIdx > 0) {
       DamageMobj(ref st, hit.MobjIdx, dmg, 0);
     }
+    SpawnTracer(ref st, p, ang, hit, spread);
+  }
+
+  // Phase 8: emit a hitscan tracer streak from muzzle to impact. Endpoints
+  // are projected/clipped at render time. ColorIdx 1 = shotgun pellet (red
+  // tinted), 0 = pistol/chaingun (yellow).
+  private static void SpawnTracer(ref GameState st, PlayerState p, float ang, ShotHit hit, float spread) {
+    if (st.Tracers == null) return;
+    float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
+    float pitchSlope = p.Pitch / planeScale;
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+    float fwdX = Mathf.Cos(ang), fwdY = Mathf.Sin(ang);
+    float ax = p.X + fwdX * C.MUZZLE_FORWARD;
+    float ay = p.Y + fwdY * C.MUZZLE_FORWARD;
+    float az = viewZ - C.MUZZLE_BELOW_EYE;
+    float bx = hit.X, by = hit.Y;
+    float dist = Mathf.Sqrt((bx - p.X) * (bx - p.X) + (by - p.Y) * (by - p.Y));
+    float bz = viewZ + pitchSlope * dist;
+    int slot = st.TracerCount % C.MAX_TRACERS;
+    st.Tracers[slot] = new Tracer {
+      Ax = ax, Ay = ay, Az = az,
+      Bx = bx, By = by, Bz = bz,
+      AgeMs = 0f,
+      ColorIdx = (byte)(spread > 0.10f ? 1 : 0),
+    };
+    st.TracerCount++;
   }
 
   private static void SpawnProjectile(ref GameState st, MobjKind kind, int ownerId, int damage, float speed) {
@@ -507,8 +545,14 @@ module GameLogic {
     float dist = Mathf.Sqrt(dx * dx + dy * dy);
     m.Angle = Mathf.Atan2(dy, dx);
 
+    // Phase 8: 3D LOS so risers, low ceilings, and second-story plateaus
+    // actually block the monster's view (was tile-grid only before).
+    float monEyeZ = m.Z + (m.Height > 0f ? m.Height * 0.65f : 0.5f);
+    float plyEyeZ = st.Player.Z + (st.Player.ViewHeight <= 0f ? 0.6f : st.Player.ViewHeight);
+    bool sees = HasLineOfSight3D(ref st, m.X, m.Y, monEyeZ, st.Player.X, st.Player.Y, plyEyeZ, m.SectorId);
+
     if (m.State == AIState.Idle) {
-      if (dist < C.SIGHT_RANGE && HasLineOfSight(ref st, m.X, m.Y, st.Player.X, st.Player.Y)) {
+      if (dist < C.SIGHT_RANGE && sees) {
         m.State = AIState.Hunting;
       } else return;
     }
@@ -521,7 +565,7 @@ module GameLogic {
     float speed = MonsterSpeed(m.Kind);
     float meleeRange = (m.Kind == MobjKind.Demon || m.Kind == MobjKind.LostSoul) ? 1.6f : 1.2f;
     bool canMelee = dist < meleeRange;
-    bool canRanged = dist < 12f && HasLineOfSight(ref st, m.X, m.Y, st.Player.X, st.Player.Y);
+    bool canRanged = dist < 12f && sees;
     bool ranged = m.Kind == MobjKind.Imp || m.Kind == MobjKind.Baron || m.Kind == MobjKind.Cacodemon || m.Kind == MobjKind.Shotgunner || m.Kind == MobjKind.Zombieman;
 
     if (m.AttackCooldown <= 0 && (canMelee || (ranged && canRanged))) {
@@ -531,6 +575,19 @@ module GameLogic {
       float mx = Mathf.Cos(m.Angle) * speed * dt;
       float my = Mathf.Sin(m.Angle) * speed * dt;
       MoveActor(ref st, ref m.X, ref m.Y, mx, my, m.Radius, isPlayer: false, selfIdx: idx);
+      // Phase 8: keep mob's sector + floor anchor in sync after movement
+      // so 3D LOS and sprite occlusion stay correct on stairs/plateaus.
+      if (st.SectorMap.IsValid) {
+        int sec = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(m.X, m.Y), m.SectorId);
+        if (sec >= 0) {
+          m.SectorId = sec;
+          float fz = st.SectorMap.Sectors[sec].FloorZ;
+          // Snap to floor unless mob is intentionally floating.
+          if (m.Kind != MobjKind.Cacodemon && m.Kind != MobjKind.LostSoul) {
+            m.Z = fz;
+          }
+        }
+      }
     }
   }
 
@@ -914,7 +971,11 @@ module GameLogic {
     Raycast.Cast(st.SectorMap, new Vector2(ox, oy), st.Player.SectorId, new Vector2(rdx, rdy), out var hits);
     List<WallSeg> extras = null;
     List<FloorBand> bands = null;
+    List<CeilingBand> ceilBands = null;
     depthOut = C.MAX_RAY;
+    // Phase 8: first step-up riser captured for sprite occlusion.
+    float floorOccDist = float.PositiveInfinity;
+    float floorOccZ = float.NegativeInfinity;
 
     // Vertical occlusion window. Stuff farther than the current hit can
     // only paint inside [winTop, winBot]. Tightens monotonically as we
@@ -966,9 +1027,9 @@ module GameLogic {
           // get their own line) and only when the band's top edge is the
           // true unclipped silhouette (not chopped by a higher occluder).
           bool rimAtFar = h.ToSector >= 0
-            && !terminal
-            && (fz - back.FloorZ) >= 0.15f
-            && bTop <= yFloorFar + 0.5f;
+          && !terminal
+          && (fz - back.FloorZ) >= 0.15f
+          && bTop <= yFloorFar + 0.5f;
           bands.Add(new FloorBand {
             TopPx = bTop, BotPx = bBot, FloorZ = fz,
             Light = light,
@@ -988,6 +1049,24 @@ module GameLogic {
       if (fz < viewZ - 0.001f) {
         if (yFloorFar < winBot) winBot = yFloorFar;
       }
+      // Phase 8: emit ceiling band for the segment we just crossed,
+      // mirroring the floor-band logic. Only for non-sky sectors with a
+      // ceiling above the eye — sky leaves the backdrop showing through and
+      // ceilings at/below eye look like floors (handled elsewhere).
+      if (!front.IsSky && cz > viewZ + 0.001f) {
+        float cTopBand = winTop;
+        float cBotBand = yCeilFar;
+        if (cBotBand > winBot) cBotBand = winBot;
+        if (cBotBand > cTopBand + 0.5f) {
+          if (ceilBands == null) ceilBands = new List<CeilingBand>(4);
+          ceilBands.Add(new CeilingBand {
+            TopPx = cTopBand, BotPx = cBotBand,
+            CeilingZ = cz,
+            Light = light,
+            CeilingTex = front.CeilingTex,
+          });
+        }
+      }
       if (!front.IsSky && cz > viewZ + 0.001f) {
         if (yCeilFar > winTop) winTop = yCeilFar;
       }
@@ -996,8 +1075,8 @@ module GameLogic {
       //    to current window.
       if (terminal) {
         float ceilForWall = front.IsSky
-          ? Mathf.Min(cz, fz + 2.5f)
-          : cz;
+        ? Mathf.Min(cz, fz + 2.5f)
+        : cz;
         float wTop = horizon - (ceilForWall - viewZ) * scale;
         float wBot = horizon - (fz - viewZ) * scale;
         float unclippedTop = wTop;
@@ -1018,6 +1097,9 @@ module GameLogic {
           Extras = extras?.ToArray(),
           FrontFloorZ = fz,
           FloorBands = bands?.ToArray(),
+          CeilingBands = ceilBands?.ToArray(),
+          FloorOccluderDist = floorOccDist,
+          FloorOccluderZ = floorOccZ,
         };
       }
 
@@ -1049,6 +1131,11 @@ module GameLogic {
       // ── 3c. PORTAL LOWER (step-up): back floor HIGHER than front floor.
       //    Emit lower wall clipped, then push winBot up.
       if (back.FloorZ > front.FloorZ + 0.001f) {
+        // Sprite occlusion: first step-up wins (closest occluder along ray).
+        if (floorOccDist > perp) {
+          floorOccDist = perp;
+          floorOccZ = back.FloorZ;
+        }
         float wTop = horizon - (back.FloorZ - viewZ) * scale;
         float wBot = horizon - (front.FloorZ - viewZ) * scale;
         float cTop = wTop, cBot = wBot;
@@ -1096,6 +1183,9 @@ module GameLogic {
           Extras = extras?.ToArray(),
           FrontFloorZ = fz,
           FloorBands = bands?.ToArray(),
+          CeilingBands = ceilBands?.ToArray(),
+          FloorOccluderDist = floorOccDist,
+          FloorOccluderZ = floorOccZ,
         };
       }
     }
@@ -1111,6 +1201,9 @@ module GameLogic {
       Extras = extras?.ToArray(),
       FrontFloorZ = 0f,
       FloorBands = bands?.ToArray(),
+      CeilingBands = ceilBands?.ToArray(),
+      FloorOccluderDist = floorOccDist,
+      FloorOccluderZ = floorOccZ,
     };
   }
   private struct RayHit {
@@ -1194,6 +1287,44 @@ module GameLogic {
       int gx = (int)(ax + dx * t);
       int gy = (int)(ay + dy * t);
       if (st.Map.BlocksRays(gx, gy)) return false;
+    }
+    return true;
+  }
+
+  // Phase 8: 3D line-of-sight using the sector graph. Walks portals from the
+  // source sector, checking that the bullet/eye Z stays inside every
+  // traversed sector's [FloorZ, CeilingZ] (sky ignores ceiling). Stops
+  // monsters from shooting through risers, low ceilings, or solid walls
+  // that the tile-only check missed (a step-up cell is CellKind.Empty so
+  // the old grid check let shots pass).
+  private static bool HasLineOfSight3D(ref GameState st, float ax, float ay, float az, float bx, float by, float bz, int srcSector) {
+    if (!st.SectorMap.IsValid || srcSector < 0) {
+      return HasLineOfSight(ref st, ax, ay, bx, by);
+    }
+    float dx = bx - ax, dy = by - ay;
+    float D = Mathf.Sqrt(dx * dx + dy * dy);
+    if (D < 0.01f) return true;
+    Raycast.Cast(st.SectorMap, new Vector2(ax, ay), srcSector, new Vector2(dx / D, dy / D), out var hits);
+    float prevT = 0f;
+    for (int i = 0; i < hits.Count; i++) {
+      var h = hits[i];
+      var front = st.SectorMap.Sectors[h.FromSector];
+      // Clip the hit distance against the actual segment end.
+      bool reachedTarget = h.Distance >= D;
+      float endT = reachedTarget ? D : h.Distance;
+      float zStart = az + (bz - az) * (prevT / D);
+      float zEnd = az + (bz - az) * (endT / D);
+      float segMin = Mathf.Min(zStart, zEnd);
+      float segMax = Mathf.Max(zStart, zEnd);
+      if (segMin <= front.FloorZ + 0.001f) return false;
+      if (!front.IsSky && segMax >= front.CeilingZ - 0.001f) return false;
+      if (reachedTarget) return true;
+      if (h.ToSector < 0) return false; // solid wall blocks
+      var back = st.SectorMap.Sectors[h.ToSector];
+      // Sliver at the portal must pass through the back sector's window too.
+      if (zEnd <= back.FloorZ + 0.001f) return false;
+      if (!back.IsSky && zEnd >= back.CeilingZ - 0.001f) return false;
+      prevT = h.Distance;
     }
     return true;
   }
@@ -1339,9 +1470,20 @@ module GameLogic {
 
   public static void AddMobj(ref GameState st, Mobj m) {
     if (m.Id == 0) m.Id = st.NextMobjId++;
+    // Phase 8: anchor newly-spawned mobj to the actual sector floor at its
+    // spawn (X,Y). Without this, monsters spawned on a raised floor (e.g.
+    // second-story plateau) sit at Z=0 — sprites render through the floor
+    // and 3D LOS uses the wrong height. Projectiles already set their own Z.
+    if (st.SectorMap.IsValid && !IsProjectile(m.Kind) && m.Z == 0f) {
+      int sec = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(m.X, m.Y), -1);
+      if (sec >= 0) {
+        m.SectorId = sec;
+        m.Z = st.SectorMap.Sectors[sec].FloorZ;
+      }
+    }
     // Phase 7: floating mobjs hover above the floor.
-    if (m.Z == 0f && (m.Kind == MobjKind.Cacodemon || m.Kind == MobjKind.LostSoul)) {
-      m.Z = 0.4f;
+    if ((m.Kind == MobjKind.Cacodemon || m.Kind == MobjKind.LostSoul)) {
+      m.Z += 0.4f;
     }
     if (st.MobjCount + 1 < st.Mobjs.Length) {
       st.MobjCount++;

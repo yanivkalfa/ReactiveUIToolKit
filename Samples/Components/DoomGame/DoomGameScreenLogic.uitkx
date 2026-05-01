@@ -49,6 +49,28 @@ module DoomGameScreenLogic {
 
       int dcol = (int)(screenX / widthScale);
       if (dcol >= 0 && dcol < depth.Length && ty > depth[dcol] + 0.05f) continue;
+      // Phase 8: floor-step occlusion. If the column's first riser sits in
+      // front of the sprite AND the sprite's anchor Z is below the riser
+      // top, the riser hides the sprite. Stops monsters from showing
+      // through stair treads / second-story plateaus.
+      if (dcol >= 0 && dcol < state.Frame.Columns.Length) {
+        var ci = state.Frame.Columns[dcol];
+        if (ty > ci.FloorOccluderDist + 0.02f && anchorWorldZ < ci.FloorOccluderZ - 0.05f) continue;
+        // Phase 8: looking-DOWN occlusion. The first floor band in the ray
+        // is the player's own sector floor; its TopPx is the cliff/portal
+        // silhouette. A sprite in a sector with LOWER floor than that —
+        // i.e. the courtyard seen over a plateau edge — is partially or
+        // fully hidden by the upper floor's visible region. Cull when the
+        // sprite anchor projects BELOW (greater screenY than) that
+        // silhouette AND the sprite floor is below the upper-band floor.
+        var bands = ci.FloorBands;
+        if (bands != null && bands.Length > 0) {
+          var b0 = bands[0];
+          // Projected silhouette of the upper floor's far edge at this column.
+          float silhY = b0.TopPx;
+          if (anchorWorldZ < b0.FloorZ - 0.1f && screenY > silhY + 1f) continue;
+        }
+      }
 
       float lightFade = Mathf.Clamp01(1f - ty / 16f);
       float light = 0.35f + 0.65f * lightFade;
@@ -188,5 +210,108 @@ module DoomGameScreenLogic {
       }
     }
     return output;
+  }
+
+  // Phase 8: ceiling band entry for renderer (one per column-band; same pattern
+  // as floor bands but no horizontal merge \u2014 keep simple, perf budget OK).
+  public struct CeilingBandEntry {
+    public int ColIndex;
+    public int SlabId;
+    public CeilingBand Band;
+  }
+
+  public static List<CeilingBandEntry> BuildMergedCeilingBands(GameState state) {
+    var output = new List<CeilingBandEntry>(256);
+    var cols = state.Frame.Columns;
+    for (int i = 0; i < cols.Length; i++) {
+      var bands = cols[i].CeilingBands;
+      if (bands == null) continue;
+      for (int j = bands.Length - 1; j >= 0; j--) {
+        var b = bands[j];
+        int slab = Mathf.RoundToInt(b.CeilingZ * 5f);
+        output.Add(new CeilingBandEntry { ColIndex = i, SlabId = slab, Band = b });
+      }
+    }
+    return output;
+  }
+
+  // Phase 8: hitscan tracer projection. Walks the ring buffer, projects both
+  // endpoints into camera space (rotation + perspective), near-plane clips,
+  // and produces a screen-space rotated rect per live tracer. Returns the
+  // rect's position+size+angle so the renderer can emit a single Box per
+  // tracer with no per-frame allocations beyond the output list.
+  public struct TracerEntry {
+    public int Slot;
+    public float Left, Top;
+    public float Length;
+    public float AngleDeg;
+    public float Alpha;
+    public byte ColorIdx;
+  }
+
+  private const float TRACER_NEAR = 0.15f;
+
+  public static List<TracerEntry> BuildTracerList(GameState state) {
+    var list = new List<TracerEntry>(8);
+    if (state.Tracers == null) return list;
+    var p = state.Player;
+    float cosA = Mathf.Cos(p.Angle), sinA = Mathf.Sin(p.Angle);
+    float halfH = C.VIEWPORT_H * 0.5f;
+    float planeScale = halfH / Mathf.Tan(C.HALF_FOV);
+    float horizon = halfH + p.Pitch + p.ViewShiftPx;
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+
+    for (int i = 0; i < state.Tracers.Length; i++) {
+      var t = state.Tracers[i];
+      if (t.AgeMs >= C.TRACER_LIFE_MS) continue;
+
+      // Camera space: forward = (cos a, sin a); right = (-sin a, cos a).
+      float adx = t.Ax - p.X, ady = t.Ay - p.Y;
+      float bdx = t.Bx - p.X, bdy = t.By - p.Y;
+      float ay = adx * cosA + ady * sinA; // depth
+      float ax = -adx * sinA + ady * cosA; // lateral
+      float by = bdx * cosA + bdy * sinA;
+      float bx = -bdx * sinA + bdy * cosA;
+      float az = t.Az;
+      float bz = t.Bz;
+
+      // Both endpoints behind near plane \u2192 skip.
+      if (ay < TRACER_NEAR && by < TRACER_NEAR) continue;
+      // Clip the segment against the near plane in camera space.
+      if (ay < TRACER_NEAR) {
+        float k = (TRACER_NEAR - ay) / (by - ay);
+        ax += (bx - ax) * k;
+        az += (bz - az) * k;
+        ay = TRACER_NEAR;
+      } else if (by < TRACER_NEAR) {
+        float k = (TRACER_NEAR - by) / (ay - by);
+        bx += (ax - bx) * k;
+        bz += (az - bz) * k;
+        by = TRACER_NEAR;
+      }
+
+      float screenAx = (C.VIEWPORT_W * 0.5f) + (ax / ay) * planeScale;
+      float screenAy = horizon - ((az - viewZ) / ay) * planeScale;
+      float screenBx = (C.VIEWPORT_W * 0.5f) + (bx / by) * planeScale;
+      float screenBy = horizon - ((bz - viewZ) / by) * planeScale;
+
+      float ddx = screenBx - screenAx;
+      float ddy = screenBy - screenAy;
+      float length = Mathf.Sqrt(ddx * ddx + ddy * ddy);
+      if (length < 4f) continue; // too short to read \u2014 muzzle flash covers it
+      float angleDeg = Mathf.Atan2(ddy, ddx) * Mathf.Rad2Deg;
+      float alpha = 1f - (t.AgeMs / C.TRACER_LIFE_MS);
+
+      list.Add(new TracerEntry {
+        Slot = i,
+        Left = screenAx,
+        Top = screenAy - C.TRACER_THICKNESS_PX * 0.5f,
+        Length = length,
+        AngleDeg = angleDeg,
+        Alpha = alpha,
+        ColorIdx = t.ColorIdx,
+      });
+    }
+    return list;
   }
 }

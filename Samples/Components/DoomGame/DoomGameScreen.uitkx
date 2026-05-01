@@ -81,6 +81,40 @@ component DoomGameScreen(
             BackgroundColor = new Color(0.34f, 0.29f, 0.22f, 1f),
           }}
         />
+        // Phase 8: per-sector CEILING bands, mirror of floor bands. Painted
+        // BEFORE walls so any sub-pixel rounding leaves wall texels on top
+        // (walls are pre-clipped to the same window so there's no overdraw).
+        @foreach (var cb in DoomGameScreenLogic.BuildMergedCeilingBands(state)) {
+          float ctop = cb.Band.TopPx - 2f; // 2px overdraw upward to seal sky seam
+          float cbot = cb.Band.BotPx + 4f; // 4px overdraw downward so wall texels overlap (no black hairline)
+          float ch = cbot - ctop;
+          if (ch < 1f) {
+            return null;
+          }
+          float cleft = cb.ColIndex * C.STRIP_W - 1f;
+          float cw = C.STRIP_W + 2f;
+          float clift = Mathf.Clamp(cb.Band.CeilingZ * 0.04f, 0f, 0.20f);
+          float clight = cb.Band.Light / 255f;
+          // Ceiling base color: cool grey-blue, brightened by sector light.
+          // Always >= backstop brightness so distant bands don't read as holes.
+          float cbright = Mathf.Max(1f, 0.55f + clight * 0.85f);
+          float cr = Mathf.Clamp01((0.22f + clift) * cbright);
+          float cg = Mathf.Clamp01((0.22f + clift) * cbright);
+          float cbb = Mathf.Clamp01((0.26f + clift) * cbright);
+
+          return (
+            <VisualElement
+              key={"cb" + cb.ColIndex.ToString() + "_" + cb.SlabId.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = cleft, Top = ctop,
+                Width = cw, Height = ch,
+                BackgroundColor = new Color(cr, cg, cbb, 1f),
+              }}
+            />
+          );
+        }
         // Phase 7: per-sector floor BANDS, horizontally merged. Each ray
         // crosses one or more sectors; bands of the same Z slab in adjacent
         // columns collapse into a single wide rect so element count stays low.
@@ -254,6 +288,29 @@ component DoomGameScreen(
             />
           );
         }
+        // Phase 8: hitscan tracer streaks. One rotated rect per live tracer.
+        // Painted between sprites and the weapon HUD so they read as in-world
+        // (over enemies) but never cover the gun.
+        @foreach (var tr in DoomGameScreenLogic.BuildTracerList(state)) {
+          float tcr = tr.ColorIdx == 1 ? 1.00f : 1.00f;
+          float tcg = tr.ColorIdx == 1 ? 0.55f : 0.92f;
+          float tcb = tr.ColorIdx == 1 ? 0.25f : 0.45f;
+
+          return (
+            <VisualElement
+              key={"tr" + tr.Slot.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = tr.Left, Top = tr.Top,
+                Width = tr.Length, Height = C.TRACER_THICKNESS_PX,
+                BackgroundColor = new Color(tcr, tcg, tcb, tr.Alpha),
+                TransformOrigin = new TransformOrigin(new Length(0f, LengthUnit.Pixel), new Length(C.TRACER_THICKNESS_PX * 0.5f, LengthUnit.Pixel)),
+                Rotate = tr.AngleDeg,
+              }}
+            />
+          );
+        }
         // Weapon HUD
         <VisualElement
           style={new Style{
@@ -388,7 +445,7 @@ component DoomGameScreen(
               style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row }}
             >
               <Button
-                text={level < 3 ? "Next Level" : "Finish"}
+                text={level < 5 ? "Next Level" : "Finish"}
                 onClick={_ => onNextLevel()}
                 style={new Style{ FontSize = 18, Width = 140, Height = 44, MarginRight = 12 }}
               />

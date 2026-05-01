@@ -81,6 +81,11 @@ component DoomMainMenu(
           onClick={_ => onLevelChange(4)}
           style={BtnStyle(level == 4)}
         />
+        <Button
+          text="E1M5: Watchtower"
+          onClick={_ => onLevelChange(5)}
+          style={BtnStyle(level == 5)}
+        />
       </VisualElement>
       <VisualElement
         style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row, MarginBottom = 36, AlignItems = Align.Center }}

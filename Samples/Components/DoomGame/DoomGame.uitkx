@@ -17,7 +17,7 @@ component DoomGame {
   };
   Action handleExit = () => setScreen(GameScreen.MainMenu);
   Action handleNext = () => {
-    if (level < 3) { setLevel(level + 1); setSessionVersion(v => v + 1); }
+    if (level < 5) { setLevel(level + 1); setSessionVersion(v => v + 1); }
     else { setScreen(GameScreen.MainMenu); setLevel(1); }
   };
 

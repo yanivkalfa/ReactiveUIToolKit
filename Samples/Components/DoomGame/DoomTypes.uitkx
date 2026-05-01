@@ -212,6 +212,16 @@ module DoomTypes {
     // Phase 7: per-sector floor bands along this ray, ordered near→far. Each
     // band paints from TopPx down to BotPx, colored by FloorZ.
     public FloorBand[] FloorBands;
+    // Phase 8: per-sector ceiling bands along this ray, near→far. Skipped
+    // for sky sectors (sky backdrop shows through).
+    public CeilingBand[] CeilingBands;
+    // Phase 8: floor-step occlusion for sprite culling. When the ray crosses
+    // a step-up portal (back.FloorZ > front.FloorZ), the riser blocks any
+    // monster standing on the lower side. Sprites with perp > FloorOccluderDist
+    // AND anchorZ < FloorOccluderZ - 0.05 are culled. Default values mean
+    // "no occluder".
+    public float FloorOccluderDist;
+    public float FloorOccluderZ;
   }
 
   public struct FloorBand {
@@ -222,6 +232,27 @@ module DoomTypes {
     public byte FloorTex; // sector floor texture index
     public float BehindFloorZ; // FloorZ of the slab IMMEDIATELY behind this one in the same ray (NaN if none)
     public bool RimAtFar; // true if the far edge of this band is a visible step-down rim
+  }
+
+  // Phase 8: ceiling band — mirror of FloorBand. Painted only for non-sky
+  // sectors; sky sectors leave the sky backdrop showing through. Within a
+  // column, ceiling bands and floor bands occupy disjoint sub-ranges of the
+  // ray's vertical occlusion window so they never overlap in Y.
+  public struct CeilingBand {
+    public float TopPx; // upper edge in screen px (smaller = higher)
+    public float BotPx; // lower edge in screen px (= projected ceiling line)
+    public float CeilingZ; // world Z (for shading)
+    public byte Light;
+    public byte CeilingTex;
+  }
+
+  // Phase 8: hitscan tracer streak. Lives ~TRACER_LIFE_MS, fades alpha out.
+  // Stored in a fixed-size ring on GameState; AgeMs >= TRACER_LIFE_MS = dead.
+  public struct Tracer {
+    public float Ax, Ay, Az; // muzzle (start)
+    public float Bx, By, Bz; // impact / max-range (end)
+    public float AgeMs;
+    public byte ColorIdx; // 0=yellow pistol/chaingun, 1=red shotgun pellet
   }
 
   public struct FrameData {
@@ -247,6 +278,10 @@ module DoomTypes {
     public float TimeAccum;
     // ── Phase 1+: sector-engine map (parallel to Map). Built by NewGame. ──
     public MapData SectorMap;
+    // Phase 8: hitscan tracer ring. Fixed-size; index = TracerCount % MAX_TRACERS.
+    // Slots with AgeMs >= TRACER_LIFE_MS are skipped by the renderer.
+    public Tracer[] Tracers;
+    public int TracerCount;
   }
 
   public struct InputCmd {
@@ -665,5 +700,12 @@ module DoomTypes {
     public const float DOOR_OPEN_SPEED = 2.0f; // units/sec ceiling lerp
     public const float DOOR_AUTO_CLOSE_DELAY = 4f;// seconds
     public const float LIFT_SPEED = 1.5f;
+
+    // Phase 8: hitscan tracer.
+    public const int MAX_TRACERS = 32;
+    public const float TRACER_LIFE_MS = 90f;
+    public const float TRACER_THICKNESS_PX = 2f;
+    public const float MUZZLE_FORWARD = 0.35f; // offset from player along view
+    public const float MUZZLE_BELOW_EYE = 0.12f;// drop tracer below crosshair
   }
 }

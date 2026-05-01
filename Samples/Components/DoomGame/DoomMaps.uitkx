@@ -247,6 +247,7 @@ module DoomMaps {
       case 2: return Level2();
       case 3: return Level3();
       case 4: return Level4();
+      case 5: return Level5();
       default: return Level1();
     }
   }
@@ -543,6 +544,74 @@ module DoomMaps {
     b.Spawn(MobjKind.PickupShotgun, 24.5f, 31.5f);
     b.Spawn(MobjKind.PickupArmor, 32.5f, 8.5f);
     b.Spawn(MobjKind.PickupBullets, 24.5f, 19.5f);
+
+    return b.Build();
+  }
+
+  // E1M5 — "Watchtower" — Phase 8 showcase: small ground-floor courtyard,
+  // staircase up to a second-story balcony, and a guard room on top with a
+  // small squad. Tight 28×28 layout so the action stays close.
+  public static LevelStart Level5() {
+    var b = new MapBuilder(28, 28, "E1M5: Watchtower");
+
+    // Ground level: outdoor courtyard with sky.
+    b.Fill(2, 2, 25, 25, (byte)F_GRASS, (byte)F_GRASS, 220);
+    b.Border((byte)W_BRICK_GREY);
+    b.Sky(2, 2, 25, 25);
+
+    // Player starts in the south, looking north toward the tower.
+    b.PlayerStart(14.5f, 22.5f, -Mathf.PI / 2f);
+
+    // Guard room (second story): 8×5 cells at Z=2.0, real ceiling at Z=3.6.
+    b.Fill(4, 3, 11, 7, (byte)F_TILE, (byte)F_TILE, 200);
+    b.Step(4, 3, 11, 7, 2.0f);
+    b.LowCeiling(4, 3, 11, 7, 3.6f);
+    b.Box(3, 2, 12, 8, (byte)W_BRICK_RED);
+
+    // Open-sky balcony connecting stairs to the guard room.
+    b.Fill(9, 8, 12, 11, (byte)F_TILE, (byte)F_TILE, 220);
+    b.Step(9, 8, 12, 11, 2.0f);
+    b.Sky(9, 8, 12, 11);
+
+    // Doorway from balcony into guard room.
+    b.At(10, 8).Kind = CellKind.Empty;
+    b.At(10, 8).FloorTexIdx = (byte)F_TILE;
+    b.At(11, 8).Kind = CellKind.Empty;
+    b.At(11, 8).FloorTexIdx = (byte)F_TILE;
+    b.Step(10, 8, 11, 8, 2.0f);
+    b.LowCeiling(10, 8, 11, 8, 3.6f);
+
+    // Staircase: 10 steps of 0.2u rising from south to north along x=10..12.
+    b.Step(10, 21, 12, 21, 0.2f);
+    b.Step(10, 20, 12, 20, 0.4f);
+    b.Step(10, 19, 12, 19, 0.6f);
+    b.Step(10, 18, 12, 18, 0.8f);
+    b.Step(10, 17, 12, 17, 1.0f);
+    b.Step(10, 16, 12, 16, 1.2f);
+    b.Step(10, 15, 12, 15, 1.4f);
+    b.Step(10, 14, 12, 14, 1.6f);
+    b.Step(10, 13, 12, 13, 1.8f);
+    b.Step(10, 12, 12, 12, 2.0f);
+
+    // Cover pillar in the courtyard.
+    b.Wall(20, 18, (byte)W_BRICK_RED);
+
+    // Exit pad inside the guard room.
+    b.Exit(6, 4);
+
+    // Pickups along the route.
+    b.Spawn(MobjKind.PickupShotgun, 14.5f, 17.5f);
+    b.Spawn(MobjKind.PickupShells, 11.5f, 14.5f);
+    b.Spawn(MobjKind.PickupHealth, 18.5f, 20.5f);
+    b.Spawn(MobjKind.PickupArmor, 8.5f, 5.5f);
+
+    // Enemies — small, focused encounter.
+    // Courtyard: 1 sniper.
+    b.Spawn(MobjKind.Zombieman, 22.5f, 12.5f, Mathf.PI);
+    // Guard room squad: 1 shotgunner, 2 imps.
+    b.Spawn(MobjKind.Shotgunner, 6.5f, 5.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Imp, 9.5f, 4.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Imp, 5.5f, 6.5f, Mathf.PI / 2f);
 
     return b.Build();
   }
