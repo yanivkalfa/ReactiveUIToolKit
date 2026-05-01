@@ -1,3 +1,26 @@
+## [0.4.12] - 2026-05-01
+
+### Doom demo — Phase 9 sector-engine release
+No runtime / source-generator / IDE changes this cycle. The `Samples/Components/DoomGame/` demo went from a flat raycaster to a real sector-portal engine — stacked floors, key-chain progression, minimap, and a full status bar.
+
+### Renderer
+- **Sector / portal raycaster (Phase 1–3)** — tile map compiles to `MapData` (sectors + linedefs); rendering walks portals via per-ray cliprange (`winTop`/`winBot` screen-Y window). Variable floor/ceiling heights, upper/lower wall segs, and sky cells render correctly.
+- **ExtraFloor stacked slabs (Phase 9)** — sectors carry any number of slabs; column rasterizer emits front + back TOP/BOTTOM/SIDE planes per slab and tightens the cliprange so taller slabs further along the ray stay visible. Fixes the staircase upper-treads-vanish bug; powers Level 6’s 7-step interior staircase.
+- **Z-aware collision (Phase 7)** — `BlocksMovementZ(footZ, headZ, STEP_HEIGHT)` replaces binary `BlocksMovement` for slab-aware step-up, jump, and crouch.
+
+### Gameplay
+- **6 hand-built levels** — Hangar, Toxin Refinery, Containment Area, Outpost, Phobos Anomaly, and a boss-only finale.
+- **Level 1 progression rebuild** — hub gates side wings behind colored doors: yellow key in hub → east wing (red key) → west wing (blue key + shotgun) → north boss room (Baron + Cacodemon). Walls flank every door so they can’t be sidestepped.
+- **Boss-gated exits** — new `LevelStart.BossExitGated` + `GameLogic.AnyBossAlive` blocks level-end until every Baron / Cacodemon is dead, with a HUD message on attempt.
+- **Walkable exit pads** — new `MapBuilder.ExitPad(x, y)` creates an Exit-kind cell with no wall texture and a deep-blue floor (`F_BLUE`); back wall painted with new `W_BRICK_BLUE` so the end-zone reads visually.
+- **Boss balance** — Baron HP 800 → 200, Cacodemon 400 → 120; the Level 1 boss now drops in a few shotgun blasts.
+
+### UI
+- **Status bar rewrite** — 8-panel `FlexGrow`-ratio layout (AMMO / HEALTH / ARMS / FACE / ARMOR / KEYS / BREAKDOWN / INFO) filling the full 800×90 region; consistent title spacing, `WhiteSpace.NoWrap`, ARMS as a 3-column 7-weapon button grid.
+- **Live minimap** — top-right overlay, auto-scales to fit any map into 160px. Walls, color-keyed doors, exit pad, player (yellow + heading), and every live mobj (red enemies, cyan pickups, key-color keys).
+
+---
+
 ## [0.4.11] - 2026-04-28
 
 ### Performance

@@ -8,6 +8,70 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-05-01
+
+### Doom demo — Phase 9 sector-engine release
+
+This release is a non-library update: no UITKX runtime / source-generator /
+IDE changes. Everything below is the `Samples/Components/DoomGame/` demo,
+promoted from a flat 2.5D raycaster to a full sector-portal engine with
+stacked floors, a key-chain progression, a minimap, and a polished status
+bar. Pulled in to demonstrate that UITKX can host a real interactive game
+on top of the typed-props / hoisted-style render pipeline shipped in 0.4.10
+/ 0.4.11.
+
+#### Renderer
+
+- **Sector / portal raycaster (Phase 1–3).** Tile map is converted to a
+  `MapData` of sectors + linedefs at level start; rendering walks portals
+  via a per-ray cliprange (Plan C `winTop`/`winBot` screen-Y window) instead
+  of the old single-cell DDA. Variable floor / ceiling heights, upper /
+  lower wall segments, and sky cells render correctly.
+- **ExtraFloor stacked slabs (Phase 9).** Sectors can carry any number of
+  `ExtraFloor` slabs; the column rasterizer emits front-side and back-side
+  TOP / BOTTOM / SIDE planes per slab and tightens `winTop` / `winBot` per
+  ray so taller slabs further along the ray stay visible. Fixes the
+  long-standing “staircase upper treads disappear behind the lower one”
+  bug — used by Level 6’s 7-step interior staircase.
+- **Z-aware collision (Phase 7).** `MapDef.BlocksMovementZ(footZ, headZ,
+  STEP_HEIGHT)` replaces the binary `BlocksMovement` for slab-aware step-up,
+  jump, and crouch. Player is anchored to the current sector floor unless
+  airborne.
+
+#### Gameplay
+
+- **6 hand-built levels** (`Level1`..`Level6`) in `DoomMaps.uitkx` covering
+  Hangar, Toxin Refinery, Containment Area, Outpost, Phobos Anomaly, and
+  the boss-only finale.
+- **Level 1 progression rebuild.** Hub now gates side wings behind colored
+  doors: pick up the yellow key in the hub center → east wing (red key) →
+  west wing (blue key + shotgun) → north boss room (Baron + Cacodemon).
+  Walls flank every door so they can’t be sidestepped.
+- **Boss-gated exits.** New `LevelStart.BossExitGated` flag plus
+  `GameLogic.AnyBossAlive(ref st)` blocks the level-end trigger until every
+  Baron / Cacodemon is dead, with a “Kill the boss first.” HUD message on
+  attempt.
+- **Walkable exit pads.** New `MapBuilder.ExitPad(x, y)` creates an
+  `Exit`-kind cell with no wall texture and a deep-blue floor (`F_BLUE`),
+  so the back of the boss room reads as a clear visual end-zone instead of
+  the legacy “EXIT” sign block.
+- **Blue-brick back wall** (`W_BRICK_BLUE`) paints the wall behind the
+  Level 1 exit pads to reinforce the end-zone signal.
+
+#### UI
+
+- **Status bar rewrite** (`DoomHUD.uitkx`). 8-panel `FlexGrow`-ratio layout
+  (AMMO / HEALTH / ARMS / FACE / ARMOR / KEYS / BREAKDOWN / INFO) that
+  fills the full 800×90 viewport-bottom region. Per-panel title labels
+  with consistent vertical spacing and `WhiteSpace.NoWrap`. ARMS button
+  group renders 7 weapons in 3 columns with centered justification.
+- **Live minimap** (`DoomMinimap.uitkx`). Top-right overlay, auto-scales to
+  fit the largest map dimension into 160px. Renders walls, color-keyed
+  doors, the exit pad, the player (yellow dot + heading indicator), and
+  every live mobj (red enemies, cyan pickups, key-color keys).
+- **Boss / pickup balance.** Baron HP 800 → 200, Cacodemon HP 400 → 120 so
+  the Level 1 boss can be cleared with a few shotgun blasts.
+
 ## [0.4.11] - 2026-04-28
 
 ### Performance
