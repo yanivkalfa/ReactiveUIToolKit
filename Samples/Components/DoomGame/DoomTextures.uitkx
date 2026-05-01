@@ -21,7 +21,8 @@ module DoomTextures {
   public const int W_DOOR_YELLOW = 8;
   public const int W_DOOR_RED = 9;
   public const int W_EXIT = 10;
-  public const int W_COUNT = 11;
+  public const int W_BRICK_BLUE = 11;
+  public const int W_COUNT = 12;
 
   // ───── Floor texture indices ─────
   public const int F_CONCRETE = 0;
@@ -30,7 +31,8 @@ module DoomTextures {
   public const int F_LAVA = 3;
   public const int F_BLOOD = 4;
   public const int F_NUKAGE = 5;
-  public const int F_COUNT = 6;
+  public const int F_BLUE = 6;
+  public const int F_COUNT = 7;
 
   // ───── Sprite indices ─────
   public const int S_IMP = 0;
@@ -94,6 +96,7 @@ module DoomTextures {
     _walls[W_DOOR_YELLOW] = MakeDoor(new Color32(220, 200, 60, 255), new Color32(180, 160, 40, 255));
     _walls[W_DOOR_RED] = MakeDoor(new Color32(220, 60, 50, 255), new Color32(180, 40, 35, 255));
     _walls[W_EXIT] = MakeExitSign();
+    _walls[W_BRICK_BLUE] = MakeBrick(seed: 29, baseR: 50, baseG: 90, baseB: 210, mortarR: 20, mortarG: 30, mortarB: 70);
 
     _floors = new Texture2D[F_COUNT];
     _floors[F_CONCRETE] = MakeNoiseTile(seed: 31, baseR: 90, baseG: 88, baseB: 92, range: 25);
@@ -102,6 +105,7 @@ module DoomTextures {
     _floors[F_LAVA] = MakeNoiseTile(seed: 43, baseR: 200, baseG: 80, baseB: 30, range: 60);
     _floors[F_BLOOD] = MakeNoiseTile(seed: 47, baseR: 130, baseG: 20, baseB: 25, range: 40);
     _floors[F_NUKAGE] = MakeNoiseTile(seed: 53, baseR: 110, baseG: 200, baseB: 60, range: 50);
+    _floors[F_BLUE] = MakeNoiseTile(seed: 59, baseR: 50, baseG: 90, baseB: 210, range: 35);
 
     _sky = MakeSky();
 

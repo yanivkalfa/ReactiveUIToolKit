@@ -25,7 +25,7 @@ component DoomFace(int frame) {
     >
       <Label
         text="DOOMGUY"
-        style={new Style{ Color = labelClr, FontSize = 9, UnityFontStyle = FontStyle.Bold, MarginBottom = 2 }}
+        style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold, MarginTop = 2, MarginBottom = 2, PaddingTop = 0, PaddingBottom = 0 }}
       />
       <VisualElement
         style={new Style{

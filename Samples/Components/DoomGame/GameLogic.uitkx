@@ -39,6 +39,7 @@ module GameLogic {
       Tic = 0,
       Tracers = new Tracer[C.MAX_TRACERS],
       TracerCount = 0,
+      BossExitGated = start.BossExitGated,
     };
     // Phase 1: build the parallel sector model (no rendering use yet).
     st.SectorMap = MapData.FromTiles(st.Map);
@@ -146,8 +147,15 @@ module GameLogic {
     int gx = (int)p.X, gy = (int)p.Y;
     var c = st.Map.AtSafe(gx, gy);
     if (c.Kind == CellKind.Exit) {
-      st.Victory = true;
-      return;
+      if (st.BossExitGated && AnyBossAlive(ref st)) {
+        if ((st.Tic % 60) == 0) {
+          p.MessageText = "Kill the boss first.";
+          p.MessageTimer = 1.5f;
+        }
+      } else {
+        st.Victory = true;
+        return;
+      }
     }
     if (c.Kind == CellKind.Liquid) {
       // damage 1hp/sec for nukage etc
@@ -439,15 +447,38 @@ module GameLogic {
     float ny = m.Y + m.MomY * dt;
     float nz = m.Z + m.ZVel * dt;
 
-    // wall hit?
-    if (st.Map.BlocksMovement((int)nx, (int)ny)) {
+    // Phase 9: Z-aware wall + slab collision. The old `BlocksMovement` was
+    // a 2D-only check that let fireballs pass through stair risers, raised
+    // floors, low ceilings, and ExtraFloor slabs. Treat the projectile as
+    // an infinitesimal point: if any solid surface sits between (m.X,m.Y,m.Z)
+    // and (nx,ny,nz), it explodes.
+    int gx = (int)nx, gy = (int)ny;
+    var cell = st.Map.AtSafe(gx, gy);
+    if (cell.Kind == CellKind.Wall) {
       OnProjectileHit(ref st, idx, m.X, m.Y, hitMobjIdx: 0);
       return;
     }
-    // floor / ceiling hit (treat sector floor=0, ceiling=1.5 as hard limits for now)
-    if (nz < 0f || nz > 1.5f) {
+    if ((cell.Kind == CellKind.Door || cell.Kind == CellKind.DoorBlue
+         || cell.Kind == CellKind.DoorYellow || cell.Kind == CellKind.DoorRed)
+        && cell.DoorState < 200) {
+      OnProjectileHit(ref st, idx, m.X, m.Y, hitMobjIdx: 0);
+      return;
+    }
+    float cellFloor = cell.FloorZ;
+    float cellCeil = cell.IsSky ? 1e9f : (cell.CeilingZ <= 0f ? 1.5f : cell.CeilingZ);
+    if (nz < cellFloor || nz > cellCeil) {
       OnProjectileHit(ref st, idx, nx, ny, hitMobjIdx: 0);
       return;
+    }
+    if (cell.ExtraFloors != null) {
+      for (int k = 0; k < cell.ExtraFloors.Count; k++) {
+        var ef = cell.ExtraFloors[k];
+        if (!ef.Solid) continue;
+        if (nz >= ef.BottomZ - 0.001f && nz <= ef.TopZ + 0.001f) {
+          OnProjectileHit(ref st, idx, nx, ny, hitMobjIdx: 0);
+          return;
+        }
+      }
     }
 
     // mobj hit? (not owner, not other projectiles)
@@ -581,7 +612,7 @@ module GameLogic {
         int sec = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(m.X, m.Y), m.SectorId);
         if (sec >= 0) {
           m.SectorId = sec;
-          float fz = st.SectorMap.Sectors[sec].FloorZ;
+          float fz = StandingFloorIn(st.SectorMap.Sectors[sec], m.Z, C.STEP_HEIGHT);
           // Snap to floor unless mob is intentionally floating.
           if (m.Kind != MobjKind.Cacodemon && m.Kind != MobjKind.LostSoul) {
             m.Z = fz;
@@ -818,6 +849,37 @@ module GameLogic {
     }
   }
 
+  // Phase 9: highest standable surface within `stepUp` of the actor's feet,
+  // considering the sector floor and any solid ExtraFloor.TopZ. The actor
+  // can stand on whichever is highest yet still reachable by a single step.
+  private static float StandingFloorIn(Sector sec, float footZ, float stepUp) {
+    float best = sec.FloorZ;
+    if (sec.ExtraFloors != null) {
+      for (int i = 0; i < sec.ExtraFloors.Count; i++) {
+        var ef = sec.ExtraFloors[i];
+        if (!ef.Solid) continue;
+        if (ef.TopZ <= footZ + stepUp + 0.001f && ef.TopZ > best) best = ef.TopZ;
+      }
+    }
+    return best;
+  }
+
+  // Phase 9: lowest blocking surface above the actor's head. Sector ceiling
+  // by default, or the bottom of any ExtraFloor that sits above the head
+  // (so a basement-dweller hits the courtyard slab as a low ceiling).
+  private static float CeilingAboveIn(Sector sec, float footZ, float actorHeight) {
+    float headZ = footZ + actorHeight;
+    float ceil = sec.IsSky ? 1e9f : sec.CeilingZ;
+    if (sec.ExtraFloors != null) {
+      for (int i = 0; i < sec.ExtraFloors.Count; i++) {
+        var ef = sec.ExtraFloors[i];
+        if (!ef.Solid) continue;
+        if (ef.BottomZ >= headZ - 0.001f && ef.BottomZ < ceil) ceil = ef.BottomZ;
+      }
+    }
+    return ceil;
+  }
+
   // Phase 7: vertical physics for the player. Tracks Z (feet height) against
   // the floor of the player's current sector. Jump applies upward velocity
   // when on the ground; crouch lowers the view height temporarily.
@@ -825,8 +887,9 @@ module GameLogic {
     float floorZ = 0f;
     float ceilZ = 1f;
     if (st.SectorMap.IsValid && p.SectorId >= 0) {
-      floorZ = st.SectorMap.Sectors[p.SectorId].FloorZ;
-      ceilZ = st.SectorMap.Sectors[p.SectorId].CeilingZ;
+      var sec = st.SectorMap.Sectors[p.SectorId];
+      floorZ = StandingFloorIn(sec, p.Z, C.STEP_HEIGHT);
+      ceilZ = CeilingAboveIn(sec, p.Z, C.PLAYER_HEIGHT);
     }
     bool onGround = p.Z <= floorZ + 0.001f && p.ZVel <= 0f;
     // Edge-detect: only jump on the rising edge of the Jump key, not while held.
@@ -976,6 +1039,11 @@ module GameLogic {
     // Phase 8: first step-up riser captured for sprite occlusion.
     float floorOccDist = float.PositiveInfinity;
     float floorOccZ = float.NegativeInfinity;
+    // Phase 9: closest ceiling-slab underside encountered along the ray.
+    // Sprites past this distance whose anchor sits at-or-above this Z are
+    // hidden by the slab.
+    float ceilOccDist = float.PositiveInfinity;
+    float ceilOccZ = float.PositiveInfinity;
 
     // Vertical occlusion window. Stuff farther than the current hit can
     // only paint inside [winTop, winBot]. Tightens monotonically as we
@@ -1071,6 +1139,224 @@ module GameLogic {
         if (yCeilFar > winTop) winTop = yCeilFar;
       }
 
+      // ── 2b. Phase 9: per-ExtraFloor slab emission. Each slab contributes
+      //    up to three surfaces in the front sector: TOP plane (visible if
+      //    viewer is above it, acts like a raised floor), BOTTOM plane
+      //    (visible if viewer is below it, acts like a low ceiling), and a
+      //    SIDE wall on the boundary where the back sector lacks the same
+      //    slab. Iterating in BottomZ-ascending order keeps the cliprange
+      //    window tightening monotonic.
+      bool slabTerminated = false;
+      WallSeg terminatorWall = default;
+      if (front.ExtraFloors != null) {
+        for (int k = 0; k < front.ExtraFloors.Count; k++) {
+          var ef = front.ExtraFloors[k];
+          bool sharedWithBack = false;
+          if (h.ToSector >= 0 && back.ExtraFloors != null) {
+            for (int j = 0; j < back.ExtraFloors.Count; j++) {
+              var bef = back.ExtraFloors[j];
+              if (Mathf.Abs(bef.BottomZ - ef.BottomZ) < 0.01f
+                  && Mathf.Abs(bef.TopZ - ef.TopZ) < 0.01f) {
+                sharedWithBack = true; break;
+              }
+            }
+          }
+          bool aboveSlab = viewZ > ef.TopZ + 0.001f;
+          bool belowSlab = viewZ < ef.BottomZ - 0.001f;
+          byte slabLight = LightFromDist(perp, ef.Light == 0 ? front.Light : ef.Light);
+
+          // Slab TOP — visible when viewer above, acts like a raised floor.
+          if (aboveSlab) {
+            float yTopFar = horizon + (viewZ - ef.TopZ) * scale;
+            float yTopNear = horizon + (viewZ - ef.TopZ) * scaleNear;
+            float bTop = yTopFar < winTop ? winTop : yTopFar;
+            float bBot = yTopNear > winBot ? winBot : yTopNear;
+            if (bBot > bTop + 0.5f) {
+              if (bands == null) bands = new List<FloorBand>(4);
+              bands.Add(new FloorBand {
+                TopPx = bTop, BotPx = bBot, FloorZ = ef.TopZ,
+                Light = slabLight,
+                FloorTex = ef.TopTex,
+                BehindFloorZ = float.NegativeInfinity,
+                RimAtFar = !sharedWithBack,
+              });
+            }
+            if (yTopFar < winBot) winBot = yTopFar;
+            // Sprite occluder hint — closest slab top wins.
+            if (floorOccDist > perp) { floorOccDist = perp; floorOccZ = ef.TopZ; }
+          }
+
+          // Slab BOTTOM — visible when viewer below, acts like a low ceiling.
+          if (belowSlab) {
+            float yBotFar = horizon - (ef.BottomZ - viewZ) * scale;
+            float cTopBand = winTop;
+            float cBotBand = yBotFar > winBot ? winBot : yBotFar;
+            if (cBotBand > cTopBand + 0.5f) {
+              if (ceilBands == null) ceilBands = new List<CeilingBand>(4);
+              ceilBands.Add(new CeilingBand {
+                TopPx = cTopBand, BotPx = cBotBand,
+                CeilingZ = ef.BottomZ,
+                Light = slabLight,
+                CeilingTex = ef.BottomTex,
+              });
+            }
+            if (yBotFar > winTop) winTop = yBotFar;
+            // Sprite occluder hint — closest slab bottom wins.
+            if (ceilOccDist > perp) { ceilOccDist = perp; ceilOccZ = ef.BottomZ; }
+          }
+
+          // Slab SIDE — exposed when back sector lacks the same slab. If
+          // the viewer is INSIDE the slab body and the side is exposed,
+          // the slab is opaque and we terminate the column at this hit.
+          if (!sharedWithBack && ef.Solid) {
+            float wTop = horizon - (ef.TopZ - viewZ) * scale;
+            float wBot = horizon - (ef.BottomZ - viewZ) * scale;
+            float cTop = wTop < winTop ? winTop : wTop;
+            float cBot = wBot > winBot ? winBot : wBot;
+            if (cBot > cTop + 0.5f) {
+              var seg = new WallSeg {
+                TopPx = cTop, BotPx = cBot,
+                Distance = perp,
+                WallTexIdx = ef.SideTex,
+                TexU = h.U,
+                LightLevel = slabLight,
+                HitVertical = false, IsSky = false,
+                TexOffsetPx = wTop - cTop,
+              };
+              if (!aboveSlab && !belowSlab) {
+                // Inside slab body → opaque terminal.
+                slabTerminated = true;
+                terminatorWall = seg;
+              } else {
+                if (extras == null) extras = new List<WallSeg>(2);
+                extras.Add(seg);
+              }
+            }
+          }
+        }
+      }
+      // Phase 9: ALSO emit BACK-only ExtraFloor slabs (those not present in
+      // the front sector) — same surfaces + cliprange tightening as the
+      // front loop:
+      //   • SIDE wall at the portal (otherwise the slab pillar is see-through
+      //     from cells without ExtraFloors of their own).
+      //   • TOP plane as a FloorBand when viewer is above the slab — without
+      //     this the next stair tread shows no visible top, the staircase
+      //     looks like a smooth wall going up instead of discrete treads.
+      //   • BOTTOM plane as a CeilingBand when viewer is below the slab.
+      //   • Tighten (winTop, winBot) by the slab's screen-Y body so things
+      //     past the staircase don't bleed THROUGH the slab side. Without
+      //     this the inside floor leaks through the staircase column from
+      //     the side view.
+      //   • Terminate if viewer is INSIDE the slab body (ray hits opaque
+      //     side wall edge-on, fully occluded past this hit).
+      if (h.ToSector >= 0 && back.ExtraFloors != null) {
+        for (int k = 0; k < back.ExtraFloors.Count; k++) {
+          var ef = back.ExtraFloors[k];
+          if (!ef.Solid) continue;
+          bool inFront = false;
+          if (front.ExtraFloors != null) {
+            for (int j = 0; j < front.ExtraFloors.Count; j++) {
+              var fef = front.ExtraFloors[j];
+              if (Mathf.Abs(fef.BottomZ - ef.BottomZ) < 0.01f
+                  && Mathf.Abs(fef.TopZ - ef.TopZ) < 0.01f) {
+                inFront = true; break;
+              }
+            }
+          }
+          if (inFront) continue;
+          byte slabLight = LightFromDist(perp, ef.Light == 0 ? back.Light : ef.Light);
+          bool aboveSlab = viewZ > ef.TopZ + 0.001f;
+          bool belowSlab = viewZ < ef.BottomZ - 0.001f;
+
+          // Slab side endpoints in screen Y (positive = down).
+          float yTopFar = horizon - (ef.TopZ - viewZ) * scale;
+          float yBotFar = horizon - (ef.BottomZ - viewZ) * scale;
+
+          // SIDE wall, clipped to current window. Never a terminator:
+          // back-only slabs only occlude the screen-Y band [yTopFar..yBotFar];
+          // above and below that band the column stays open so taller slabs
+          // further along the ray (e.g. higher stair treads) can still emit.
+          float cTop = yTopFar < winTop ? winTop : yTopFar;
+          float cBot = yBotFar > winBot ? winBot : yBotFar;
+          if (cBot > cTop + 0.5f) {
+            if (extras == null) extras = new List<WallSeg>(2);
+            extras.Add(new WallSeg {
+              TopPx = cTop, BotPx = cBot,
+              Distance = perp,
+              WallTexIdx = ef.SideTex,
+              TexU = h.U,
+              LightLevel = slabLight,
+              HitVertical = false, IsSky = false,
+              TexOffsetPx = yTopFar - cTop,
+            });
+          }
+
+          // TOP plane — FloorBand visible above the slab.
+          if (aboveSlab) {
+            float yTopNear = horizon + (viewZ - ef.TopZ) * scaleNear;
+            float yTopFarFlip = horizon + (viewZ - ef.TopZ) * scale;
+            float bTop = yTopFarFlip < winTop ? winTop : yTopFarFlip;
+            float bBot = yTopNear > winBot ? winBot : yTopNear;
+            if (bBot > bTop + 0.5f) {
+              if (bands == null) bands = new List<FloorBand>(4);
+              bands.Add(new FloorBand {
+                TopPx = bTop, BotPx = bBot, FloorZ = ef.TopZ,
+                Light = slabLight,
+                FloorTex = ef.TopTex,
+                BehindFloorZ = float.NegativeInfinity,
+                RimAtFar = true,
+              });
+            }
+          }
+
+          // BOTTOM plane — CeilingBand visible below the slab.
+          if (belowSlab) {
+            float cTopBand = winTop;
+            float cBotBand = yBotFar > winBot ? winBot : yBotFar;
+            if (cBotBand > cTopBand + 0.5f) {
+              if (ceilBands == null) ceilBands = new List<CeilingBand>(4);
+              ceilBands.Add(new CeilingBand {
+                TopPx = cTopBand, BotPx = cBotBand,
+                CeilingZ = ef.BottomZ,
+                Light = slabLight,
+                CeilingTex = ef.BottomTex,
+              });
+            }
+          }
+
+          // Cliprange occlusion. We can only tighten one boundary cleanly
+          // (single-window cliprange), so:
+          //   • viewer above slab → occlude below slab top (winBot = yTopFar).
+          //     This is the stair-walking case: keeps the upper window open
+          //     so taller slabs further along still emit their tops.
+          //   • viewer below slab → occlude above slab bottom (winTop = yBotFar).
+          //   • viewer inside slab body → same as above (winBot = yTopFar).
+          //     Sacrifices visibility of stuff below the slab bottom past
+          //     this hit (usually floor anyway), but keeps stuff ABOVE the
+          //     slab top visible — critical for stair treads going up.
+          if (!belowSlab) {
+            if (yTopFar < winBot) winBot = yTopFar;
+          } else {
+            if (yBotFar > winTop) winTop = yBotFar;
+          }
+        }
+      }
+      if (slabTerminated) {
+        depthOut = perp;
+        return new ColumnInfo {
+          Main = terminatorWall,
+          Extras = extras?.ToArray(),
+          FrontFloorZ = fz,
+          FloorBands = bands?.ToArray(),
+          CeilingBands = ceilBands?.ToArray(),
+          FloorOccluderDist = floorOccDist,
+          FloorOccluderZ = floorOccZ,
+          CeilingOccluderDist = ceilOccDist,
+          CeilingOccluderZ = ceilOccZ,
+        };
+      }
+
       // ── 3a. TERMINAL hit (solid wall or closed door). Emit Main clipped
       //    to current window.
       if (terminal) {
@@ -1100,6 +1386,8 @@ module GameLogic {
           CeilingBands = ceilBands?.ToArray(),
           FloorOccluderDist = floorOccDist,
           FloorOccluderZ = floorOccZ,
+          CeilingOccluderDist = ceilOccDist,
+          CeilingOccluderZ = ceilOccZ,
         };
       }
 
@@ -1186,6 +1474,8 @@ module GameLogic {
           CeilingBands = ceilBands?.ToArray(),
           FloorOccluderDist = floorOccDist,
           FloorOccluderZ = floorOccZ,
+          CeilingOccluderDist = ceilOccDist,
+          CeilingOccluderZ = ceilOccZ,
         };
       }
     }
@@ -1204,6 +1494,8 @@ module GameLogic {
       CeilingBands = ceilBands?.ToArray(),
       FloorOccluderDist = floorOccDist,
       FloorOccluderZ = floorOccZ,
+      CeilingOccluderDist = ceilOccDist,
+      CeilingOccluderZ = ceilOccZ,
     };
   }
   private struct RayHit {
@@ -1256,7 +1548,7 @@ module GameLogic {
           Light = c.LightLevel, HitVertical = vertical, IsSky = false,
         };
       }
-      if (c.Kind == CellKind.Exit) {
+      if (c.Kind == CellKind.Exit && c.WallTexIdx != 0) {
         float dist;
         float u;
         if (vertical) { dist = sideX - deltaX; float hitY = oy + dist * dy; u = hitY - Mathf.Floor(hitY); if (dx > 0) u = 1f - u; }
@@ -1305,6 +1597,26 @@ module GameLogic {
     float D = Mathf.Sqrt(dx * dx + dy * dy);
     if (D < 0.01f) return true;
     Raycast.Cast(st.SectorMap, new Vector2(ax, ay), srcSector, new Vector2(dx / D, dy / D), out var hits);
+    // Phase 9: same-sector case. If the ray never crosses a portal
+    // (target inside source sector) the loop below runs 0 times and we'd
+    // return true unconditionally, even when a slab in srcSector sits
+    // between the two endpoints (e.g. monster on slab top shoots at
+    // player on slab bottom in the same cell).
+    if (hits.Count == 0) {
+      var s = st.SectorMap.Sectors[srcSector];
+      float segMin0 = Mathf.Min(az, bz);
+      float segMax0 = Mathf.Max(az, bz);
+      if (segMin0 <= s.FloorZ + 0.001f) return false;
+      if (!s.IsSky && segMax0 >= s.CeilingZ - 0.001f) return false;
+      if (s.ExtraFloors != null) {
+        for (int k = 0; k < s.ExtraFloors.Count; k++) {
+          var ef = s.ExtraFloors[k];
+          if (!ef.Solid) continue;
+          if (segMax0 >= ef.BottomZ + 0.001f && segMin0 <= ef.TopZ - 0.001f) return false;
+        }
+      }
+      return true;
+    }
     float prevT = 0f;
     for (int i = 0; i < hits.Count; i++) {
       var h = hits[i];
@@ -1318,6 +1630,18 @@ module GameLogic {
       float segMax = Mathf.Max(zStart, zEnd);
       if (segMin <= front.FloorZ + 0.001f) return false;
       if (!front.IsSky && segMax >= front.CeilingZ - 0.001f) return false;
+      // Phase 9: also clip against ExtraFloor slabs in this sector. The ray
+      // segment from prevT..endT (Z from zStart..zEnd) is blocked if it
+      // passes through the body of any solid slab.
+      if (front.ExtraFloors != null) {
+        for (int k = 0; k < front.ExtraFloors.Count; k++) {
+          var ef = front.ExtraFloors[k];
+          if (!ef.Solid) continue;
+          // Block if Z range overlaps slab body. Lateral overlap is implied
+          // because the ray IS in this sector for the segment we're checking.
+          if (segMax >= ef.BottomZ + 0.001f && segMin <= ef.TopZ - 0.001f) return false;
+        }
+      }
       if (reachedTarget) return true;
       if (h.ToSector < 0) return false; // solid wall blocks
       var back = st.SectorMap.Sectors[h.ToSector];
@@ -1403,14 +1727,18 @@ module GameLogic {
 
     // Phase 7: step-up. After horizontal motion, snap player Z up to the
     // tallest cell footprint they're standing on (within STEP_HEIGHT).
+    // Phase 9: step-up uses the actor's CURRENT footZ as the lower bound,
+    // not 0. Otherwise dropping into a pit at Z<0 trampolines the player
+    // back to Z=0 because every neighbor cell's floor (Z=0) is greater
+    // than the trivially-initialized bestFloor.
     if (isPlayer) {
       float footZ = st.Player.Z;
       int gx0 = (int)(x - radius), gx1 = (int)(x + radius);
       int gy0 = (int)(y - radius), gy1 = (int)(y + radius);
-      float bestFloor = 0f;
+      float bestFloor = footZ;
       for (int gy = gy0; gy <= gy1; gy++) {
         for (int gx = gx0; gx <= gx1; gx++) {
-          float fz = st.Map.FloorAt(gx, gy);
+          float fz = st.Map.FloorAt(gx, gy, footZ, C.STEP_HEIGHT);
           if (fz > bestFloor && fz - footZ <= C.STEP_HEIGHT + 0.001f) bestFloor = fz;
         }
       }
@@ -1478,7 +1806,10 @@ module GameLogic {
       int sec = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(m.X, m.Y), -1);
       if (sec >= 0) {
         m.SectorId = sec;
-        m.Z = st.SectorMap.Sectors[sec].FloorZ;
+        // Phase 9: pick the highest reachable surface so monsters spawned
+        // inside an ExtraFloor footprint land on the slab top, not the
+        // basement floor below it.
+        m.Z = StandingFloorIn(st.SectorMap.Sectors[sec], 1e6f, 1e6f);
       }
     }
     // Phase 7: floating mobjs hover above the floor.
@@ -1525,6 +1856,23 @@ module GameLogic {
     return k == MobjKind.Imp || k == MobjKind.Demon || k == MobjKind.Baron
     || k == MobjKind.Cacodemon || k == MobjKind.LostSoul
     || k == MobjKind.Zombieman || k == MobjKind.Shotgunner;
+  }
+
+  public static bool IsBoss(MobjKind k) {
+    return k == MobjKind.Baron || k == MobjKind.Cacodemon;
+  }
+
+  // True while any boss-tier monster (Baron / Cacodemon) is still alive on
+  // the map. Used to gate level-exit cells when LevelStart.BossExitGated is
+  // set.
+  public static bool AnyBossAlive(ref GameState st) {
+    for (int i = 1; i <= st.MobjCount; i++) {
+      ref var m = ref st.Mobjs[i];
+      if (!IsBoss(m.Kind)) continue;
+      if (m.State == AIState.Dead) continue;
+      return true;
+    }
+    return false;
   }
 
   public static bool IsProjectile(MobjKind k) {

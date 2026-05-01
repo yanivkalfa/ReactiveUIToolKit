@@ -39,14 +39,15 @@ component DoomHUD(
     }
   }
 
-  Style PanelStyle(int width) {
+  Style PanelStyle(float grow) {
     return new Style{
-      Width = width, MarginRight = 4,
+      FlexGrow = grow, FlexShrink = 1, FlexBasis = new StyleLength(0f),
+      MarginRight = 4,
       BackgroundColor = panelBg, PaddingLeft = 6, PaddingRight = 6, PaddingTop = 4, PaddingBottom = 4,
       BorderTopWidth = 1, BorderRightWidth = 1, BorderBottomWidth = 1, BorderLeftWidth = 1,
       BorderTopColor = topBorder, BorderRightColor = topBorder, BorderBottomColor = topBorder, BorderLeftColor = topBorder,
       BorderTopLeftRadius = 2, BorderTopRightRadius = 2, BorderBottomLeftRadius = 2, BorderBottomRightRadius = 2,
-      AlignItems = Align.Center,
+      AlignItems = Align.Stretch,
     };
   }
 
@@ -77,35 +78,35 @@ component DoomHUD(
       }}
     >
       // AMMO panel
-      <VisualElement style={PanelStyle(78)}>
+      <VisualElement style={PanelStyle(2f)}>
         <Label
           text="AMMO"
-          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, TextAlign = TextAnchor.UpperCenter, MarginTop = 2, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0 }}
         />
         <Label
           text={CurrentAmmoLabel()}
-          style={new Style{ Color = redNum, FontSize = 34, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = redNum, FontSize = 24, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, MarginTop = 4, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0, TextAlign = TextAnchor.MiddleCenter }}
         />
       </VisualElement>
       // HEALTH panel
-      <VisualElement style={PanelStyle(92)}>
+      <VisualElement style={PanelStyle(2.5f)}>
         <Label
           text="HEALTH"
-          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, TextAlign = TextAnchor.UpperCenter, MarginTop = 2, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0 }}
         />
         <Label
           text={health.ToString() + "%"}
-          style={new Style{ Color = redNum, FontSize = 34, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = redNum, FontSize = 24, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, MarginTop = 4, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0, TextAlign = TextAnchor.MiddleCenter }}
         />
       </VisualElement>
       // ARMS grid
-      <VisualElement style={PanelStyle(112)}>
+      <VisualElement style={PanelStyle(3f)}>
         <Label
           text="ARMS"
-          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, TextAlign = TextAnchor.UpperCenter, MarginTop = 2, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0 }}
         />
         <VisualElement
-          style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row, FlexWrap = Wrap.Wrap, MarginTop = 2 }}
+          style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row, FlexWrap = Wrap.Wrap, MarginTop = 2, JustifyContent = Justify.Center }}
         >
           @foreach (var i in System.Linq.Enumerable.Range(1, 6)) {
             var owned = i < ownedWeapons.Length && ownedWeapons[i];
@@ -115,10 +116,12 @@ component DoomHUD(
                 key={"arm" + i.ToString()}
                 text={(i + 1).ToString()}
                 style={new Style{
-                  Width = 22, Height = 18, MarginRight = 2, MarginBottom = 2,
+                  Width = 20, Height = 14, MarginRight = 2, MarginBottom = 1,
                   TextAlign = TextAnchor.MiddleCenter,
                   Color = owned ? redNum : dimClr,
-                  FontSize = 14, UnityFontStyle = FontStyle.Bold,
+                  FontSize = 11, UnityFontStyle = FontStyle.Bold,
+                  WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap,
+                  PaddingLeft = 0, PaddingRight = 0, PaddingTop = 0, PaddingBottom = 0,
                 }}
               />
             );
@@ -128,24 +131,24 @@ component DoomHUD(
       // Face mug
       <DoomFace frame={faceState} />
       // ARMOR panel
-      <VisualElement style={PanelStyle(92)}>
+      <VisualElement style={PanelStyle(2.5f)}>
         <Label
           text={armorClass == 2 ? "MEGA" : "ARMOR"}
-          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, TextAlign = TextAnchor.UpperCenter, MarginTop = 2, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0 }}
         />
         <Label
           text={armor.ToString() + "%"}
-          style={new Style{ Color = redNum, FontSize = 34, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = redNum, FontSize = 24, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, MarginTop = 4, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0, TextAlign = TextAnchor.MiddleCenter }}
         />
       </VisualElement>
       // KEYS column
-      <VisualElement style={PanelStyle(32)}>
+      <VisualElement style={PanelStyle(0.8f)}>
         @(KeyDot(new Color(0.30f, 0.55f, 1.00f), (keys & KeyCard.Blue)   != 0))
         @(KeyDot(new Color(0.95f, 0.85f, 0.20f), (keys & KeyCard.Yellow) != 0))
         @(KeyDot(new Color(0.95f, 0.20f, 0.20f), (keys & KeyCard.Red)    != 0))
       </VisualElement>
       // AMMO breakdown
-      <VisualElement style={PanelStyle(104)}>
+      <VisualElement style={PanelStyle(3.5f)}>
         @foreach (var i in System.Linq.Enumerable.Range(0, 4)) {
           return (
             <VisualElement
@@ -156,29 +159,29 @@ component DoomHUD(
             >
               <Label
                 text={ammoLabels[i]}
-                style={new Style{ Color = labelClr, FontSize = 10 }}
+                style={new Style{ Color = labelClr, FontSize = 10, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap }}
               />
               <Label
                 text={ammo[i].ToString() + " / " + ammoMax[i].ToString()}
-                style={new Style{ Color = redNum, FontSize = 11, UnityFontStyle = FontStyle.Bold }}
+                style={new Style{ Color = redNum, FontSize = 11, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap }}
               />
             </VisualElement>
           );
         }
       </VisualElement>
       // INFO panel
-      <VisualElement style={PanelStyle(124)}>
+      <VisualElement style={PanelStyle(4f)}>
         <Label
           text={mapName}
-          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold }}
+          style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, TextAlign = TextAnchor.UpperCenter, MarginTop = 4, MarginBottom = 4, PaddingTop = 0, PaddingBottom = 0 }}
         />
         <Label
           text={"KILLS  " + killCount.ToString() + " / " + killTotal.ToString()}
-          style={new Style{ Color = redNum, FontSize = 12 }}
+          style={new Style{ Color = redNum, FontSize = 12, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, TextAlign = TextAnchor.MiddleCenter, MarginTop = 2, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0 }}
         />
         <Label
           text={"SCORE  " + score.ToString()}
-          style={new Style{ Color = redNum, FontSize = 12 }}
+          style={new Style{ Color = redNum, FontSize = 12, WhiteSpace = UnityEngine.UIElements.WhiteSpace.NoWrap, TextAlign = TextAnchor.MiddleCenter, MarginTop = 2, MarginBottom = 0, PaddingTop = 0, PaddingBottom = 0 }}
         />
       </VisualElement>
     </VisualElement>

@@ -56,6 +56,11 @@ module DoomGameScreenLogic {
       if (dcol >= 0 && dcol < state.Frame.Columns.Length) {
         var ci = state.Frame.Columns[dcol];
         if (ty > ci.FloorOccluderDist + 0.02f && anchorWorldZ < ci.FloorOccluderZ - 0.05f) continue;
+        // Phase 9: looking-UP occlusion against a ceiling-slab underside.
+        // Mirror of the floor-occluder test: if the column has a slab
+        // bottom in front of the sprite AND the sprite's anchor sits at
+        // or above the slab bottom, the slab hides it.
+        if (ty > ci.CeilingOccluderDist + 0.02f && anchorWorldZ > ci.CeilingOccluderZ - 0.05f) continue;
         // Phase 8: looking-DOWN occlusion. The first floor band in the ray
         // is the player's own sector floor; its TopPx is the cliff/portal
         // silhouette. A sprite in a sector with LOWER floor than that —

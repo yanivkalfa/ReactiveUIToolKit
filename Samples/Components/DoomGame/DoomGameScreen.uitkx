@@ -371,6 +371,8 @@ component DoomGameScreen(
             />
           );
         }
+        // Minimap (top-right of the 3D viewport, above HUD).
+        <DoomMinimap state={state} />
       </VisualElement>
       // ── HUD ──
       <DoomHUD
@@ -445,7 +447,7 @@ component DoomGameScreen(
               style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row }}
             >
               <Button
-                text={level < 5 ? "Next Level" : "Finish"}
+                text={level < 6 ? "Next Level" : "Finish"}
                 onClick={_ => onNextLevel()}
                 style={new Style{ FontSize = 18, Width = 140, Height = 44, MarginRight = 12 }}
               />

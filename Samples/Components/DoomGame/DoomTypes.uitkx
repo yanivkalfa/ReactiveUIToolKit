@@ -68,6 +68,12 @@ module DoomTypes {
     // the player is not bonked; the cell behaves as if CeilingZ = +infinity
     // for vertical movement.
     public bool IsSky;
+    // Phase 9: stacked 3D-floor slabs occupying this cell. Each slab is a
+    // walkable platform with a `BottomZ` underside and `TopZ` walkable
+    // surface. Multiple slabs let you build basements (slab between feet
+    // and floor), balconies (slab above head), or true multi-story
+    // structures. Null = no extra floors. Sorted by BottomZ ascending.
+    public List<ExtraFloor> ExtraFloors;
   }
 
   public struct MapDef {
@@ -102,17 +108,53 @@ module DoomTypes {
       if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue || c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
         if (c.DoorState < 200) return true;
       }
+      // Phase 9: pick the highest standing surface at-or-below
+      // (footZ + stepHeight): the cell floor or any ExtraFloor.TopZ.
       float floor = c.FloorZ;
-      float ceil = c.CeilingZ <= 0f ? 1.5f : c.CeilingZ;
-      if (floor - footZ > stepHeight) return true;
-      if (!c.IsSky && ceil < headZ - 0.001f) return true;
+      float ceil = c.IsSky ? 1e9f : (c.CeilingZ <= 0f ? 1.5f : c.CeilingZ);
+      if (c.ExtraFloors != null) {
+        for (int i = 0; i < c.ExtraFloors.Count; i++) {
+          var ef = c.ExtraFloors[i];
+          if (!ef.Solid) continue;
+          if (ef.TopZ <= footZ + stepHeight + 0.001f && ef.TopZ > floor) floor = ef.TopZ;
+        }
+      }
+      // Block if the step-up exceeds the actor's stride.
+      if (floor - footZ > stepHeight + 0.001f) return true;
+      // Ceiling: lowest blocking surface ABOVE the standing floor. Player
+      // body would occupy [floor, floor + (headZ - footZ)] after step-up.
+      // Any solid slab whose body intersects that volume is a blocker.
+      float standHead = floor + (headZ - footZ);
+      if (c.ExtraFloors != null) {
+        for (int i = 0; i < c.ExtraFloors.Count; i++) {
+          var ef = c.ExtraFloors[i];
+          if (!ef.Solid) continue;
+          // Slab top at-or-below standing floor is the floor itself — not a
+          // blocker. Slab whose BODY overlaps [floor + eps, standHead - eps]
+          // is a blocker (we'd be inside it).
+          if (ef.TopZ <= floor + 0.001f) continue;
+          if (ef.BottomZ < standHead - 0.001f && ef.TopZ > floor + 0.001f) return true;
+          if (ef.BottomZ < ceil) ceil = ef.BottomZ;
+        }
+      }
+      if (ceil < standHead - 0.001f) return true;
       return false;
     }
 
     // Phase 7: floor height the actor would stand on at this cell.
-    public float FloorAt(int x, int y) {
+    // Phase 9: also considers ExtraFloor tops at-or-below
+    // (footZ + stepHeight), picking the highest reachable surface.
+    public float FloorAt(int x, int y, float footZ = 0f, float stepHeight = 1e6f) {
       var c = AtSafe(x, y);
-      return c.FloorZ;
+      float best = c.FloorZ;
+      if (c.ExtraFloors != null) {
+        for (int i = 0; i < c.ExtraFloors.Count; i++) {
+          var ef = c.ExtraFloors[i];
+          if (!ef.Solid) continue;
+          if (ef.TopZ <= footZ + stepHeight + 0.001f && ef.TopZ > best) best = ef.TopZ;
+        }
+      }
+      return best;
     }
 
     public bool BlocksRays(int x, int y) {
@@ -222,6 +264,13 @@ module DoomTypes {
     // "no occluder".
     public float FloorOccluderDist;
     public float FloorOccluderZ;
+    // Phase 9: ceiling-slab occlusion for sprite culling. When the ray
+    // crosses an ExtraFloor BOTTOM (slab underside, viewer below), the
+    // slab hides anything behind it whose anchor Z sits at-or-above the
+    // slab body. Sprites with perp > CeilingOccluderDist AND anchorZ >=
+    // CeilingOccluderZ are culled. Default = no occluder.
+    public float CeilingOccluderDist;
+    public float CeilingOccluderZ;
   }
 
   public struct FloorBand {
@@ -273,6 +322,9 @@ module DoomTypes {
     public int Tic;
     public bool GameOver;
     public bool Victory;
+    // When true, stepping on an Exit cell only triggers Victory once every
+    // boss-tier monster (Baron, Cacodemon) on the map is dead.
+    public bool BossExitGated;
     public Difficulty Difficulty;
     public int RngSeed;
     public float TimeAccum;
@@ -474,7 +526,7 @@ module DoomTypes {
             Tag = c.Tag,
             IsSky = c.IsSky,
             LineIds = new List<int>(4),
-            ExtraFloors = null,
+            ExtraFloors = c.ExtraFloors,
             TargetCeilingZ = c.IsSky ? 64f : (c.CeilingZ <= 0f ? 1.5f : c.CeilingZ),
             TargetFloorZ = c.FloorZ,
             CeilingSpeed = 0f, FloorSpeed = 0f, DoorWaitTimer = 0f,
@@ -518,7 +570,7 @@ module DoomTypes {
         Cell self = map.Cells[y * W + x];
         if (nx < 0 || nx >= W || ny < 0 || ny >= H) return self.WallTexIdx;
         Cell nb = map.Cells[ny * W + nx];
-        if (nb.Kind == CellKind.Wall || nb.Kind == CellKind.Exit) return nb.WallTexIdx;
+        if (nb.Kind == CellKind.Wall || (nb.Kind == CellKind.Exit && nb.WallTexIdx != 0)) return nb.WallTexIdx;
         if (nb.Kind == CellKind.Door || nb.Kind == CellKind.DoorBlue ||
             nb.Kind == CellKind.DoorYellow || nb.Kind == CellKind.DoorRed) {
           return nb.WallTexIdx;
@@ -642,22 +694,22 @@ module DoomTypes {
 
     public const int HP_IMP = 60;
     public const int HP_DEMON = 150;
-    public const int HP_BARON = 800;
-    public const int HP_CACO = 400;
+    public const int HP_BARON = 200;
+    public const int HP_CACO = 120;
     public const int HP_LOST = 100;
     public const int HP_ZOMBIE = 20;
     public const int HP_SHOTG = 30;
     public const int HP_BARREL = 20;
 
-    public const int DMG_IMP_MELEE = 12;
-    public const int DMG_IMP_BALL = 18;
-    public const int DMG_DEMON_BITE = 22;
-    public const int DMG_BARON_CLAW = 30;
-    public const int DMG_BARON_BALL = 60;
-    public const int DMG_CACO_BALL = 28;
-    public const int DMG_LOST_RAM = 14;
-    public const int DMG_ZOMBIE = 9;
-    public const int DMG_SHOTG = 12;
+    public const int DMG_IMP_MELEE = 6;
+    public const int DMG_IMP_BALL = 8;
+    public const int DMG_DEMON_BITE = 10;
+    public const int DMG_BARON_CLAW = 14;
+    public const int DMG_BARON_BALL = 24;
+    public const int DMG_CACO_BALL = 12;
+    public const int DMG_LOST_RAM = 7;
+    public const int DMG_ZOMBIE = 4;
+    public const int DMG_SHOTG = 5;
 
     public const float SPEED_IMP = 1.7f;
     public const float SPEED_DEMON = 2.6f;
