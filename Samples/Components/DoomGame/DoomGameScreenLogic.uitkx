@@ -1,0 +1,322 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTextures
+
+module DoomGameScreenLogic {
+  public struct SpriteEntry {
+    public int Id;
+    public int SpriteIdx;
+    public float ScreenX;
+    public float ScreenY;
+    public float Size;
+    public float Distance;
+    public Color32 Tint;
+    public float Light;
+  }
+
+  public static List<SpriteEntry> BuildSpriteList(GameState state) {
+    var list = new List<SpriteEntry>(64);
+    var p = state.Player;
+    float cosA = Mathf.Cos(p.Angle), sinA = Mathf.Sin(p.Angle);
+    float halfH = C.VIEWPORT_H * 0.5f;
+    float planeScale = halfH / Mathf.Tan(C.HALF_FOV);
+    var depth = state.Frame.DepthBuffer;
+    float widthScale = C.VIEWPORT_W / (float)C.VIEW_W;
+    // Phase 7: eye Z so sprites reproject correctly when the player jumps/crouches.
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+
+    for (int i = 1; i <= state.MobjCount; i++) {
+      var m = state.Mobjs[i];
+      if (m.Id == 0) continue;
+      if (m.Kind == MobjKind.Light) continue;
+      if (GameLogic.IsMonster(m.Kind) && m.State == AIState.Dead) continue;
+
+      float dx = m.X - p.X, dy = m.Y - p.Y;
+      // forward = (cos a, sin a); right = (-sin a, cos a)
+      float ty = dx * cosA + dy * sinA; // depth along view direction
+      float tx = -dx * sinA + dy * cosA; // lateral, +right
+      if (ty < 0.2f) continue;
+
+      float screenX = (C.VIEWPORT_W * 0.5f) + (tx / ty) * planeScale;
+      float spriteH = (1.0f / ty) * planeScale * SpriteScale(m.Kind);
+      // Sprite anchor: feet (m.Z) for floor-standing things, slight lift for
+      // floating mobjs — combined into world Z relative to viewZ.
+      float anchorWorldZ = m.Z + SpriteVerticalAnchor(m.Kind);
+      float screenY = (C.VIEWPORT_H * 0.5f + p.Pitch) - ((anchorWorldZ - viewZ) / ty) * planeScale;
+
+      int dcol = (int)(screenX / widthScale);
+      if (dcol >= 0 && dcol < depth.Length && ty > depth[dcol] + 0.05f) continue;
+      // Phase 8: floor-step occlusion. If the column's first riser sits in
+      // front of the sprite AND the sprite's anchor Z is below the riser
+      // top, the riser hides the sprite. Stops monsters from showing
+      // through stair treads / second-story plateaus.
+      if (dcol >= 0 && dcol < state.Frame.Columns.Length) {
+        var ci = state.Frame.Columns[dcol];
+        if (ty > ci.FloorOccluderDist + 0.02f && anchorWorldZ < ci.FloorOccluderZ - 0.05f) continue;
+        // Phase 9: looking-UP occlusion against a ceiling-slab underside.
+        // Mirror of the floor-occluder test: if the column has a slab
+        // bottom in front of the sprite AND the sprite's anchor sits at
+        // or above the slab bottom, the slab hides it.
+        if (ty > ci.CeilingOccluderDist + 0.02f && anchorWorldZ > ci.CeilingOccluderZ - 0.05f) continue;
+        // Phase 8: looking-DOWN occlusion. The first floor band in the ray
+        // is the player's own sector floor; its TopPx is the cliff/portal
+        // silhouette. A sprite in a sector with LOWER floor than that —
+        // i.e. the courtyard seen over a plateau edge — is partially or
+        // fully hidden by the upper floor's visible region. Cull when the
+        // sprite anchor projects BELOW (greater screenY than) that
+        // silhouette AND the sprite floor is below the upper-band floor.
+        var bands = ci.FloorBands;
+        if (bands != null && bands.Length > 0) {
+          var b0 = bands[0];
+          // Projected silhouette of the upper floor's far edge at this column.
+          float silhY = b0.TopPx;
+          if (anchorWorldZ < b0.FloorZ - 0.1f && screenY > silhY + 1f) continue;
+        }
+      }
+
+      float lightFade = Mathf.Clamp01(1f - ty / 16f);
+      float light = 0.35f + 0.65f * lightFade;
+
+      list.Add(new SpriteEntry {
+        Id = m.Id,
+        SpriteIdx = GameLogic.SpriteIndexForMobj(m.Kind),
+        ScreenX = screenX,
+        ScreenY = screenY,
+        Size = spriteH,
+        Distance = ty,
+        Tint = GameLogic.TintForMobj(m.Kind, m.State),
+        Light = light,
+      });
+    }
+    list.Sort((a, b) => b.Distance.CompareTo(a.Distance));
+    return list;
+  }
+
+  public static float SpriteScale(MobjKind k) {
+    switch (k) {
+      case MobjKind.Baron: return 1.6f;
+      case MobjKind.Cacodemon: return 1.4f;
+      case MobjKind.Demon: return 1.2f;
+      case MobjKind.Barrel: return 0.8f;
+      case MobjKind.PickupHealth:
+      case MobjKind.PickupArmor:
+      case MobjKind.PickupArmorBlue:
+      case MobjKind.PickupBullets:
+      case MobjKind.PickupShells:
+      case MobjKind.PickupRockets:
+      case MobjKind.PickupCells: return 0.6f;
+      case MobjKind.KeyBlue: case MobjKind.KeyYellow: case MobjKind.KeyRed: return 0.55f;
+      case MobjKind.ImpFireball: case MobjKind.BaronBall: case MobjKind.CacoBall:
+      case MobjKind.PlasmaProj: case MobjKind.RocketProj: case MobjKind.BfgProj: return 0.6f;
+      case MobjKind.Explosion: return 1.6f;
+      default: return 1.0f;
+    }
+  }
+
+  public static float SpriteVerticalAnchor(MobjKind k) {
+    if (k == MobjKind.Cacodemon) return 0f;
+    if (k == MobjKind.LostSoul) return -0.05f;
+    if (GameLogic.IsProjectile(k)) return -0.05f;
+    if (k == MobjKind.Explosion) return -0.05f;
+    return 0.15f;
+  }
+
+  // Phase 3: flattened list of extra wall segs (upper/lower from portals).
+  // The Main seg is rendered separately by the existing wall loop.
+  public struct ExtraSegEntry {
+    public int ColIndex;
+    public int SegIndex; // index within the column's Extras array (stable key)
+    public WallSeg Seg;
+  }
+
+  public static List<ExtraSegEntry> BuildExtraSegList(GameState state) {
+    var list = new List<ExtraSegEntry>(0);
+    var cols = state.Frame.Columns;
+    for (int i = 0; i < cols.Length; i++) {
+      var ex = cols[i].Extras;
+      if (ex == null) continue;
+      for (int j = 0; j < ex.Length; j++) {
+        list.Add(new ExtraSegEntry { ColIndex = i, SegIndex = j, Seg = ex[j] });
+      }
+    }
+    return list;
+  }
+
+  // Phase 7: per-column floor band entries for rendering.
+  public struct FloorBandEntry {
+    public int ColIndex;
+    public FloorBand Band;
+  }
+
+  public static List<FloorBandEntry> BuildFloorBandList(GameState state) {
+    var list = new List<FloorBandEntry>(0);
+    var cols = state.Frame.Columns;
+    for (int i = 0; i < cols.Length; i++) {
+      var bands = cols[i].FloorBands;
+      if (bands == null) continue;
+      for (int j = 0; j < bands.Length; j++) {
+        list.Add(new FloorBandEntry { ColIndex = i, Band = bands[j] });
+      }
+    }
+    return list;
+  }
+
+  // Phase 7: horizontally merged floor bands. Adjacent columns sharing the
+  // same floor slab (Z quantized to 0.2u) and similar screen Y range collapse
+  // into a single wide rect. Cuts element count from N*B down to a handful.
+  public struct MergedFloorBand {
+    public int ColStart;
+    public int ColEnd; // inclusive
+    public float TopPx;
+    public float BotPx;
+    public int SlabId;
+    public byte Light;
+    public byte FloorTex;
+    public float FloorZ;
+    public int BehindSlabId; // slab immediately behind in the ray (=SlabId if none)
+    public float BehindFloorZ; // FloorZ of slab immediately behind
+    public bool RimAtFar; // far edge is a visible step-down
+  }
+
+  public static List<MergedFloorBand> BuildMergedFloorBands(GameState state) {
+    var output = new List<MergedFloorBand>(256);
+    var cols = state.Frame.Columns;
+    // Per-column FAR → NEAR (reverse of ray-order source) so the closer band
+    // ends up later in the child list and paints OVER farther bands.
+    // UITK has no z-index; later children paint on top. Cross-column ordering
+    // is irrelevant because bands at different X columns don't overlap.
+    //
+    // Combined with the step-down yFar clamp in BuildColumnSector, this
+    // guarantees:
+    //  - Distant lower floors clamped to silhouette → never paint above the
+    //    higher floor's silhouette in pixel space.
+    //  - Even with TopPx ties from the clamp, the closer band always paints
+    //    last because of the deterministic per-column FAR→NEAR loop.
+    //
+    // No global List.Sort: it's not stable; ties on TopPx would randomly
+    // invert order per column and produce flicker / covered closer bands.
+    for (int i = 0; i < cols.Length; i++) {
+      var bands = cols[i].FloorBands;
+      if (bands == null) continue;
+      for (int j = bands.Length - 1; j >= 0; j--) {
+        var b = bands[j];
+        int slab = Mathf.RoundToInt(b.FloorZ * 5f);
+        output.Add(new MergedFloorBand {
+          ColStart = i, ColEnd = i,
+          TopPx = b.TopPx, BotPx = b.BotPx,
+          SlabId = slab, Light = b.Light, FloorTex = b.FloorTex, FloorZ = b.FloorZ,
+          BehindSlabId = slab,
+          BehindFloorZ = b.BehindFloorZ,
+          RimAtFar = b.RimAtFar,
+        });
+      }
+    }
+    return output;
+  }
+
+  // Phase 8: ceiling band entry for renderer (one per column-band; same pattern
+  // as floor bands but no horizontal merge \u2014 keep simple, perf budget OK).
+  public struct CeilingBandEntry {
+    public int ColIndex;
+    public int SlabId;
+    public CeilingBand Band;
+  }
+
+  public static List<CeilingBandEntry> BuildMergedCeilingBands(GameState state) {
+    var output = new List<CeilingBandEntry>(256);
+    var cols = state.Frame.Columns;
+    for (int i = 0; i < cols.Length; i++) {
+      var bands = cols[i].CeilingBands;
+      if (bands == null) continue;
+      for (int j = bands.Length - 1; j >= 0; j--) {
+        var b = bands[j];
+        int slab = Mathf.RoundToInt(b.CeilingZ * 5f);
+        output.Add(new CeilingBandEntry { ColIndex = i, SlabId = slab, Band = b });
+      }
+    }
+    return output;
+  }
+
+  // Phase 8: hitscan tracer projection. Walks the ring buffer, projects both
+  // endpoints into camera space (rotation + perspective), near-plane clips,
+  // and produces a screen-space rotated rect per live tracer. Returns the
+  // rect's position+size+angle so the renderer can emit a single Box per
+  // tracer with no per-frame allocations beyond the output list.
+  public struct TracerEntry {
+    public int Slot;
+    public float Left, Top;
+    public float Length;
+    public float AngleDeg;
+    public float Alpha;
+    public byte ColorIdx;
+  }
+
+  private const float TRACER_NEAR = 0.15f;
+
+  public static List<TracerEntry> BuildTracerList(GameState state) {
+    var list = new List<TracerEntry>(8);
+    if (state.Tracers == null) return list;
+    var p = state.Player;
+    float cosA = Mathf.Cos(p.Angle), sinA = Mathf.Sin(p.Angle);
+    float halfH = C.VIEWPORT_H * 0.5f;
+    float planeScale = halfH / Mathf.Tan(C.HALF_FOV);
+    float horizon = halfH + p.Pitch + p.ViewShiftPx;
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+
+    for (int i = 0; i < state.Tracers.Length; i++) {
+      var t = state.Tracers[i];
+      if (t.AgeMs >= C.TRACER_LIFE_MS) continue;
+
+      // Camera space: forward = (cos a, sin a); right = (-sin a, cos a).
+      float adx = t.Ax - p.X, ady = t.Ay - p.Y;
+      float bdx = t.Bx - p.X, bdy = t.By - p.Y;
+      float ay = adx * cosA + ady * sinA; // depth
+      float ax = -adx * sinA + ady * cosA; // lateral
+      float by = bdx * cosA + bdy * sinA;
+      float bx = -bdx * sinA + bdy * cosA;
+      float az = t.Az;
+      float bz = t.Bz;
+
+      // Both endpoints behind near plane \u2192 skip.
+      if (ay < TRACER_NEAR && by < TRACER_NEAR) continue;
+      // Clip the segment against the near plane in camera space.
+      if (ay < TRACER_NEAR) {
+        float k = (TRACER_NEAR - ay) / (by - ay);
+        ax += (bx - ax) * k;
+        az += (bz - az) * k;
+        ay = TRACER_NEAR;
+      } else if (by < TRACER_NEAR) {
+        float k = (TRACER_NEAR - by) / (ay - by);
+        bx += (ax - bx) * k;
+        bz += (az - bz) * k;
+        by = TRACER_NEAR;
+      }
+
+      float screenAx = (C.VIEWPORT_W * 0.5f) + (ax / ay) * planeScale;
+      float screenAy = horizon - ((az - viewZ) / ay) * planeScale;
+      float screenBx = (C.VIEWPORT_W * 0.5f) + (bx / by) * planeScale;
+      float screenBy = horizon - ((bz - viewZ) / by) * planeScale;
+
+      float ddx = screenBx - screenAx;
+      float ddy = screenBy - screenAy;
+      float length = Mathf.Sqrt(ddx * ddx + ddy * ddy);
+      if (length < 4f) continue; // too short to read \u2014 muzzle flash covers it
+      float angleDeg = Mathf.Atan2(ddy, ddx) * Mathf.Rad2Deg;
+      float alpha = 1f - (t.AgeMs / C.TRACER_LIFE_MS);
+
+      list.Add(new TracerEntry {
+        Slot = i,
+        Left = screenAx,
+        Top = screenAy - C.TRACER_THICKNESS_PX * 0.5f,
+        Length = length,
+        AngleDeg = angleDeg,
+        Alpha = alpha,
+        ColorIdx = t.ColorIdx,
+      });
+    }
+    return list;
+  }
+}

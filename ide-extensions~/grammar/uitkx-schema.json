@@ -1918,6 +1918,22 @@
       "opacity()",
       "sepia()",
       "tint()"
+    ],
+    "unitySliceType": [
+      "sliced",
+      "tiled"
+    ],
+    "unityOverflowClipBox": [
+      "padding-box",
+      "content-box"
+    ],
+    "unityTextGenerator": [
+      "standard",
+      "advanced"
+    ],
+    "unityEditorTextRenderingMode": [
+      "sdf",
+      "bitmap"
     ]
   },
   "styleVersions": {
