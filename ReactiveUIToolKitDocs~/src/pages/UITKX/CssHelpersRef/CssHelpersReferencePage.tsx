@@ -265,6 +265,34 @@ const filters: HelperRow[] = [
   { name: 'FilterTint(color)', returnType: 'FilterFunction', value: 'Color tint' },
 ]
 
+const sliceType: HelperRow[] = [
+  { name: 'SliceFill', returnType: 'SliceType', value: 'Sliced (stretch center)' },
+  { name: 'SliceTile', returnType: 'SliceType', value: 'Tiled (repeat center)' },
+]
+
+const overflowClip: HelperRow[] = [
+  { name: 'ClipPaddingBox', returnType: 'OverflowClipBox', value: 'PaddingBox' },
+  { name: 'ClipContentBox', returnType: 'OverflowClipBox', value: 'ContentBox' },
+]
+
+const textGenerator: HelperRow[] = [
+  { name: 'TextGenStandard', returnType: 'TextGeneratorType', value: 'Standard (legacy IMGUI)' },
+  { name: 'TextGenAdvanced', returnType: 'TextGeneratorType', value: 'Advanced (TextCore, rich shaping & emoji)' },
+]
+
+const editorTextRendering: HelperRow[] = [
+  { name: 'EditorTextSDF', returnType: 'EditorTextRenderingMode', value: 'SDF (sharper at any zoom; editor only)' },
+  { name: 'EditorTextBitmap', returnType: 'EditorTextRenderingMode', value: 'Bitmap (editor only)' },
+]
+
+const textShadow: HelperRow[] = [
+  { name: 'Shadow(dx, dy, blur, color)', returnType: 'TextShadow', value: 'Drop shadow with offset, blur radius, and color' },
+]
+
+const fontDefinition: HelperRow[] = [
+  { name: 'FontDef(font)', returnType: 'FontDefinition', value: 'Wraps a legacy Font into a FontDefinition' },
+]
+
 const allGroups = [
   { label: 'Length units', rows: lengthUnits },
   { label: 'Style keywords', rows: keywords },
@@ -297,6 +325,12 @@ const allGroups = [
   { label: 'Background size', rows: bgSize },
   { label: 'Transform', rows: transform },
   { label: 'Easing functions', rows: easing },
+  { label: '9-slice (SliceType)', rows: sliceType },
+  { label: 'Overflow clip box', rows: overflowClip },
+  { label: 'Text generator', rows: textGenerator },
+  { label: 'Editor text rendering', rows: editorTextRendering },
+  { label: 'Text shadow', rows: textShadow },
+  { label: 'Font definition', rows: fontDefinition },
   { label: 'Filter functions (Unity 6.3+)', rows: filters },
 ]
 

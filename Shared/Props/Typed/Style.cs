@@ -100,6 +100,21 @@ namespace ReactiveUITK.Props.Typed
         internal const int BIT_FILTER = 77;
         internal const int BIT_UNITY_MATERIAL = 78;
 
+        // ── 9-slice background, clipping, text-spacing, advanced font ───────
+        internal const int BIT_UNITY_SLICE_LEFT = 79;
+        internal const int BIT_UNITY_SLICE_RIGHT = 80;
+        internal const int BIT_UNITY_SLICE_TOP = 81;
+        internal const int BIT_UNITY_SLICE_BOTTOM = 82;
+        internal const int BIT_UNITY_SLICE_SCALE = 83;
+        internal const int BIT_UNITY_SLICE_TYPE = 84;
+        internal const int BIT_UNITY_OVERFLOW_CLIP_BOX = 85;
+        internal const int BIT_UNITY_PARAGRAPH_SPACING = 86;
+        internal const int BIT_WORD_SPACING = 87;
+        internal const int BIT_TEXT_SHADOW = 88;
+        internal const int BIT_UNITY_FONT_DEFINITION = 89;
+        internal const int BIT_UNITY_TEXT_GENERATOR = 90;
+        internal const int BIT_UNITY_EDITOR_TEXT_RENDERING_MODE = 91;
+
         // ═══════════════════════════════════════════════════════════════════
         //  Bitmask fields — which properties are set
         // ═══════════════════════════════════════════════════════════════════
@@ -216,6 +231,25 @@ namespace ReactiveUITK.Props.Typed
         internal StyleMaterialDefinition _unityMaterial;
 #endif
 
+        // ── 9-slice background ──────────────────────────────────────────
+        internal int _unitySliceLeft,
+            _unitySliceRight,
+            _unitySliceTop,
+            _unitySliceBottom;
+        internal StyleFloat _unitySliceScale;
+        internal SliceType _unitySliceType;
+
+        // ── Clipping ────────────────────────────────────────────────────
+        internal OverflowClipBox _unityOverflowClipBox;
+
+        // ── Text spacing / shadow / advanced font ───────────────────────
+        internal StyleLength _unityParagraphSpacing;
+        internal StyleLength _wordSpacing;
+        internal TextShadow _textShadow;
+        internal FontDefinition _unityFontDefinition;
+        internal UnityEngine.TextGeneratorType _unityTextGenerator;
+        internal EditorTextRenderingMode _unityEditorTextRenderingMode;
+
         // ═══════════════════════════════════════════════════════════════════
         //  Constructors
         // ═══════════════════════════════════════════════════════════════════
@@ -256,6 +290,11 @@ namespace ReactiveUITK.Props.Typed
                 s._filter = default;
                 s._unityMaterial = null;
 #endif
+                // Reference-bearing structs need explicit reset because they
+                // hold a managed reference (Font / FontAsset) that would otherwise
+                // pin the asset in the pooled instance.
+                s._textShadow = default;
+                s._unityFontDefinition = default;
             }
             else
             {
@@ -1114,6 +1153,129 @@ namespace ReactiveUITK.Props.Typed
         }
 #endif
 
+        // ── 9-slice background ──────────────────────────────────────────
+        public int UnitySliceLeft
+        {
+            get => _unitySliceLeft;
+            set
+            {
+                _unitySliceLeft = value;
+                _setBits1 |= (1UL << (BIT_UNITY_SLICE_LEFT - 64));
+            }
+        }
+        public int UnitySliceRight
+        {
+            get => _unitySliceRight;
+            set
+            {
+                _unitySliceRight = value;
+                _setBits1 |= (1UL << (BIT_UNITY_SLICE_RIGHT - 64));
+            }
+        }
+        public int UnitySliceTop
+        {
+            get => _unitySliceTop;
+            set
+            {
+                _unitySliceTop = value;
+                _setBits1 |= (1UL << (BIT_UNITY_SLICE_TOP - 64));
+            }
+        }
+        public int UnitySliceBottom
+        {
+            get => _unitySliceBottom;
+            set
+            {
+                _unitySliceBottom = value;
+                _setBits1 |= (1UL << (BIT_UNITY_SLICE_BOTTOM - 64));
+            }
+        }
+        public StyleFloat UnitySliceScale
+        {
+            get => _unitySliceScale;
+            set
+            {
+                _unitySliceScale = value;
+                _setBits1 |= (1UL << (BIT_UNITY_SLICE_SCALE - 64));
+            }
+        }
+        public SliceType UnitySliceType
+        {
+            get => _unitySliceType;
+            set
+            {
+                _unitySliceType = value;
+                _setBits1 |= (1UL << (BIT_UNITY_SLICE_TYPE - 64));
+            }
+        }
+
+        // ── Clipping ────────────────────────────────────────────────────
+        public OverflowClipBox UnityOverflowClipBox
+        {
+            get => _unityOverflowClipBox;
+            set
+            {
+                _unityOverflowClipBox = value;
+                _setBits1 |= (1UL << (BIT_UNITY_OVERFLOW_CLIP_BOX - 64));
+            }
+        }
+
+        // ── Text spacing / shadow / advanced font ───────────────────────
+        public StyleLength UnityParagraphSpacing
+        {
+            get => _unityParagraphSpacing;
+            set
+            {
+                _unityParagraphSpacing = value;
+                _setBits1 |= (1UL << (BIT_UNITY_PARAGRAPH_SPACING - 64));
+            }
+        }
+        public StyleLength WordSpacing
+        {
+            get => _wordSpacing;
+            set
+            {
+                _wordSpacing = value;
+                _setBits1 |= (1UL << (BIT_WORD_SPACING - 64));
+            }
+        }
+        public TextShadow TextShadow
+        {
+            get => _textShadow;
+            set
+            {
+                _textShadow = value;
+                _setBits1 |= (1UL << (BIT_TEXT_SHADOW - 64));
+            }
+        }
+        public FontDefinition UnityFontDefinition
+        {
+            get => _unityFontDefinition;
+            set
+            {
+                _unityFontDefinition = value;
+                _setBits1 |= (1UL << (BIT_UNITY_FONT_DEFINITION - 64));
+            }
+        }
+        public UnityEngine.TextGeneratorType UnityTextGenerator
+        {
+            get => _unityTextGenerator;
+            set
+            {
+                _unityTextGenerator = value;
+                _setBits1 |= (1UL << (BIT_UNITY_TEXT_GENERATOR - 64));
+            }
+        }
+        public EditorTextRenderingMode UnityEditorTextRenderingMode
+        {
+            get => _unityEditorTextRenderingMode;
+            set
+            {
+                _unityEditorTextRenderingMode = value;
+                _setBits1 |= (1UL << (BIT_UNITY_EDITOR_TEXT_RENDERING_MODE - 64));
+            }
+        }
+
         // ═══════════════════════════════════════════════════════════════════
         //  Typed equality — no boxing, no dict iteration
         // ═══════════════════════════════════════════════════════════════════
@@ -1318,6 +1480,33 @@ namespace ReactiveUITK.Props.Typed
                     return true;
                 case BIT_UNITY_MATERIAL:
                     return true;
+                // 9-slice / clipping / text-spacing / advanced font
+                case BIT_UNITY_SLICE_LEFT:
+                    return _unitySliceLeft == other._unitySliceLeft;
+                case BIT_UNITY_SLICE_RIGHT:
+                    return _unitySliceRight == other._unitySliceRight;
+                case BIT_UNITY_SLICE_TOP:
+                    return _unitySliceTop == other._unitySliceTop;
+                case BIT_UNITY_SLICE_BOTTOM:
+                    return _unitySliceBottom == other._unitySliceBottom;
+                case BIT_UNITY_SLICE_SCALE:
+                    return _unitySliceScale == other._unitySliceScale;
+                case BIT_UNITY_SLICE_TYPE:
+                    return _unitySliceType == other._unitySliceType;
+                case BIT_UNITY_OVERFLOW_CLIP_BOX:
+                    return _unityOverflowClipBox == other._unityOverflowClipBox;
+                case BIT_UNITY_PARAGRAPH_SPACING:
+                    return _unityParagraphSpacing == other._unityParagraphSpacing;
+                case BIT_WORD_SPACING:
+                    return _wordSpacing == other._wordSpacing;
+                case BIT_TEXT_SHADOW:
+                    return _textShadow.Equals(other._textShadow);
+                case BIT_UNITY_FONT_DEFINITION:
+                    return _unityFontDefinition.Equals(other._unityFontDefinition);
+                case BIT_UNITY_TEXT_GENERATOR:
+                    return _unityTextGenerator == other._unityTextGenerator;
+                case BIT_UNITY_EDITOR_TEXT_RENDERING_MODE:
+                    return _unityEditorTextRenderingMode == other._unityEditorTextRenderingMode;
                 default:
                     return true;
             }
@@ -1564,6 +1753,46 @@ namespace ReactiveUITK.Props.Typed
                     break;
                 case BIT_TRANSITION_TIMING_FUNC:
                     target._transitionTimingFunction = _transitionTimingFunction;
+                    break;
+                // 9-slice / clipping / text-spacing / advanced font
+                case BIT_UNITY_SLICE_LEFT:
+                    target._unitySliceLeft = _unitySliceLeft;
+                    break;
+                case BIT_UNITY_SLICE_RIGHT:
+                    target._unitySliceRight = _unitySliceRight;
+                    break;
+                case BIT_UNITY_SLICE_TOP:
+                    target._unitySliceTop = _unitySliceTop;
+                    break;
+                case BIT_UNITY_SLICE_BOTTOM:
+                    target._unitySliceBottom = _unitySliceBottom;
+                    break;
+                case BIT_UNITY_SLICE_SCALE:
+                    target._unitySliceScale = _unitySliceScale;
+                    break;
+                case BIT_UNITY_SLICE_TYPE:
+                    target._unitySliceType = _unitySliceType;
+                    break;
+                case BIT_UNITY_OVERFLOW_CLIP_BOX:
+                    target._unityOverflowClipBox = _unityOverflowClipBox;
+                    break;
+                case BIT_UNITY_PARAGRAPH_SPACING:
+                    target._unityParagraphSpacing = _unityParagraphSpacing;
+                    break;
+                case BIT_WORD_SPACING:
+                    target._wordSpacing = _wordSpacing;
+                    break;
+                case BIT_TEXT_SHADOW:
+                    target._textShadow = _textShadow;
+                    break;
+                case BIT_UNITY_FONT_DEFINITION:
+                    target._unityFontDefinition = _unityFontDefinition;
+                    break;
+                case BIT_UNITY_TEXT_GENERATOR:
+                    target._unityTextGenerator = _unityTextGenerator;
+                    break;
+                case BIT_UNITY_EDITOR_TEXT_RENDERING_MODE:
+                    target._unityEditorTextRenderingMode = _unityEditorTextRenderingMode;
                     break;
                 // Shorthand bits — no separate field
                 case BIT_MARGIN:
@@ -1882,6 +2111,54 @@ namespace ReactiveUITK.Props.Typed
                         UnityMaterial = smd;
                     break;
 #endif
+                // 9-slice background
+                case "unitySliceLeft":
+                    UnitySliceLeft = (int)PropsApplier.ConvertToFloat(value);
+                    break;
+                case "unitySliceRight":
+                    UnitySliceRight = (int)PropsApplier.ConvertToFloat(value);
+                    break;
+                case "unitySliceTop":
+                    UnitySliceTop = (int)PropsApplier.ConvertToFloat(value);
+                    break;
+                case "unitySliceBottom":
+                    UnitySliceBottom = (int)PropsApplier.ConvertToFloat(value);
+                    break;
+                case "unitySliceScale":
+                    UnitySliceScale = PropsApplier.ConvertToStyleFloat(value);
+                    break;
+                case "unitySliceType":
+                    UnitySliceType = PropsApplier.ConvertToSliceType(value);
+                    break;
+                // Clipping
+                case "unityOverflowClipBox":
+                    UnityOverflowClipBox = PropsApplier.ConvertToOverflowClipBox(value);
+                    break;
+                // Text spacing / shadow / advanced font
+                case "unityParagraphSpacing":
+                    UnityParagraphSpacing = PropsApplier.ConvertToStyleLength(value);
+                    break;
+                case "wordSpacing":
+                    WordSpacing = PropsApplier.ConvertToStyleLength(value);
+                    break;
+                case "textShadow":
+                    if (value is TextShadow ts)
+                        TextShadow = ts;
+                    break;
+                case "unityFontDefinition":
+                    if (value is FontDefinition fd)
+                        UnityFontDefinition = fd;
+                    else if (value is Font fdFont)
+                        UnityFontDefinition = FontDefinition.FromFont(fdFont);
+                    break;
+                case "unityTextGenerator":
+                    UnityTextGenerator = PropsApplier.ConvertToTextGeneratorType(value);
+                    break;
+                case "unityEditorTextRenderingMode":
+                    UnityEditorTextRenderingMode = PropsApplier.ConvertToEditorTextRenderingMode(
+                        value
+                    );
+                    break;
                 // Unknown keys silently ignored (matches current behavior)
             }
         }
@@ -2045,6 +2322,40 @@ namespace ReactiveUITK.Props.Typed
                 case "transitionTimingFunction":
                     return HasBit(BIT_TRANSITION_TIMING_FUNC)
                         ? (object)_transitionTimingFunction
+                        : null;
+                case "unitySliceLeft":
+                    return HasBit(BIT_UNITY_SLICE_LEFT) ? (object)_unitySliceLeft : null;
+                case "unitySliceRight":
+                    return HasBit(BIT_UNITY_SLICE_RIGHT) ? (object)_unitySliceRight : null;
+                case "unitySliceTop":
+                    return HasBit(BIT_UNITY_SLICE_TOP) ? (object)_unitySliceTop : null;
+                case "unitySliceBottom":
+                    return HasBit(BIT_UNITY_SLICE_BOTTOM) ? (object)_unitySliceBottom : null;
+                case "unitySliceScale":
+                    return HasBit(BIT_UNITY_SLICE_SCALE) ? (object)_unitySliceScale : null;
+                case "unitySliceType":
+                    return HasBit(BIT_UNITY_SLICE_TYPE) ? (object)_unitySliceType : null;
+                case "unityOverflowClipBox":
+                    return HasBit(BIT_UNITY_OVERFLOW_CLIP_BOX)
+                        ? (object)_unityOverflowClipBox
+                        : null;
+                case "unityParagraphSpacing":
+                    return HasBit(BIT_UNITY_PARAGRAPH_SPACING)
+                        ? (object)_unityParagraphSpacing
+                        : null;
+                case "wordSpacing":
+                    return HasBit(BIT_WORD_SPACING) ? (object)_wordSpacing : null;
+                case "textShadow":
+                    return HasBit(BIT_TEXT_SHADOW) ? (object)_textShadow : null;
+                case "unityFontDefinition":
+                    return HasBit(BIT_UNITY_FONT_DEFINITION)
+                        ? (object)_unityFontDefinition
+                        : null;
+                case "unityTextGenerator":
+                    return HasBit(BIT_UNITY_TEXT_GENERATOR) ? (object)_unityTextGenerator : null;
+                case "unityEditorTextRenderingMode":
+                    return HasBit(BIT_UNITY_EDITOR_TEXT_RENDERING_MODE)
+                        ? (object)_unityEditorTextRenderingMode
                         : null;
                 default:
                     return null;
@@ -2238,6 +2549,32 @@ namespace ReactiveUITK.Props.Typed
                     return BIT_FILTER;
                 case "unityMaterial":
                     return BIT_UNITY_MATERIAL;
+                case "unitySliceLeft":
+                    return BIT_UNITY_SLICE_LEFT;
+                case "unitySliceRight":
+                    return BIT_UNITY_SLICE_RIGHT;
+                case "unitySliceTop":
+                    return BIT_UNITY_SLICE_TOP;
+                case "unitySliceBottom":
+                    return BIT_UNITY_SLICE_BOTTOM;
+                case "unitySliceScale":
+                    return BIT_UNITY_SLICE_SCALE;
+                case "unitySliceType":
+                    return BIT_UNITY_SLICE_TYPE;
+                case "unityOverflowClipBox":
+                    return BIT_UNITY_OVERFLOW_CLIP_BOX;
+                case "unityParagraphSpacing":
+                    return BIT_UNITY_PARAGRAPH_SPACING;
+                case "wordSpacing":
+                    return BIT_WORD_SPACING;
+                case "textShadow":
+                    return BIT_TEXT_SHADOW;
+                case "unityFontDefinition":
+                    return BIT_UNITY_FONT_DEFINITION;
+                case "unityTextGenerator":
+                    return BIT_UNITY_TEXT_GENERATOR;
+                case "unityEditorTextRenderingMode":
+                    return BIT_UNITY_EDITOR_TEXT_RENDERING_MODE;
                 default:
                     return -1;
             }
@@ -2326,6 +2663,20 @@ namespace ReactiveUITK.Props.Typed
             "aspectRatio",
             "filter",
             "unityMaterial",
+            // _setBits1 indices 79-91
+            "unitySliceLeft",
+            "unitySliceRight",
+            "unitySliceTop",
+            "unitySliceBottom",
+            "unitySliceScale",
+            "unitySliceType",
+            "unityOverflowClipBox",
+            "unityParagraphSpacing",
+            "wordSpacing",
+            "textShadow",
+            "unityFontDefinition",
+            "unityTextGenerator",
+            "unityEditorTextRenderingMode",
         };
 
         private static string BitToKey(int bit)

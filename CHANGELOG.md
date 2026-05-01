@@ -6,7 +6,80 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
-## [Unreleased]
+## [0.4.13] - 2026-05-02
+
+### IStyle coverage — 13 missing properties wired end-to-end
+
+Closes the long-standing gap between `UnityEngine.UIElements.IStyle` (Unity
+6.2 floor: 84 properties) and the UITKX style pipeline. All 13 properties
+listed below are now first-class typed setters with full bitmask diffing,
+SetByKey/GetByKey support, pool reset, source-generator literal hoisting,
+HMR mirror, and IDE schema entries. A new xUnit coverage test
+(`IStyleCoverageTests`, 7 facts) locks parity in CI so future Unity
+versions cannot land an unwired property.
+
+#### New typed `Style` properties
+
+- **9-slice (6 props):** `UnitySliceLeft`, `UnitySliceRight`, `UnitySliceTop`,
+  `UnitySliceBottom` (each `StyleInt`), `UnitySliceScale` (`StyleFloat`),
+  `UnitySliceType` (`SliceType` — `Sliced` / `Tiled`).
+- **Clipping:** `UnityOverflowClipBox` (`OverflowClipBox` —
+  `PaddingBox` / `ContentBox`).
+- **Text spacing:** `UnityParagraphSpacing` (`StyleLength`),
+  `WordSpacing` (`StyleLength`).
+- **Text shadow:** `TextShadow` (`TextShadow` struct — offset, blur, color).
+- **Advanced font:** `UnityFontDefinition` (`FontDefinition` — wraps a
+  legacy `Font` or a TextCore `FontAsset`).
+- **Text generator:** `UnityTextGenerator` (`TextGeneratorType` —
+  `Standard` / `Advanced`).
+- **Editor text rendering:** `UnityEditorTextRenderingMode`
+  (`EditorTextRenderingMode` — `SDF` / `Bitmap`; editor-only behaviour).
+
+#### New `CssHelpers` shortcuts
+
+- `SliceFill`, `SliceTile` (SliceType)
+- `ClipPaddingBox`, `ClipContentBox` (OverflowClipBox)
+- `TextGenStandard`, `TextGenAdvanced` (TextGeneratorType)
+- `EditorTextSDF`, `EditorTextBitmap` (EditorTextRenderingMode)
+- `Shadow(dx, dy, blur, color)` → `TextShadow`
+- `FontDef(font)` → `FontDefinition`
+
+#### Fix — 19 pre-existing missing `styleResetters`
+
+While auditing setter/resetter parity, surfaced 19 `IStyle` properties
+that had a `styleSetters` entry but no matching `styleResetters` entry
+(silently leaked previous values when removed from a style block):
+`alignContent`, `alignItems`, `alignSelf`, `backgroundPositionX`,
+`backgroundPositionY`, `backgroundRepeat`, `backgroundSize`,
+`flexDirection`, `flexWrap`, `fontFamily`, `fontSize`, `justifyContent`,
+`position`, `rotate`, `scale`, `textAlign`, `transformOrigin`,
+`translate`, `unityFontStyle`. All now reset to `StyleKeyword.Null`.
+
+#### Internals
+
+- `Style` bit budget extended from 79 to 92 (`_setBits1` bits 15–27;
+  total 128 still in budget).
+- `Style.__Rent()` pool reset now clears `_textShadow` and
+  `_unityFontDefinition` (reference-bearing structs).
+- Source-generator hoisting whitelist (`s_literalCtorTypes` in
+  `CSharpEmitter` and HMR mirror) now accepts `TextShadow` and
+  `FontDefinition` literal initializers — all-literal `Style` blocks
+  with `Css.Shadow(...)` or `Css.FontDef(...)` get lifted to a
+  `private static readonly Style __sty_N` and reused across renders.
+- IDE schema (`uitkx-schema.json`) gained 4 enum value lists:
+  `unitySliceType`, `unityOverflowClipBox`, `unityTextGenerator`,
+  `unityEditorTextRenderingMode`.
+
+#### Documentation
+
+- Styling page property catalog: 13 new property cards across the Text,
+  Enum Styles, Background, and Assets categories.
+- Styling page enum-shortcuts table: 4 new rows (SliceType,
+  OverflowClipBox, TextGeneratorType, EditorTextRenderingMode).
+- Styling page compound-helpers table: 2 new rows (TextShadow,
+  FontDefinition).
+- CssHelpers Reference page: 6 new helper groups.
+- Search index extended with the new property and helper names.
 
 ## [0.4.12] - 2026-05-01
 

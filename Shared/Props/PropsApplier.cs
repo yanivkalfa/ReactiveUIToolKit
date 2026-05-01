@@ -707,6 +707,87 @@ namespace ReactiveUITK.Props
             // backgroundPosition kept as no-op for backward compat (IStyle splits to backgroundPositionX/Y)
             styleSetters["backgroundPosition"] = (e, v) => { };
 
+            // ── 9-slice background ────────────────────────────────────────────
+            styleSetters["unitySliceLeft"] = (e, v) =>
+            {
+                try { e.style.unitySliceLeft = (int)ConvertToFloat(v); }
+                catch { }
+            };
+            styleSetters["unitySliceRight"] = (e, v) =>
+            {
+                try { e.style.unitySliceRight = (int)ConvertToFloat(v); }
+                catch { }
+            };
+            styleSetters["unitySliceTop"] = (e, v) =>
+            {
+                try { e.style.unitySliceTop = (int)ConvertToFloat(v); }
+                catch { }
+            };
+            styleSetters["unitySliceBottom"] = (e, v) =>
+            {
+                try { e.style.unitySliceBottom = (int)ConvertToFloat(v); }
+                catch { }
+            };
+            styleSetters["unitySliceScale"] = (e, v) =>
+            {
+                try { e.style.unitySliceScale = ConvertToStyleFloat(v); }
+                catch { }
+            };
+            styleSetters["unitySliceType"] = (e, v) =>
+            {
+                try { e.style.unitySliceType = ConvertToSliceType(v); }
+                catch { }
+            };
+
+            // ── Clipping ────────────────────────────────────────────────────
+            styleSetters["unityOverflowClipBox"] = (e, v) =>
+            {
+                try { e.style.unityOverflowClipBox = ConvertToOverflowClipBox(v); }
+                catch { }
+            };
+
+            // ── Text spacing / shadow / advanced font ────────────────────────
+            styleSetters["unityParagraphSpacing"] = (e, v) =>
+            {
+                try { e.style.unityParagraphSpacing = ConvertToStyleLength(v); }
+                catch { }
+            };
+            styleSetters["wordSpacing"] = (e, v) =>
+            {
+                try { e.style.wordSpacing = ConvertToStyleLength(v); }
+                catch { }
+            };
+            styleSetters["textShadow"] = (e, v) =>
+            {
+                try
+                {
+                    if (v is TextShadow ts)
+                        e.style.textShadow = ts;
+                }
+                catch { }
+            };
+            styleSetters["unityFontDefinition"] = (e, v) =>
+            {
+                try
+                {
+                    if (v is FontDefinition fd)
+                        e.style.unityFontDefinition = fd;
+                    else if (v is Font font)
+                        e.style.unityFontDefinition = FontDefinition.FromFont(font);
+                }
+                catch { }
+            };
+            styleSetters["unityTextGenerator"] = (e, v) =>
+            {
+                try { e.style.unityTextGenerator = ConvertToTextGeneratorType(v); }
+                catch { }
+            };
+            styleSetters["unityEditorTextRenderingMode"] = (e, v) =>
+            {
+                try { e.style.unityEditorTextRenderingMode = ConvertToEditorTextRenderingMode(v); }
+                catch { }
+            };
+
             styleResetters["width"] = e =>
             {
                 e.style.width = StyleKeyword.Null;
@@ -1016,6 +1097,117 @@ namespace ReactiveUITK.Props
             styleResetters["transitionTimingFunction"] = e =>
             {
                 e.style.transitionTimingFunction = StyleKeyword.Null;
+            };
+            // ── IStyle coverage gap fixes: properties that had setters but no resetter ──
+            styleResetters["alignContent"] = e =>
+            {
+                e.style.alignContent = StyleKeyword.Null;
+            };
+            styleResetters["alignItems"] = e =>
+            {
+                e.style.alignItems = StyleKeyword.Null;
+            };
+            styleResetters["alignSelf"] = e =>
+            {
+                e.style.alignSelf = StyleKeyword.Null;
+            };
+            styleResetters["backgroundPositionX"] = e =>
+            {
+                try { e.style.backgroundPositionX = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["backgroundPositionY"] = e =>
+            {
+                try { e.style.backgroundPositionY = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["backgroundRepeat"] = e =>
+            {
+                try { e.style.backgroundRepeat = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["backgroundSize"] = e =>
+            {
+                try { e.style.backgroundSize = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["flexDirection"] = e =>
+            {
+                e.style.flexDirection = StyleKeyword.Null;
+            };
+            styleResetters["flexWrap"] = e =>
+            {
+                e.style.flexWrap = StyleKeyword.Null;
+            };
+            styleResetters["fontFamily"] = e =>
+            {
+                e.style.unityFont = null;
+            };
+            styleResetters["fontSize"] = e =>
+            {
+                e.style.fontSize = StyleKeyword.Null;
+            };
+            styleResetters["justifyContent"] = e =>
+            {
+                e.style.justifyContent = StyleKeyword.Null;
+            };
+            styleResetters["position"] = e =>
+            {
+                e.style.position = StyleKeyword.Null;
+            };
+            styleResetters["rotate"] = e =>
+            {
+                try { e.style.rotate = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["scale"] = e =>
+            {
+                try { e.style.scale = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["textAlign"] = e =>
+            {
+                e.style.unityTextAlign = StyleKeyword.Null;
+            };
+            styleResetters["transformOrigin"] = e =>
+            {
+                try { e.style.transformOrigin = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["translate"] = e =>
+            {
+                try { e.style.translate = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["unityFontStyle"] = e =>
+            {
+                e.style.unityFontStyleAndWeight = StyleKeyword.Null;
+            };
+            // ── Style coverage parity: setters/resetters added together ──────────────
+            styleResetters["wordSpacing"] = e =>
+            {
+                try { e.style.wordSpacing = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["textShadow"] = e =>
+            {
+                try { e.style.textShadow = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["unityFontDefinition"] = e =>
+            {
+                try { e.style.unityFontDefinition = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["unityTextGenerator"] = e =>
+            {
+                try { e.style.unityTextGenerator = StyleKeyword.Null; }
+                catch { }
+            };
+            styleResetters["unityEditorTextRenderingMode"] = e =>
+            {
+                try { e.style.unityEditorTextRenderingMode = StyleKeyword.Null; }
+                catch { }
             };
         }
 
@@ -3176,6 +3368,66 @@ namespace ReactiveUITK.Props
             if (value is string s && s == "best-fit")
                 return TextAutoSizeMode.BestFit;
             return TextAutoSizeMode.None;
+        }
+
+        internal static SliceType ConvertToSliceType(object value)
+        {
+            if (value is SliceType st)
+                return st;
+            if (value is string s)
+            {
+                return s switch
+                {
+                    "tiled" => SliceType.Tiled,
+                    _ => SliceType.Sliced,
+                };
+            }
+            return SliceType.Sliced;
+        }
+
+        internal static OverflowClipBox ConvertToOverflowClipBox(object value)
+        {
+            if (value is OverflowClipBox ocb)
+                return ocb;
+            if (value is string s)
+            {
+                return s switch
+                {
+                    "content-box" => OverflowClipBox.ContentBox,
+                    _ => OverflowClipBox.PaddingBox,
+                };
+            }
+            return OverflowClipBox.PaddingBox;
+        }
+
+        internal static UnityEngine.TextGeneratorType ConvertToTextGeneratorType(object value)
+        {
+            if (value is UnityEngine.TextGeneratorType tg)
+                return tg;
+            if (value is string s)
+            {
+                return s switch
+                {
+                    "advanced" => UnityEngine.TextGeneratorType.Advanced,
+                    _ => UnityEngine.TextGeneratorType.Standard,
+                };
+            }
+            return UnityEngine.TextGeneratorType.Standard;
+        }
+
+        internal static EditorTextRenderingMode ConvertToEditorTextRenderingMode(object value)
+        {
+            if (value is EditorTextRenderingMode m)
+                return m;
+            if (value is string s)
+            {
+                return s switch
+                {
+                    "bitmap" => EditorTextRenderingMode.Bitmap,
+                    _ => EditorTextRenderingMode.SDF,
+                };
+            }
+            return EditorTextRenderingMode.SDF;
         }
 
         private static EasingMode ConvertToEasingMode(string s) =>

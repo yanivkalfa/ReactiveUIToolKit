@@ -716,6 +716,61 @@ namespace ReactiveUITK.Props
                     el.style.unityMaterial = style._unityMaterial;
                     break;
 #endif
+                // 9-slice background
+                case Style.BIT_UNITY_SLICE_LEFT:
+                    try { el.style.unitySliceLeft = style._unitySliceLeft; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_RIGHT:
+                    try { el.style.unitySliceRight = style._unitySliceRight; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_TOP:
+                    try { el.style.unitySliceTop = style._unitySliceTop; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_BOTTOM:
+                    try { el.style.unitySliceBottom = style._unitySliceBottom; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_SCALE:
+                    try { el.style.unitySliceScale = style._unitySliceScale; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_TYPE:
+                    try { el.style.unitySliceType = style._unitySliceType; }
+                    catch { }
+                    break;
+                // Clipping
+                case Style.BIT_UNITY_OVERFLOW_CLIP_BOX:
+                    try { el.style.unityOverflowClipBox = style._unityOverflowClipBox; }
+                    catch { }
+                    break;
+                // Text spacing / shadow / advanced font
+                case Style.BIT_UNITY_PARAGRAPH_SPACING:
+                    try { el.style.unityParagraphSpacing = style._unityParagraphSpacing; }
+                    catch { }
+                    break;
+                case Style.BIT_WORD_SPACING:
+                    try { el.style.wordSpacing = style._wordSpacing; }
+                    catch { }
+                    break;
+                case Style.BIT_TEXT_SHADOW:
+                    try { el.style.textShadow = style._textShadow; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_FONT_DEFINITION:
+                    try { el.style.unityFontDefinition = style._unityFontDefinition; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_TEXT_GENERATOR:
+                    try { el.style.unityTextGenerator = style._unityTextGenerator; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_EDITOR_TEXT_RENDERING_MODE:
+                    try { el.style.unityEditorTextRenderingMode = style._unityEditorTextRenderingMode; }
+                    catch { }
+                    break;
             }
         }
 
@@ -1003,6 +1058,61 @@ namespace ReactiveUITK.Props
                     el.style.unityMaterial = StyleKeyword.Null;
                     break;
 #endif
+                // 9-slice background
+                case Style.BIT_UNITY_SLICE_LEFT:
+                    try { el.style.unitySliceLeft = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_RIGHT:
+                    try { el.style.unitySliceRight = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_TOP:
+                    try { el.style.unitySliceTop = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_BOTTOM:
+                    try { el.style.unitySliceBottom = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_SCALE:
+                    try { el.style.unitySliceScale = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_SLICE_TYPE:
+                    try { el.style.unitySliceType = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                // Clipping
+                case Style.BIT_UNITY_OVERFLOW_CLIP_BOX:
+                    try { el.style.unityOverflowClipBox = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                // Text spacing / shadow / advanced font
+                case Style.BIT_UNITY_PARAGRAPH_SPACING:
+                    try { el.style.unityParagraphSpacing = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_WORD_SPACING:
+                    try { el.style.wordSpacing = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_TEXT_SHADOW:
+                    try { el.style.textShadow = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_FONT_DEFINITION:
+                    try { el.style.unityFontDefinition = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_TEXT_GENERATOR:
+                    try { el.style.unityTextGenerator = StyleKeyword.Null; }
+                    catch { }
+                    break;
+                case Style.BIT_UNITY_EDITOR_TEXT_RENDERING_MODE:
+                    try { el.style.unityEditorTextRenderingMode = StyleKeyword.Null; }
+                    catch { }
+                    break;
             }
         }
 

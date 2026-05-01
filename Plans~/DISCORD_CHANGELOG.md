@@ -1,3 +1,27 @@
+## [0.4.13] - 2026-05-02
+
+### Style coverage — 13 missing IStyle properties wired end-to-end
+Closes the long-standing UITKX vs `UnityEngine.UIElements.IStyle` wiring gap. Every IStyle property is now reachable via the typed `Style` API, the tuple `(StyleKeys.X, value)` form, and the IDE autocomplete schema.
+
+### New typed properties (Unity 6.2 floor)
+- **9-slice** — `UnitySliceLeft/Right/Top/Bottom`, `UnitySliceScale`, `UnitySliceType` (`Sliced`/`Tiled`).
+- **Clipping** — `UnityOverflowClipBox` (`PaddingBox`/`ContentBox`).
+- **Text** — `WordSpacing`, `UnityParagraphSpacing`, `TextShadow`, `UnityTextGenerator` (`Standard`/`Advanced`), `UnityEditorTextRenderingMode` (`SDF`/`Bitmap`, editor-only).
+- **Fonts** — `UnityFontDefinition` (legacy `Font` or TextCore `FontAsset`).
+
+New `CssHelpers`: `SliceFill`/`SliceTile`, `ClipPaddingBox`/`ClipContentBox`, `TextGenStandard`/`TextGenAdvanced`, `EditorTextSDF`/`EditorTextBitmap`, `Shadow(dx,dy,blur,color)`, `FontDef(font)`.
+
+### Fix — 19 missing `styleResetters` (silent leak)
+Setter/resetter audit found 19 `IStyle` properties with a setter but no resetter — removing them from a `style={}` block silently leaked the previous value. Now all reset to `StyleKeyword.Null` (`alignContent/Items/Self`, `backgroundPositionX/Y`, `backgroundRepeat/Size`, `flexDirection/Wrap`, `fontFamily/Size`, `justifyContent`, `position`, `rotate`, `scale`, `textAlign`, `transformOrigin`, `translate`, `unityFontStyle`).
+
+### Tests
+New `IStyleCoverageTests` (7 facts) regex-asserts every IStyle property is wired through every layer. Future Unity versions can no longer add an unwired property without a red CI. **1051/1051 SG · 61/61 LSP** passing.
+
+### Extensions
+VS Code **1.1.6 → 1.1.7** · VS2022 **1.1.6 → 1.1.7** — autocomplete for the 4 new enum-valued IStyle properties via embedded `uitkx-schema.json`.
+
+---
+
 ## [0.4.12] - 2026-05-01
 
 ### Doom demo — Phase 9 sector-engine release
