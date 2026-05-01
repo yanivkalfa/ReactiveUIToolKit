@@ -4,43 +4,17 @@
 @using UnityEngine
 @using static Samples.DoomGame.DoomTypes
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  Raycast — Sector/Linedef portal walker (Phase 2)
-//
-//  Replacement for the grid DDA in GameLogic.CastRay. Given an origin point
-//  inside a known sector and a ray direction, walks adjacent sectors through
-//  two-sided linedefs ("portals") until hitting a one-sided wall or the hop
-//  cap (C.MAX_RAY_HOPS). Returns the ordered list of linedef hits along the
-//  ray, each annotated with the sector traversed.
-//
-//  This module is consumed by:
-//    • Phase 3+ renderer (variable floor/ceiling heights via per-hit Z data)
-//    • Phase 5+ collision (line-segment collision)
-//    • Phase 6  sprite ordering (sector-graph traversal)
-//
-//  Design decisions:
-//    • Line/ray intersection in float32. The maps are small (≤56 units)
-//      and ray length capped at C.MAX_RAY = 32, so precision is fine.
-//    • Result lists are pooled per-call (not per-frame). Renderer at 320
-//      columns/frame allocates 320 small Lists; acceptable until a Phase
-//      8 polish pass.
-//    • PointInSectorFromHint is the cheap form: walk neighbors of a hint
-//      sector. Falls back to brute force if hint fails. Brute force uses
-//      polygon containment over the linedefs.
-// ──────────────────────────────────────────────────────────────────────────────
-
 module Raycast {
-
   public struct WallHit {
-    public float Distance;     // ray parameter t at hit
-    public Vector2 Hit;        // world-space (x,y)
+    public float Distance; // ray parameter t at hit
+    public Vector2 Hit; // world-space (x,y)
     public int LinedefId;
-    public int FromSector;     // sector we were traversing when we hit
-    public int ToSector;       // -1 if solid wall, else neighbor sector
-    public bool IsBackside;    // ray hit the line from its back side
-    public float U;            // 0..1 along the linedef (V1→V2)
-    public float SegLength;    // |V2 − V1| in world units
-    public bool IsSky;         // back sector has IsSky and ceiling above
+    public int FromSector; // sector we were traversing when we hit
+    public int ToSector; // -1 if solid wall, else neighbor sector
+    public bool IsBackside; // ray hit the line from its back side
+    public float U; // 0..1 along the linedef (V1→V2)
+    public float SegLength; // |V2 − V1| in world units
+    public bool IsSky; // back sector has IsSky and ceiling above
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -170,10 +144,10 @@ module Raycast {
 
       int neighbor = -1;
       bool isPortal = (hitLine.Flags & LinedefFlags.TwoSided) != 0
-                   && (hitLine.Flags & LinedefFlags.Impassable) == 0;
+      && (hitLine.Flags & LinedefFlags.Impassable) == 0;
       if (isPortal) {
         neighbor = (hitLine.FrontSector == currentSector)
-          ? hitLine.BackSector : hitLine.FrontSector;
+        ? hitLine.BackSector : hitLine.FrontSector;
       }
 
       bool isSky = false;
@@ -227,7 +201,7 @@ module Raycast {
     for (int i = 0; i < s.LineIds.Count; i++) {
       var ln = map.Lines[s.LineIds[i]];
       bool isPortal = (ln.Flags & LinedefFlags.TwoSided) != 0
-                   && (ln.Flags & LinedefFlags.Impassable) == 0;
+      && (ln.Flags & LinedefFlags.Impassable) == 0;
       if (isPortal) continue;
       Vector2 a = map.Vertices[ln.V1].P;
       Vector2 b = map.Vertices[ln.V2].P;
