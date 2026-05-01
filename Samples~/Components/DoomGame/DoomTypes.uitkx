@@ -4,133 +4,760 @@
 @using UnityEngine
 
 module DoomTypes {
-  // ───── Enums ─────
-
   public enum GameScreen { MainMenu, Game }
-  public enum CellType { Empty, Wall1, Wall2, Wall3, Wall4, Door }
-  public enum EnemyKind { Imp, Demon, Baron }
-  public enum EnemyAI { Idle, Chasing, Attacking, Dying, Dead }
-  public enum WeaponType { Pistol, Shotgun, Chaingun }
-  public enum PickupType { Health, Armor, Ammo, Shotgun, Chaingun }
+  public enum Difficulty { Easy = 0, Normal = 1, Hard = 2 }
 
-  // ───── Map ─────
+  public enum CellKind : byte {
+    Empty = 0,
+    Wall = 1,
+    Door = 2,
+    DoorBlue = 3,
+    DoorYellow = 4,
+    DoorRed = 5,
+    Exit = 6,
+    Liquid = 7,
+  }
+
+  public enum WeaponType : byte {
+    Fist = 0, Pistol = 1, Shotgun = 2, Chaingun = 3,
+    RocketLauncher = 4, PlasmaRifle = 5, BFG9000 = 6,
+  }
+
+  public enum AmmoType : byte {
+    Bullets = 0, Shells = 1, Rockets = 2, Cells = 3, None = 255,
+  }
+
+  [Flags]
+  public enum KeyCard : byte {
+    None = 0, Blue = 1, Yellow = 2, Red = 4,
+  }
+
+  public enum MobjKind : byte {
+    Player,
+    Imp, Demon, Baron, Cacodemon, LostSoul, Zombieman, Shotgunner,
+    ImpFireball, BaronBall, CacoBall, RocketProj, PlasmaProj, BfgProj,
+    Explosion,
+    PickupHealth, PickupArmor, PickupArmorBlue,
+    PickupBullets, PickupShells, PickupRockets, PickupCells,
+    PickupShotgun, PickupChaingun, PickupRocketLauncher, PickupPlasma, PickupBFG,
+    KeyBlue, KeyYellow, KeyRed,
+    Barrel, Light, Corpse,
+  }
+
+  public enum AIState : byte {
+    Idle, Hunting, Attacking, Pain, Dying, Dead,
+  }
+
+  public struct Cell {
+    public CellKind Kind;
+    public byte WallTexIdx;
+    public byte FloorTexIdx;
+    public byte CeilingTexIdx;
+    public byte LightLevel;
+    public byte DoorState; // 0=closed, 255=open
+    public byte DoorTimer;
+    public byte Tag;
+    // Phase 3: per-cell floor/ceiling height (world units). When 0 they default
+    // to 0 and 1 respectively in FromTiles (flat rooms). Use to make stepped
+    // rooms, raised platforms, low ceilings.
+    public float FloorZ;
+    public float CeilingZ;
+    // Phase 4: sector special (lighting/damage). None by default.
+    public SectorSpecial Special;
+    // Phase 7: open-air ceiling. When true, the ceiling renders as sky and
+    // the player is not bonked; the cell behaves as if CeilingZ = +infinity
+    // for vertical movement.
+    public bool IsSky;
+    // Phase 9: stacked 3D-floor slabs occupying this cell. Each slab is a
+    // walkable platform with a `BottomZ` underside and `TopZ` walkable
+    // surface. Multiple slabs let you build basements (slab between feet
+    // and floor), balconies (slab above head), or true multi-story
+    // structures. Null = no extra floors. Sorted by BottomZ ascending.
+    public List<ExtraFloor> ExtraFloors;
+  }
 
   public struct MapDef {
     public int Width;
     public int Height;
-    public CellType[] Cells;
+    public Cell[] Cells;
+    public string Name;
 
-    public CellType At(int x, int y) {
-      if (x < 0 || x >= Width || y < 0 || y >= Height) return CellType.Wall1;
+    public Cell AtSafe(int x, int y) {
+      if (x < 0 || x >= Width || y < 0 || y >= Height) {
+        return new Cell { Kind = CellKind.Wall, WallTexIdx = 0, LightLevel = 200 };
+      }
       return Cells[y * Width + x];
     }
 
-    public bool IsWall(int x, int y) {
-      return At(x, y) != CellType.Empty;
+    public bool BlocksMovement(int x, int y) {
+      var c = AtSafe(x, y);
+      if (c.Kind == CellKind.Wall) return true;
+      if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue || c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
+        return c.DoorState < 200;
+      }
+      return false;
+    }
+
+    // Phase 7: Z-aware blocking. The cell blocks the actor if either its
+    // floor is more than `stepHeight` above the actor's feet, or its ceiling
+    // is below the actor's head. Walls remain infinite blockers. Sky cells
+    // ignore the ceiling check entirely.
+    public bool BlocksMovementZ(int x, int y, float footZ, float headZ, float stepHeight) {
+      var c = AtSafe(x, y);
+      if (c.Kind == CellKind.Wall) return true;
+      if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue || c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
+        if (c.DoorState < 200) return true;
+      }
+      // Phase 9: pick the highest standing surface at-or-below
+      // (footZ + stepHeight): the cell floor or any ExtraFloor.TopZ.
+      float floor = c.FloorZ;
+      float ceil = c.IsSky ? 1e9f : (c.CeilingZ <= 0f ? 1.5f : c.CeilingZ);
+      if (c.ExtraFloors != null) {
+        for (int i = 0; i < c.ExtraFloors.Count; i++) {
+          var ef = c.ExtraFloors[i];
+          if (!ef.Solid) continue;
+          if (ef.TopZ <= footZ + stepHeight + 0.001f && ef.TopZ > floor) floor = ef.TopZ;
+        }
+      }
+      // Block if the step-up exceeds the actor's stride.
+      if (floor - footZ > stepHeight + 0.001f) return true;
+      // Ceiling: lowest blocking surface ABOVE the standing floor. Player
+      // body would occupy [floor, floor + (headZ - footZ)] after step-up.
+      // Any solid slab whose body intersects that volume is a blocker.
+      float standHead = floor + (headZ - footZ);
+      if (c.ExtraFloors != null) {
+        for (int i = 0; i < c.ExtraFloors.Count; i++) {
+          var ef = c.ExtraFloors[i];
+          if (!ef.Solid) continue;
+          // Slab top at-or-below standing floor is the floor itself — not a
+          // blocker. Slab whose BODY overlaps [floor + eps, standHead - eps]
+          // is a blocker (we'd be inside it).
+          if (ef.TopZ <= floor + 0.001f) continue;
+          if (ef.BottomZ < standHead - 0.001f && ef.TopZ > floor + 0.001f) return true;
+          if (ef.BottomZ < ceil) ceil = ef.BottomZ;
+        }
+      }
+      if (ceil < standHead - 0.001f) return true;
+      return false;
+    }
+
+    // Phase 7: floor height the actor would stand on at this cell.
+    // Phase 9: also considers ExtraFloor tops at-or-below
+    // (footZ + stepHeight), picking the highest reachable surface.
+    public float FloorAt(int x, int y, float footZ = 0f, float stepHeight = 1e6f) {
+      var c = AtSafe(x, y);
+      float best = c.FloorZ;
+      if (c.ExtraFloors != null) {
+        for (int i = 0; i < c.ExtraFloors.Count; i++) {
+          var ef = c.ExtraFloors[i];
+          if (!ef.Solid) continue;
+          if (ef.TopZ <= footZ + stepHeight + 0.001f && ef.TopZ > best) best = ef.TopZ;
+        }
+      }
+      return best;
+    }
+
+    public bool BlocksRays(int x, int y) {
+      var c = AtSafe(x, y);
+      if (c.Kind == CellKind.Wall) return true;
+      if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue || c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
+        return c.DoorState < 250;
+      }
+      return false;
     }
   }
 
-  // ───── Structs ─────
-
   public struct PlayerState {
-    public float X;
-    public float Y;
-    public float Angle; // radians
+    public float X, Y;
+    public float Angle;
+    public float Pitch; // pixels of Y-shear
     public int Health;
     public int Armor;
+    public byte ArmorClass; // 0=none 1=green 2=blue
     public WeaponType Weapon;
-    public int AmmoPistol;
-    public int AmmoShotgun;
-    public int AmmoChaingun;
+    public int[] Ammo;
+    public bool[] OwnedWeapons;
+    public KeyCard Keys;
     public float ShootCooldown;
-    public float BobTimer;
+    public float MuzzleFlash;
+    public float BobT;
     public bool Alive;
+    public int FaceState; // 0=god,1..5=hp buckets,6=hurt,7=dead
+    public float FaceTimer;
+    public byte LastDamageDir; // 0=front 1=right 2=behind 3=left
+    public float HurtFlash;
+    public float PickupFlash;
+    public float MessageTimer;
+    public string MessageText;
+    // ── Phase 1 (Sector-engine) additions. Default 0; ignored by current renderer. ──
+    public float Z; // feet height (0 = ground)
+    public float ZVel; // for jump/gravity (Phase 7)
+    public float ViewHeight; // eye offset from feet (default 0.6)
+    public int SectorId; // current sector (-1 = unknown / fallback to grid)
+    // Phase 7: pixel offset added to the horizon line (sky/floor/wall) so
+    // jump/crouch animation stays in sync across all renderers. Computed by
+    // CastFrame from Z + ViewHeight.
+    public float ViewShiftPx;
+    public bool JumpHeldPrev; // for edge-detection on Jump key
   }
 
-  public struct EnemyState {
+  public struct Mobj {
     public int Id;
-    public EnemyKind Kind;
-    public EnemyAI AI;
-    public float X;
-    public float Y;
+    public MobjKind Kind;
+    public AIState State;
+    public float X, Y;
+    public float MomX, MomY;
+    public float Angle;
     public int Health;
+    public float StateTimer;
     public float AttackCooldown;
-    public float DieTimer;
-    public float DistToPlayer; // computed each frame for sorting
-  }
-
-  public struct PickupState {
-    public int Id;
-    public PickupType Type;
-    public float X;
-    public float Y;
+    public int OwnerId;
+    public int Damage;
+    public float Radius;
     public bool Collected;
+    public byte AnimFrame;
+    // ── Phase 1 (Sector-engine) additions. Default 0; ignored by current renderer. ──
+    public float Z; // feet height in world units
+    public float ZVel; // for projectiles + future jump/gravity
+    public float Height; // from feet to head
+    public int SectorId; // current sector (-1 = unknown / fallback to grid)
   }
 
-  // ───── Column strip for rendering ─────
-
-  public struct WallStrip {
-    public float Height; // projected wall height in pixels
-    public float Brightness; // 0..1, based on distance
-    public int WallType; // which wall color
-    public bool HitVertical; // N/S vs E/W face for shading
-    public float Distance; // raw distance for sprite clipping
+  public struct WallSeg {
+    public float TopPx;
+    public float BotPx;
+    public float Distance;
+    public byte WallTexIdx;
+    public float TexU;
+    public byte LightLevel;
+    public bool HitVertical;
+    public bool IsSky;
+    public bool IsRiser; // true if this extra represents the front-face of a step-up
+    // Plan C: when TopPx was clipped UP by an occlusion window, this stores
+    // the screen-pixel delta (negative) that the renderer must apply to
+    // BackgroundPositionY so texel row 0 stays anchored to the UNCLIPPED
+    // top (= the wall's true world ceiling). Without this, adjacent
+    // columns clipped by different amounts produce diagonal/staircase
+    // texture rows on flat walls.
+    public float TexOffsetPx;
   }
 
-  // ───── Frame data (output of raycaster) ─────
+  public struct ColumnInfo {
+    public WallSeg Main;
+    // Phase 3+: extra segs above/below Main from portal upper/lower at varying
+    // floor/ceiling heights. May be null. Renderer iterates Extras then draws
+    // Main on top (Main is the closest/most-clipping seg).
+    public WallSeg[] Extras;
+    // Phase 7: world Z of the floor at the terminal wall hit, used as a
+    // fallback when there are no per-portal floor bands.
+    public float FrontFloorZ;
+    // Phase 7: per-sector floor bands along this ray, ordered near→far. Each
+    // band paints from TopPx down to BotPx, colored by FloorZ.
+    public FloorBand[] FloorBands;
+    // Phase 8: per-sector ceiling bands along this ray, near→far. Skipped
+    // for sky sectors (sky backdrop shows through).
+    public CeilingBand[] CeilingBands;
+    // Phase 8: floor-step occlusion for sprite culling. When the ray crosses
+    // a step-up portal (back.FloorZ > front.FloorZ), the riser blocks any
+    // monster standing on the lower side. Sprites with perp > FloorOccluderDist
+    // AND anchorZ < FloorOccluderZ - 0.05 are culled. Default values mean
+    // "no occluder".
+    public float FloorOccluderDist;
+    public float FloorOccluderZ;
+    // Phase 9: ceiling-slab occlusion for sprite culling. When the ray
+    // crosses an ExtraFloor BOTTOM (slab underside, viewer below), the
+    // slab hides anything behind it whose anchor Z sits at-or-above the
+    // slab body. Sprites with perp > CeilingOccluderDist AND anchorZ >=
+    // CeilingOccluderZ are culled. Default = no occluder.
+    public float CeilingOccluderDist;
+    public float CeilingOccluderZ;
+  }
+
+  public struct FloorBand {
+    public float TopPx; // far edge of this floor slab on screen
+    public float BotPx; // near edge (toward bottom of screen)
+    public float FloorZ; // world Z (for color)
+    public byte Light; // sector light, attenuated by distance
+    public byte FloorTex; // sector floor texture index
+    public float BehindFloorZ; // FloorZ of the slab IMMEDIATELY behind this one in the same ray (NaN if none)
+    public bool RimAtFar; // true if the far edge of this band is a visible step-down rim
+  }
+
+  // Phase 8: ceiling band — mirror of FloorBand. Painted only for non-sky
+  // sectors; sky sectors leave the sky backdrop showing through. Within a
+  // column, ceiling bands and floor bands occupy disjoint sub-ranges of the
+  // ray's vertical occlusion window so they never overlap in Y.
+  public struct CeilingBand {
+    public float TopPx; // upper edge in screen px (smaller = higher)
+    public float BotPx; // lower edge in screen px (= projected ceiling line)
+    public float CeilingZ; // world Z (for shading)
+    public byte Light;
+    public byte CeilingTex;
+  }
+
+  // Phase 8: hitscan tracer streak. Lives ~TRACER_LIFE_MS, fades alpha out.
+  // Stored in a fixed-size ring on GameState; AgeMs >= TRACER_LIFE_MS = dead.
+  public struct Tracer {
+    public float Ax, Ay, Az; // muzzle (start)
+    public float Bx, By, Bz; // impact / max-range (end)
+    public float AgeMs;
+    public byte ColorIdx; // 0=yellow pistol/chaingun, 1=red shotgun pellet
+  }
 
   public struct FrameData {
-    public WallStrip[] Strips;
-    public float Fps;
-    public float Elapsed;
+    public ColumnInfo[] Columns;
+    public float[] DepthBuffer;
   }
 
   public struct GameState {
     public PlayerState Player;
-    public List<EnemyState> Enemies;
-    public List<PickupState> Pickups;
+    public Mobj[] Mobjs;
+    public int MobjCount;
+    public int NextMobjId;
+    public MapDef Map;
     public FrameData Frame;
-    public int Score;
     public int Level;
+    public int Score;
+    public int KillCount, KillTotal;
+    public int Tic;
     public bool GameOver;
     public bool Victory;
-    public float PhaseTimer;
+    // When true, stepping on an Exit cell only triggers Victory once every
+    // boss-tier monster (Baron, Cacodemon) on the map is dead.
+    public bool BossExitGated;
+    public Difficulty Difficulty;
+    public int RngSeed;
+    public float TimeAccum;
+    // ── Phase 1+: sector-engine map (parallel to Map). Built by NewGame. ──
+    public MapData SectorMap;
+    // Phase 8: hitscan tracer ring. Fixed-size; index = TracerCount % MAX_TRACERS.
+    // Slots with AgeMs >= TRACER_LIFE_MS are skipped by the renderer.
+    public Tracer[] Tracers;
+    public int TracerCount;
   }
 
-  // ───── Constants ─────
+  public struct InputCmd {
+    public bool Forward, Back, StrafeLeft, StrafeRight;
+    public bool TurnLeft, TurnRight;
+    public bool Attack, Use, Run;
+    public byte WeaponSwitch;
+    public float YawDelta;
+    public float PitchDelta;
+    // Phase 7: vertical control
+    public bool Jump;
+    public bool Crouch;
+  }
+
+  // ─── Phase 1: Sector-engine data model (parallel to MapDef tile grid) ──────
+  // These types describe the world as Doom-style sectors + linedefs. Phase 1
+  // adds the schema only; Phase 2+ wires it into the raycaster + collision.
+
+  public struct Vertex {
+    public Vector2 P;
+    public Vertex(Vector2 p) { P = p; }
+    public Vertex(float x, float y) { P = new Vector2(x, y); }
+  }
+
+  [Flags]
+  public enum LinedefFlags : byte {
+    None = 0,
+    Impassable = 1, // even two-sided lines can be flagged solid (rails)
+    BlockMonsters = 2,
+    TwoSided = 4,
+    UpperUnpegged = 8,
+    LowerUnpegged = 16,
+    DontDraw = 32, // automap hint
+  }
+
+  public enum LineSpecial : byte {
+    None = 0,
+    UseDoorOpen = 1, // E-key opens BackSector ceiling
+    UseDoorBlue = 2,
+    UseDoorYellow = 3,
+    UseDoorRed = 4,
+    UseLift = 5, // E-key triggers lift on BackSector floor
+    CrossExit = 6, // touching this linedef wins the level
+    CrossTeleport = 7, // touching teleports player to Tag-marked spot
+    UseSwitchExit = 8,
+  }
+
+  public enum SectorSpecial : byte {
+    None = 0,
+    LightFlicker = 1,
+    LightBlink = 2,
+    LightGlow = 3,
+    DamageNukage5 = 4, // -5 hp/2s while standing
+    DamageLava10 = 5,
+    Secret = 6,
+    DoorClose30 = 7, // door auto-close after 30s
+  }
+
+  public struct Linedef {
+    public int V1, V2; // vertex indices
+    public int FrontSector; // sector on the right side of V1→V2
+    public int BackSector; // -1 if one-sided (solid wall)
+    public LinedefFlags Flags;
+    public LineSpecial Special;
+    public byte Tag; // links to sector with same Tag for triggers
+    public byte MidTex; // wall texture for one-sided / window mid
+    public byte UpperTex; // shown when neighbor ceiling is lower
+    public byte LowerTex; // shown when neighbor floor is higher
+  }
+
+  // 3D-floor (Phase 7): an extra walkable plane inside a sector.
+  // Multiple ExtraFloors per sector enable basements, balconies, mezzanines.
+  public struct ExtraFloor {
+    public float BottomZ; // bottom of the slab (player walks ON TopZ)
+    public float TopZ; // top of the slab
+    public byte SideTex; // texture on the slab's vertical sides
+    public byte TopTex; // texture on top (what the player walks on)
+    public byte BottomTex; // texture on the underside (ceiling-of-below)
+    public byte Light; // light level for this slab's surfaces
+    public bool Solid; // false = swimmable / shootable through
+  }
+
+  public struct Sector {
+    public float FloorZ;
+    public float CeilingZ;
+    public byte Light;
+    public byte FloorTex;
+    public byte CeilingTex;
+    public SectorSpecial Special;
+    public byte Tag;
+    public bool IsSky; // ceiling renders as sky if true
+    public List<int> LineIds; // linedefs that touch this sector
+    public List<ExtraFloor> ExtraFloors; // null if no 3D floors
+    // Door/lift animation state (Phase 5)
+    public float TargetCeilingZ;
+    public float TargetFloorZ;
+    public float CeilingSpeed; // units/sec; 0 = idle
+    public float FloorSpeed;
+    public float DoorWaitTimer; // counts down after open before auto-close
+  }
+
+  // ── Per-frame render data extensions (Phase 2+) ────────────────────────────
+
+  public enum SegKind : byte {
+    Mid = 0, // single solid wall (one-sided line)
+    Upper = 1, // step-down ceiling neighbor
+    Lower = 2, // step-up floor neighbor
+    ExtraTop = 3, // top plane of a 3D floor
+    ExtraBot = 4, // bottom plane of a 3D floor
+    ExtraSide = 5, // side wall of a 3D floor
+  }
+
+  public struct WallSegV2 {
+    public float TopPx;
+    public float BotPx;
+    public float Distance;
+    public byte WallTexIdx;
+    public float TexU;
+    public float TexVStart, TexVEnd; // for variable-height segs
+    public byte LightLevel;
+    public bool HitVertical;
+    public bool IsSky;
+    public SegKind Kind;
+    public int SectorId; // sector this seg belongs to (for sprite ordering)
+  }
+
+  public struct FloorSpan {
+    public int Y; // screen Y
+    public int LeftCol;
+    public int RightCol; // inclusive
+    public int SectorId;
+    public bool IsCeiling;
+    public byte Light;
+    public byte TexIdx;
+    public float DistanceAtCenter; // for shading
+  }
+
+  public struct MapData {
+    public Vertex[] Vertices;
+    public Linedef[] Lines;
+    public Sector[] Sectors;
+    public string Name;
+    public Vector2 PlayerStart;
+    public float PlayerStartAngle;
+    public int PlayerStartSector;
+    // Phase 2: tile-cell to sector lookup (W*H, -1 if cell is Wall).
+    // Built by FromTiles; lets the legacy door cell animation also drive
+    // the corresponding sector's CeilingZ so the sector renderer sees doors
+    // open/close.
+    public int[] CellToSector;
+    public int CellWidth, CellHeight;
+
+    public bool IsValid => Sectors != null && Sectors.Length > 0;
+
+    // Build a flat tile-grid map into a sector model.
+    // Each non-Wall cell becomes its own sector; tile-to-tile boundaries become
+    // linedefs. Wall cells contribute solid edges to neighbor sectors.
+    // This is a baseline conversion used in Phase 1 to keep the game running
+    // unchanged while the sector pipeline comes online.
+    public static MapData FromTiles(MapDef map) {
+      var verts = new List<Vertex>();
+      var vIdx = new Dictionary<long, int>();
+      int W = map.Width, H = map.Height;
+
+      Func<int, int, int> getVertex = (x, y) => {
+        long key = ((long)x << 32) | (uint)y;
+        if (vIdx.TryGetValue(key, out var id)) return id;
+        id = verts.Count;
+        verts.Add(new Vertex(x, y));
+        vIdx[key] = id;
+        return id;
+      };
+
+      // 1) Allocate one sector per non-Wall cell, indexed by (y*W + x).
+      var cellSector = new int[W * H];
+      for (int i = 0; i < cellSector.Length; i++) cellSector[i] = -1;
+      var sectors = new List<Sector>();
+
+      for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+          var c = map.Cells[y * W + x];
+          if (c.Kind == CellKind.Wall) continue;
+          var s = new Sector {
+            FloorZ = c.FloorZ,
+            CeilingZ = c.IsSky ? 64f : (c.CeilingZ <= 0f ? 1.5f : c.CeilingZ),
+            Light = c.LightLevel == 0 ? (byte)200 : c.LightLevel,
+            FloorTex = c.FloorTexIdx,
+            CeilingTex = c.CeilingTexIdx,
+            Special = c.Special,
+            Tag = c.Tag,
+            IsSky = c.IsSky,
+            LineIds = new List<int>(4),
+            ExtraFloors = c.ExtraFloors,
+            TargetCeilingZ = c.IsSky ? 64f : (c.CeilingZ <= 0f ? 1.5f : c.CeilingZ),
+            TargetFloorZ = c.FloorZ,
+            CeilingSpeed = 0f, FloorSpeed = 0f, DoorWaitTimer = 0f,
+          };
+          // Doors map to closed sectors with CeilingZ=FloorZ (closed) until opened.
+          if (c.Kind == CellKind.Door || c.Kind == CellKind.DoorBlue ||
+              c.Kind == CellKind.DoorYellow || c.Kind == CellKind.DoorRed) {
+            s.CeilingZ = 0f; // closed
+            s.TargetCeilingZ = 1.5f;
+          }
+          cellSector[y * W + x] = sectors.Count;
+          sectors.Add(s);
+        }
+      }
+
+      // 2) Walk all 4-edges of every cell. Each edge becomes either a one-sided
+      //    line (cell vs Wall) or a two-sided line (cell vs cell).
+      var lines = new List<Linedef>();
+      Action<int, int, int, int, int, int, byte> addLine = (x1, y1, x2, y2, frontSec, backSec, midTex) => {
+        int v1 = getVertex(x1, y1);
+        int v2 = getVertex(x2, y2);
+        var l = new Linedef {
+          V1 = v1, V2 = v2,
+          FrontSector = frontSec,
+          BackSector = backSec,
+          Flags = backSec >= 0 ? LinedefFlags.TwoSided : LinedefFlags.None,
+          Special = LineSpecial.None,
+          Tag = 0,
+          MidTex = midTex, UpperTex = midTex, LowerTex = midTex,
+        };
+        int li = lines.Count;
+        lines.Add(l);
+        if (frontSec >= 0) sectors[frontSec].LineIds.Add(li);
+        if (backSec >= 0) sectors[backSec].LineIds.Add(li);
+      };
+
+      // Helper: pick wall texture for an edge between cell (x,y) and neighbor (nx,ny).
+      // If neighbor is wall -> use neighbor's WallTexIdx. Otherwise if neighbor is
+      // a door cell, use door's WallTexIdx (so the door renders when closed).
+      Func<int, int, int, int, byte> edgeTex = (x, y, nx, ny) => {
+        Cell self = map.Cells[y * W + x];
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) return self.WallTexIdx;
+        Cell nb = map.Cells[ny * W + nx];
+        if (nb.Kind == CellKind.Wall || (nb.Kind == CellKind.Exit && nb.WallTexIdx != 0)) return nb.WallTexIdx;
+        if (nb.Kind == CellKind.Door || nb.Kind == CellKind.DoorBlue ||
+            nb.Kind == CellKind.DoorYellow || nb.Kind == CellKind.DoorRed) {
+          return nb.WallTexIdx;
+        }
+        return self.WallTexIdx;
+      };
+
+      // For each non-wall cell, emit its right and bottom edges.
+      // Right edge: from (x+1,y) to (x+1,y+1). Bottom: from (x,y+1) to (x+1,y+1).
+      // Top edge handled by neighbor above; left edge by neighbor to the left.
+      // Cells on the outer boundary get an explicit edge to "wall" (back=-1).
+      for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+          int s = cellSector[y * W + x];
+          if (s < 0) continue;
+          // Right edge (between this and (x+1, y))
+          int neighborR = (x + 1 < W) ? cellSector[y * W + (x + 1)] : -1;
+          byte texR = edgeTex(x, y, x + 1, y);
+          if (x + 1 >= W || map.Cells[y * W + (x + 1)].Kind == CellKind.Wall) {
+            addLine(x + 1, y, x + 1, y + 1, s, -1, texR);
+          } else {
+            addLine(x + 1, y, x + 1, y + 1, s, neighborR, texR);
+          }
+          // Bottom edge (between this and (x, y+1))
+          int neighborB = (y + 1 < H) ? cellSector[(y + 1) * W + x] : -1;
+          byte texB = edgeTex(x, y, x, y + 1);
+          if (y + 1 >= H || map.Cells[(y + 1) * W + x].Kind == CellKind.Wall) {
+            addLine(x, y + 1, x + 1, y + 1, s, -1, texB);
+          } else {
+            addLine(x, y + 1, x + 1, y + 1, s, neighborB, texB);
+          }
+          // Top edge (only if topmost row or neighbor above is wall — otherwise
+          // already handled by neighbor's bottom edge)
+          if (y == 0 || map.Cells[(y - 1) * W + x].Kind == CellKind.Wall) {
+            byte texT = edgeTex(x, y, x, y - 1);
+            addLine(x, y, x + 1, y, s, -1, texT);
+          }
+          // Left edge (only if leftmost col or neighbor left is wall)
+          if (x == 0 || map.Cells[y * W + (x - 1)].Kind == CellKind.Wall) {
+            byte texL = edgeTex(x, y, x - 1, y);
+            addLine(x, y, x, y + 1, s, -1, texL);
+          }
+        }
+      }
+
+      // 3) Compute player start sector from cellSector lookup if PlayerStart is
+      //    a tile coordinate. Caller will overwrite PlayerStart with the float
+      //    coords; we pre-fill PlayerStartSector from those if possible later.
+      return new MapData {
+        Vertices = verts.ToArray(),
+        Lines = lines.ToArray(),
+        Sectors = sectors.ToArray(),
+        Name = map.Name,
+        PlayerStart = Vector2.zero, // filled later
+        PlayerStartAngle = 0f,
+        PlayerStartSector = -1,
+        CellToSector = cellSector,
+        CellWidth = W,
+        CellHeight = H,
+      };
+    }
+
+    // Find sector containing point (x,y). Phase 1 uses tile-cell index for O(1)
+    // lookup; later phases will walk linedef adjacency from a hint sector.
+    public int PointInSector(float x, float y, int width) {
+      // Phase 1 fallback: use original tile coordinates.
+      int ix = (int)x, iy = (int)y;
+      if (ix < 0 || iy < 0) return -1;
+      // Walk sectors and find the one whose linedefs surround (x,y). For grid-
+      // generated MapData, sectors are laid out 1:1 with non-wall cells.
+      // Caller can pass width to compute index directly when known.
+      // Without knowing the cellSector array we'd have to brute force; this
+      // method is intentionally a hint-only API. Phase 2 replaces it.
+      return -1;
+    }
+  }
 
   public static class C {
-    public const int VIEW_W = 320; // number of raycasting columns
-    public const int VIEW_H = 200; // viewport height in pixels
-    public const int VIEWPORT_W = 640; // rendered viewport width
-    public const int VIEWPORT_H = 400; // rendered viewport height
-    public const float STRIP_W = 2f; // pixel width of each strip (640/320)
-    public const float FOV = 1.0472f; // 60 degrees in radians
+    public const int VIEW_W = 160;
+    public const int VIEW_H = 200;
+    public const int VIEWPORT_W = 800;
+    public const int VIEWPORT_H = 500;
+    public const int HUD_HEIGHT = 90;
+    public const float STRIP_W = 5f; // VIEWPORT_W / VIEW_W
+
+    public const float FOV = 1.0472f;
     public const float HALF_FOV = FOV / 2f;
-    public const float MOVE_SPEED = 3.0f;
-    public const float STRAFE_SPEED = 2.5f;
-    public const float TURN_SPEED = 2.5f;
-    public const float PLAYER_RADIUS = 0.25f;
-    public const float SHOOT_COOLDOWN_PISTOL = 0.4f;
-    public const float SHOOT_COOLDOWN_SHOTGUN = 0.8f;
-    public const float SHOOT_COOLDOWN_CHAINGUN = 0.12f;
-    public const int PISTOL_DAMAGE = 15;
-    public const int SHOTGUN_DAMAGE = 60;
-    public const int CHAINGUN_DAMAGE = 12;
-    public const float ENEMY_SPEED = 1.5f;
-    public const float ENEMY_ATTACK_RANGE = 1.5f;
-    public const float ENEMY_ATTACK_COOLDOWN = 1.0f;
-    public const int IMP_HEALTH = 40;
-    public const int DEMON_HEALTH = 80;
-    public const int BARON_HEALTH = 200;
-    public const int IMP_DAMAGE = 10;
-    public const int DEMON_DAMAGE = 20;
-    public const int BARON_DAMAGE = 40;
+
+    public const float MOVE_SPEED = 4.0f;
+    public const float RUN_MULT = 1.6f;
+    public const float STRAFE_SPEED = 3.5f;
+    public const float TURN_SPEED = 2.6f;
+    public const float MAX_PITCH = 200f;
+    public const float MOUSE_YAW_SENS = 0.008f;
+    public const float MOUSE_PITCH_SENS = 0.5f;
+    public const float PLAYER_RADIUS = 0.28f;
+
+    public const float COOLDOWN_FIST = 0.35f;
+    public const float COOLDOWN_PISTOL = 0.32f;
+    public const float COOLDOWN_SHOTGUN = 0.85f;
+    public const float COOLDOWN_CHAIN = 0.10f;
+    public const float COOLDOWN_ROCKET = 1.0f;
+    public const float COOLDOWN_PLASMA = 0.10f;
+    public const float COOLDOWN_BFG = 1.5f;
+
+    public const int DMG_FIST = 8;
+    public const int DMG_PISTOL = 14;
+    public const int DMG_PELLET = 9;
+    public const int DMG_CHAIN = 11;
+    public const int DMG_ROCKET = 100;
+    public const int DMG_PLASMA = 18;
+    public const int DMG_BFG = 350;
+    public const int DMG_BARREL = 90;
+
+    public const int MAX_BULLETS = 200;
+    public const int MAX_SHELLS = 50;
+    public const int MAX_ROCKETS = 50;
+    public const int MAX_CELLS = 300;
+
+    public const int START_HEALTH = 100;
+
+    public const int HP_IMP = 60;
+    public const int HP_DEMON = 150;
+    public const int HP_BARON = 200;
+    public const int HP_CACO = 120;
+    public const int HP_LOST = 100;
+    public const int HP_ZOMBIE = 20;
+    public const int HP_SHOTG = 30;
+    public const int HP_BARREL = 20;
+
+    public const int DMG_IMP_MELEE = 6;
+    public const int DMG_IMP_BALL = 8;
+    public const int DMG_DEMON_BITE = 10;
+    public const int DMG_BARON_CLAW = 14;
+    public const int DMG_BARON_BALL = 24;
+    public const int DMG_CACO_BALL = 12;
+    public const int DMG_LOST_RAM = 7;
+    public const int DMG_ZOMBIE = 4;
+    public const int DMG_SHOTG = 5;
+
+    public const float SPEED_IMP = 1.7f;
+    public const float SPEED_DEMON = 2.6f;
+    public const float SPEED_BARON = 1.5f;
+    public const float SPEED_CACO = 1.4f;
+    public const float SPEED_LOST = 3.5f;
+    public const float SPEED_ZOMBIE = 1.4f;
+    public const float SPEED_SHOTG = 1.5f;
+
+    public const float SPEED_IMPBALL = 9f;
+    public const float SPEED_BARONBALL = 11f;
+    public const float SPEED_CACOBALL = 9f;
+    public const float SPEED_ROCKET = 14f;
+    public const float SPEED_PLASMA = 22f;
+    public const float SPEED_BFG = 20f;
+
     public const int SCORE_IMP = 100;
     public const int SCORE_DEMON = 200;
-    public const int SCORE_BARON = 500;
-    public const int START_HEALTH = 100;
-    public const int START_ARMOR = 0;
-    public const int START_AMMO_PISTOL = 50;
+    public const int SCORE_BARON = 1500;
+    public const int SCORE_CACO = 600;
+    public const int SCORE_LOST = 80;
+    public const int SCORE_ZOMBIE = 60;
+    public const int SCORE_SHOTG = 90;
+    public const int SCORE_BARREL = 10;
+
+    public const int MAX_MOBJS = 256;
+    public const float SIGHT_RANGE = 18f;
+    public const float MELEE_RANGE = 1.4f;
+
+    public const float MAX_RAY = 32f;
+
+    // ── Phase 1+ Sector engine constants ──
+    public const int MAX_RAY_HOPS = 16; // portal traversal cap
+    public const float STEP_HEIGHT = 0.4f; // max floor step the player can walk up
+    public const float PLAYER_HEIGHT = 0.9f; // feet→head
+    public const float PLAYER_VIEW_HEIGHT = 0.6f;// feet→eye
+    public const float GRAVITY = 9f; // units/s² for jump/fall
+    public const float JUMP_VELOCITY = 7.0f; // initial Z velocity on Jump
+    public const float CROUCH_HEIGHT = 0.45f;
+    public const float DOOR_OPEN_SPEED = 2.0f; // units/sec ceiling lerp
+    public const float DOOR_AUTO_CLOSE_DELAY = 4f;// seconds
+    public const float LIFT_SPEED = 1.5f;
+
+    // Phase 8: hitscan tracer.
+    public const int MAX_TRACERS = 32;
+    public const float TRACER_LIFE_MS = 90f;
+    public const float TRACER_THICKNESS_PX = 2f;
+    public const float MUZZLE_FORWARD = 0.35f; // offset from player along view
+    public const float MUZZLE_BELOW_EYE = 0.12f;// drop tracer below crosshair
   }
 }

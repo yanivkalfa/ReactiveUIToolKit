@@ -1,0 +1,38 @@
+@namespace Samples.DoomGame
+@using System
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+
+component DoomFace(int frame) {
+  var idx = Mathf.Clamp(frame, 0, 7);
+  var panelBg = new Color(0.20f, 0.16f, 0.10f, 1f);
+  var border = new Color(0.85f, 0.55f, 0.20f, 1f);
+  var labelClr = new Color(0.85f, 0.70f, 0.35f, 1f);
+
+  return (
+    <VisualElement
+      style={new Style{
+        Width = 76, MarginRight = 4,
+        BackgroundColor = panelBg,
+        BorderTopWidth = 1, BorderRightWidth = 1, BorderBottomWidth = 1, BorderLeftWidth = 1,
+        BorderTopColor = border, BorderRightColor = border, BorderBottomColor = border, BorderLeftColor = border,
+        BorderTopLeftRadius = 2, BorderTopRightRadius = 2, BorderBottomLeftRadius = 2, BorderBottomRightRadius = 2,
+        AlignItems = Align.Center, JustifyContent = Justify.FlexStart,
+        PaddingTop = 4, PaddingBottom = 4,
+      }}
+    >
+      <Label
+        text="DOOMGUY"
+        style={new Style{ Color = labelClr, FontSize = 10, UnityFontStyle = FontStyle.Bold, MarginTop = 2, MarginBottom = 2, PaddingTop = 0, PaddingBottom = 0 }}
+      />
+      <VisualElement
+        style={new Style{
+          Width = 64, Height = 64,
+          BackgroundImage = DoomTextures.Faces[idx],
+        }}
+      />
+    </VisualElement>
+  );
+}

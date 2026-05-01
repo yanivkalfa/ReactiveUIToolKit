@@ -1,0 +1,867 @@
+@namespace Samples.DoomGame
+@using System
+@using UnityEngine
+
+module DoomTextures {
+  // ───── Constants ─────
+  public const int TEX_W = 64;
+  public const int TEX_H = 64;
+  public const int SPRITE_W = 64;
+  public const int SPRITE_H = 64;
+
+  // ───── Wall texture indices ─────
+  public const int W_BRICK_RED = 0;
+  public const int W_BRICK_GREY = 1;
+  public const int W_TECH_PANEL = 2;
+  public const int W_WOOD = 3;
+  public const int W_MARBLE = 4;
+  public const int W_HELL_STONE = 5;
+  public const int W_DOOR = 6;
+  public const int W_DOOR_BLUE = 7;
+  public const int W_DOOR_YELLOW = 8;
+  public const int W_DOOR_RED = 9;
+  public const int W_EXIT = 10;
+  public const int W_BRICK_BLUE = 11;
+  public const int W_COUNT = 12;
+
+  // ───── Floor texture indices ─────
+  public const int F_CONCRETE = 0;
+  public const int F_TILE = 1;
+  public const int F_GRASS = 2;
+  public const int F_LAVA = 3;
+  public const int F_BLOOD = 4;
+  public const int F_NUKAGE = 5;
+  public const int F_BLUE = 6;
+  public const int F_COUNT = 7;
+
+  // ───── Sprite indices ─────
+  public const int S_IMP = 0;
+  public const int S_DEMON = 1;
+  public const int S_BARON = 2;
+  public const int S_CACO = 3;
+  public const int S_LOSTSOUL = 4;
+  public const int S_CORPSE = 5;
+  public const int S_FIREBALL = 6;
+  public const int S_ROCKET_PROJ = 7;
+  public const int S_PLASMA = 8;
+  public const int S_BFG_PROJ = 9;
+  public const int S_EXPLOSION = 10;
+  public const int S_HEALTH = 11;
+  public const int S_ARMOR = 12;
+  public const int S_AMMO_BULLETS = 13;
+  public const int S_AMMO_SHELLS = 14;
+  public const int S_AMMO_ROCKETS = 15;
+  public const int S_AMMO_CELLS = 16;
+  public const int S_PICKUP_SHOTGUN = 17;
+  public const int S_PICKUP_CHAIN = 18;
+  public const int S_PICKUP_ROCKET = 19;
+  public const int S_PICKUP_PLASMA = 20;
+  public const int S_PICKUP_BFG = 21;
+  public const int S_KEY_BLUE = 22;
+  public const int S_KEY_YELLOW = 23;
+  public const int S_KEY_RED = 24;
+  public const int S_BARREL = 25;
+  public const int S_LIGHT = 26;
+  public const int S_COUNT = 27;
+
+  // ───── Lazy caches ─────
+  private static Texture2D[] _walls;
+  private static Texture2D[] _floors;
+  private static Texture2D[] _sprites;
+  private static Texture2D _sky;
+  private static Texture2D[] _faces;
+  private static Texture2D[] _weapons;
+
+  public static Texture2D[] Walls { get { EnsureBuilt(); return _walls; } }
+  public static Texture2D[] Floors { get { EnsureBuilt(); return _floors; } }
+  public static Texture2D[] Sprites { get { EnsureBuilt(); return _sprites; } }
+  public static Texture2D Sky { get { EnsureBuilt(); return _sky; } }
+  public static Texture2D[] Faces { get { EnsureBuilt(); return _faces; } }
+  public static Texture2D[] Weapons { get { EnsureBuilt(); return _weapons; } }
+
+  private static bool _built;
+  public static void EnsureBuilt() {
+    if (_built) return;
+    _built = true;
+
+    _walls = new Texture2D[W_COUNT];
+    _walls[W_BRICK_RED] = MakeBrick(seed: 7, baseR: 130, baseG: 40, baseB: 30, mortarR: 35, mortarG: 25, mortarB: 20);
+    _walls[W_BRICK_GREY] = MakeBrick(seed: 11, baseR: 95, baseG: 95, baseB: 100, mortarR: 35, mortarG: 35, mortarB: 35);
+    _walls[W_TECH_PANEL] = MakeTechPanel(seed: 13);
+    _walls[W_WOOD] = MakeWood(seed: 17);
+    _walls[W_MARBLE] = MakeMarble(seed: 19);
+    _walls[W_HELL_STONE] = MakeHellStone(seed: 23);
+    _walls[W_DOOR] = MakeDoor(new Color32(150, 110, 60, 255), null);
+    _walls[W_DOOR_BLUE] = MakeDoor(new Color32(80, 100, 220, 255), new Color32(50, 70, 200, 255));
+    _walls[W_DOOR_YELLOW] = MakeDoor(new Color32(220, 200, 60, 255), new Color32(180, 160, 40, 255));
+    _walls[W_DOOR_RED] = MakeDoor(new Color32(220, 60, 50, 255), new Color32(180, 40, 35, 255));
+    _walls[W_EXIT] = MakeExitSign();
+    _walls[W_BRICK_BLUE] = MakeBrick(seed: 29, baseR: 50, baseG: 90, baseB: 210, mortarR: 20, mortarG: 30, mortarB: 70);
+
+    _floors = new Texture2D[F_COUNT];
+    _floors[F_CONCRETE] = MakeNoiseTile(seed: 31, baseR: 90, baseG: 88, baseB: 92, range: 25);
+    _floors[F_TILE] = MakeTileFloor(seed: 37);
+    _floors[F_GRASS] = MakeNoiseTile(seed: 41, baseR: 60, baseG: 90, baseB: 50, range: 35);
+    _floors[F_LAVA] = MakeNoiseTile(seed: 43, baseR: 200, baseG: 80, baseB: 30, range: 60);
+    _floors[F_BLOOD] = MakeNoiseTile(seed: 47, baseR: 130, baseG: 20, baseB: 25, range: 40);
+    _floors[F_NUKAGE] = MakeNoiseTile(seed: 53, baseR: 110, baseG: 200, baseB: 60, range: 50);
+    _floors[F_BLUE] = MakeNoiseTile(seed: 59, baseR: 50, baseG: 90, baseB: 210, range: 35);
+
+    _sky = MakeSky();
+
+    _sprites = new Texture2D[S_COUNT];
+    _sprites[S_IMP] = MakeMonster(new Color32(140, 70, 35, 255), new Color32(220, 110, 30, 255), eyes: true);
+    _sprites[S_DEMON] = MakeMonster(new Color32(150, 80, 60, 255), new Color32(220, 50, 40, 255), eyes: true, fangs: true);
+    _sprites[S_BARON] = MakeMonster(new Color32(180, 130, 60, 255), new Color32(120, 220, 80, 255), eyes: true, horns: true);
+    _sprites[S_CACO] = MakeCacoSprite();
+    _sprites[S_LOSTSOUL] = MakeLostSoul();
+    _sprites[S_CORPSE] = MakeCorpse();
+    _sprites[S_FIREBALL] = MakeBall(new Color32(255, 140, 30, 255), new Color32(255, 230, 80, 255));
+    _sprites[S_ROCKET_PROJ] = MakeRocketSprite();
+    _sprites[S_PLASMA] = MakeBall(new Color32(60, 180, 255, 255), new Color32(220, 240, 255, 255));
+    _sprites[S_BFG_PROJ] = MakeBall(new Color32(120, 255, 70, 255), new Color32(240, 255, 200, 255));
+    _sprites[S_EXPLOSION] = MakeExplosionFrame();
+    _sprites[S_HEALTH] = MakePickup(new Color32(220, 30, 30, 255), '+');
+    _sprites[S_ARMOR] = MakePickup(new Color32(40, 90, 220, 255), 'A');
+    _sprites[S_AMMO_BULLETS] = MakePickup(new Color32(220, 200, 40, 255), 'B');
+    _sprites[S_AMMO_SHELLS] = MakePickup(new Color32(220, 160, 40, 255), 'S');
+    _sprites[S_AMMO_ROCKETS] = MakePickup(new Color32(180, 80, 40, 255), 'R');
+    _sprites[S_AMMO_CELLS] = MakePickup(new Color32(80, 200, 220, 255), 'C');
+    _sprites[S_PICKUP_SHOTGUN] = MakePickup(new Color32(140, 100, 60, 255), 'G');
+    _sprites[S_PICKUP_CHAIN] = MakePickup(new Color32(120, 120, 130, 255), 'H');
+    _sprites[S_PICKUP_ROCKET] = MakePickup(new Color32(160, 70, 50, 255), 'L');
+    _sprites[S_PICKUP_PLASMA] = MakePickup(new Color32(80, 180, 220, 255), 'P');
+    _sprites[S_PICKUP_BFG] = MakePickup(new Color32(120, 220, 80, 255), '*');
+    _sprites[S_KEY_BLUE] = MakeKey(new Color32(60, 110, 220, 255));
+    _sprites[S_KEY_YELLOW] = MakeKey(new Color32(220, 200, 60, 255));
+    _sprites[S_KEY_RED] = MakeKey(new Color32(220, 60, 50, 255));
+    _sprites[S_BARREL] = MakeBarrel();
+    _sprites[S_LIGHT] = MakeLight();
+
+    _faces = new Texture2D[8];
+    for (int i = 0; i < 8; i++) _faces[i] = MakeFace(i);
+
+    _weapons = new Texture2D[8];
+    _weapons[0] = MakeWeaponSprite(0); // fist
+    _weapons[1] = MakeWeaponSprite(1); // pistol
+    _weapons[2] = MakeWeaponSprite(2); // shotgun
+    _weapons[3] = MakeWeaponSprite(3); // chaingun
+    _weapons[4] = MakeWeaponSprite(4); // rocket
+    _weapons[5] = MakeWeaponSprite(5); // plasma
+    _weapons[6] = MakeWeaponSprite(6); // bfg
+    _weapons[7] = MakeWeaponSprite(7); // muzzle flash overlay
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Wall textures
+  // ─────────────────────────────────────────────────────────────
+
+  private static Texture2D MakeBrick(int seed, byte baseR, byte baseG, byte baseB, byte mortarR, byte mortarG, byte mortarB) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var rng = new System.Random(seed);
+    var mortar = new Color32(mortarR, mortarG, mortarB, 255);
+    for (int y = 0; y < TEX_H; y++) {
+      int row = y / 8;
+      int xOff = (row & 1) == 0 ? 0 : 16;
+      for (int x = 0; x < TEX_W; x++) {
+        bool grout = (y % 8 == 0) || (((x + xOff) % 32) == 0);
+        if (grout) { px[y * TEX_W + x] = mortar; continue; }
+        int r = baseR + rng.Next(-22, 22);
+        int g = baseG + rng.Next(-15, 15);
+        int b = baseB + rng.Next(-15, 15);
+        px[y * TEX_W + x] = new Color32(Clamp8(r), Clamp8(g), Clamp8(b), 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeTechPanel(int seed) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var rng = new System.Random(seed);
+    var rivet = new Color32(180, 180, 190, 255);
+    var bevel = new Color32(60, 70, 85, 255);
+    for (int y = 0; y < TEX_H; y++) {
+      for (int x = 0; x < TEX_W; x++) {
+        int r = 70 + rng.Next(-8, 8);
+        int g = 80 + rng.Next(-8, 8);
+        int b = 95 + rng.Next(-10, 10);
+        px[y * TEX_W + x] = new Color32(Clamp8(r), Clamp8(g), Clamp8(b), 255);
+      }
+    }
+    // panel borders every 32px
+    for (int y = 0; y < TEX_H; y++) {
+      for (int x = 0; x < TEX_W; x++) {
+        if (x % 32 == 0 || y % 32 == 0 || x % 32 == 31 || y % 32 == 31) {
+          px[y * TEX_W + x] = bevel;
+        }
+      }
+    }
+    // rivets
+    for (int ry = 4; ry < TEX_H; ry += 32) {
+      for (int rx = 4; rx < TEX_W; rx += 32) {
+        for (int dy = 0; dy < 2; dy++)
+        for (int dx = 0; dx < 2; dx++) {
+          if (rx + dx < TEX_W && ry + dy < TEX_H) px[(ry + dy) * TEX_W + (rx + dx)] = rivet;
+        }
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeWood(int seed) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var rng = new System.Random(seed);
+    for (int y = 0; y < TEX_H; y++) {
+      for (int x = 0; x < TEX_W; x++) {
+        int grain = (int)(Mathf.Sin(y * 0.6f + Mathf.Sin(x * 0.05f) * 2f) * 12f);
+        int r = 110 + grain + rng.Next(-6, 6);
+        int g = 70 + grain + rng.Next(-5, 5);
+        int b = 35 + grain / 2 + rng.Next(-4, 4);
+        px[y * TEX_W + x] = new Color32(Clamp8(r), Clamp8(g), Clamp8(b), 255);
+      }
+    }
+    // vertical plank seams
+    for (int x = 0; x < TEX_W; x += 16) {
+      for (int y = 0; y < TEX_H; y++) {
+        px[y * TEX_W + x] = new Color32(45, 25, 15, 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeMarble(int seed) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var rng = new System.Random(seed);
+    for (int y = 0; y < TEX_H; y++) {
+      for (int x = 0; x < TEX_W; x++) {
+        float vein = Mathf.Abs(Mathf.Sin(x * 0.12f + y * 0.07f) * Mathf.Cos(y * 0.18f)) * 30f;
+        int r = 170 + (int)vein + rng.Next(-10, 10);
+        int g = 165 + (int)vein + rng.Next(-10, 10);
+        int b = 180 + (int)vein + rng.Next(-10, 10);
+        px[y * TEX_W + x] = new Color32(Clamp8(r), Clamp8(g), Clamp8(b), 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeHellStone(int seed) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var rng = new System.Random(seed);
+    for (int y = 0; y < TEX_H; y++) {
+      for (int x = 0; x < TEX_W; x++) {
+        int dark = rng.Next(0, 35);
+        int r = 80 + dark - rng.Next(0, 20);
+        int g = 25 + dark / 3;
+        int b = 25 + dark / 3;
+        px[y * TEX_W + x] = new Color32(Clamp8(r), Clamp8(g), Clamp8(b), 255);
+      }
+    }
+    // skull pattern hint
+    int cx = TEX_W / 2, cy = TEX_H / 2;
+    for (int dy = -10; dy <= 10; dy++) {
+      for (int dx = -10; dx <= 10; dx++) {
+        float d = Mathf.Sqrt(dx * dx + dy * dy);
+        if (d > 8 && d < 11) px[(cy + dy) * TEX_W + (cx + dx)] = new Color32(35, 10, 10, 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeDoor(Color32 main, Color32? trim) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var dark = new Color32((byte)(main.r/2), (byte)(main.g/2), (byte)(main.b/2), 255);
+    var bright = new Color32((byte)Mathf.Min(255, main.r + 40), (byte)Mathf.Min(255, main.g + 40), (byte)Mathf.Min(255, main.b + 40), 255);
+    var trimColor = trim ?? new Color32(60, 60, 60, 255);
+    for (int y = 0; y < TEX_H; y++) {
+      for (int x = 0; x < TEX_W; x++) {
+        bool border = x < 3 || x >= TEX_W - 3 || y < 3 || y >= TEX_H - 3;
+        bool middleStripe = x >= 28 && x <= 35;
+        if (border) px[y * TEX_W + x] = dark;
+        else if (middleStripe) px[y * TEX_W + x] = trimColor;
+        else px[y * TEX_W + x] = ((x + y) % 6 == 0) ? bright : main;
+      }
+    }
+    // handle
+    for (int y = 28; y <= 36; y++) {
+      for (int x = 8; x <= 14; x++) {
+        px[y * TEX_W + x] = new Color32(60, 60, 60, 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeExitSign() {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var bg = new Color32(30, 30, 30, 255);
+    var sign = new Color32(50, 200, 70, 255);
+    for (int i = 0; i < px.Length; i++) px[i] = bg;
+    // green "EXIT" panel
+    for (int y = 20; y < 44; y++) {
+      for (int x = 8; x < 56; x++) {
+        px[y * TEX_W + x] = sign;
+      }
+    }
+    // dark border
+    for (int x = 8; x < 56; x++) { px[20 * TEX_W + x] = new Color32(20, 80, 30, 255); px[43 * TEX_W + x] = new Color32(20, 80, 30, 255); }
+    for (int y = 20; y < 44; y++) { px[y * TEX_W + 8] = new Color32(20, 80, 30, 255); px[y * TEX_W + 55] = new Color32(20, 80, 30, 255); }
+    Apply(t, px);
+    return t;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Floor textures
+  // ─────────────────────────────────────────────────────────────
+
+  private static Texture2D MakeNoiseTile(int seed, byte baseR, byte baseG, byte baseB, int range) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var rng = new System.Random(seed);
+    for (int i = 0; i < px.Length; i++) {
+      int n = rng.Next(-range, range);
+      px[i] = new Color32(Clamp8(baseR + n), Clamp8(baseG + n), Clamp8(baseB + n), 255);
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeTileFloor(int seed) {
+    var t = NewTex();
+    var px = new Color32[TEX_W * TEX_H];
+    var rng = new System.Random(seed);
+    var grout = new Color32(40, 40, 40, 255);
+    for (int y = 0; y < TEX_H; y++) {
+      for (int x = 0; x < TEX_W; x++) {
+        bool g = (x % 16 == 0) || (y % 16 == 0);
+        if (g) { px[y * TEX_W + x] = grout; continue; }
+        int n = rng.Next(-12, 12);
+        px[y * TEX_W + x] = new Color32(Clamp8(110 + n), Clamp8(108 + n), Clamp8(105 + n), 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Sky
+  // ─────────────────────────────────────────────────────────────
+
+  private static Texture2D MakeSky() {
+    int w = 512, h = 100;
+    var t = new Texture2D(w, h, TextureFormat.RGBA32, false);
+    t.filterMode = FilterMode.Point;
+    t.wrapMode = TextureWrapMode.Repeat;
+    var px = new Color32[w * h];
+    var rng = new System.Random(7);
+    for (int y = 0; y < h; y++) {
+      // gradient: dark red at top → reddish at horizon
+      float yy = y / (float)h;
+      int r = (int)Mathf.Lerp(35, 110, yy);
+      int g = (int)Mathf.Lerp(15, 35, yy);
+      int b = (int)Mathf.Lerp(20, 30, yy);
+      for (int x = 0; x < w; x++) {
+        // distant mountain silhouettes
+        int mountainH = (int)(Mathf.Sin(x * 0.04f) * 6 + Mathf.Sin(x * 0.013f + 0.5f) * 12 + 30);
+        if (h - y < mountainH) {
+          px[y * w + x] = new Color32(20, 8, 12, 255);
+        } else {
+          int rn = rng.Next(-6, 6);
+          px[y * w + x] = new Color32(Clamp8(r + rn), Clamp8(g + rn), Clamp8(b + rn), 255);
+        }
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Sprites
+  // ─────────────────────────────────────────────────────────────
+
+  private static Texture2D MakeMonster(Color32 body, Color32 detail, bool eyes = false, bool fangs = false, bool horns = false) {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2;
+    // body: oval
+    for (int y = 0; y < SPRITE_H; y++) {
+      for (int x = 0; x < SPRITE_W; x++) {
+        float dx = (x - cx) / 22f;
+        float dy = (y - 36) / 28f;
+        if (dx * dx + dy * dy <= 1f) {
+          int sh = (int)((1f - dy) * 30f);
+          px[y * SPRITE_W + x] = Lerp32(body, detail, dx * dx);
+          if (((x + y) & 7) == 0) px[y * SPRITE_W + x] = Darken(px[y * SPRITE_W + x], 30);
+        }
+      }
+    }
+    // head
+    for (int y = 6; y < 28; y++) {
+      for (int x = cx - 10; x <= cx + 10; x++) {
+        float dx = (x - cx) / 10f;
+        float dy = (y - 17) / 10f;
+        if (dx * dx + dy * dy <= 1f) px[y * SPRITE_W + x] = body;
+      }
+    }
+    if (eyes) {
+      for (int dy = 0; dy < 3; dy++) {
+        for (int dx = 0; dx < 3; dx++) {
+          px[(15 + dy) * SPRITE_W + (cx - 5 + dx)] = new Color32(255, 240, 100, 255);
+          px[(15 + dy) * SPRITE_W + (cx + 3 + dx)] = new Color32(255, 240, 100, 255);
+        }
+      }
+    }
+    if (fangs) {
+      for (int y = 22; y <= 26; y++) {
+        px[y * SPRITE_W + cx - 3] = new Color32(240, 240, 230, 255);
+        px[y * SPRITE_W + cx + 3] = new Color32(240, 240, 230, 255);
+      }
+    }
+    if (horns) {
+      for (int y = 0; y < 8; y++) {
+        px[y * SPRITE_W + cx - 9 + y / 2] = new Color32(40, 25, 15, 255);
+        px[y * SPRITE_W + cx + 9 - y / 2] = new Color32(40, 25, 15, 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeCacoSprite() {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2, cy = 32;
+    for (int y = 0; y < SPRITE_H; y++) {
+      for (int x = 0; x < SPRITE_W; x++) {
+        float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+        if (d < 26) {
+          int n = (int)(d * 2);
+          px[y * SPRITE_W + x] = new Color32((byte)Mathf.Clamp(150 - n, 30, 255), (byte)Mathf.Clamp(40 - n / 2, 10, 100), (byte)Mathf.Clamp(150 - n, 30, 255), 255);
+        }
+      }
+    }
+    // big eye
+    for (int dy = -4; dy <= 4; dy++) {
+      for (int dx = -4; dx <= 4; dx++) {
+        if (dx * dx + dy * dy <= 16) {
+          px[(cy + dy) * SPRITE_W + (cx + dx)] = new Color32(240, 220, 80, 255);
+        }
+      }
+    }
+    px[cy * SPRITE_W + cx] = new Color32(20, 20, 20, 255);
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeLostSoul() {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2, cy = 32;
+    // skull
+    for (int y = 0; y < SPRITE_H; y++) {
+      for (int x = 0; x < SPRITE_W; x++) {
+        float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+        if (d < 16) {
+          px[y * SPRITE_W + x] = new Color32(220, 210, 190, 255);
+        } else if (d < 24) {
+          px[y * SPRITE_W + x] = new Color32(255, 180, 60, (byte)(255 - (int)((d - 16) * 30)));
+        }
+      }
+    }
+    // eye sockets
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        px[(cy - 3 + dy) * SPRITE_W + (cx - 5 + dx)] = new Color32(20, 5, 5, 255);
+        px[(cy - 3 + dy) * SPRITE_W + (cx + 5 + dx)] = new Color32(20, 5, 5, 255);
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeCorpse() {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    var blood = new Color32(120, 25, 25, 255);
+    for (int y = 50; y < SPRITE_H; y++) {
+      for (int x = 8; x < SPRITE_W - 8; x++) {
+        float dy = (y - 56) / 8f;
+        float dx = (x - 32) / 22f;
+        if (dx * dx + dy * dy <= 1f) {
+          px[y * SPRITE_W + x] = blood;
+        }
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeBall(Color32 inner, Color32 core) {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2, cy = SPRITE_H / 2;
+    for (int y = 0; y < SPRITE_H; y++) {
+      for (int x = 0; x < SPRITE_W; x++) {
+        float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+        if (d < 10) px[y * SPRITE_W + x] = core;
+        else if (d < 18) px[y * SPRITE_W + x] = inner;
+        else if (d < 24) px[y * SPRITE_W + x] = new Color32(inner.r, inner.g, inner.b, (byte)(255 - (int)((d - 18) * 40)));
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeRocketSprite() {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2;
+    for (int y = 16; y < 48; y++) {
+      for (int x = cx - 4; x <= cx + 4; x++) {
+        px[y * SPRITE_W + x] = new Color32(80, 80, 90, 255);
+      }
+    }
+    // tip
+    for (int y = 12; y < 16; y++) {
+      for (int x = cx - 2; x <= cx + 2; x++) px[y * SPRITE_W + x] = new Color32(180, 60, 50, 255);
+    }
+    // flame trail
+    for (int y = 48; y < 56; y++) {
+      for (int x = cx - 3; x <= cx + 3; x++) px[y * SPRITE_W + x] = new Color32(255, 180, 50, 255);
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeExplosionFrame() {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2, cy = SPRITE_H / 2;
+    var rng = new System.Random(99);
+    for (int y = 0; y < SPRITE_H; y++) {
+      for (int x = 0; x < SPRITE_W; x++) {
+        float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+        if (d < 28) {
+          int n = rng.Next(-30, 30);
+          if (d < 10) px[y * SPRITE_W + x] = new Color32((byte)Clamp8(255 + n), (byte)Clamp8(220 + n), (byte)Clamp8(80 + n), 255);
+          else if (d < 18) px[y * SPRITE_W + x] = new Color32((byte)Clamp8(220 + n), (byte)Clamp8(120 + n), (byte)Clamp8(40 + n), 255);
+          else px[y * SPRITE_W + x] = new Color32((byte)Clamp8(150 + n), (byte)Clamp8(60 + n), (byte)Clamp8(20 + n), (byte)Mathf.Clamp(255 - (int)((d - 18) * 25), 0, 255));
+        }
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakePickup(Color32 main, char letter) {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2, cy = 38;
+    var dark = Darken(main, 50);
+    // box body
+    for (int y = 28; y < 52; y++) {
+      for (int x = 22; x < 42; x++) {
+        bool border = x == 22 || x == 41 || y == 28 || y == 51;
+        px[y * SPRITE_W + x] = border ? dark : main;
+      }
+    }
+    // bright "letter" mark in center
+    Color32 mark = new Color32(255, 255, 255, 255);
+    if (letter == '+') {
+      for (int i = 32; i < 42; i++) px[40 * SPRITE_W + i - 5] = mark;
+      for (int j = 32; j < 46; j++) px[j * SPRITE_W + cx] = mark;
+    } else {
+      // small bright square as generic mark
+      for (int dy = -2; dy <= 2; dy++)
+      for (int dx = -3; dx <= 3; dx++)
+      px[(cy + dy) * SPRITE_W + (cx + dx)] = mark;
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeKey(Color32 c) {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2;
+    // bow
+    for (int dy = -6; dy <= 6; dy++) {
+      for (int dx = -6; dx <= 6; dx++) {
+        if (dx * dx + dy * dy <= 36 && dx * dx + dy * dy >= 12)
+        px[(34 + dy) * SPRITE_W + (cx + dx)] = c;
+      }
+    }
+    // shaft
+    for (int y = 38; y < 52; y++) {
+      px[y * SPRITE_W + cx] = c;
+      px[y * SPRITE_W + cx - 1] = c;
+    }
+    // teeth
+    for (int x = cx - 4; x <= cx + 4; x++) {
+      px[50 * SPRITE_W + x] = c;
+      px[51 * SPRITE_W + x] = c;
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeBarrel() {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    var body = new Color32(110, 70, 40, 255);
+    var rim = new Color32(60, 35, 20, 255);
+    var liquid = new Color32(80, 220, 90, 255);
+    for (int y = 18; y < 56; y++) {
+      for (int x = 18; x < 46; x++) {
+        bool border = x == 18 || x == 45 || y == 18 || y == 55;
+        bool ring = (y % 8 == 4);
+        if (border) px[y * SPRITE_W + x] = rim;
+        else if (ring) px[y * SPRITE_W + x] = rim;
+        else px[y * SPRITE_W + x] = body;
+      }
+    }
+    // glowing top
+    for (int y = 20; y < 24; y++) {
+      for (int x = 22; x < 42; x++) px[y * SPRITE_W + x] = liquid;
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  private static Texture2D MakeLight() {
+    var t = NewTex();
+    var px = new Color32[SPRITE_W * SPRITE_H];
+    int cx = SPRITE_W / 2;
+    // pole
+    for (int y = 8; y < 50; y++) {
+      px[y * SPRITE_W + cx] = new Color32(60, 60, 60, 255);
+      px[y * SPRITE_W + cx + 1] = new Color32(60, 60, 60, 255);
+    }
+    // lamp
+    for (int dy = -4; dy <= 4; dy++) {
+      for (int dx = -6; dx <= 6; dx++) {
+        if (dx * dx + dy * dy <= 30) {
+          px[(12 + dy) * SPRITE_W + (cx + dx)] = new Color32(255, 240, 180, 255);
+        }
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Doomguy face mug (8 frames: god / hp100 / hp75 / hp50 / hp25 / hp0 / pain / death)
+  // ─────────────────────────────────────────────────────────────
+
+  private static Texture2D MakeFace(int frameIdx) {
+    int W = 48, H = 56;
+    var t = new Texture2D(W, H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+    var px = new Color32[W * H];
+    Color32 skin = new Color32(220, 175, 120, 255);
+    Color32 bloodySkin = new Color32(180, 80, 70, 255);
+    Color32 hair = new Color32(120, 70, 30, 255);
+    Color32 eye = new Color32(80, 220, 80, 255);
+    Color32 mouth = new Color32(80, 30, 25, 255);
+    Color32 bg = new Color32(20, 20, 20, 0);
+
+    bool dead = (frameIdx == 7);
+    bool hurt = (frameIdx == 6);
+    bool god = (frameIdx == 0);
+    int hpBucket = frameIdx;
+    Color32 useSkin = (hpBucket >= 5 || hurt) ? bloodySkin : skin;
+    if (god) useSkin = new Color32(180, 220, 255, 255);
+
+    for (int i = 0; i < px.Length; i++) px[i] = bg;
+    // face oval
+    int cx = W / 2, cy = H / 2 + 4;
+    for (int y = 0; y < H; y++) {
+      for (int x = 0; x < W; x++) {
+        float dx = (x - cx) / 18f, dy = (y - cy) / 22f;
+        if (dx * dx + dy * dy <= 1f) px[y * W + x] = useSkin;
+      }
+    }
+    // hair
+    for (int y = cy - 22; y < cy - 8; y++) {
+      for (int x = cx - 16; x <= cx + 16; x++) {
+        float dx = (x - cx) / 16f, dy = (y - (cy - 14)) / 8f;
+        if (dx * dx + dy * dy <= 1f && y >= 0) px[y * W + x] = hair;
+      }
+    }
+    if (dead) {
+      // X eyes
+      for (int i = -3; i <= 3; i++) {
+        px[(cy - 3 + i) * W + (cx - 7 + i)] = new Color32(40, 40, 40, 255);
+        px[(cy - 3 - i) * W + (cx - 7 + i)] = new Color32(40, 40, 40, 255);
+        px[(cy - 3 + i) * W + (cx + 5 + i)] = new Color32(40, 40, 40, 255);
+        px[(cy - 3 - i) * W + (cx + 5 + i)] = new Color32(40, 40, 40, 255);
+      }
+    } else {
+      // eyes
+      for (int dy = -2; dy <= 2; dy++) {
+        for (int dx = -2; dx <= 2; dx++) {
+          if (cy - 4 + dy >= 0) {
+            px[(cy - 4 + dy) * W + (cx - 6 + dx)] = eye;
+            px[(cy - 4 + dy) * W + (cx + 4 + dx)] = eye;
+          }
+        }
+      }
+    }
+    // mouth
+    if (!dead) {
+      for (int x = cx - 5; x <= cx + 5; x++) {
+        for (int y = cy + 6; y <= cy + 8; y++) {
+          if (y < H) px[y * W + x] = hurt ? new Color32(120, 30, 30, 255) : mouth;
+        }
+      }
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Player weapon sprites (drawn HUD-overlay, ~256x192)
+  // ─────────────────────────────────────────────────────────────
+
+  private static Texture2D MakeWeaponSprite(int kind) {
+    int W = 256, H = 192;
+    var t = new Texture2D(W, H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+    var px = new Color32[W * H];
+    var bg = new Color32(0, 0, 0, 0);
+    for (int i = 0; i < px.Length; i++) px[i] = bg;
+    Color32 metal = new Color32(110, 110, 120, 255);
+    Color32 dark = new Color32(40, 40, 45, 255);
+    Color32 wood = new Color32(110, 70, 35, 255);
+    Color32 hand = new Color32(220, 175, 120, 255);
+    int cx = W / 2;
+
+    switch (kind) {
+      case 0: // fist - just hand at the side
+      DrawRect(px, W, H, cx + 30, H - 60, 60, 60, hand);
+      DrawRect(px, W, H, cx + 35, H - 30, 50, 30, dark);
+      break;
+      case 1: // pistol
+      DrawRect(px, W, H, cx - 18, H - 90, 36, 50, metal); // barrel
+      DrawRect(px, W, H, cx - 14, H - 110, 28, 22, metal); // top
+      DrawRect(px, W, H, cx - 14, H - 50, 28, 30, dark); // grip
+      DrawRect(px, W, H, cx - 30, H - 40, 60, 40, hand); // hand
+      break;
+      case 2: // shotgun - longer barrel, two-hand
+      DrawRect(px, W, H, cx - 60, H - 100, 130, 18, metal); // barrel
+      DrawRect(px, W, H, cx - 30, H - 80, 70, 22, wood); // pump
+      DrawRect(px, W, H, cx - 10, H - 60, 30, 35, dark); // grip
+      DrawRect(px, W, H, cx + 10, H - 65, 50, 30, hand);
+      DrawRect(px, W, H, cx - 60, H - 65, 50, 30, hand);
+      break;
+      case 3: // chaingun - thick barrel cluster
+      DrawRect(px, W, H, cx - 60, H - 110, 130, 40, metal);
+      // 6 round muzzles
+      for (int i = 0; i < 6; i++) {
+        DrawCircle(px, W, H, cx + 60, H - 105 + (i - 2) * 6, 4, dark);
+      }
+      DrawRect(px, W, H, cx - 40, H - 60, 80, 35, dark);
+      DrawRect(px, W, H, cx - 50, H - 40, 100, 35, hand);
+      break;
+      case 4: // rocket launcher - big tube
+      DrawRect(px, W, H, cx - 70, H - 110, 150, 30, metal);
+      DrawCircle(px, W, H, cx + 68, H - 95, 16, dark);
+      DrawRect(px, W, H, cx - 30, H - 70, 50, 30, dark);
+      DrawRect(px, W, H, cx - 50, H - 45, 100, 35, hand);
+      break;
+      case 5: // plasma rifle - tech panel
+      DrawRect(px, W, H, cx - 50, H - 110, 130, 35, metal);
+      DrawRect(px, W, H, cx - 45, H - 105, 50, 25, new Color32(60, 180, 255, 255));
+      DrawRect(px, W, H, cx - 30, H - 65, 50, 30, dark);
+      DrawRect(px, W, H, cx - 50, H - 40, 100, 35, hand);
+      break;
+      case 6: // BFG
+      DrawRect(px, W, H, cx - 70, H - 120, 160, 50, metal);
+      DrawCircle(px, W, H, cx + 50, H - 95, 25, new Color32(120, 255, 70, 255));
+      DrawRect(px, W, H, cx - 40, H - 60, 80, 35, dark);
+      DrawRect(px, W, H, cx - 60, H - 35, 120, 35, hand);
+      break;
+      case 7: // muzzle flash overlay
+      DrawCircle(px, W, H, cx + 5, H - 110, 35, new Color32(255, 240, 100, 200));
+      DrawCircle(px, W, H, cx + 5, H - 110, 22, new Color32(255, 255, 200, 255));
+      break;
+    }
+    Apply(t, px);
+    return t;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────
+
+  private static Texture2D NewTex() {
+    var t = new Texture2D(TEX_W, TEX_H, TextureFormat.RGBA32, false);
+    t.filterMode = FilterMode.Point;
+    t.wrapMode = TextureWrapMode.Clamp;
+    return t;
+  }
+
+  private static void Apply(Texture2D t, Color32[] px) {
+    // Flip vertically: pixel buffer is authored with y=0 at top (UI coords),
+    // but Texture2D stores y=0 at bottom and UI Toolkit BackgroundImage maps
+    // texture-y=0 to top — so without flip everything renders upside down.
+    int w = t.width, h = t.height;
+    var flipped = new Color32[px.Length];
+    for (int y = 0; y < h; y++) {
+      int srcRow = y * w;
+      int dstRow = (h - 1 - y) * w;
+      for (int x = 0; x < w; x++) flipped[dstRow + x] = px[srcRow + x];
+    }
+    t.SetPixels32(flipped);
+    t.Apply(false, true);
+  }
+
+  private static byte Clamp8(int v) {
+    if (v < 0) return 0;
+    if (v > 255) return 255;
+    return (byte)v;
+  }
+
+  private static Color32 Lerp32(Color32 a, Color32 b, float t) {
+    t = Mathf.Clamp01(t);
+    return new Color32(
+      (byte)(a.r + (b.r - a.r) * t),
+      (byte)(a.g + (b.g - a.g) * t),
+      (byte)(a.b + (b.b - a.b) * t),
+      255);
+  }
+
+  private static Color32 Darken(Color32 c, int amt) {
+    return new Color32((byte)Mathf.Max(0, c.r - amt), (byte)Mathf.Max(0, c.g - amt), (byte)Mathf.Max(0, c.b - amt), c.a);
+  }
+
+  private static void DrawRect(Color32[] px, int W, int H, int x, int y, int w, int h, Color32 c) {
+    for (int yy = y; yy < y + h && yy < H; yy++) {
+      if (yy < 0) continue;
+      for (int xx = x; xx < x + w && xx < W; xx++) {
+        if (xx < 0) continue;
+        px[yy * W + xx] = c;
+      }
+    }
+  }
+
+  private static void DrawCircle(Color32[] px, int W, int H, int cx, int cy, int r, Color32 c) {
+    for (int dy = -r; dy <= r; dy++) {
+      for (int dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy <= r * r) {
+          int xx = cx + dx, yy = cy + dy;
+          if (xx >= 0 && xx < W && yy >= 0 && yy < H) px[yy * W + xx] = c;
+        }
+      }
+    }
+  }
+}

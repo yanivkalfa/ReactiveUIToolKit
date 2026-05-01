@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-01",
+      "versions": {
+        "vscode": "1.1.7",
+        "vs2022": "1.1.7"
+      },
+      "shared": [
+        "Feature: autocomplete for IStyle 9-slice + clip-box + text-generator + editor-text-rendering enums (unitySliceType, unityOverflowClipBox, unityTextGenerator, unityEditorTextRenderingMode)"
+      ]
+    },
+    {
       "date": "2026-04-28",
       "versions": {
         "vscode": "1.1.6",

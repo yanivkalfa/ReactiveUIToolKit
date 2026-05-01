@@ -1,0 +1,465 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTextures
+
+component DoomGameScreen(
+  int restartVersion,
+  int level,
+  Difficulty difficulty,
+  Action onExit,
+  Action onNextLevel
+) {
+  var viewRef = useRef<VisualElement?>(null);
+  var (state, restart, onKeyDown, onPointerMove, onPointerDown, onPointerUp) = useDoomGame(viewRef, level, difficulty);
+
+  var prevVersion = useRef(restartVersion);
+  if (prevVersion.Current != restartVersion) {
+    prevVersion.Current = restartVersion;
+    restart();
+  }
+
+  var hurtAlpha = state.Player.HurtFlash * 0.6f;
+  var pickupAlpha = state.Player.PickupFlash * 0.35f;
+  var muzzleAlpha = state.Player.MuzzleFlash > 0 ? 1f : 0f;
+
+  var black = new Color(0f, 0f, 0f, 1f);
+  var border = new Color(0.7f, 0.5f, 0.2f, 1f);
+  var white = new Color(1f, 1f, 1f, 1f);
+  var msgClr = new Color(0.95f, 0.85f, 0.40f, 1f);
+
+  return (
+    <VisualElement
+      ref={viewRef}
+      focusable={true}
+      tabIndex={0}
+      onKeyDownCapture={onKeyDown}
+      onPointerMove={onPointerMove}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      style={new Style{
+        Width = C.VIEWPORT_W, Height = C.VIEWPORT_H + C.HUD_HEIGHT,
+        AlignSelf = Align.Center, MarginTop = 16,
+        BackgroundColor = black,
+        BorderTopWidth = 2, BorderRightWidth = 2, BorderBottomWidth = 2, BorderLeftWidth = 2,
+        BorderTopColor = border, BorderRightColor = border, BorderBottomColor = border, BorderLeftColor = border,
+        Overflow = UnityEngine.UIElements.Overflow.Hidden,
+      }}
+    >
+      // ── 3D viewport ──
+      <VisualElement
+        style={new Style{
+          Width = C.VIEWPORT_W, Height = C.VIEWPORT_H,
+          Position = UnityEngine.UIElements.Position.Relative,
+          Overflow = UnityEngine.UIElements.Overflow.Hidden,
+        }}
+      >
+        // Sky
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0,
+            Width = C.VIEWPORT_W, Height = C.VIEWPORT_H * 0.5f + state.Player.Pitch + state.Player.ViewShiftPx,
+            BackgroundImage = DoomTextures.Sky,
+            BackgroundSize = new BackgroundSize(new Length(C.VIEWPORT_W * 1.5f, LengthUnit.Pixel), new Length(C.VIEWPORT_H * 0.5f + 250f, LengthUnit.Pixel)),
+            BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(-((state.Player.Angle / (2f * Mathf.PI)) * C.VIEWPORT_W * 1.5f) % (C.VIEWPORT_W * 1.5f), LengthUnit.Pixel)),
+            BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(0f, LengthUnit.Pixel)),
+          }}
+        />
+        // Floor backstop: a solid ground-color rect from horizon to bottom of
+        // viewport so any seam between merged floor bands reveals ground, not
+        // the dark void.
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = 0, Top = C.VIEWPORT_H * 0.5f + state.Player.Pitch,
+            Width = C.VIEWPORT_W, Height = C.VIEWPORT_H,
+            BackgroundColor = new Color(0.34f, 0.29f, 0.22f, 1f),
+          }}
+        />
+        // Phase 8: per-sector CEILING bands, mirror of floor bands. Painted
+        // BEFORE walls so any sub-pixel rounding leaves wall texels on top
+        // (walls are pre-clipped to the same window so there's no overdraw).
+        @foreach (var cb in DoomGameScreenLogic.BuildMergedCeilingBands(state)) {
+          float ctop = cb.Band.TopPx - 2f; // 2px overdraw upward to seal sky seam
+          float cbot = cb.Band.BotPx + 4f; // 4px overdraw downward so wall texels overlap (no black hairline)
+          float ch = cbot - ctop;
+          if (ch < 1f) {
+            return null;
+          }
+          float cleft = cb.ColIndex * C.STRIP_W - 1f;
+          float cw = C.STRIP_W + 2f;
+          float clift = Mathf.Clamp(cb.Band.CeilingZ * 0.04f, 0f, 0.20f);
+          float clight = cb.Band.Light / 255f;
+          // Ceiling base color: cool grey-blue, brightened by sector light.
+          // Always >= backstop brightness so distant bands don't read as holes.
+          float cbright = Mathf.Max(1f, 0.55f + clight * 0.85f);
+          float cr = Mathf.Clamp01((0.22f + clift) * cbright);
+          float cg = Mathf.Clamp01((0.22f + clift) * cbright);
+          float cbb = Mathf.Clamp01((0.26f + clift) * cbright);
+
+          return (
+            <VisualElement
+              key={"cb" + cb.ColIndex.ToString() + "_" + cb.SlabId.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = cleft, Top = ctop,
+                Width = cw, Height = ch,
+                BackgroundColor = new Color(cr, cg, cbb, 1f),
+              }}
+            />
+          );
+        }
+        // Phase 7: per-sector floor BANDS, horizontally merged. Each ray
+        // crosses one or more sectors; bands of the same Z slab in adjacent
+        // columns collapse into a single wide rect so element count stays low.
+        @foreach (var mb in DoomGameScreenLogic.BuildMergedFloorBands(state)) {
+          // One rect per column per band. Sorted far→near so closer bands
+          // paint on top. Each band uses its column's exact TopPx/BotPx so
+          // there's no merge gap. Bottom-extend by 4px to seal sub-pixel.
+          float top = mb.TopPx;
+          float h = mb.BotPx - top + 4f;
+          if (h < 1f) {
+            return null;
+          }
+          float left = mb.ColStart * C.STRIP_W - 0.5f;
+          float w = C.STRIP_W + 1f;
+          float lift = Mathf.Clamp(mb.FloorZ * 0.10f, -0.1f, 0.25f);
+          float light = mb.Light / 255f;
+          // Floor band must NEVER render darker than the backstop floor color
+          // (0.34, 0.29, 0.22) — otherwise distant bands paint as "dark holes"
+          // on top of the brighter backstop, looking like see-through.
+          // Light attenuation lifts brightness above the backstop near, fades
+          // toward the backstop level far away.
+          float bright = Mathf.Max(1f, 0.6f + light * 0.8f);
+          float r = Mathf.Clamp01((0.34f + lift) * bright);
+          float g = Mathf.Clamp01((0.29f + lift) * bright);
+          float bl = Mathf.Clamp01((0.22f + lift * 0.5f) * bright);
+
+          return (
+            <VisualElement
+              key={"fb" + mb.ColStart.ToString() + "_" + mb.SlabId.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = left, Top = top,
+                Width = w, Height = h,
+                BackgroundColor = new Color(r, g, bl, 1f),
+              }}
+            />
+          );
+        }
+        // Step-down rim: when standing on top of a platform looking outward,
+        // the visible silhouette of where the platform ends is the TOP edge
+        // of the front floor band at the portal hop into a lower sector.
+        @foreach (var mb in DoomGameScreenLogic.BuildMergedFloorBands(state)) {
+          if (!mb.RimAtFar) {
+            return null;
+          }
+
+          return (
+            <VisualElement
+              key={"frim" + mb.ColStart.ToString() + "_" + mb.SlabId.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = mb.ColStart * C.STRIP_W - 0.5f, Top = mb.TopPx - 1f,
+                Width = C.STRIP_W + 1f, Height = 2f,
+                BackgroundColor = new Color(0.95f, 0.85f, 0.55f, 1f),
+              }}
+            />
+          );
+        }
+        // Phase 3: extra wall segs (upper/lower portals). Render BEFORE main
+        // strips so the closer terminal wall stays on top.
+        @foreach (var ex in DoomGameScreenLogic.BuildExtraSegList(state)) {
+          var ecol = ex.Seg;
+          float etop = ecol.TopPx;
+          float eh = ecol.BotPx - ecol.TopPx;
+          if (eh < 1f) {
+            return null;
+          }
+          var etex = DoomTextures.Walls[ecol.WallTexIdx];
+          float ebgWidth = C.STRIP_W * 64f;
+          float ebgOffsetX = -ecol.TexU * ebgWidth;
+          // Tile vertically so 1 world-Z unit = 64 texels (= scale screen px).
+          float etexPx = C.VIEWPORT_H / Mathf.Max(0.1f, ecol.Distance);
+          // Floor min-brightness so distant step risers don't go black.
+          float elightF = Mathf.Max(0.45f, ecol.LightLevel / 255f);
+
+          return (
+            <VisualElement
+              key={"x" + ex.ColIndex.ToString() + "_" + ex.SegIndex.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = ex.ColIndex * C.STRIP_W, Top = etop,
+                Width = C.STRIP_W + 2f, Height = eh,
+                BackgroundImage = etex,
+                BackgroundSize = new BackgroundSize(new Length(ebgWidth, LengthUnit.Pixel), new Length(etexPx, LengthUnit.Pixel)),
+                BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(ebgOffsetX, LengthUnit.Pixel)),
+                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(ecol.TexOffsetPx, LengthUnit.Pixel)),
+                BackgroundRepeat = ReactiveUITK.Props.Typed.CssHelpers.BgRepeatY,
+                BackgroundImageTint = new Color(elightF, elightF, elightF, 1f),
+              }}
+            />
+          );
+        }
+        // Rim outline: chalk-line at the top edge of every step riser.
+        // Adjacent ray columns share the same step boundary so these stack
+        // into one continuous outline along the platform's outer rim.
+        @foreach (var ex in DoomGameScreenLogic.BuildExtraSegList(state)) {
+          var ecol = ex.Seg;
+          if (!ecol.IsRiser) {
+            return null;
+          }
+          float reh = ecol.BotPx - ecol.TopPx;
+          if (reh < 1f) {
+            return null;
+          }
+
+          return (
+            <VisualElement
+              key={"rim" + ex.ColIndex.ToString() + "_" + ex.SegIndex.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = ex.ColIndex * C.STRIP_W, Top = ecol.TopPx,
+                Width = C.STRIP_W + 2f, Height = 2f,
+                BackgroundColor = new Color(0.95f, 0.85f, 0.55f, 1f),
+              }}
+            />
+          );
+        }
+        // Wall strips
+        @foreach (var i in System.Linq.Enumerable.Range(0, C.VIEW_W)) {
+          var col = state.Frame.Columns[i].Main;
+          if (col.IsSky) {
+            return null;
+          }
+
+          float top = col.TopPx;
+          float h = col.BotPx - col.TopPx;
+          var tex = DoomTextures.Walls[col.WallTexIdx];
+          float bgWidth = C.STRIP_W * 64f; // 64 = TEX_W
+          float bgOffsetX = -col.TexU * bgWidth;
+          // Phase 7: tile vertically. 1 world-Z unit = `texPx` screen pixels =
+          // one full 64-texel tile. So a 2.5u wall shows ~2.5 tile rows; a
+          // 1.5u wall shows ~1.5 tile rows. No more stretching.
+          float texPx = C.VIEWPORT_H / Mathf.Max(0.1f, col.Distance);
+          float lightF = col.LightLevel / 255f;
+          float vertDim = col.HitVertical ? 0.85f : 1f;
+
+          return (
+            <VisualElement
+              key={"w" + i.ToString()}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = i * C.STRIP_W, Top = top,
+                Width = C.STRIP_W + 2f, Height = h,
+                BackgroundImage = tex,
+                BackgroundSize = new BackgroundSize(new Length(bgWidth, LengthUnit.Pixel), new Length(texPx, LengthUnit.Pixel)),
+                BackgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(bgOffsetX, LengthUnit.Pixel)),
+                BackgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(col.TexOffsetPx, LengthUnit.Pixel)),
+                BackgroundRepeat = ReactiveUITK.Props.Typed.CssHelpers.BgRepeatY,
+                BackgroundImageTint = new Color(lightF * vertDim, lightF * vertDim, lightF * vertDim, 1f),
+              }}
+            />
+          );
+        }
+        // Sprite billboards
+        @foreach (var sprite in DoomGameScreenLogic.BuildSpriteList(state)) {
+          return (
+            <VisualElement
+              key={"s" + sprite.Id.ToString()}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = sprite.ScreenX - sprite.Size * 0.5f,
+                Top  = sprite.ScreenY - sprite.Size * 0.5f,
+                Width = sprite.Size, Height = sprite.Size,
+                BackgroundImage = DoomTextures.Sprites[sprite.SpriteIdx],
+                BackgroundImageTint = new Color(sprite.Tint.r / 255f * sprite.Light, sprite.Tint.g / 255f * sprite.Light, sprite.Tint.b / 255f * sprite.Light, 1f),
+              }}
+            />
+          );
+        }
+        // Phase 8: hitscan tracer streaks. One rotated rect per live tracer.
+        // Painted between sprites and the weapon HUD so they read as in-world
+        // (over enemies) but never cover the gun.
+        @foreach (var tr in DoomGameScreenLogic.BuildTracerList(state)) {
+          float tcr = tr.ColorIdx == 1 ? 1.00f : 1.00f;
+          float tcg = tr.ColorIdx == 1 ? 0.55f : 0.92f;
+          float tcb = tr.ColorIdx == 1 ? 0.25f : 0.45f;
+
+          return (
+            <VisualElement
+              key={"tr" + tr.Slot.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = tr.Left, Top = tr.Top,
+                Width = tr.Length, Height = C.TRACER_THICKNESS_PX,
+                BackgroundColor = new Color(tcr, tcg, tcb, tr.Alpha),
+                TransformOrigin = new TransformOrigin(new Length(0f, LengthUnit.Pixel), new Length(C.TRACER_THICKNESS_PX * 0.5f, LengthUnit.Pixel)),
+                Rotate = tr.AngleDeg,
+              }}
+            />
+          );
+        }
+        // Weapon HUD
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = (C.VIEWPORT_W - 256) * 0.5f + Mathf.Sin(state.Player.BobT) * 6f,
+            Bottom = -10 + Mathf.Abs(Mathf.Sin(state.Player.BobT)) * 6f,
+            Width = 256, Height = 192,
+            BackgroundImage = DoomTextures.Weapons[(int)state.Player.Weapon],
+          }}
+        />
+        // Muzzle flash
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = (C.VIEWPORT_W - 256) * 0.5f + Mathf.Sin(state.Player.BobT) * 6f,
+            Bottom = -10 + Mathf.Abs(Mathf.Sin(state.Player.BobT)) * 6f,
+            Width = 256, Height = 192,
+            BackgroundImage = DoomTextures.Weapons[7],
+            Opacity = muzzleAlpha,
+          }}
+        />
+        // Crosshair
+        <VisualElement
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = C.VIEWPORT_W * 0.5f - 4, Top = C.VIEWPORT_H * 0.5f - 4,
+            Width = 8, Height = 8,
+            BorderTopLeftRadius = 4, BorderTopRightRadius = 4, BorderBottomLeftRadius = 4, BorderBottomRightRadius = 4,
+            BackgroundColor = new Color(0.95f, 0.95f, 0.5f, 0.7f),
+          }}
+        />
+        // Hurt flash
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+            BackgroundColor = new Color(0.85f, 0.05f, 0.05f, hurtAlpha),
+          }}
+        />
+        // Pickup flash
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+            BackgroundColor = new Color(0.95f, 0.85f, 0.2f, pickupAlpha),
+          }}
+        />
+        // Pickup message
+        @if (state.Player.MessageTimer > 0) {
+          return (
+            <Label
+              text={state.Player.MessageText}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute, Top = 12, Left = 0, Right = 0,
+                TextAlign = TextAnchor.MiddleCenter, Color = msgClr,
+                FontSize = 14, UnityFontStyle = FontStyle.Bold,
+              }}
+            />
+          );
+        }
+        // Minimap (top-right of the 3D viewport, above HUD).
+        <DoomMinimap state={state} />
+      </VisualElement>
+      // ── HUD ──
+      <DoomHUD
+        health={state.Player.Health}
+        armor={state.Player.Armor}
+        armorClass={state.Player.ArmorClass}
+        weapon={state.Player.Weapon}
+        ammo={(int[])state.Player.Ammo.Clone()}
+        ownedWeapons={(bool[])state.Player.OwnedWeapons.Clone()}
+        keys={state.Player.Keys}
+        score={state.Score}
+        killCount={state.KillCount}
+        killTotal={state.KillTotal}
+        mapName={state.Map.Name}
+        faceState={state.Player.FaceState}
+      />
+      // ── Overlays ──
+      @if (state.GameOver) {
+        return (
+          <VisualElement
+            style={new Style{
+              Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+              JustifyContent = Justify.Center, AlignItems = Align.Center,
+              BackgroundColor = new Color(0f, 0f, 0f, 0.7f),
+            }}
+          >
+            <Label
+              text="YOU DIED"
+              style={new Style{
+                FontSize = 64, Color = new Color(0.95f, 0.15f, 0.10f, 1f),
+                UnityFontStyle = FontStyle.Bold, MarginBottom = 24,
+              }}
+            />
+            <VisualElement
+              style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row }}
+            >
+              <Button
+                text="Restart"
+                onClick={_ => restart()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44, MarginRight = 12 }}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => onExit()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44 }}
+              />
+            </VisualElement>
+          </VisualElement>
+        );
+      }
+      @if (state.Victory) {
+        return (
+          <VisualElement
+            style={new Style{
+              Position = UnityEngine.UIElements.Position.Absolute, Left = 0, Top = 0, Right = 0, Bottom = 0,
+              JustifyContent = Justify.Center, AlignItems = Align.Center,
+              BackgroundColor = new Color(0f, 0f, 0f, 0.7f),
+            }}
+          >
+            <Label
+              text="LEVEL COMPLETE"
+              style={new Style{
+                FontSize = 48, Color = new Color(0.4f, 0.95f, 0.4f, 1f),
+                UnityFontStyle = FontStyle.Bold, MarginBottom = 12,
+              }}
+            />
+            <Label
+              text={"Kills: " + state.KillCount.ToString() + " / " + state.KillTotal.ToString() + "    Score: " + state.Score.ToString()}
+              style={new Style{ FontSize = 18, Color = white, MarginBottom = 24 }}
+            />
+            <VisualElement
+              style={new Style{ FlexDirection = UnityEngine.UIElements.FlexDirection.Row }}
+            >
+              <Button
+                text={level < 6 ? "Next Level" : "Finish"}
+                onClick={_ => onNextLevel()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44, MarginRight = 12 }}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => onExit()}
+                style={new Style{ FontSize = 18, Width = 140, Height = 44 }}
+              />
+            </VisualElement>
+          </VisualElement>
+        );
+      }
+    </VisualElement>
+  );
+}

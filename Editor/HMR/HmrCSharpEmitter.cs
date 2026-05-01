@@ -1523,6 +1523,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 "TimeValue",
                 "Rect",
                 "Quaternion",
+                // OPT-V2-2 — newly hoistable struct ctors used by 9-slice / text-shadow / advanced-font helpers
+                "TextShadow",
+                "FontDefinition",
             };
 
             /// <summary>

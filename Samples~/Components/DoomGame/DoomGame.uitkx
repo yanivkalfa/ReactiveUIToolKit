@@ -1,31 +1,48 @@
 @namespace Samples.DoomGame
 @using System
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
 @using static Samples.DoomGame.DoomTypes
 
 component DoomGame {
   var (screen, setScreen) = useState(GameScreen.MainMenu);
-  var (restartVersion, setRestartVersion) = useState(0);
+  var (level, setLevel) = useState(1);
+  var (difficulty, setDifficulty) = useState(Difficulty.Normal);
+  var (sessionVersion, setSessionVersion) = useState(0);
 
-  Action handleNewGame = () => {
-    setRestartVersion(v => v + 1);
+  Action handleStart = () => {
+    setSessionVersion(v => v + 1);
     setScreen(GameScreen.Game);
   };
-
-  Action handleReturnToMenu = () => {
-    setScreen(GameScreen.MainMenu);
+  Action handleExit = () => setScreen(GameScreen.MainMenu);
+  Action handleNext = () => {
+    if (level < 6) { setLevel(level + 1); setSessionVersion(v => v + 1); }
+    else { setScreen(GameScreen.MainMenu); setLevel(1); }
   };
 
   return (
-    <VisualElement style={Styles.Root}>
+    <VisualElement
+      style={new Style{ FlexGrow = 1f, BackgroundColor = new Color(0f, 0f, 0f, 1f) }}
+    >
       @if (screen == GameScreen.MainMenu) {
         return (
-          <DoomMainMenu onNewGame={handleNewGame} />
+          <DoomMainMenu
+            level={level}
+            difficulty={difficulty}
+            onLevelChange={l => setLevel(l)}
+            onDifficultyChange={d => setDifficulty(d)}
+            onStart={handleStart}
+          />
         );
       } @else {
         return (
           <DoomGameScreen
-            restartVersion={restartVersion}
-            onQuit={handleReturnToMenu}
+            restartVersion={sessionVersion}
+            level={level}
+            difficulty={difficulty}
+            onExit={handleExit}
+            onNextLevel={handleNext}
           />
         );
       }

@@ -6,7 +6,144 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
-## [Unreleased]
+## [0.4.13] - 2026-05-02
+
+### IStyle coverage — 13 missing properties wired end-to-end
+
+Closes the long-standing gap between `UnityEngine.UIElements.IStyle` (Unity
+6.2 floor: 84 properties) and the UITKX style pipeline. All 13 properties
+listed below are now first-class typed setters with full bitmask diffing,
+SetByKey/GetByKey support, pool reset, source-generator literal hoisting,
+HMR mirror, and IDE schema entries. A new xUnit coverage test
+(`IStyleCoverageTests`, 7 facts) locks parity in CI so future Unity
+versions cannot land an unwired property.
+
+#### New typed `Style` properties
+
+- **9-slice (6 props):** `UnitySliceLeft`, `UnitySliceRight`, `UnitySliceTop`,
+  `UnitySliceBottom` (each `StyleInt`), `UnitySliceScale` (`StyleFloat`),
+  `UnitySliceType` (`SliceType` — `Sliced` / `Tiled`).
+- **Clipping:** `UnityOverflowClipBox` (`OverflowClipBox` —
+  `PaddingBox` / `ContentBox`).
+- **Text spacing:** `UnityParagraphSpacing` (`StyleLength`),
+  `WordSpacing` (`StyleLength`).
+- **Text shadow:** `TextShadow` (`TextShadow` struct — offset, blur, color).
+- **Advanced font:** `UnityFontDefinition` (`FontDefinition` — wraps a
+  legacy `Font` or a TextCore `FontAsset`).
+- **Text generator:** `UnityTextGenerator` (`TextGeneratorType` —
+  `Standard` / `Advanced`).
+- **Editor text rendering:** `UnityEditorTextRenderingMode`
+  (`EditorTextRenderingMode` — `SDF` / `Bitmap`; editor-only behaviour).
+
+#### New `CssHelpers` shortcuts
+
+- `SliceFill`, `SliceTile` (SliceType)
+- `ClipPaddingBox`, `ClipContentBox` (OverflowClipBox)
+- `TextGenStandard`, `TextGenAdvanced` (TextGeneratorType)
+- `EditorTextSDF`, `EditorTextBitmap` (EditorTextRenderingMode)
+- `Shadow(dx, dy, blur, color)` → `TextShadow`
+- `FontDef(font)` → `FontDefinition`
+
+#### Fix — 19 pre-existing missing `styleResetters`
+
+While auditing setter/resetter parity, surfaced 19 `IStyle` properties
+that had a `styleSetters` entry but no matching `styleResetters` entry
+(silently leaked previous values when removed from a style block):
+`alignContent`, `alignItems`, `alignSelf`, `backgroundPositionX`,
+`backgroundPositionY`, `backgroundRepeat`, `backgroundSize`,
+`flexDirection`, `flexWrap`, `fontFamily`, `fontSize`, `justifyContent`,
+`position`, `rotate`, `scale`, `textAlign`, `transformOrigin`,
+`translate`, `unityFontStyle`. All now reset to `StyleKeyword.Null`.
+
+#### Internals
+
+- `Style` bit budget extended from 79 to 92 (`_setBits1` bits 15–27;
+  total 128 still in budget).
+- `Style.__Rent()` pool reset now clears `_textShadow` and
+  `_unityFontDefinition` (reference-bearing structs).
+- Source-generator hoisting whitelist (`s_literalCtorTypes` in
+  `CSharpEmitter` and HMR mirror) now accepts `TextShadow` and
+  `FontDefinition` literal initializers — all-literal `Style` blocks
+  with `Css.Shadow(...)` or `Css.FontDef(...)` get lifted to a
+  `private static readonly Style __sty_N` and reused across renders.
+- IDE schema (`uitkx-schema.json`) gained 4 enum value lists:
+  `unitySliceType`, `unityOverflowClipBox`, `unityTextGenerator`,
+  `unityEditorTextRenderingMode`.
+
+#### Documentation
+
+- Styling page property catalog: 13 new property cards across the Text,
+  Enum Styles, Background, and Assets categories.
+- Styling page enum-shortcuts table: 4 new rows (SliceType,
+  OverflowClipBox, TextGeneratorType, EditorTextRenderingMode).
+- Styling page compound-helpers table: 2 new rows (TextShadow,
+  FontDefinition).
+- CssHelpers Reference page: 6 new helper groups.
+- Search index extended with the new property and helper names.
+
+## [0.4.12] - 2026-05-01
+
+### Doom demo — Phase 9 sector-engine release
+
+This release is a non-library update: no UITKX runtime / source-generator /
+IDE changes. Everything below is the `Samples/Components/DoomGame/` demo,
+promoted from a flat 2.5D raycaster to a full sector-portal engine with
+stacked floors, a key-chain progression, a minimap, and a polished status
+bar. Pulled in to demonstrate that UITKX can host a real interactive game
+on top of the typed-props / hoisted-style render pipeline shipped in 0.4.10
+/ 0.4.11.
+
+#### Renderer
+
+- **Sector / portal raycaster (Phase 1–3).** Tile map is converted to a
+  `MapData` of sectors + linedefs at level start; rendering walks portals
+  via a per-ray cliprange (Plan C `winTop`/`winBot` screen-Y window) instead
+  of the old single-cell DDA. Variable floor / ceiling heights, upper /
+  lower wall segments, and sky cells render correctly.
+- **ExtraFloor stacked slabs (Phase 9).** Sectors can carry any number of
+  `ExtraFloor` slabs; the column rasterizer emits front-side and back-side
+  TOP / BOTTOM / SIDE planes per slab and tightens `winTop` / `winBot` per
+  ray so taller slabs further along the ray stay visible. Fixes the
+  long-standing “staircase upper treads disappear behind the lower one”
+  bug — used by Level 6’s 7-step interior staircase.
+- **Z-aware collision (Phase 7).** `MapDef.BlocksMovementZ(footZ, headZ,
+  STEP_HEIGHT)` replaces the binary `BlocksMovement` for slab-aware step-up,
+  jump, and crouch. Player is anchored to the current sector floor unless
+  airborne.
+
+#### Gameplay
+
+- **6 hand-built levels** (`Level1`..`Level6`) in `DoomMaps.uitkx` covering
+  Hangar, Toxin Refinery, Containment Area, Outpost, Phobos Anomaly, and
+  the boss-only finale.
+- **Level 1 progression rebuild.** Hub now gates side wings behind colored
+  doors: pick up the yellow key in the hub center → east wing (red key) →
+  west wing (blue key + shotgun) → north boss room (Baron + Cacodemon).
+  Walls flank every door so they can’t be sidestepped.
+- **Boss-gated exits.** New `LevelStart.BossExitGated` flag plus
+  `GameLogic.AnyBossAlive(ref st)` blocks the level-end trigger until every
+  Baron / Cacodemon is dead, with a “Kill the boss first.” HUD message on
+  attempt.
+- **Walkable exit pads.** New `MapBuilder.ExitPad(x, y)` creates an
+  `Exit`-kind cell with no wall texture and a deep-blue floor (`F_BLUE`),
+  so the back of the boss room reads as a clear visual end-zone instead of
+  the legacy “EXIT” sign block.
+- **Blue-brick back wall** (`W_BRICK_BLUE`) paints the wall behind the
+  Level 1 exit pads to reinforce the end-zone signal.
+
+#### UI
+
+- **Status bar rewrite** (`DoomHUD.uitkx`). 8-panel `FlexGrow`-ratio layout
+  (AMMO / HEALTH / ARMS / FACE / ARMOR / KEYS / BREAKDOWN / INFO) that
+  fills the full 800×90 viewport-bottom region. Per-panel title labels
+  with consistent vertical spacing and `WhiteSpace.NoWrap`. ARMS button
+  group renders 7 weapons in 3 columns with centered justification.
+- **Live minimap** (`DoomMinimap.uitkx`). Top-right overlay, auto-scales to
+  fit the largest map dimension into 160px. Renders walls, color-keyed
+  doors, the exit pad, the player (yellow dot + heading indicator), and
+  every live mobj (red enemies, cyan pickups, key-color keys).
+- **Boss / pickup balance.** Baron HP 800 → 200, Cacodemon HP 400 → 120 so
+  the Level 1 boss can be cleared with a few shotgun blasts.
 
 ## [0.4.11] - 2026-04-28
 
