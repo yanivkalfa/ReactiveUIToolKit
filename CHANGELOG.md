@@ -6,6 +6,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.18] - 2026-05-03
+
+### Fixed — HMR `CS0426` on function components with sibling top-level Props
+
+A consumer hit `[HMR] Compilation failed for AppRoot... CS0426: The type name
+'RouterFuncProps' does not exist in the type 'RouterFunc'` immediately after
+shipping 0.4.17. Root cause was a long-standing convention divergence between
+the source generator and the HMR compiler that only surfaced once HMR could
+actually compile module/style/hook files end-to-end (Bugs 1 & 2 from 0.4.17).
+
+#### The bug
+
+Function-component Props classes are emitted in three legitimate shapes:
+
+1. **Sibling top-level** — `RouterFunc` and `RouterFuncProps` both at namespace
+   scope, neither nested. Used by `ReactiveUITK.Router`.
+2. **Nested same-name** — `CompFunc.CompFuncProps` (the source generator's own
+   default emission shape).
+3. **Nested differently-named** — `ValuesBarFunc.Props` (legacy hand-written
+   pattern still in use).
+
+The source generator's `PropsResolver.TryGetFuncComponentPropsTypeName` already
+walked all three. HMR's `HmrCSharpEmitter.FindPropsType` only walked nested
+types and shipped `{Type}.{Type}Props` unconditionally — so any component using
+shape (1) compiled fine through source-gen but failed CS0426 through HMR.
+
+#### The fix
+
+`FindPropsType` now mirrors `PropsResolver` lookup order verbatim:
+
+1. Sibling top-level `{typeName}Props` in same namespace as the located
+   component type → returns `"global::" + siblingFullName` (typed Props).
+2. Nested `{typeName}.{typeName}Props` implementing `IProps` → returns
+   `"{typeName}.{siblingName}"`.
+3. Any nested `IProps` (legacy fallback) → returns `"{typeName}.{nested.Name}"`.
+4. Convention fallback string (preserves prior behavior for genuinely missing
+   types so the resulting CS error points at a recognizable location).
+
+#### Tests
+
+Two complementary layers, both running on every push, every PR, and before
+every package publish via the existing GitHub Actions workflows:
+
+- **SG-side parity test** (`FuncComponent_WithSiblingTopLevelPropsClass_EmitsTypedVFunc`)
+  — drives the generator with the real `RouterFunc` / `RouterFuncProps` shape
+  and asserts it emits `V.Func<global::Ns.RouterFuncProps>` rather than the
+  broken nested form. Pins the contract HMR mirrors.
+- **HMR algorithm contract tests** (`HmrFindPropsTypeContractTests`) — five
+  cases exercising the algorithm against in-memory Roslyn-compiled assemblies
+  (sibling / nested-named / nested-legacy / sibling-wins-priority / negative
+  fallback). Mirrors `FindPropsType` verbatim because the Editor assembly
+  (`UnityEditor` deps) cannot be loaded by the standalone .NET test runner.
+
+**1070/1070 SG** passing.
+
+VS Code **1.1.10 → 1.1.11** · VS 2022 **1.1.10 → 1.1.11** ride the same release.
+
+---
+
 ## [0.4.17] - 2026-05-03
 
 ### Fixed — HMR overload-resolution bug + asset-path rewrite gap in `module` / `hook` bodies

@@ -1,3 +1,30 @@
+## [0.4.18] - 2026-05-03
+
+### HMR `CS0426` on function components with sibling top-level Props — fixed
+
+Right after 0.4.17 unblocked HMR compilation of module/style/hook files, a follow-up surfaced: `[HMR] Compilation failed for AppRoot... CS0426: The type name 'RouterFuncProps' does not exist in the type 'RouterFunc'`. Root cause was a long-standing convention divergence between source-gen and HMR that only became reachable once HMR could actually compile these files end-to-end.
+
+**The bug.** Function-component Props classes ship in three legitimate shapes:
+
+1. **Sibling top-level** — `RouterFunc` and `RouterFuncProps` both at namespace scope, neither nested. Used by `ReactiveUITK.Router`.
+2. **Nested same-name** — `CompFunc.CompFuncProps` (the source generator's own default emission).
+3. **Nested differently-named** — `ValuesBarFunc.Props` (legacy hand-written pattern).
+
+Source-gen's `PropsResolver.TryGetFuncComponentPropsTypeName` already walked all three. HMR's `FindPropsType` only walked nested types and shipped `{Type}.{Type}Props` unconditionally — so any component using shape (1) compiled fine through source-gen but failed CS0426 through HMR.
+
+**The fix.** `FindPropsType` now mirrors `PropsResolver` lookup order verbatim — sibling top-level first, then nested same-name, then any nested `IProps`, then a convention fallback. Single resolver, three resolution paths, one canonical answer per component.
+
+**Tests.** Two complementary layers running on every push, PR, and pre-publish:
+
+- **SG-side parity test** drives the generator with the real `RouterFunc` / `RouterFuncProps` shape and asserts the typed `V.Func<global::Ns.RouterFuncProps>` is emitted (not the broken nested form). Pins the contract HMR mirrors.
+- **HMR algorithm contract tests** — five Roslyn-in-memory cases (sibling / nested-named / nested-legacy / sibling-wins-priority / negative fallback) mirror `FindPropsType` verbatim, since the Editor assembly's `UnityEditor` deps prevent the standalone .NET test runner from loading it directly.
+
+**1070/1070 SG** passing.
+
+VS Code **1.1.10 → 1.1.11** · VS 2022 **1.1.10 → 1.1.11** ride the same release.
+
+---
+
 ## [0.4.17] - 2026-05-03
 
 ### Two converging bugs around `.style.uitkx` / `.hooks.uitkx` — both fixed

@@ -1035,31 +1035,80 @@ namespace ReactiveUITK.EditorSupport.HMR
             /// Find the props type for a function component by searching loaded assemblies.
             /// Tries: TypeName.TypeNameProps (uitkx convention), TypeName.Props (manual convention).
             /// </summary>
+            /// <summary>
+            /// Resolves the props type for a function-style component, mirroring the
+            /// source generator's <c>PropsResolver.TryGetFuncComponentPropsTypeName</c>
+            /// fallback chain. Looks for, in order:
+            /// <list type="number">
+            ///   <item>A sibling top-level <c>{typeName}Props</c> class in the same
+            ///     namespace as the component (e.g. <c>RouterFunc</c> +
+            ///     <c>RouterFuncProps</c> in <c>ReactiveUITK.Router</c>).</item>
+            ///   <item>A nested <c>{typeName}.{typeName}Props</c> implementing
+            ///     <c>IProps</c> (the convention emitted by the source generator
+            ///     for UITKX function components compiled into referenced assemblies).</item>
+            ///   <item>Any nested type implementing <c>IProps</c> (legacy fallback).</item>
+            /// </list>
+            /// Returns a fully-qualified name when (1) matches so emitted code remains
+            /// valid even when the consumer's <c>@using</c> directives don't cover the
+            /// props' namespace; otherwise returns the bare nested form.
+            /// Falls back to <c>{typeName}.{typeName}Props</c> only when nothing is
+            /// found — preserves prior behaviour for unknown components.
+            /// </summary>
             private static string FindPropsType(string typeName)
             {
+                Type componentType = null;
+
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     if (asm.IsDynamic)
                         continue;
-                    try
+                    Type[] types;
+                    try { types = asm.GetTypes(); }
+                    catch { continue; /* ReflectionTypeLoadException — skip */ }
+
+                    foreach (var type in types)
                     {
-                        foreach (var type in asm.GetTypes())
+                        if (type.Name != typeName)
+                            continue;
+                        // Cache the first matching component type so we can fall back
+                        // to its namespace / nested types after the sibling search.
+                        componentType ??= type;
+
+                        // Step 1 — sibling top-level {typeName}Props in the same namespace
+                        // (the modern UITKX function-component pattern, e.g. RouterFunc /
+                        // RouterFuncProps both declared at namespace scope).
+                        string siblingName = typeName + "Props";
+                        string siblingFullName = string.IsNullOrEmpty(type.Namespace)
+                            ? siblingName
+                            : type.Namespace + "." + siblingName;
+                        var sibling = asm.GetType(siblingFullName, throwOnError: false);
+                        if (sibling != null
+                            && sibling.GetInterface("ReactiveUITK.Core.IProps") != null)
                         {
-                            if (type.Name != typeName)
-                                continue;
-                            // Look for nested types that implement IProps
-                            foreach (var nested in type.GetNestedTypes())
-                            {
-                                if (nested.GetInterface("ReactiveUITK.Core.IProps") != null)
-                                    return $"{typeName}.{nested.Name}";
-                            }
+                            return "global::" + siblingFullName;
+                        }
+
+                        // Step 2 — nested {typeName}.{typeName}Props (the form generated
+                        // by the source generator for compiled UITKX components).
+                        var nestedNamed = type.GetNestedType(siblingName);
+                        if (nestedNamed != null
+                            && nestedNamed.GetInterface("ReactiveUITK.Core.IProps") != null)
+                        {
+                            return $"{typeName}.{siblingName}";
+                        }
+
+                        // Step 3 — any nested IProps (legacy fallback).
+                        foreach (var nested in type.GetNestedTypes())
+                        {
+                            if (nested.GetInterface("ReactiveUITK.Core.IProps") != null)
+                                return $"{typeName}.{nested.Name}";
                         }
                     }
-                    catch
-                    { /* ReflectionTypeLoadException — skip */
-                    }
                 }
-                // Fallback: assume uitkx convention
+
+                // Last-resort fallback: assume the {Type}.{Type}Props convention so
+                // emitted code at least produces a clear CS error pointing at a
+                // recognizable name if the type is genuinely missing.
                 return $"{typeName}.{typeName}Props";
             }
 
