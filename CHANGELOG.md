@@ -6,6 +6,125 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.17] - 2026-05-03
+
+### Fixed — HMR overload-resolution bug + asset-path rewrite gap in `module` / `hook` bodies
+
+Two related production-grade fixes converging on `.style.uitkx` / `.hooks.uitkx`
+files. Both were silent until they met in a real consumer project (the
+`AppRoot.style.uitkx` / `Asset<Texture2D>("../Resources/background-01.png")`
+case), so this release also adds CI coverage so neither can recur.
+
+#### Bug 1 — HMR `ArgumentException` on every `.uitkx` save
+
+`UitkxHmrCompiler.InvokeWithDefaults` had two `params object[]` overloads:
+
+- `InvokeWithDefaults(MethodInfo, object target, params object[])` (instance/static aware)
+- `InvokeWithDefaults(MethodInfo, params object[])` (static-only, with API-drift padding)
+
+C# overload resolution prefers `string → object target` over `string →
+params object[]`, so calls like `InvokeWithDefaults(_directiveParse, source,
+uitkxPath, diagList, true)` silently bound to the **first** overload —
+`source` became the (ignored) target receiver and every subsequent argument
+shifted left by one position, dropping a `List<ParseDiagnostic>` into
+`DirectiveParser.Parse(string source, string filePath, ...)`'s `filePath`
+slot. Result on every `.uitkx` save during play mode:
+
+```
+ArgumentException: Object of type
+'System.Collections.Generic.List`1[ReactiveUITK.Language.Parser.ParseDiagnostic]'
+cannot be converted to type 'System.String'.
+```
+
+The two overloads were collapsed into a single canonical signature
+`InvokeWithDefaults(MethodInfo method, object target, params object[] args)`
+where `target` is **mandatory** (not defaulted) — this makes the entire
+class of "string arg accidentally captured as receiver" bug structurally
+impossible to recur. All eleven call sites updated to pass an explicit
+`null` (static methods) or the actual receiver (instance methods like
+`Compilation.Emit(stream)`).
+
+#### Bug 2 — `Asset<T>("./x")` / `Asset<T>("../x")` not rewritten in `module` / `hook` bodies
+
+The runtime `UitkxAssetRegistry` is a flat dictionary keyed by **resolved**
+Unity asset paths (e.g. `Assets/Resources/background-01.png`). The compile-
+time emitters are responsible for rewriting every `Asset<T>("./relative")`
+literal in the generated C# from the relative form to that resolved key,
+so that runtime `Get<T>(string key)` finds the entry.
+
+That rewrite (`ResolveAssetPaths`) was applied to component setup code,
+JSX attribute expressions, and directive (`@if` / `@foreach` / `@switch`)
+bodies — but **not** to `module { ... }` or `hook { ... }` bodies. So:
+
+```uitkx
+module AppRoot {
+  public static readonly Style Root = new Style {
+    BackgroundImage = Asset<Texture2D>("../Resources/background-01.png"),
+  };
+}
+```
+
+…shipped the literal `"../Resources/background-01.png"` to runtime, while
+the editor-side `UitkxAssetRegistrySync` (which scans the same source
+independently) wrote the entry under the resolved key
+`Assets/Resources/background-01.png`. The two halves no longer agreed,
+so `Asset<T>("…")` returned `null` with a warning:
+
+```
+[UITKX] Asset not found in registry: "../Resources/background-01.png"
+```
+
+Both emitter pipelines were widened to apply `ResolveAssetPaths` to
+module/hook bodies:
+
+- **Source generator** — `ModuleEmitter.Emit` and `HookEmitter.EmitSingleHook`
+  now call the same shared `EmitContext.ResolveAssetPaths` that powers
+  setup code and JSX attributes. The helper was promoted from a private
+  instance method to an `internal static` so all three emitters share a
+  single implementation (no semantic drift).
+- **HMR** — `HmrHookEmitter.EmitModules` and `HmrHookEmitter.EmitSingleHookBody`
+  now route bodies through `HmrCSharpEmitter.ResolveAssetPaths` (visibility
+  promoted from `private` to `internal`). HMR-recompiled assemblies now
+  produce literal-identical asset strings to source-generated ones.
+
+#### Why these two are related
+
+`.style.uitkx` and `.hooks.uitkx` files are the convergence point. Bug 1
+prevented HMR from ever compiling those files (Parse blew up). Bug 2 meant
+that even when source-gen ran cleanly, the registry lookup still missed
+because the literal stayed unrewritten. Both bugs needed to be fixed for
+`Asset<T>` inside `module` / `hook` blocks to work end-to-end.
+
+#### Tests
+
+Four new regression tests in `SourceGenerator~/Tests/EmitterTests.cs`:
+
+- `Module_AssetCall_RelativePath_IsRewritten` — `./bg.png` → `Assets/UI/bg.png`
+- `Module_AssetCall_DotDotPath_IsRewritten` — the exact failing case
+  (`../Resources/bg.png` → `Assets/Resources/bg.png`)
+- `Module_AssetCall_AbsolutePath_Unchanged` — negative test, no double-prefix
+- `Hook_AssetCall_RelativePath_IsRewritten` — parity for `HookEmitter`
+
+These run on every push, every PR, and before every package publish via
+`.github/workflows/test.yml` and `.github/workflows/publish.yml`, so the
+bug class cannot ship again. **1064/1064 SG** passing.
+
+#### Files touched
+
+- `Editor/HMR/UitkxHmrCompiler.cs` — overload collapse + 11 call-site updates
+- `Editor/HMR/HmrCSharpEmitter.cs` — `ResolveAssetPaths` visibility
+- `Editor/HMR/HmrHookEmitter.cs` — apply asset-path rewrite to hook + module bodies
+- `SourceGenerator~/Emitter/CSharpEmitter.cs` — `ResolveAssetPaths` (and helpers
+  `ResolveRelativePath` / `GetUitkxAssetDir` / `GetProjectRoot`) promoted to
+  pure statics taking `(filePath, diagnostics)` parameters
+- `SourceGenerator~/Emitter/HookEmitter.cs` — wire asset-path rewrite after
+  hook-alias substitution
+- `SourceGenerator~/Emitter/ModuleEmitter.cs` — wire asset-path rewrite for
+  every module body
+- `SourceGenerator~/Tests/EmitterTests.cs` — 4 new regression tests
+
+VS Code **1.1.9 → 1.1.10** · VS 2022 **1.1.9 → 1.1.10** ride the same release.
+
 ## [0.4.16] - 2026-05-03
 
 ### Fixed — HMR `TargetParameterCountException` + production-grade hardening
