@@ -171,9 +171,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // ── 1. Parse directives ──────────────────────────────────────
                 var stepSw = Stopwatch.StartNew();
                 var diagList = CreateDiagnosticList();
-                var directives = _directiveParse.Invoke(
-                    null,
-                    new object[] { source, uitkxPath, diagList, true }
+                var directives = InvokeWithDefaults(
+                    _directiveParse,
+                    source, uitkxPath, diagList, true
                 );
 
                 if (directives == null)
@@ -194,18 +194,21 @@ namespace ReactiveUITK.EditorSupport.HMR
                 result.ComponentName = componentName;
 
                 // ── 2. Parse AST ─────────────────────────────────────────────
-                var astNodes = _uitkxParse.Invoke(
-                    null,
-                    new object[] { source, uitkxPath, directives, diagList, false }
+                // Trailing optional args (e.g. lineOffset) are filled in by
+                // InvokeWithDefaults if the loaded language library has gained
+                // new optional parameters since this HMR compiler was built.
+                var astNodes = InvokeWithDefaults(
+                    _uitkxParse,
+                    source, uitkxPath, directives, diagList, false
                 );
                 stepSw.Stop();
                 result.ParseMs = stepSw.Elapsed.TotalMilliseconds;
 
                 // ── 3. Canonical lowering + Emit C# ──────────────────────────
                 stepSw = Stopwatch.StartNew();
-                var lowered = _canonicalLower.Invoke(
-                    null,
-                    new object[] { directives, astNodes, uitkxPath }
+                var lowered = InvokeWithDefaults(
+                    _canonicalLower,
+                    directives, astNodes, uitkxPath
                 );
 
                 // Build a delegate that can parse standalone JSX fragments.
@@ -214,10 +217,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 {
                     string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
                     var miniDiags = CreateDiagnosticList();
-                    var miniDir = _directiveParse.Invoke(
-                        null, new object[] { synthetic, path, miniDiags, false });
-                    var nodes = _uitkxParse.Invoke(
-                        null, new object[] { synthetic, path, miniDir, miniDiags, false });
+                    var miniDir = InvokeWithDefaults(
+                        _directiveParse, synthetic, path, miniDiags, false);
+                    var nodes = InvokeWithDefaults(
+                        _uitkxParse, synthetic, path, miniDir, miniDiags, false);
                     return GetItems(nodes);
                 };
 
@@ -278,6 +281,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
             catch (Exception ex)
             {
+                result.IsInfrastructureError = IsInfrastructureException(ex);
                 result.Error = ex is TargetInvocationException tie
                     ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}\n{tie.InnerException?.StackTrace}"
                     : $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
@@ -345,6 +349,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
             catch (Exception ex)
             {
+                result.IsInfrastructureError = IsInfrastructureException(ex);
                 result.Error = ex is System.Reflection.TargetInvocationException tie
                     ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}\n{tie.InnerException?.StackTrace}"
                     : $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
@@ -385,8 +390,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 {
                     string companionSource = File.ReadAllText(file);
                     var diagList = CreateDiagnosticList();
-                    var companionDir = _directiveParse.Invoke(
-                        null, new object[] { companionSource, file, diagList, true });
+                    var companionDir = InvokeWithDefaults(
+                        _directiveParse, companionSource, file, diagList, true);
                     if (companionDir == null) continue;
 
                     // Emit module bodies (style constants, utility methods, etc.)
@@ -1394,6 +1399,92 @@ namespace ReactiveUITK.EditorSupport.HMR
                 items.Add(item);
             return items;
         }
+
+        // ── Defensive reflection invoker ─────────────────────────────────────
+        // Tracks per-MethodInfo whether we've already warned about silent
+        // padding, so a single drift is reported once per session instead of
+        // flooding the console on every .uitkx save.
+        private static readonly HashSet<MethodInfo> _paddedMethodWarnings = new();
+        private static readonly object _paddedMethodWarningsLock = new();
+
+        /// <summary>
+        /// Invokes a static reflective method, padding short argument arrays
+        /// with each parameter's compile-time default value when the language
+        /// library has gained new optional parameters since this HMR build was
+        /// shipped. Surfaces silent API drift via a one-time <c>LogWarning</c>
+        /// per <see cref="MethodInfo"/>, and throws a clear
+        /// <see cref="ArgumentException"/> when the mismatch is irrecoverable
+        /// (too many args, or a non-optional parameter is missing).
+        /// </summary>
+        private static object InvokeWithDefaults(MethodInfo method, params object[] args)
+        {
+            if (method == null) throw new ArgumentNullException(nameof(method));
+            args ??= Array.Empty<object>();
+
+            var parameters = method.GetParameters();
+            if (args.Length == parameters.Length)
+                return method.Invoke(null, args);
+
+            if (args.Length > parameters.Length)
+            {
+                throw new ArgumentException(
+                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed " +
+                    $"{args.Length} args but the loaded language library declares " +
+                    $"{parameters.Length} parameter(s). The HMR compiler must be updated.");
+            }
+
+            // args.Length < parameters.Length — pad missing tail with defaults.
+            var padded = new object[parameters.Length];
+            Array.Copy(args, padded, args.Length);
+            for (int i = args.Length; i < parameters.Length; i++)
+            {
+                var p = parameters[i];
+                if (!p.HasDefaultValue)
+                {
+                    throw new ArgumentException(
+                        $"[HMR] {method.DeclaringType?.Name}.{method.Name}: missing " +
+                        $"required argument '{p.Name}' (position {i}). The HMR compiler " +
+                        $"is out of sync with the loaded language library.");
+                }
+                padded[i] = p.DefaultValue;
+            }
+
+            bool firstWarning;
+            lock (_paddedMethodWarningsLock)
+                firstWarning = _paddedMethodWarnings.Add(method);
+            if (firstWarning)
+            {
+                Debug.LogWarning(
+                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed " +
+                    $"{args.Length} args but the loaded language library declares " +
+                    $"{parameters.Length} parameter(s); padded missing tail with " +
+                    $"compile-time defaults. Update the HMR compiler to pass the " +
+                    $"new arguments explicitly.");
+            }
+
+            return method.Invoke(null, padded);
+        }
+
+        /// <summary>
+        /// Classifies whether an exception caught inside the HMR compile pipeline
+        /// represents an infrastructure failure (HMR plumbing is broken) as opposed
+        /// to a user-authored .uitkx error. Infrastructure failures cause the
+        /// controller to log one error and self-disable; user errors continue to
+        /// follow the warn + retry cascade flow.
+        /// </summary>
+        internal static bool IsInfrastructureException(Exception ex)
+        {
+            if (ex == null) return false;
+            // Unwrap reflection wrapper.
+            if (ex is TargetInvocationException tie && tie.InnerException != null)
+                ex = tie.InnerException;
+            return ex is TargetParameterCountException
+                || ex is MissingMethodException
+                || ex is MissingFieldException
+                || ex is TypeLoadException
+                || ex is ReflectionTypeLoadException
+                || ex is BadImageFormatException;
+        }
     }
 
     // ── Result ────────────────────────────────────────────────────────────────
@@ -1428,5 +1519,15 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         public string TimingBreakdown =>
             $"Parse: {ParseMs:F1}ms | Emit: {EmitMs:F1}ms | Compile: {CompileMs:F1}ms | Swap: {SwapMs:F1}ms | Total: {TotalMs:F1}ms";
+
+        /// <summary>
+        /// True when the failure is caused by HMR infrastructure drift
+        /// (reflection signature mismatch against the language library, missing
+        /// type/method, or assembly load failure) rather than a user-authored
+        /// .uitkx error. Triggers a one-time error log + self-disable in the
+        /// controller — restart Unity or click Start in the HMR window after
+        /// rebuilding the language library.
+        /// </summary>
+        public bool IsInfrastructureError;
     }
 }

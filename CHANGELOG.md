@@ -6,6 +6,62 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.16] - 2026-05-03
+
+### Fixed — HMR `TargetParameterCountException` + production-grade hardening
+
+A reflection signature drift between the editor-only HMR compiler and the
+loaded `ReactiveUITK.Language.dll` (`UitkxParser.Parse` gained an optional
+`lineOffset` parameter in 0.4.7) caused `TargetParameterCountException` to
+fire on every `.uitkx` save during play mode, swallowed silently into a
+`Debug.LogWarning` and an infinite retry storm. This release fixes the
+immediate symptom and adds two layers of defense so the same class of
+plumbing failure cannot recur silently.
+
+#### Layer 1 — immediate fix
+
+`UitkxHmrCompiler` now passes the trailing `lineOffset = 0` argument to
+both `_uitkxParse.Invoke` sites in `Compile()` and the `parseMarkup`
+delegate. Hot reload of components, hooks, and modules works again
+during play mode.
+
+#### Layer 2 — defensive `InvokeWithDefaults` helper
+
+All six reflective invocations into the language library
+(`DirectiveParser.Parse`, `UitkxParser.Parse`, `CanonicalLowering.LowerToRenderRoots`)
+now route through a new `InvokeWithDefaults(MethodInfo, params object[])`
+helper that pads short argument arrays with each parameter's compile-time
+`DefaultValue`. When padding is actually triggered, a one-time
+`Debug.LogWarning` per `MethodInfo` surfaces silent API drift the next
+time it happens — instead of failing, HMR keeps working with sensible
+defaults and tells you to update the call site.
+
+#### Layer 3 — infrastructure-error classifier + self-disable
+
+`HmrCompileResult` gained a `bool IsInfrastructureError` flag. The
+compiler's catch blocks classify the inner exception type
+(`TargetParameterCountException | MissingMethodException |
+MissingFieldException | TypeLoadException | ReflectionTypeLoadException |
+BadImageFormatException`) and set the flag. `UitkxHmrController` checks
+the flag before its existing CS0103 retry cascade: on the first
+infrastructure failure it emits a single `Debug.LogError` with
+actionable text, then calls `Stop()` (the only safe disable path —
+unhooks events, stops the file watcher, unlocks the assembly-reload
+suppressor, restores `Application.runInBackground`, clears retry
+queues). The user can re-`Start` from the HMR window after rebuilding
+the language library; a `_loggedInfrastructureFailure` gate is reset on
+`Start()` so future sessions get a fresh shot.
+
+User-authored compile errors (`CS0103`, `CS1xxx`, syntax errors) are
+still returned as strings on `result.Error` and follow the existing
+warn + retry cascade — only true infrastructure plumbing failures
+self-disable.
+
+Files changed: [Editor/HMR/UitkxHmrCompiler.cs](Editor/HMR/UitkxHmrCompiler.cs),
+[Editor/HMR/UitkxHmrController.cs](Editor/HMR/UitkxHmrController.cs).
+Source generator, runtime, build, and IDE extension surfaces are
+untouched. All 1060 source-generator tests pass.
+
 ## [0.4.15] - 2026-05-03
 
 ### Fixed
