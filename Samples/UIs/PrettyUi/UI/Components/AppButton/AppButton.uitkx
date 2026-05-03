@@ -1,0 +1,29 @@
+@namespace PrettyUi.App.Components
+@using System
+@using PrettyUi.App
+@using UnityEngine
+@using UnityEngine.UIElements
+
+component AppButton(
+  string text = "",
+  Action? onClick = null,
+  bool active = false,
+  bool disabled = false,
+  Style? style = null
+) {
+  var resolved = StyleExtensions.Extend(
+    Base,
+    active ? Active : null,
+    disabled ? Disabled : null,
+    style
+  );
+
+  return (
+    <Button
+      text={text}
+      enabled={!disabled}
+      style={resolved}
+      onClick={(disabled || onClick == null) ? null : (_ => onClick())}
+    />
+  );
+}

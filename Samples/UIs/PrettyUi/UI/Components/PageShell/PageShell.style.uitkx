@@ -1,0 +1,18 @@
+@namespace PrettyUi.App.Components
+@using PrettyUi.App
+@using UnityEngine
+
+module PageShell {
+  public static readonly Style Root = new Style {
+    FlexGrow = 1f,
+    FlexDirection = FlexRow,
+  };
+
+  public static readonly Style Content = new Style {
+    FlexGrow = 1f,
+    PaddingTop = 24f,
+    PaddingBottom = 24f,
+    PaddingLeft = 24f,
+    PaddingRight = 24f,
+  };
+}

@@ -335,6 +335,25 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Update USS dependency map for this file
                 RegisterUssDependencies(uitkxPath);
 
+                // Re-bind `static readonly` module fields BEFORE delegate swap
+                // so the new render delegate sees the new field values on its
+                // first execution. Pre-fix, edits to a `module` declaration's
+                // field initializers (e.g. removing a Style entry) had no
+                // effect until the user exited Play mode and forced a full
+                // assembly reload. See UitkxHmrModuleStaticSwapper for design.
+                int reInitedFields = 0;
+                try
+                {
+                    reInitedFields = UitkxHmrModuleStaticSwapper
+                        .SwapModuleStatics(result.LoadedAssembly);
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[HMR] Module-static re-init failed: {ex.Message}"
+                    );
+                }
+
                 // Swap delegates (timed)
                 var swapSw = Stopwatch.StartNew();
                 int swapped;
@@ -378,6 +397,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                     Debug.Log(
                         $"[HMR] {result.ComponentName} updated ({result.TotalMs:F0}ms, "
                             + $"{swapped} instance(s)) — {result.TimingBreakdown}"
+                            + (reInitedFields > 0
+                                ? $" | Module statics re-init: {reInitedFields}"
+                                : string.Empty)
                     );
 
                 // Remove from pending retries if this was a re-attempt
