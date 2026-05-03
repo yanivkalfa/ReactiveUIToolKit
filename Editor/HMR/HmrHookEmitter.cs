@@ -202,6 +202,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 int bodyStartLine = (int)GetProp(module, "BodyStartLine");
                 string body = (string)GetProp(module, "Body");
 
+                // Resolve relative Asset<T>("./x") / Ast<T>("../x") paths to absolute
+                // Unity registry keys (parity with the source-gen ModuleEmitter, so HMR
+                // recompiles produce identical literal strings to what UitkxAssetRegistry
+                // indexes by).
+                body = HmrCSharpEmitter.ResolveAssetPaths(body, filePath);
+
                 sb.AppendLine($"    public partial class {name}");
                 sb.AppendLine("    {");
                 sb.AppendLine($"#line {bodyStartLine} \"{linePath}\"");
@@ -234,7 +240,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Read params via reflection (ImmutableArray<FunctionParam>)
             string paramList = BuildParamListFromReflection(hook);
             string paramNames = BuildParamNamesFromReflection(hook);
+            // Apply hook aliases AND resolve relative asset paths so HMR-compiled
+            // hook bodies behave identically to source-generated ones.
             string transformedBody = ApplyHookAliases(body);
+            transformedBody = HmrCSharpEmitter.ResolveAssetPaths(transformedBody, linePath);
 
             sb.AppendLine();
             sb.AppendLine($"        public static {retType} {bodyMethodName}{genericSuffix}({paramList})");

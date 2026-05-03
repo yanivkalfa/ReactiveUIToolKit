@@ -84,7 +84,7 @@ namespace ReactiveUITK.Language.Parser
                             }
                         }
 
-                        // ΓöÇΓöÇ Bare JSX: return <Tag .../>;  or  return <Tag>...</Tag>; ΓöÇΓöÇ
+                        // ── Bare JSX: return <Tag .../>;  or  return <Tag>...</Tag>; ──
                         // Treat as if the user wrote return (<JSX>);  by synthesising
                         // paren positions that the caller can use unchanged.
                         if (j < endExclusive && source[j] == '<'
@@ -113,7 +113,7 @@ namespace ReactiveUITK.Language.Parser
                             }
                         }
 
-                        // ΓöÇΓöÇ return null; ΓöÇΓöÇ
+                        // ── return null; ──
                         // Sentinel values: openParen == -1, closeParen == -1
                         // indicate a null return (no JSX body to parse).
                         if (TryReadKeywordAt(source, j, "null"))
@@ -197,7 +197,7 @@ namespace ReactiveUITK.Language.Parser
             return line;
         }
 
-        // ΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Helpers ───────────────────────────────────────────────────────────
 
         /// <summary>
         /// Read a balanced <c>(...)</c> span, skipping strings, comments, and nested

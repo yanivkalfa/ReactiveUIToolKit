@@ -1,3 +1,27 @@
+## [0.4.17] - 2026-05-03
+
+### Two converging bugs around `.style.uitkx` / `.hooks.uitkx` — both fixed
+
+A consumer hit `[UITKX] Asset not found in registry: "../Resources/background-01.png"` from `AppRoot.style.uitkx`. Investigation surfaced two independent latent bugs that both manifest in module/style/hook files.
+
+**Bug 1 — HMR `ArgumentException` on every save.** `UitkxHmrCompiler.InvokeWithDefaults` had two `params object[]` overloads. C# overload resolution preferred `string → object target` over `string → params object[]`, so calls bound to the *wrong* overload — the first `string` arg silently became the (ignored) target receiver and every following arg shifted left by one position. A `List<ParseDiagnostic>` then landed in `DirectiveParser.Parse`'s `filePath` slot:
+
+> `ArgumentException: Object of type 'List<ParseDiagnostic>' cannot be converted to type 'System.String'.`
+
+The two overloads were collapsed into a single canonical `(MethodInfo method, object target, params object[] args)` where `target` is **mandatory** — making the entire bug class structurally impossible to recur. All 11 call sites updated.
+
+**Bug 2 — `Asset<T>(...)` literals never rewritten in `module` / `hook` bodies.** The runtime `UitkxAssetRegistry` is keyed by **resolved** Unity asset paths (`Assets/Resources/background-01.png`); the compile-time emitter is supposed to rewrite `Asset<T>("./relative")` → that key. The rewrite covered component setup code, JSX attributes, and `@if`/`@foreach`/`@switch` bodies — but **not** `module {}` / `hook {}` bodies. So `BackgroundImage = Asset<Texture2D>("../Resources/bg.png")` shipped as the raw relative literal while the registry sync wrote the resolved key independently. The two halves disagreed → runtime miss.
+
+`ResolveAssetPaths` was promoted from a private instance method on `EmitContext` to an `internal static` shared by all three source-gen emitters (`CSharpEmitter`, `HookEmitter`, `ModuleEmitter`); HMR's parallel `HmrCSharpEmitter.ResolveAssetPaths` had its visibility promoted so `HmrHookEmitter` can route module + hook bodies through it. Source-gen and HMR now produce literal-identical asset strings.
+
+**Why these are related.** `.style.uitkx` and `.hooks.uitkx` are the convergence point — Bug 1 prevented HMR from compiling them at all, Bug 2 meant even when source-gen ran cleanly, the registry lookup still missed. Both bugs needed fixing for `Asset<T>` inside `module` / `hook` blocks to work end-to-end.
+
+**Tests.** 4 new regression tests in `EmitterTests` (module + relative `./`, module + `../`, module + absolute, hook + relative). They run on every push, every PR, and before every package publish via the existing GitHub Actions workflows — the bug class cannot ship again. **1064/1064 SG** passing.
+
+VS Code **1.1.9 → 1.1.10** · VS 2022 **1.1.9 → 1.1.10** ride the same release.
+
+---
+
 ## [0.4.16] - 2026-05-03
 
 ### HMR — fix `TargetParameterCountException` + production-grade hardening

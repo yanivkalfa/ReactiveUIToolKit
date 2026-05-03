@@ -173,6 +173,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var diagList = CreateDiagnosticList();
                 var directives = InvokeWithDefaults(
                     _directiveParse,
+                    null,
                     source, uitkxPath, diagList, true
                 );
 
@@ -199,6 +200,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // new optional parameters since this HMR compiler was built.
                 var astNodes = InvokeWithDefaults(
                     _uitkxParse,
+                    null,
                     source, uitkxPath, directives, diagList, false
                 );
                 stepSw.Stop();
@@ -208,6 +210,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 stepSw = Stopwatch.StartNew();
                 var lowered = InvokeWithDefaults(
                     _canonicalLower,
+                    null,
                     directives, astNodes, uitkxPath
                 );
 
@@ -218,9 +221,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                     string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
                     var miniDiags = CreateDiagnosticList();
                     var miniDir = InvokeWithDefaults(
-                        _directiveParse, synthetic, path, miniDiags, false);
+                        _directiveParse, null, synthetic, path, miniDiags, false);
                     var nodes = InvokeWithDefaults(
-                        _uitkxParse, synthetic, path, miniDir, miniDiags, false);
+                        _uitkxParse, null, synthetic, path, miniDir, miniDiags, false);
                     return GetItems(nodes);
                 };
 
@@ -391,7 +394,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     string companionSource = File.ReadAllText(file);
                     var diagList = CreateDiagnosticList();
                     var companionDir = InvokeWithDefaults(
-                        _directiveParse, companionSource, file, diagList, true);
+                        _directiveParse, null, companionSource, file, diagList, true);
                     if (companionDir == null) continue;
 
                     // Emit module bodies (style constants, utility methods, etc.)
@@ -842,39 +845,6 @@ namespace ReactiveUITK.EditorSupport.HMR
                     && m.GetParameters().Length == 1
                     && m.GetParameters()[0].ParameterType == typeof(string)
                 );
-        }
-
-        /// <summary>
-        /// Invoke a method filling in default values for any optional parameters
-        /// beyond those explicitly provided.
-        /// </summary>
-        private static object InvokeWithDefaults(
-            MethodInfo method,
-            object target,
-            params object[] explicitArgs
-        )
-        {
-            var parms = method.GetParameters();
-            var allArgs = new object[parms.Length];
-            for (int i = 0; i < parms.Length; i++)
-            {
-                if (i < explicitArgs.Length)
-                {
-                    allArgs[i] = explicitArgs[i];
-                }
-                else if (parms[i].HasDefaultValue)
-                {
-                    var def = parms[i].DefaultValue;
-                    allArgs[i] = def is System.DBNull ? null : def;
-                }
-                else
-                {
-                    allArgs[i] = parms[i].ParameterType.IsValueType
-                        ? Activator.CreateInstance(parms[i].ParameterType)
-                        : null;
-                }
-            }
-            return method.Invoke(target, allArgs);
         }
 
         private void BuildMetadataReferences()
@@ -1408,22 +1378,31 @@ namespace ReactiveUITK.EditorSupport.HMR
         private static readonly object _paddedMethodWarningsLock = new();
 
         /// <summary>
-        /// Invokes a static reflective method, padding short argument arrays
-        /// with each parameter's compile-time default value when the language
-        /// library has gained new optional parameters since this HMR build was
-        /// shipped. Surfaces silent API drift via a one-time <c>LogWarning</c>
-        /// per <see cref="MethodInfo"/>, and throws a clear
-        /// <see cref="ArgumentException"/> when the mismatch is irrecoverable
-        /// (too many args, or a non-optional parameter is missing).
+        /// Invokes a reflective method, padding short argument arrays with each
+        /// parameter's compile-time default value when the language library has
+        /// gained new optional parameters since this HMR build was shipped.
+        /// Surfaces silent API drift via a one-time <c>LogWarning</c> per
+        /// <see cref="MethodInfo"/>, and throws a clear <see cref="ArgumentException"/>
+        /// when the mismatch is irrecoverable (too many args, or a non-optional
+        /// parameter is missing).
+        ///
+        /// <para>The <paramref name="target"/> argument is the receiver for
+        /// instance methods, or <c>null</c> for static methods. It is mandatory
+        /// (rather than defaulted) so that overload resolution cannot silently
+        /// shift a <c>string</c> argument into the receiver slot — a class of
+        /// bug that previously hid behind two competing <c>params</c> overloads.</para>
         /// </summary>
-        private static object InvokeWithDefaults(MethodInfo method, params object[] args)
+        private static object InvokeWithDefaults(
+            MethodInfo method,
+            object target,
+            params object[] args)
         {
             if (method == null) throw new ArgumentNullException(nameof(method));
             args ??= Array.Empty<object>();
 
             var parameters = method.GetParameters();
             if (args.Length == parameters.Length)
-                return method.Invoke(null, args);
+                return method.Invoke(target, args);
 
             if (args.Length > parameters.Length)
             {
@@ -1462,7 +1441,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     $"new arguments explicitly.");
             }
 
-            return method.Invoke(null, padded);
+            return method.Invoke(target, padded);
         }
 
         /// <summary>
