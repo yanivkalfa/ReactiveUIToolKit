@@ -2,12 +2,6 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-// One component tree, two satellite mounting points.
-// The host (PortalsPlaygroundBootstrap) seeds two VisualElement slots into
-// HostContext.Environment under the keys below; this component reads them
-// with useContext and routes children into them via <Portal target=...>.
-//
-// Both portals share `count` — click either button, both labels update.
 component PortalsPlayground {
   var slotA = useContext<VisualElement>("portals:slot-a");
   var slotB = useContext<VisualElement>("portals:slot-b");
@@ -18,7 +12,6 @@ component PortalsPlayground {
     <VisualElement>
       <Label text="Portals Playground (main host)" />
       <Label text={$"Shared count: {count}"} />
-
       @if (slotA != null) {
         return (
           <Portal target={slotA}>
@@ -30,7 +23,6 @@ component PortalsPlayground {
           </Portal>
         );
       }
-
       @if (slotB != null) {
         return (
           <Portal target={slotB}>
