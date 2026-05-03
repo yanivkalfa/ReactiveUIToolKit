@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-05-03",
+      "versions": {
+        "vscode": "1.1.8",
+        "vs2022": "1.1.8"
+      },
+      "shared": [
+        "Feature: schema entries for the new router primitives — <Outlet/>, <Routes>, <NavLink>, <Navigate> — with full attribute metadata. Autocomplete and inline docs work in VS Code, Rider, and Visual Studio without per-IDE changes (single uitkx-schema.json source).",
+        "Feature: <Router> schema gained 'basename' attribute; <Route> schema gained 'index' and 'caseSensitive' attributes. Layout-route description on <Route> now mentions Element + child Routes co-existence."
+      ]
+    },
+    {
       "date": "2026-05-01",
       "versions": {
         "vscode": "1.1.7",

@@ -1,3 +1,19 @@
+## [0.4.14] - 2026-05-03
+
+### Router — React-Router-v6 parity (additive, no breaking changes)
+
+New primitives: **`<Outlet/>`**, **`<Routes>`** (ranked first-match-wins), **`<NavLink>`** (active styling), **`<Navigate to>`** (declarative redirect).
+
+`<Route>` gains `index`, `caseSensitive`, and layout-route composition (`element` + child `<Route>`s feed `<Outlet/>`). `<Router>` gains `basename`; nested `<Router>` is now a hard error.
+
+New `RouterHooks`: `UseOutletContext<T>`, `UseMatches`, `UseResolvedPath`, `UseSearchParams`, `UsePrompt`, `UseNavigate(NavigateOptions)`. Old signatures preserved.
+
+Internals: shared `RouteRanker` (port of RR's `rankRouteBranches`/`computeScore`); single-source-of-truth tag-alias map shared by source-gen + HMR.
+
+**1063/1063 SG** passing (6 new emission tests). VS Code **1.1.7 → 1.1.8** · VS2022 **1.1.7 → 1.1.8** ship schema entries for the new tags/attributes. Docs site router page rewritten to cover the new surface.
+
+---
+
 ## [0.4.13] - 2026-05-02
 
 ### Style coverage — 13 missing IStyle properties wired end-to-end
