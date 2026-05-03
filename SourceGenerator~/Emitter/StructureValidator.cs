@@ -12,10 +12,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     /// <summary>
     /// Validates structural properties of the parsed UITKX AST:
     ///
-    ///   UITKX0009 ΓÇö Element inside @foreach lacking a key attribute (reconciler stability)
-    ///   UITKX0017 ΓÇö More than one root element (component must return a single root)
-    ///   UITKX0018 ΓÇö <c>UseEffect</c> called with only a callback; dependency array is missing
-    ///   UITKX0019 ΓÇö The loop iterator variable is used directly as the <c>key</c> attribute
+    ///   UITKX0009 — Element inside @foreach lacking a key attribute (reconciler stability)
+    ///   UITKX0017 — More than one root element (component must return a single root)
+    ///   UITKX0018 — <c>UseEffect</c> called with only a callback; dependency array is missing
+    ///   UITKX0019 — The loop iterator variable is used directly as the <c>key</c> attribute
     ///               inside a <c>@foreach</c> body (index-as-key anti-pattern)
     /// </summary>
     internal static class StructureValidator
@@ -52,7 +52,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             WalkForeachForIndexKey(nodes, filePath, diagnostics);
         }
 
-        // ΓöÇΓöÇ UITKX0017 ΓÇö multiple root elements ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── UITKX0017 — multiple root elements ───────────────────────────────
 
         private static void CheckMultipleRoots(
             ImmutableArray<AstNode> rootNodes,
@@ -75,7 +75,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
         }
 
-        // ΓöÇΓöÇ UITKX0018 ΓÇö UseEffect missing dependency array ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── UITKX0018 — UseEffect missing dependency array ───────────────────
 
         private static void CheckUseEffectInSetupCode(
             DirectiveSet directives,
@@ -94,7 +94,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
         }
 
-        // ΓöÇΓöÇ UITKX0018 ΓÇö UseEffect missing deps in control-block SetupCode ΓöÇΓöÇΓöÇΓöÇ
+        // ── UITKX0018 — UseEffect missing deps in control-block SetupCode ────
 
         /// <summary>
         /// Recursively walks the AST and scans every control-block's SetupCode
@@ -244,7 +244,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return count;
         }
 
-        // ΓöÇΓöÇ UITKX0009 ΓÇö @foreach child missing key ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── UITKX0009 — @foreach child missing key ─────────────────────────────────
 
         /// <summary>
         /// Recursively walks every loop node (@foreach, @for, @while) and emits UITKX0009 for
@@ -318,7 +318,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
         }
 
-        // ΓöÇΓöÇ UITKX0019 ΓÇö loop iterator variable used as key ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── UITKX0019 — loop iterator variable used as key ───────────────────
 
         private static void WalkForeachForIndexKey(
             ImmutableArray<AstNode> nodes,
@@ -378,7 +378,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Flag when the key expression is exactly the bare loop variable AND the
                 // variable name looks like a positional index ("i", "j", "idx", ...).  
                 // Descriptive names like 'entry' or 'item' indicate the loop variable IS
-                // the item identity ΓÇö using it directly as a key is correct and intentional.
+                // the item identity — using it directly as a key is correct and intentional.
                 if (
                     keyAttr.Value is CSharpExpressionValue kv
                     && string.Equals(kv.Expression.Trim(), loopVar, StringComparison.Ordinal)
@@ -425,7 +425,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// Extracts the loop variable name from an iterator declaration.
         /// Returns <c>null</c> for tuple-destructuring patterns (e.g. <c>(int i, string s)</c>)
         /// where simple detection isn't reliable.
-        /// Examples: <c>var item</c> ΓåÆ <c>item</c>, <c>int i</c> ΓåÆ <c>i</c>.
+        /// Examples: <c>var item</c> → <c>item</c>, <c>int i</c> → <c>i</c>.
         /// </summary>
         private static string? ExtractLoopVarName(string iteratorDecl)
         {

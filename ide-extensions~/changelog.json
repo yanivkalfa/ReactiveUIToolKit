@@ -3,6 +3,17 @@
     {
       "date": "2026-05-03",
       "versions": {
+        "vscode": "1.1.10",
+        "vs2022": "1.1.10"
+      },
+      "shared": [
+        "Fix: HMR no longer fails with `ArgumentException: 'List<ParseDiagnostic>' cannot be converted to 'System.String'` on every `.uitkx` save. The compiler's reflective `InvokeWithDefaults` had two competing `params object[]` overloads; C# overload resolution silently bound `string` arguments into the receiver slot of the wrong overload, shifting every subsequent argument by one position and dropping a `List<ParseDiagnostic>` into `Parse(...)`'s `filePath` slot. The two overloads were collapsed into a single canonical `(MethodInfo method, object target, params object[] args)` signature so the bug class is structurally impossible to recur. Hot reload of components, hooks, and module/style files works again.",
+        "Fix: `Asset<T>(\"./x.png\")` and `Asset<T>(\"../x.png\")` now resolve correctly inside `module { ... }` and `hook { ... }` bodies (e.g. `AppRoot.style.uitkx`). Both the source generator's `ModuleEmitter`/`HookEmitter` and HMR's `HmrHookEmitter` previously emitted module/hook bodies verbatim, leaving relative path literals unrewritten — the runtime `UitkxAssetRegistry.Get<T>` then missed because the registry indexes by resolved Unity asset paths (e.g. `Assets/Resources/background-01.png`). The path-rewrite pipeline that already covered component setup code, JSX attributes, and directive bodies now also runs on module/hook bodies in both source-gen and HMR. Backed by 4 new regression tests in `EmitterTests` (1064/1064 SG passing)."
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "versions": {
         "vscode": "1.1.9",
         "vs2022": "1.1.9"
       },
