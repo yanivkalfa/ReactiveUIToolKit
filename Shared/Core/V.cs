@@ -601,13 +601,19 @@ namespace ReactiveUITK
         public static VirtualNode Router(
             IRouterHistory history = null,
             string initialPath = null,
+            string basename = null,
             string key = null,
             params VirtualNode[] children
         )
         {
             return Func<RouterFuncProps>(
                 RouterFunc.Render,
-                new RouterFuncProps { History = history, InitialPath = initialPath },
+                new RouterFuncProps
+                {
+                    History = history,
+                    InitialPath = initialPath,
+                    Basename = basename,
+                },
                 key,
                 children
             );
@@ -617,6 +623,8 @@ namespace ReactiveUITK
             string path = null,
             bool exact = false,
             VirtualNode element = null,
+            bool index = false,
+            bool caseSensitive = false,
             string key = null,
             params VirtualNode[] children
         )
@@ -628,6 +636,8 @@ namespace ReactiveUITK
                     Path = path,
                     Exact = exact,
                     Element = element,
+                    Index = index,
+                    CaseSensitive = caseSensitive,
                 },
                 key,
                 children
@@ -653,6 +663,76 @@ namespace ReactiveUITK
                     Style = style,
                     State = state,
                 },
+                key
+            );
+        }
+
+        public static VirtualNode Outlet(
+            object context = null,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            return Func<OutletFuncProps>(
+                OutletFunc.Render,
+                new OutletFuncProps { Context = context },
+                key,
+                children
+            );
+        }
+
+        public static VirtualNode Routes(
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            return Func(
+                RoutesFunc.Render,
+                Core.EmptyProps.Instance,
+                key,
+                children
+            );
+        }
+
+        public static VirtualNode NavLink(
+            string to,
+            string label = null,
+            bool replace = false,
+            bool end = false,
+            bool caseSensitive = false,
+            Style style = null,
+            Style activeStyle = null,
+            object state = null,
+            string key = null
+        )
+        {
+            return Func<NavLinkFuncProps>(
+                NavLinkFunc.Render,
+                new NavLinkFuncProps
+                {
+                    To = to,
+                    Label = label,
+                    Replace = replace,
+                    End = end,
+                    CaseSensitive = caseSensitive,
+                    Style = style,
+                    ActiveStyle = activeStyle,
+                    State = state,
+                },
+                key
+            );
+        }
+
+        public static VirtualNode Navigate(
+            string to,
+            bool replace = true,
+            object state = null,
+            string key = null
+        )
+        {
+            return Func<NavigateFuncProps>(
+                NavigateFunc.Render,
+                new NavigateFuncProps { To = to, Replace = replace, State = state },
                 key
             );
         }

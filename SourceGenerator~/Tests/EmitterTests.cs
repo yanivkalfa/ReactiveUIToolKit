@@ -1524,4 +1524,77 @@ public class EmitterTests
             $"Instance-member on loop local must NOT hoist. Got:\n{result.GeneratedSource}"
         );
     }
+
+    // ── Router primitives — alias-map resolution ────────────────────────────
+    // Verifies the source generator wires every <RouterTagAliases.Map> entry
+    // through to a V.Func(<TypeName>.Render, ...) emission, exercising the
+    // shared dictionary at Shared/Core/Router/RouterTagAliases.cs.
+
+    [Fact]
+    public void RouterTag_EmitsRouterFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Router/>"));
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("RouterFunc.Render"),
+            $"Expected V.Func(RouterFunc.Render, ...). Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void RouteTag_EmitsRouteFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Route path=\"/\"/>"));
+        Assert.True(result.SourceContains("RouteFunc.Render"));
+    }
+
+    [Fact]
+    public void OutletTag_EmitsOutletFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Outlet/>"));
+        Assert.True(
+            result.SourceContains("OutletFunc.Render"),
+            $"Expected OutletFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void RoutesTag_EmitsRoutesFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Routes><Route path=\"/\"/></Routes>"));
+        Assert.True(
+            result.SourceContains("RoutesFunc.Render"),
+            $"Expected RoutesFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void NavLinkTag_EmitsNavLinkFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<NavLink to=\"/\" label=\"Home\"/>"));
+        Assert.True(
+            result.SourceContains("NavLinkFunc.Render"),
+            $"Expected NavLinkFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void NavigateTag_EmitsNavigateFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Navigate to=\"/home\"/>"));
+        Assert.True(
+            result.SourceContains("NavigateFunc.Render"),
+            $"Expected NavigateFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    // NOTE: Per-attribute pass-through coverage for the new Index/End/CaseSensitive
+    // properties cannot be validated in this isolated test compilation because the
+    // generator skips its strongly-typed props block when the *FuncProps type is
+    // not resolvable (no Unity reference to ReactiveUITK.Shared.dll here).  The
+    // Index/End/CaseSensitive attributes follow the exact same emission path as
+    // the existing Router/Route/Link properties, which are exercised end-to-end
+    // by the FormatterSnapshotTests against real .uitkx samples
+    // (Samples/Components/RouterDemoFunc/RouterOutletDemo.uitkx now uses these
+    // attributes in production-shaped markup).
 }
