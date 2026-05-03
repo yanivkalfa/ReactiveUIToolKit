@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.15] - 2026-05-03
+
+### Fixed
+
+- **Source generator (CS8323):** the no-props `V.Func` emit branch produced
+  `V.Func(Type.Render, key: "k", child)` when a parameterless user component
+  wrapped element children (e.g. `<MenuPage><HomePage/></MenuPage>`). The
+  named `key:` argument landed at call slot 2 while its natural slot is 3,
+  triggering CS8323 ("Named argument used out-of-position but is followed by
+  an unnamed argument"). Emit now inserts a positional `null` for the IProps
+  `props` slot — `V.Func(Type.Render, null, key: "k", child)` — mirroring the
+  shape already used by the typed-props branch. Zero runtime / IL change
+  (`null` flows through `?? EmptyProps.Instance` exactly as the implicit
+  default did). Patch applied to both the cold-build emitter and the HMR
+  emitter so hot-reload behaves identically. Regression test added
+  ([NoPropsFuncWithChildrenRegressionTest.cs](SourceGenerator~/Tests/NoPropsFuncWithChildrenRegressionTest.cs))
+  recompiles the generated source against a real-shape `V.Func` stub and
+  asserts no CS8323.
+
 ## [0.4.14] - 2026-05-03
 
 ### Router — React-Router-v6 parity for layout routes, ranking, and DX hooks

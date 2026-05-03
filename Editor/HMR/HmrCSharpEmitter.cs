@@ -1008,7 +1008,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 else
                 {
-                    _sb.Append($"V.Func({typeName}.Render, key: {keyExpr}");
+                    // Explicit positional null in the IProps `props` slot — see
+                    // CSharpEmitter.cs (cold-build twin) for the CS8323 rationale.
+                    _sb.Append($"V.Func({typeName}.Render, null, key: {keyExpr}");
                 }
 
                 if (children.Count > 0)
