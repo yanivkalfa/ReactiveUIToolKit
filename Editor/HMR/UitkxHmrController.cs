@@ -41,6 +41,13 @@ namespace ReactiveUITK.EditorSupport.HMR
         private bool _compilationQueued;
         private string _queuedPath;
 
+        // Set the first time the compiler reports an infrastructure failure
+        // (reflection signature mismatch, missing type/method, bad image, etc.).
+        // HMR self-disables and refuses to spam the console with retries until
+        // the user fixes the underlying language-library mismatch and restarts
+        // HMR (or Unity).
+        private bool _loggedInfrastructureFailure;
+
         // ── Pending retry state (auto-cascade for new-file dependencies) ────
         private readonly Dictionary<string, string> _pendingRetryPaths = new(
             StringComparer.OrdinalIgnoreCase
@@ -182,6 +189,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             _errorCount = 0;
             _recentErrors.Clear();
             _pendingRetryPaths.Clear();
+            _loggedInfrastructureFailure = false;
             _sessionBaselineMemory = CurrentMemoryBytes;
 
             s_instance = this;
@@ -382,6 +390,29 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
             else
             {
+                // Infrastructure failures (reflection signature mismatch, missing
+                // type/method, etc.) mean HMR plumbing itself is broken — retrying
+                // would fail forever. Log once with actionable text and self-disable.
+                if (result.IsInfrastructureError)
+                {
+                    if (!_loggedInfrastructureFailure)
+                    {
+                        _loggedInfrastructureFailure = true;
+                        _errorCount++;
+                        _recentErrors.Add(result.Error);
+                        if (_recentErrors.Count > 10)
+                            _recentErrors.RemoveAt(0);
+                        Debug.LogError(
+                            "[HMR] Infrastructure failure — the loaded language " +
+                            "library is incompatible with this HMR build. HMR has " +
+                            "been disabled for this session. Restart Unity (or click " +
+                            "Start in the HMR window) after rebuilding the language " +
+                            "library.\n\nDetails: " + result.Error);
+                    }
+                    Stop();
+                    return;
+                }
+
                 // Try to auto-discover and compile missing dependencies.
                 // CS0103 means an unresolved name — may be a .uitkx component
                 // the FileWatcher missed.

@@ -3,6 +3,16 @@
     {
       "date": "2026-05-03",
       "versions": {
+        "vscode": "1.1.9",
+        "vs2022": "1.1.9"
+      },
+      "shared": [
+        "Fix: `Asset<T>(...)` and `Ast<T>(...)` no longer report CS0103 (`The name Asset does not exist in the current context`) inside component setup blocks, hook bodies, and module/style initializers (e.g. `AppRoot.style.uitkx`). The IDE virtual document now injects `using static ReactiveUITK.AssetHelpers;` so Roslyn binds the helpers exactly the way the runtime emitter does."
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "versions": {
         "vscode": "1.1.8",
         "vs2022": "1.1.8"
       },

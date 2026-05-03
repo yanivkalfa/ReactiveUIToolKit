@@ -1,3 +1,21 @@
+## [0.4.16] - 2026-05-03
+
+### HMR — fix `TargetParameterCountException` + production-grade hardening
+
+A reflection signature drift between the editor-only HMR compiler and `ReactiveUITK.Language.dll` (`UitkxParser.Parse` gained an optional `lineOffset` in 0.4.7) was firing `TargetParameterCountException` on every `.uitkx` save during play mode, swallowed into a silent warning + infinite retry storm.
+
+**Layer 1 — fix.** Both `_uitkxParse.Invoke` sites now pass the trailing `lineOffset = 0`. Hot reload of components, hooks, and modules works again.
+
+**Layer 2 — `InvokeWithDefaults` helper.** All six reflective calls into the language library now route through a helper that pads short argument arrays with each parameter's compile-time `DefaultValue`. One-time `Debug.LogWarning` per `MethodInfo` surfaces silent API drift the next time it happens, instead of failing.
+
+**Layer 3 — infrastructure-error classifier + self-disable.** `HmrCompileResult.IsInfrastructureError` is now set when the inner exception is `TargetParameterCountException | MissingMethodException | MissingFieldException | TypeLoadException | ReflectionTypeLoadException | BadImageFormatException`. The controller emits one `Debug.LogError` with actionable text and calls `Stop()` (the only safe disable path — unhooks events, stops the watcher, unlocks the assembly-reload suppressor, restores `runInBackground`, clears retry queues). User-authored compile errors (CS0103, CS1xxx, syntax) keep the existing warn + retry cascade.
+
+VS Code **1.1.8 → 1.1.9** · VS2022 **1.1.8 → 1.1.9** — IDE virtual-document generator now injects `using static ReactiveUITK.AssetHelpers;` so `Asset<T>("...")` and `Ast<T>("...")` no longer report CS0103 in component setup blocks, hook bodies, and module/style initializers (e.g. `AppRoot.style.uitkx`).
+
+**1060/1060 SG** passing. Source generator, runtime, build, and IDE extension surfaces are otherwise untouched.
+
+---
+
 ## [0.4.14] - 2026-05-03
 
 ### Router — React-Router-v6 parity (additive, no breaking changes)
