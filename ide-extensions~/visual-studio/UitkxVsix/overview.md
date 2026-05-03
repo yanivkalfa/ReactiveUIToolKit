@@ -14,6 +14,23 @@ https://github.com/ReactiveUITK/ReactiveUIToolKit
 
 ## Changelog
 
+### [1.1.11] - 2026-05-03
+- Fix: HMR no longer fails compilation with CS0426: The type name 'RouterFuncProps' does not exist in the type 'RouterFunc' (or any function-component whose Props class is declared as a sibling at namespace scope rather than nested). HMR's FindPropsType previously only walked nested types and shipped {Type}.{Type}Props unconditionally — diverging from the source generator's PropsResolver.TryGetFuncComponentPropsTypeName which already handled all three resolution paths. The HMR resolver now mirrors source-gen: (1) sibling top-level {Type}Props in the same namespace (the RouterFunc/RouterFuncProps shape), (2) nested {Type}.{Type}Props, (3) any nested IProps (legacy ValuesBarFunc.Props), with a final convention fallback. Locked down by 6 new regression tests (1 SG parity + 5 in-memory Roslyn contract tests mirroring the HMR algorithm). 1070/1070 SG passing.
+
+### [1.1.10] - 2026-05-03
+- Fix: HMR no longer fails with `ArgumentException: 'List<ParseDiagnostic>' cannot be converted to 'System.String'` on every `.uitkx` save. The compiler's reflective `InvokeWithDefaults` had two competing `params object[]` overloads; C# overload resolution silently bound `string` arguments into the receiver slot of the wrong overload, shifting every subsequent argument by one position and dropping a `List<ParseDiagnostic>` into `Parse(...)`'s `filePath` slot. The two overloads were collapsed into a single canonical `(MethodInfo method, object target, params object[] args)` signature so the bug class is structurally impossible to recur. Hot reload of components, hooks, and module/style files works again.
+- Fix: `Asset<T>("./x.png")` and `Asset<T>("../x.png")` now resolve correctly inside `module { ... }` and `hook { ... }` bodies (e.g. `AppRoot.style.uitkx`). Both the source generator's `ModuleEmitter`/`HookEmitter` and HMR's `HmrHookEmitter` previously emitted module/hook bodies verbatim, leaving relative path literals unrewritten — the runtime `UitkxAssetRegistry.Get<T>` then missed because the registry indexes by resolved Unity asset paths (e.g. `Assets/Resources/background-01.png`). The path-rewrite pipeline that already covered component setup code, JSX attributes, and directive bodies now also runs on module/hook bodies in both source-gen and HMR. Backed by 4 new regression tests in `EmitterTests` (1064/1064 SG passing).
+
+### [1.1.9] - 2026-05-03
+- Fix: `Asset<T>(...)` and `Ast<T>(...)` no longer report CS0103 (`The name Asset does not exist in the current context`) inside component setup blocks, hook bodies, and module/style initializers (e.g. `AppRoot.style.uitkx`). The IDE virtual document now injects `using static ReactiveUITK.AssetHelpers;` so Roslyn binds the helpers exactly the way the runtime emitter does.
+
+### [1.1.8] - 2026-05-03
+- Feature: schema entries for the new router primitives — <Outlet/>, <Routes>, <NavLink>, <Navigate> — with full attribute metadata. Autocomplete and inline docs work in VS Code, Rider, and Visual Studio without per-IDE changes (single uitkx-schema.json source).
+- Feature: <Router> schema gained 'basename' attribute; <Route> schema gained 'index' and 'caseSensitive' attributes. Layout-route description on <Route> now mentions Element + child Routes co-existence.
+
+### [1.1.7] - 2026-05-01
+- Feature: autocomplete for IStyle 9-slice + clip-box + text-generator + editor-text-rendering enums (unitySliceType, unityOverflowClipBox, unityTextGenerator, unityEditorTextRenderingMode)
+
 ### [1.1.6] - 2026-04-28
 - Perf: source generator now hoists `style={new Style{...}}` literals to class-level static fields, eliminating per-render Style allocations and diff-walks for static styles. Handles both setter form (`Width = 5f`) and tuple form (`(StyleKeys.Width, 5f)`). Whitelist-based; falls back to existing pool-rent path for any non-literal value (state/captures/method calls).
 - Perf: source generator emits child arguments directly into `params VirtualNode[]` instead of allocating a transient `__C(...)` array when the JSX children list is statically simple (no spreads, no conditional fragments). Cuts per-frame allocations on the children path.

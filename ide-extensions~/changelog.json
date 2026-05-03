@@ -3,6 +3,16 @@
     {
       "date": "2026-05-03",
       "versions": {
+        "vscode": "1.1.11",
+        "vs2022": "1.1.11"
+      },
+      "shared": [
+        "Fix: HMR no longer fails compilation with CS0426: The type name 'RouterFuncProps' does not exist in the type 'RouterFunc' (or any function-component whose Props class is declared as a sibling at namespace scope rather than nested). HMR's FindPropsType previously only walked nested types and shipped {Type}.{Type}Props unconditionally — diverging from the source generator's PropsResolver.TryGetFuncComponentPropsTypeName which already handled all three resolution paths. The HMR resolver now mirrors source-gen: (1) sibling top-level {Type}Props in the same namespace (the RouterFunc/RouterFuncProps shape), (2) nested {Type}.{Type}Props, (3) any nested IProps (legacy ValuesBarFunc.Props), with a final convention fallback. Locked down by 6 new regression tests (1 SG parity + 5 in-memory Roslyn contract tests mirroring the HMR algorithm). 1070/1070 SG passing."
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "versions": {
         "vscode": "1.1.10",
         "vs2022": "1.1.10"
       },
