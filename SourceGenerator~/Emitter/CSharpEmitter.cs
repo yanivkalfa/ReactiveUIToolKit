@@ -1221,7 +1221,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         )
                     );
                 }
-                _sb.Append($"V.Func({typeName}.Render");
+                // Emit explicit positional null for the IProps `props` slot so that
+                // the subsequent `key:` named argument lands at its natural slot 3.
+                // Required for C# 7.2+ non-trailing-named-argument rules when
+                // children follow positionally (Phase-A fast-path).  Without this,
+                // `V.Func(R, key: K, c1, c2)` triggers CS8323.
+                _sb.Append($"V.Func({typeName}.Render, null");
             }
 
             _sb.Append($", key: {keyExpr}");
