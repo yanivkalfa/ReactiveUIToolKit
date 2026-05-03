@@ -1207,6 +1207,72 @@ public class EmitterTests
         );
     }
 
+    // ── Sibling top-level Props class resolution ─────────────────────────────
+    // Regression coverage for the RouterFunc/RouterFuncProps shape: a function
+    // component (`RouterFunc`) and its props class (`RouterFuncProps`) declared
+    // as siblings at namespace scope (both top-level, neither nested in the
+    // other). HMR previously only walked nested types and shipped
+    // `RouterFunc.RouterFuncProps` (CS0426). Source-gen `PropsResolver` already
+    // handles this case via `TryGetFuncComponentPropsTypeName`'s sibling lookup;
+    // this test pins that contract so any drift fails CI.
+
+    [Fact]
+    public void FuncComponent_WithSiblingTopLevelPropsClass_EmitsTypedVFunc()
+    {
+        // Mirrors the actual ReactiveUITK.Router.RouterFunc / RouterFuncProps
+        // declaration shape: both classes at namespace scope, neither nested.
+        const string extraCSharp = """
+            using ReactiveUITK.Core;
+            using System.Collections.Generic;
+
+            namespace MyApp.Routing
+            {
+                public static class RouterFunc
+                {
+                    public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
+                        => null;
+                }
+
+                public sealed class RouterFuncProps : IProps
+                {
+                    public string Path { get; set; }
+                }
+            }
+            """;
+
+        const string uitkx = """
+            @namespace MyApp.UI
+            @using MyApp.Routing
+
+            component MyPage {
+                return (<RouterFunc path="/home" />);
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunWithExtraCSharp(uitkx, extraCSharp, "MyPage.uitkx");
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
+
+        // Must use the typed V.Func<RouterFuncProps> overload referencing the
+        // sibling top-level class — NOT the nested form RouterFunc.RouterFuncProps
+        // (which would produce CS0426 because no such nested type exists).
+        Assert.True(
+            result.SourceContains("V.Func<global::MyApp.Routing.RouterFuncProps>"),
+            $"Expected V.Func<global::MyApp.Routing.RouterFuncProps>. Got:\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("RouterFunc.RouterFuncProps"),
+            $"Sibling Props was incorrectly emitted as a nested type. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Path = \"/home\""),
+            $"Expected 'Path = \"/home\"' prop forwarded. Got:\n{result.GeneratedSource}"
+        );
+    }
+
     [Fact]
     public void BareAssignWithNestedDirective_InsideDirectiveBody_JsxIsEmitted()
     {
