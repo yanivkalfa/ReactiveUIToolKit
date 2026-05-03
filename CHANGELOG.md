@@ -6,6 +6,131 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.14] - 2026-05-03
+
+### Router — React-Router-v6 parity for layout routes, ranking, and DX hooks
+
+This release closes the structural gap between the UITKX router and React Router v6.
+Existing apps continue to work unchanged — every change is additive — but new apps
+can now compose layout routes with `<Outlet/>`, rely on deterministic
+ranking via `<Routes>`, and use the same DX hooks RR users expect.
+
+#### New components
+
+- **`<Outlet/>`** — render-slot for nested routes. A parent `<Route element=...>`
+  with child `<Route>`s now publishes the matched child into context; the
+  descendant `<Outlet/>` renders it. Optional `context` prop is exposed to
+  descendants via `RouterHooks.UseOutletContext<T>()`.
+- **`<Routes>`** — first-match-wins selector. Walks child `<Route>` declarations,
+  ranks them with a port of RR's `rankRouteBranches` / `computeScore` (constants
+  unchanged: `staticSegmentValue=10`, `dynamicSegmentValue=3`, `splatPenalty=-2`,
+  `indexRouteValue=2`, `emptySegmentValue=1`), and renders only the highest-ranked
+  match. Replaces ad-hoc "two routes both matched" foot-guns.
+- **`<NavLink>`** — built-in navigation link with active styling (`activeStyle`,
+  `end`, `caseSensitive`). Activation rules mirror RR exactly, including the
+  `to="/"` special case.
+- **`<Navigate to>`** — declarative redirect. Defaults to `replace=true` so
+  redirects don't grow history. Useful for `<Route path="/" element={<Navigate to="/welcome"/>}/>`.
+
+#### `<Route>` upgrades
+
+- `index="true"` — index routes match the parent pattern exactly (no extra segment).
+  Setting both `index` and `path` now throws an actionable
+  `InvalidOperationException`.
+- `caseSensitive="true"` — opt-in to case-sensitive segment matching for that
+  Route only (default remains case-insensitive for back-compat).
+- **Layout routes** — when both `element=...` and child `<Route>`s are present,
+  `<Route>` now acts as a layout: it ranks the children, publishes the matched
+  child to the descendant `<Outlet/>`, and renders its element wrapper. When no
+  nested `<Route>`s are present, behavior is byte-identical to today.
+
+#### `<Router>` upgrades
+
+- `basename="/app"` — URL prefix the router treats as the application root.
+  Locations are stripped of the prefix on the way in and re-attached on the
+  way out (push/replace).
+- Nested `<Router>` is now a hard error
+  (`InvalidOperationException("UITKX <Router> cannot be nested ...")`)
+  instead of silently shadowing context — mirrors RR's `invariant(!useInRouterContext())`.
+
+#### New hooks (`RouterHooks`)
+
+- `UseOutletContext<T>()` — typed accessor for the value passed via
+  `<Outlet context=...>`.
+- `UseMatches()` — ordered chain of `RouteMatch` from root → current route
+  (breadcrumbs / debug overlays / analytics).
+- `UseResolvedPath(string to)` — pure path resolver against the current
+  navigation base.
+- `UseSearchParams()` — `(IReadOnlyDictionary<string,string> Query, Action<…,bool> Set)`
+  tuple. The setter preserves the path component and replaces only the query.
+- `UsePrompt(bool when, string message = null)` — convenience over `UseBlocker`.
+- `UseNavigate(NavigateOptions options)` — overload returning a path-only
+  navigator pre-bound to `Replace`/`State`. Old `UseNavigate(bool replace = false)`
+  remains for back-compat.
+
+#### Ranker
+
+- New internal `RouteRanker` (port of RR `flattenRoutes` + `rankRouteBranches` +
+  `computeScore`) shared by `<Routes>` and the layout-route flow on `<Route>`.
+  Higher-score routes win; ties break by declaration order.
+
+#### Source generator + HMR
+
+- `Router/Route/Link` alias map de-duplicated. Single source of truth lives at
+  `Shared/Core/Router/RouterTagAliases.cs` and is linked into the source generator
+  via `<Compile Include>`. Adding a new router primitive now touches **one**
+  dictionary entry instead of two. New entries: `Outlet → OutletFunc`,
+  `Routes → RoutesFunc`, `NavLink → NavLinkFunc`, `Navigate → NavigateFunc`.
+
+#### IDE schema
+
+- `ide-extensions~/grammar/uitkx-schema.json` updated with full attribute
+  metadata for the new components. VS Code, Rider, and Visual Studio extensions
+  inherit autocompletion and inline documentation automatically.
+
+#### Tests
+
+- 6 new emission tests in `SourceGenerator~/Tests/EmitterTests.cs` lock the
+  alias map to its expected codegen for every router primitive.
+- 1063 total source-generator tests (was 1057); same 2 pre-existing snapshot
+  failures (PortalsPlayground.uitkx) unrelated to this change.
+
+#### Internals
+
+- `RouteMatcher.Match` now accepts an optional `caseSensitive` parameter
+  (overload preserves the old default-case-insensitive behavior).
+- `RouterPath` gained `BuildQuery`, `StripBasename`, `WithBasename` helpers.
+- `RouterContextKeys` gained `OutletElement`, `OutletContext`, and `MatchChain`.
+- `RouterState` gained `Basename` plus a constructor parameter (default `"/"`).
+- `RouteFuncProps` gained `Index` and `CaseSensitive`. `RouterFuncProps` gained
+  `Basename`. All defaults preserve current behavior.
+
+#### Backward compatibility
+
+Every change is additive. Existing samples (`RouterDemoFunc`, `MainMenuRouterDemoFunc`,
+and downstream user apps) compile and render byte-identically. The only
+behavioral change is:
+- Nested `<Router>` now throws (previously silently shadowed).
+- `<Route index>` with a path now throws (previously silently ignored both).
+
+Both throws replace **silently broken** behavior with **loudly broken** behavior
+and catch real bugs at startup instead of in production.
+
+#### Deferred (intentional)
+
+- **Optional segments (`:lang?`)** — Phase 3.7 in
+  `Plans~/ROUTER_GAP_CLOSURE_PLAN.md`. Requires porting `explodeOptionalSegments`
+  and reworking the ranker's stability ordering; safe to add later as it's purely
+  additive in `RouteMatcher`/`RouteRanker`.
+- **Static analyzer for ambiguous sibling `<Route>` patterns** — Phase 4.2.
+  Best implemented as an AST pass in
+  `ide-extensions~/language-lib/Diagnostics/DiagnosticsAnalyzer.cs` once user
+  reports validate the noise/signal ratio. Until then, wrap competing routes in
+  `<Routes>` to get deterministic first-match-wins behavior.
+
+See `Plans~/ROUTER_GAP_CLOSURE_PLAN.md` and `Plans~/ROUTER_REACT_ROUTER_COMPARISON.md`
+for the full design analysis.
+
 ## [0.4.13] - 2026-05-02
 
 ### IStyle coverage — 13 missing properties wired end-to-end

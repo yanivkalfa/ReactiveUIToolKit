@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using ReactiveUITK.Language.Parser;
+using ReactiveUITK.Router;
 
 namespace ReactiveUITK.SourceGenerator.Emitter
 {
@@ -45,18 +46,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private const string VirtualNodeName = "VirtualNode";
 
         // ── Well-known component tag aliases ────────────────────────────────────
-        // Maps short markup tag names to their implementing C# class names.
-        // This lets users write <Router>, <Route>, <Link> in .uitkx markup
-        // without knowing the Func-suffixed class names that back them.
-        private static readonly Dictionary<string, string> s_componentTagAliases = new Dictionary<
-            string,
-            string
-        >(StringComparer.Ordinal)
-        {
-            ["Router"] = "RouterFunc",
-            ["Route"] = "RouteFunc",
-            ["Link"] = "LinkFunc",
-        };
+        // Single source of truth lives in Shared/Core/Router/RouterTagAliases.cs
+        // (linked into this project via <Compile Include="..." Link="..." /> in
+        // ReactiveUITK.SourceGenerator.csproj).  The same alias set is consumed
+        // by Editor/HMR/HmrCSharpEmitter.cs at runtime via the Shared assembly.
+        private static readonly IReadOnlyDictionary<string, string> s_componentTagAliases =
+            RouterTagAliases.Map;
 
         // ── Fallback hard-coded map (used when V type not resolvable) ─────────
         private static readonly IReadOnlyDictionary<string, TagResolution> s_fallbackMap =

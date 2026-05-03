@@ -1,0 +1,39 @@
+@namespace ReactiveUITK.Samples.PortalsPlayground
+@using UnityEngine
+@using UnityEngine.UIElements
+
+component PortalsPlayground {
+  var slotA = useContext<VisualElement>("portals:slot-a");
+  var slotB = useContext<VisualElement>("portals:slot-b");
+
+  var (count, setCount) = useState(0);
+
+  return (
+    <VisualElement>
+      <Label text="Portals Playground (main host)" />
+      <Label text={$"Shared count: {count}"} />
+      @if (slotA != null) {
+        return (
+          <Portal target={slotA}>
+            <VisualElement>
+              <Label text="-- Slot A --" />
+              <Label text={$"From A, count = {count}"} />
+              <Button text="A: increment" onClick={_ => setCount(count + 1)} />
+            </VisualElement>
+          </Portal>
+        );
+      }
+      @if (slotB != null) {
+        return (
+          <Portal target={slotB}>
+            <VisualElement>
+              <Label text="-- Slot B --" />
+              <Label text={$"From B, count = {count}"} />
+              <Button text="B: increment" onClick={_ => setCount(count + 1)} />
+            </VisualElement>
+          </Portal>
+        );
+      }
+    </VisualElement>
+  );
+}
