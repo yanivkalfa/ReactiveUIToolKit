@@ -10,9 +10,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     /// <summary>
     /// Walks the AST and enforces ReactiveUITK's Rules of Hooks:
     ///
-    ///   UITKX0013 ΓÇö Hook called inside @if / @else branch
-    ///   UITKX0014 ΓÇö Hook called inside @foreach loop
-    ///   UITKX0015 ΓÇö Hook called inside @switch case
+    ///   UITKX0013 — Hook called inside @if / @else branch
+    ///   UITKX0014 — Hook called inside @foreach loop
+    ///   UITKX0015 — Hook called inside @switch case
     ///
     /// Detection is text-based: any <see cref="ExpressionNode"/> whose
     /// content contains a call matching
@@ -33,7 +33,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 WalkNode(node, HookContext.TopLevel, filePath, diagnostics);
         }
 
-        // ΓöÇΓöÇ Context tracking ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Context tracking ──────────────────────────────────────────────────
 
         private enum HookContext
         {
@@ -43,7 +43,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             Switch,
         }
 
-        // ΓöÇΓöÇ Tree walker ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Tree walker ───────────────────────────────────────────────────────
 
         private static void WalkNode(
             AstNode node,
@@ -101,7 +101,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     break;
 
                 case ElementNode el:
-                    // Check attribute values for hook calls ΓÇö always wrong, even at top-level
+                    // Check attribute values for hook calls — always wrong, even at top-level
                     // (covers onClick={() => UseState(0)}, text={UseState(0).value}, etc.)
                     foreach (var attr in el.Attributes)
                     {
@@ -128,7 +128,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         );
                     break;
 
-                // TextNode ΓÇö nothing to check
+                // TextNode — nothing to check
             }
         }
 
@@ -143,9 +143,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 WalkNode(n, ctx, filePath, diagnostics);
         }
 
-        // ΓöÇΓöÇ Hook detection ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Hook detection ────────────────────────────────────────────────────
 
-        // Patterns that indicate a hook call. We match on the call site name only ΓÇö
+        // Patterns that indicate a hook call. We match on the call site name only —
         // the leading `Hooks.` prefix is optional so hand-written using-aliases work too.
         private static readonly string[] s_hookPatterns =
         {
@@ -183,7 +183,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             "useTransition(",
         };
 
-        // ΓöÇΓöÇ UITKX0016 ΓÇö hook inside attribute expression ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── UITKX0016 — hook inside attribute expression ─────────────────────
 
         private static void CheckAttributeForHooks(
             string code,
@@ -211,7 +211,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
         }
 
-        // ΓöÇΓöÇ Hook in SetupCode (control-block body preamble) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Hook in SetupCode (control-block body preamble) ─────────────────
 
         /// <summary>
         /// Returns the end offset within <paramref name="bodyCode"/> that is the

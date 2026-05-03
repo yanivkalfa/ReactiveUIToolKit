@@ -139,3 +139,35 @@ idempotency snapshot test to fail (2 tests affected).
 | **TD-S5** Snake buttons | **FIXED** | Bug 1 (OPT-26) + Bug 2 (OPT-18) |
 | **TD-S1** useRef IDE mismatch | Open | Pre-existing VirtualDoc limitation |
 | **TD-S6** Formatter idempotency | Open | Pre-existing formatter bug |
+| **TD-S7** No `<Video>` element | Open | Missing JSX wrapper + asset registry support |
+
+---
+
+### TD-S7: No first-class `<Video>` element
+
+**Status:** Open
+**Symptom:** No built-in way to render a video in a UITKX layout. Users can wire it up
+manually via Unity `VideoPlayer` + `RenderTexture` and bind through `BackgroundImage`,
+but there is no ergonomic JSX wrapper.
+
+**Workaround today:**
+1. Create a Unity `VideoPlayer` on a GameObject in the scene with `Render Mode = Render Texture`
+   targeting a `.renderTexture` asset.
+2. In `.uitkx` reference it directly:
+   ```jsx
+   var bg = Asset<RenderTexture>("./bg.renderTexture");
+   return (
+     <VisualElement style={{ FlexGrow = 1f, BackgroundImage = bg }} />
+   );
+   ```
+   `BackgroundImage` accepts `Texture2D`, `Sprite`, `RenderTexture`, or `VectorImage`
+   **directly** — do **not** wrap in `new StyleBackground(...)`; the style emitter
+   handles the conversion.
+
+**Proposed work:**
+- Add `<Video src={...} loop autoplay muted />` JSX element backed by a `VisualElement`
+  subclass that owns a `VideoPlayer` + `RenderTexture`, sized to the element rect, with
+  lifecycle wired to mount/unmount.
+- Support `Asset<VideoClip>("./clip.mp4")` in the asset registry (extend
+  [ASSET_REGISTRY_PLAN.md](archive/ASSET_REGISTRY_PLAN.md) `.mp4`/`.webm` mapping to `VideoClip`).
+- Audio routes through a dedicated `AudioSource` or the player's direct-output mode.

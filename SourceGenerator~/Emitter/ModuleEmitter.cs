@@ -77,13 +77,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             foreach (var module in directives.ModuleDeclarations)
             {
+                // Resolve relative Asset<T>("./x") / Ast<T>("../x") paths to absolute
+                // Unity registry keys. Without this, runtime UitkxAssetRegistry.Get<T>
+                // misses because the registry indexes by resolved path while the
+                // emitted literal would still be the original relative string.
+                string transformedBody = EmitContext.ResolveAssetPaths(
+                    module.Body, filePath, diagnostics);
+
                 // Don't emit [UitkxSource] — the module may extend a component
                 // class that already has it, and the attribute isn't allowed
                 // to appear twice on the same type.
                 sb.AppendLine($"    public partial class {module.Name}");
                 sb.AppendLine("    {");
                 sb.AppendLine($"#line {module.BodyStartLine} \"{linePath}\"");
-                sb.AppendLine($"        {module.Body}");
+                sb.AppendLine($"        {transformedBody}");
                 sb.AppendLine("#line hidden");
                 sb.AppendLine("    }");
                 sb.AppendLine();

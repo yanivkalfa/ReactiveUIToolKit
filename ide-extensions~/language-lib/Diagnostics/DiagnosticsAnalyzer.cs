@@ -14,18 +14,18 @@ namespace ReactiveUITK.Language.Diagnostics
     ///
     /// Tier 2 checks:
     /// <list type="bullet">
-    ///   <item>UITKX0013 ΓÇö Hook called inside <c>@if</c> / <c>@else</c> branch</item>
-    ///   <item>UITKX0014 ΓÇö Hook called inside <c>@foreach</c> / <c>@for</c> / <c>@while</c> loop</item>
-    ///   <item>UITKX0015 ΓÇö Hook called inside <c>@switch</c> case</item>
-    ///   <item>UITKX0016 ΓÇö Hook called inside event-handler attribute</item>
-    ///   <item>UITKX0103 ΓÇö <c>component</c> name does not match filename</item>
-    ///   <item>UITKX0104 ΓÇö Duplicate literal <c>key="ΓÇª"</c> among siblings</item>
-    ///   <item>UITKX0105 ΓÇö Unknown PascalCase element (when index available)</item>
-    ///   <item>UITKX0106 ΓÇö Element inside <c>@foreach</c> body has no <c>key</c> (warning)</item>
-    ///   <item>UITKX0107 ΓÇö Unreachable code after top-level <c>return</c> in component body</item>
-    ///   <item>UITKX0108 ΓÇö Component has more than one root render node</item>
-    ///   <item>UITKX0109 ΓÇö Unknown attribute on a known element (when attribute map available)</item>
-    ///   <item>UITKX0111 ΓÇö Unused component parameter in function-style component</item>
+    ///   <item>UITKX0013 — Hook called inside <c>@if</c> / <c>@else</c> branch</item>
+    ///   <item>UITKX0014 — Hook called inside <c>@foreach</c> / <c>@for</c> / <c>@while</c> loop</item>
+    ///   <item>UITKX0015 — Hook called inside <c>@switch</c> case</item>
+    ///   <item>UITKX0016 — Hook called inside event-handler attribute</item>
+    ///   <item>UITKX0103 — <c>component</c> name does not match filename</item>
+    ///   <item>UITKX0104 — Duplicate literal <c>key="…"</c> among siblings</item>
+    ///   <item>UITKX0105 — Unknown PascalCase element (when index available)</item>
+    ///   <item>UITKX0106 — Element inside <c>@foreach</c> body has no <c>key</c> (warning)</item>
+    ///   <item>UITKX0107 — Unreachable code after top-level <c>return</c> in component body</item>
+    ///   <item>UITKX0108 — Component has more than one root render node</item>
+    ///   <item>UITKX0109 — Unknown attribute on a known element (when attribute map available)</item>
+    ///   <item>UITKX0111 — Unused component parameter in function-style component</item>
     /// </list>
     ///
     /// Tier-1 (parser syntax) errors are already present in
@@ -40,7 +40,7 @@ namespace ReactiveUITK.Language.Diagnostics
         /// <param name="parseResult">The complete parse result (directives + AST + T1 errors).</param>
         /// <param name="filePath">
         /// Absolute or relative path of the source file, used for the filename-mismatch check.
-        /// May be empty or null ΓÇö the check is simply skipped.
+        /// May be empty or null — the check is simply skipped.
         /// </param>
         /// <param name="projectElements">
         /// Set of component names known in the project (suffix "Props" stripped).
@@ -48,7 +48,7 @@ namespace ReactiveUITK.Language.Diagnostics
         /// report every unrecognised PascalCase element as a warning.
         /// </param>
         /// <param name="knownAttributes">
-        /// Map of element name ΓåÆ set of valid attribute names for that element.
+        /// Map of element name → set of valid attribute names for that element.
         /// Pass <c>null</c> to skip the unknown-attribute check.
         /// </param>
         /// <param name="sourceText">
@@ -66,7 +66,7 @@ namespace ReactiveUITK.Language.Diagnostics
             var diags = new List<ParseDiagnostic>();
             var d = parseResult.Directives;
 
-            // ΓöÇΓöÇ T2: UITKX0103 ΓÇö Filename / component-name mismatch ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── T2: UITKX0103 — Filename / component-name mismatch ───────────
             if (!string.IsNullOrEmpty(filePath) && !string.IsNullOrEmpty(d.ComponentName))
             {
                 var stem = Path.GetFileNameWithoutExtension(filePath);
@@ -95,16 +95,16 @@ namespace ReactiveUITK.Language.Diagnostics
                 }
             }
 
-            // ΓöÇΓöÇ T2: UITKX0108 ΓÇö Multiple render roots ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── T2: UITKX0108 — Multiple render roots ────────────────────────
             CheckSingleRenderRoot(parseResult.RootNodes, diags);
 
-            // ΓöÇΓöÇ T2: AST walks ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── T2: AST walks ─────────────────────────────────────────────────
             WalkNodeList(parseResult.RootNodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, sourceText, diags);
 
-            // ΓöÇΓöÇ T2: Function-style unreachable-after-return ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── T2: Function-style unreachable-after-return ───────────────────
             if (d.IsFunctionStyle)
             {
-                // Site A ΓÇö dim code between the render return's `;` and the
+                // Site A — dim code between the render return's `;` and the
                 // component closing `}`, but never the `}` itself.
                 if (d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
                 {
@@ -125,7 +125,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     }
                 }
 
-                // Site B ΓÇö early return in setup code (before the render return).
+                // Site B — early return in setup code (before the render return).
                 // Dim from the line after the early return to the closing `}`.
                 if (!string.IsNullOrEmpty(sourceText) && d.FunctionSetupStartOffset >= 0
                     && d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
@@ -155,13 +155,13 @@ namespace ReactiveUITK.Language.Diagnostics
 
             }
 
-            // ΓöÇΓöÇ T2: UITKX0111 ΓÇö Unused component parameter ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── T2: UITKX0111 — Unused component parameter ───────────────────
             if (d.IsFunctionStyle && !d.FunctionParams.IsDefaultOrEmpty)
             {
                 CheckUnusedParameters(d, parseResult.RootNodes, diags);
             }
 
-            // ΓöÇΓöÇ T2: UITKX0120 ΓÇö Asset path not found ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── T2: UITKX0120 — Asset path not found ─────────────────────────
             if (!string.IsNullOrEmpty(sourceText) && !string.IsNullOrEmpty(filePath))
             {
                 CheckAssetPaths(sourceText, filePath, diags);
@@ -170,12 +170,12 @@ namespace ReactiveUITK.Language.Diagnostics
             return diags;
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  RENDER-ROOT CHECK
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// UITKX0108 ΓÇö A component must have exactly one render root.
+        /// UITKX0108 — A component must have exactly one render root.
         ///
         /// "Render root" is any node that contributes to the rendered output:
         /// <see cref="ElementNode"/>, <see cref="IfNode"/>, <see cref="ForeachNode"/>,
@@ -184,7 +184,7 @@ namespace ReactiveUITK.Language.Diagnostics
         ///
         /// Excluded from the count (they do not produce rendered output):
         /// <list type="bullet">
-        ///   <item><see cref="CommentNode"/> ΓÇö comment, not rendered.</item>
+        ///   <item><see cref="CommentNode"/> — comment, not rendered.</item>
         ///   <item>Whitespace-only <see cref="TextNode"/>.</item>
         /// </list>
         ///
@@ -202,7 +202,7 @@ namespace ReactiveUITK.Language.Diagnostics
             {
                 switch (node)
                 {
-                    // Non-rendering nodes ΓÇö excluded from the count.
+                    // Non-rendering nodes — excluded from the count.
                     case CommentNode:
                         continue;
                     case TextNode tn when string.IsNullOrWhiteSpace(tn.Content):
@@ -230,7 +230,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     MakeDiag(
                         DiagnosticCodes.MultipleRenderRoots,
                         ParseSeverity.Error,
-                        $"A component must have a single root element. '{label}' is an extra root ΓÇö wrap all root nodes in a single container element.",
+                        $"A component must have a single root element. '{label}' is an extra root — wrap all root nodes in a single container element.",
                         extra.SourceLine,
                         extra.SourceColumn,
                         endCol
@@ -272,12 +272,12 @@ namespace ReactiveUITK.Language.Diagnostics
             return diags;
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  AST WALKER
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Hook-context tracking for Rules of Hooks validation (UITKX0013ΓÇô0016).
+        /// Hook-context tracking for Rules of Hooks validation (UITKX0013–0016).
         /// Mirrors <c>HooksValidator.HookContext</c> in the SourceGenerator.
         /// </summary>
         private enum HookContext
@@ -298,7 +298,7 @@ namespace ReactiveUITK.Language.Diagnostics
             List<ParseDiagnostic> diags
         )
         {
-            // UITKX0104 ΓÇö Duplicate literal key among siblings at this level.
+            // UITKX0104 — Duplicate literal key among siblings at this level.
             CheckDuplicateKeys(nodes, diags);
 
             for (int idx = 0; idx < nodes.Length; idx++)
@@ -388,7 +388,7 @@ namespace ReactiveUITK.Language.Diagnostics
             {
                 case ElementNode el:
                     CheckElement(el, insideForeach, projectElements, knownAttributes, diags);
-                    // Check attribute values for hook calls ΓÇö always wrong, even at top-level
+                    // Check attribute values for hook calls — always wrong, even at top-level
                     CheckAttributeHooks(el, diags);
                     WalkNodeList(el.Children, insideForeach: false, hookCtx, projectElements, knownAttributes, sourceText, diags);
                     break;
@@ -449,16 +449,16 @@ namespace ReactiveUITK.Language.Diagnostics
                         CheckExpressionForHooks(ex.Expression, ex.SourceLine, hookCtx, diags);
                     break;
 
-                // TextNode ΓÇö nothing to check.
+                // TextNode — nothing to check.
             }
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
-        //  RULES OF HOOKS (UITKX0013ΓÇô0016)
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
+        //  RULES OF HOOKS (UITKX0013–0016)
+        // ═══════════════════════════════════════════════════════════════════════
 
         // Patterns that indicate a hook call.  Matches the SourceGenerator's
-        // HooksValidator.s_hookPatterns ΓÇö qualified, bare, and camelCase forms.
+        // HooksValidator.s_hookPatterns — qualified, bare, and camelCase forms.
         private static readonly string[] s_hookPatterns =
         {
             "Hooks.UseState(",
@@ -600,7 +600,7 @@ namespace ReactiveUITK.Language.Diagnostics
 
         /// <summary>
         /// Checks an inline expression node for hook calls when inside a
-        /// control block (UITKX0013ΓÇô0015).
+        /// control block (UITKX0013–0015).
         /// </summary>
         private static void CheckExpressionForHooks(
             string code,
@@ -674,9 +674,9 @@ namespace ReactiveUITK.Language.Diagnostics
             }
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  ELEMENT CHECKS
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private static void CheckElement(
             ElementNode el,
@@ -686,7 +686,7 @@ namespace ReactiveUITK.Language.Diagnostics
             List<ParseDiagnostic> diags
         )
         {
-            // UITKX0106 ΓÇö Missing key inside a loop (@foreach / @for / @while).
+            // UITKX0106 — Missing key inside a loop (@foreach / @for / @while).
             if (insideForeach && !HasKeyAttribute(el))
             {
                 diags.Add(
@@ -701,7 +701,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 );
             }
 
-            // UITKX0105 ΓÇö Unknown PascalCase element (custom component not in index).
+            // UITKX0105 — Unknown PascalCase element (custom component not in index).
             bool isPascalCase = el.TagName.Length > 0 && char.IsUpper(el.TagName[0]);
             bool elementKnown = true; // assume known unless we have an index and it's missing
             if (isPascalCase && projectElements != null && !projectElements.Contains(el.TagName))
@@ -719,7 +719,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 );
             }
 
-            // UITKX0109 ΓÇö Unknown attribute on a known element.
+            // UITKX0109 — Unknown attribute on a known element.
             // Only check when the element is known (no double-error on unknown elements)
             // and we have attribute data for it.
             if (elementKnown
@@ -747,9 +747,9 @@ namespace ReactiveUITK.Language.Diagnostics
             }
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  DUPLICATE-KEY CHECK
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private static void CheckDuplicateKeys(
             ImmutableArray<AstNode> siblings,
@@ -757,7 +757,7 @@ namespace ReactiveUITK.Language.Diagnostics
         )
         {
             // Collect elements that have a literal string key attribute.
-            // Map: key-value ΓåÆ first element that used it.
+            // Map: key-value → first element that used it.
             var seen = new Dictionary<string, ElementNode>(System.StringComparer.Ordinal);
 
             foreach (var node in siblings)
@@ -814,12 +814,12 @@ namespace ReactiveUITK.Language.Diagnostics
             }
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  UNUSED PARAMETER CHECK
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// UITKX0111 ΓÇö For each function-style component parameter, check whether
+        /// UITKX0111 — For each function-style component parameter, check whether
         /// its name appears in the setup code (with scope-aware shadowing) or
         /// the markup AST (expressions, attribute bindings, conditions).
         /// </summary>
@@ -889,7 +889,7 @@ namespace ReactiveUITK.Language.Diagnostics
 
             var lines = setupCode.Replace("\r\n", "\n").Split('\n');
             int depth = 0;
-            // shadowAt[d] == true  ΓçÆ  a local with this name was declared at depth d.
+            // shadowAt[d] == true  ⇒  a local with this name was declared at depth d.
             // Shadows apply at depth d and all deeper levels until the scope exits.
             var shadowAt = new bool[128];
 
@@ -927,7 +927,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     if (!shadowed)
                     {
                         // If the line also has a declaration, the name after
-                        // "var/Type" is the declaration itself ΓÇö remove it and
+                        // "var/Type" is the declaration itself — remove it and
                         // re-check.  This way `var items = f(items)` still
                         // counts the RHS `items` as a parameter use.
                         string stripped = declRx.Replace(line, "");
@@ -1033,9 +1033,9 @@ namespace ReactiveUITK.Language.Diagnostics
             CollectCSharpText(el.Children, sb);
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  HELPERS
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private static bool HasKeyAttribute(ElementNode el) =>
             el.Attributes.Any(a =>
@@ -1062,7 +1062,7 @@ namespace ReactiveUITK.Language.Diagnostics
             };
 
         /// <summary>
-        /// Scans the setup code region for a top-level <c>return ΓÇª;</c> statement
+        /// Scans the setup code region for a top-level <c>return …;</c> statement
         /// that appears before the render return. Returns the 1-based line of the
         /// <c>;</c> ending that early return, or -1 if none found.
         /// </summary>
@@ -1096,7 +1096,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 {
                     if (i + 2 < source.Length && source[i + 1] == '"' && source[i + 2] == '"')
                     {
-                        // Raw string literal ΓÇö skip to closing """
+                        // Raw string literal — skip to closing """
                         i += 3;
                         while (i + 2 < source.Length)
                         {
@@ -1201,9 +1201,9 @@ namespace ReactiveUITK.Language.Diagnostics
             return -1;
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  ASSET PATH VALIDATION
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private static readonly Regex s_assetCallRe = new Regex(
             @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
@@ -1213,12 +1213,12 @@ namespace ReactiveUITK.Language.Diagnostics
             @"@uss\s+""([^""]+)""",
             RegexOptions.Compiled);
 
-        // ΓöÇΓöÇ Extension ΓåÆ valid requested types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Extension → valid requested types ─────────────────────────────────
 
         private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes =
             new Dictionary<string, HashSet<string>>(System.StringComparer.OrdinalIgnoreCase)
             {
-                // Image files (TextureImporter) ΓåÆ Texture2D or Sprite
+                // Image files (TextureImporter) → Texture2D or Sprite
                 { ".png",  new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".jpg",  new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".jpeg", new HashSet<string> { "Texture2D", "Sprite" } },
@@ -1230,7 +1230,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 { ".tiff", new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".exr",  new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".hdr",  new HashSet<string> { "Texture2D", "Sprite" } },
-                // SVG ΓåÆ VectorImage
+                // SVG → VectorImage
                 { ".svg",  new HashSet<string> { "VectorImage" } },
                 // Audio
                 { ".wav",  new HashSet<string> { "AudioClip" } },
@@ -1248,7 +1248,7 @@ namespace ReactiveUITK.Language.Diagnostics
             };
 
         /// <summary>
-        /// UITKX0120 ΓÇö Check that every <c>Asset&lt;T&gt;("path")</c>,
+        /// UITKX0120 — Check that every <c>Asset&lt;T&gt;("path")</c>,
         /// <c>Ast&lt;T&gt;("path")</c>, and <c>@uss "path"</c> references
         /// a file that exists on disk.
         /// </summary>
@@ -1263,11 +1263,11 @@ namespace ReactiveUITK.Language.Diagnostics
             string? projectRoot = GetProjectRoot(filePath);
             if (projectRoot == null) return;
 
-            // @uss directives ΓÇö path only, type is always StyleSheet
+            // @uss directives — path only, type is always StyleSheet
             CheckAssetPathMatches(s_ussDirectiveRe, sourceText, uitkxDir, projectRoot, diags,
                 pathGroup: 1, typeGroup: -1, impliedType: "StyleSheet");
 
-            // Asset<T>/Ast<T> calls ΓÇö type in group[1], path in group[2]
+            // Asset<T>/Ast<T> calls — type in group[1], path in group[2]
             CheckAssetPathMatches(s_assetCallRe, sourceText, uitkxDir, projectRoot, diags,
                 pathGroup: 2, typeGroup: 1, impliedType: null);
         }
@@ -1290,7 +1290,7 @@ namespace ReactiveUITK.Language.Diagnostics
 
                 var pathCapture = m.Groups[pathGroup];
 
-                // UITKX0120 ΓÇö file existence check
+                // UITKX0120 — file existence check
                 if (!File.Exists(absolute))
                 {
                     int line = 1, col = 0;
@@ -1313,7 +1313,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     continue; // no point checking type if file doesn't exist
                 }
 
-                // UITKX0121 ΓÇö type mismatch check
+                // UITKX0121 — type mismatch check
                 string requestedType = typeGroup >= 0 ? m.Groups[typeGroup].Value : impliedType!;
                 string ext = System.IO.Path.GetExtension(rawPath);
                 if (!string.IsNullOrEmpty(ext)
@@ -1398,7 +1398,7 @@ namespace ReactiveUITK.Language.Diagnostics
             int assetsIdx = normalized.IndexOf("/Assets/", System.StringComparison.OrdinalIgnoreCase);
             if (assetsIdx >= 0)
                 return normalized.Substring(0, assetsIdx);
-            // Relative path starting with "Assets/" ΓÇö project root is CWD
+            // Relative path starting with "Assets/" — project root is CWD
             if (normalized.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
                 return ".";
             return null;

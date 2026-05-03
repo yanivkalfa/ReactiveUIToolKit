@@ -42,9 +42,9 @@ namespace ReactiveUITK.Language.Formatter
         public AstFormatter()
             : this(FormatterOptions.Default) { }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  PUBLIC ENTRY POINT
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// Parse <paramref name="source"/>, format it, and return the result.
@@ -71,7 +71,7 @@ namespace ReactiveUITK.Language.Formatter
                 if (d.Severity == ParseSeverity.Error)
                     return source;
 
-            // ΓöÇΓöÇ Hook/module files: dedicated path ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Hook/module files: dedicated path ─────────────────────────────
             // Must be checked BEFORE IsFunctionStyle because the parser sets that
             // flag for hook/module files too.
             if (!directives.HookDeclarations.IsDefaultOrEmpty
@@ -93,9 +93,9 @@ namespace ReactiveUITK.Language.Formatter
             return result + "\n";
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  DIRECTIVES
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private void FormatFunctionStyleComponent(
             DirectiveSet directives,
@@ -106,7 +106,7 @@ namespace ReactiveUITK.Language.Formatter
                 ? "Component"
                 : directives.ComponentName;
 
-            // ΓöÇΓöÇ Preamble: re-emit @namespace / using lines before the component block ΓöÇ
+            // ── Preamble: re-emit @namespace / using lines before the component block ─
             bool hasPreamble = false;
 
             if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
@@ -249,7 +249,7 @@ namespace ReactiveUITK.Language.Formatter
             Ln(");");
 
             // Emit unreachable code after return (if any) with basic
-            // indentation normalization ΓÇö this preserves the structure
+            // indentation normalization — this preserves the structure
             // of the file without rearranging returns.
             if (!string.IsNullOrWhiteSpace(afterReturnCode))
             {
@@ -263,9 +263,9 @@ namespace ReactiveUITK.Language.Formatter
             Ln("}");
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  HOOK / MODULE FILES
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// Formats a .uitkx file that contains <c>hook</c> and/or <c>module</c>
@@ -274,7 +274,7 @@ namespace ReactiveUITK.Language.Formatter
         /// </summary>
         private void FormatHookModuleFile(string source, DirectiveSet directives)
         {
-            // ΓöÇΓöÇ Preamble ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Preamble ──────────────────────────────────────────────────────
             bool hasPreamble = false;
 
             if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
@@ -294,7 +294,7 @@ namespace ReactiveUITK.Language.Formatter
 
             string tabExp = new string(' ', _opts.IndentSize);
 
-            // ΓöÇΓöÇ Hooks ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Hooks ─────────────────────────────────────────────────────────
             if (!directives.HookDeclarations.IsDefaultOrEmpty)
             {
                 for (int i = 0; i < directives.HookDeclarations.Length; i++)
@@ -309,7 +309,7 @@ namespace ReactiveUITK.Language.Formatter
                 }
             }
 
-            // ΓöÇΓöÇ Modules ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Modules ──────────────────────────────────────────────────────
             if (!directives.ModuleDeclarations.IsDefaultOrEmpty)
             {
                 for (int i = 0; i < directives.ModuleDeclarations.Length; i++)
@@ -336,7 +336,7 @@ namespace ReactiveUITK.Language.Formatter
         /// </summary>
         private void EmitHookHeader(HookDeclaration hook)
         {
-            // ΓöÇΓöÇ Build single-line form to measure ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Build single-line form to measure ─────────────────────────────
             string singleLine = BuildHookHeaderSingleLine(hook);
 
             if (singleLine.Length <= _opts.PrintWidth)
@@ -345,7 +345,7 @@ namespace ReactiveUITK.Language.Formatter
                 return;
             }
 
-            // ΓöÇΓöÇ Wrapped form ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Wrapped form ──────────────────────────────────────────────────
             // hook name<T>(
             //   type param,
             //   type param
@@ -443,7 +443,7 @@ namespace ReactiveUITK.Language.Formatter
 
         /// <summary>
         /// Emits the inner members of a tuple return type, one per line, indented.
-        /// Input: <c>(bool foo, string bar, int baz)</c> ΓÇö outer parens are stripped.
+        /// Input: <c>(bool foo, string bar, int baz)</c> — outer parens are stripped.
         /// </summary>
         private void EmitWrappedTupleMembers(string tupleType)
         {
@@ -491,9 +491,9 @@ namespace ReactiveUITK.Language.Formatter
             return result;
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  NODE LIST
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private void FormatNodeList(ImmutableArray<AstNode> nodes, bool topLevel)
         {
@@ -501,7 +501,7 @@ namespace ReactiveUITK.Language.Formatter
 
             foreach (var node in nodes)
             {
-                // Drop whitespace-only text nodes ΓÇö they are layout artefacts.
+                // Drop whitespace-only text nodes — they are layout artefacts.
                 if (node is TextNode tn && string.IsNullOrWhiteSpace(tn.Content))
                     continue;
 
@@ -522,9 +522,9 @@ namespace ReactiveUITK.Language.Formatter
             }
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  NODE DISPATCH
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private void FormatNode(AstNode node)
         {
@@ -577,9 +577,9 @@ namespace ReactiveUITK.Language.Formatter
             }
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  ELEMENT
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private void FormatElement(ElementNode el)
         {
@@ -589,12 +589,12 @@ namespace ReactiveUITK.Language.Formatter
 
             if (attrStrings.Count == 0)
             {
-                // ΓöÇΓöÇ No attributes ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── No attributes ─────────────────────────────────────────────
                 Ln(selfClose ? $"<{el.TagName}{selfCloseSeq}" : $"<{el.TagName}>");
             }
             else
             {
-                // ΓöÇΓöÇ Decide wrapping ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Decide wrapping ───────────────────────────────────────────
                 var singleLine = selfClose
                     ? $"<{el.TagName} {string.Join(" ", attrStrings)}{selfCloseSeq}"
                     : $"<{el.TagName} {string.Join(" ", attrStrings)}>";
@@ -613,7 +613,7 @@ namespace ReactiveUITK.Language.Formatter
                 }
             }
 
-            // ΓöÇΓöÇ Children + closing tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Children + closing tag ─────────────────────────────────────────
             if (!selfClose)
             {
                 if (el.Children.IsEmpty)
@@ -658,7 +658,7 @@ namespace ReactiveUITK.Language.Formatter
                     continue;
                 }
 
-                // ΓöÇΓöÇ Last attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Last attribute ────────────────────────────────────────────
 
                 if (selfClose)
                 {
@@ -763,16 +763,16 @@ namespace ReactiveUITK.Language.Formatter
             }
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  C# SETUP CODE EMISSION
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// Emit lines of C# code with relative-indent re-anchoring.
-        /// <para><paramref name="firstLineStripped"/> ΓÇô set when line[0] had its
+        /// <para><paramref name="firstLineStripped"/> – set when line[0] had its
         /// leading whitespace stripped by ExpressionExtractor (it always gets
         /// relSpaces = 0 regardless of its actual content).</para>
-        /// <para><paramref name="suppressLastNewline"/> ΓÇô when true the last
+        /// <para><paramref name="suppressLastNewline"/> – when true the last
         /// non-blank line is appended without a trailing '\n' so a JSX element
         /// can continue on the same line.</para>
         /// </summary>
@@ -787,7 +787,7 @@ namespace ReactiveUITK.Language.Formatter
                 return;
             var lines = code.Split('\n');
 
-            // ΓöÇΓöÇ Pre-process: split `{content` lines ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Pre-process: split `{content` lines ───────────────────────────
             // When a line starts with `{` followed by content (not just `{`
             // alone) and the line has net-positive open braces, the `{` opens
             // a multi-line block while content sits on the same line.  Split
@@ -844,7 +844,7 @@ namespace ReactiveUITK.Language.Formatter
 
             int indentSpaces = _indent * _opts.IndentSize; // spaces contributed by IndentStr()
 
-            // ΓöÇΓöÇ baseSpaces for depth-0 lines ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── baseSpaces for depth-0 lines ──────────────────────────────────
             // Excludes comments and continuation-style lines (ternary arms,
             // method chains) so that CSharpier-corrupted files where comments
             // sit at 2sp but statements at 4sp are correctly normalised.
@@ -890,7 +890,7 @@ namespace ReactiveUITK.Language.Formatter
             if (baseSpaces == int.MaxValue)
                 baseSpaces = 0;
 
-            // ΓöÇΓöÇ Emit with stack-based block normalisation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Emit with stack-based block normalisation ─────────────────────
             // The stack holds the TOTAL column (including IndentStr) at which
             // the content of each open block should appear.  This normalises
             // indentation inside { } blocks (Style initialisers, lambda bodies,
@@ -1093,7 +1093,7 @@ namespace ReactiveUITK.Language.Formatter
                         blockStack.Push(emittedTotal + (p + 1) * _opts.IndentSize);
                         caseExtraStack.Push(caseExtra);
                         blockAnchorStack.Push(lastBlockAnchor);
-                        // Only the last push can be a lambda ΓÇö and only when the
+                        // Only the last push can be a lambda — and only when the
                         // line actually ends with '{' (the traditional pattern).
                         bool lambda = (p == netOpens - 1) && trailingBrace && lineHasArrow;
                         isLambdaStack.Push(lambda);
@@ -1104,7 +1104,7 @@ namespace ReactiveUITK.Language.Formatter
                 else if (netOpens < 0)
                 {
                     // Mid-line net closes (e.g. `*/}` ending a `{/*` block).
-                    // Pop after the line is emitted ΓÇö affects subsequent lines.
+                    // Pop after the line is emitted — affects subsequent lines.
                     for (int p = 0; p < -netOpens; p++)
                     {
                         if (blockStack.Count > 0)
@@ -1156,7 +1156,7 @@ namespace ReactiveUITK.Language.Formatter
 
             int indentSpaces = _indent * _opts.IndentSize; // spaces contributed by IndentStr()
 
-            // ΓöÇΓöÇ baseSpaces for depth-0 lines (excluding line[0]) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── baseSpaces for depth-0 lines (excluding line[0]) ──────────────
             // Used to anchor continuation-line relative indentation.
             int baseSpaces = int.MaxValue;
             {
@@ -1183,7 +1183,7 @@ namespace ReactiveUITK.Language.Formatter
                         bool isContinuation =
                             lStripped.Length > 0
                             && (lStripped[0] == '?' || lStripped[0] == ':' || lStripped[0] == '.');
-                        // Comments are not statements ΓÇö they must not pull baseSpaces
+                        // Comments are not statements — they must not pull baseSpaces
                         // down and prevent over-indented statement lines from being
                         // corrected (e.g. when CSharpier has added 4-space indent to
                         // setup-code lines that sit next to 2-space comment headers).
@@ -1211,7 +1211,7 @@ namespace ReactiveUITK.Language.Formatter
             if (baseSpaces == int.MaxValue)
                 baseSpaces = indentSpaces;
 
-            // ΓöÇΓöÇ Emit with stack-based block normalisation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Emit with stack-based block normalisation ─────────────────────
             // The stack holds the TOTAL column (including IndentStr) at which
             // the content of each open block should appear.
             var blockStack = new System.Collections.Generic.Stack<int>();
@@ -1301,7 +1301,7 @@ namespace ReactiveUITK.Language.Formatter
                     {
                         rel = 0;
                         // li==0 is Trim()'d by the caller so its leadL is 0 regardless of
-                        // the original source indent ΓÇö not a reliable anchor for subsequent
+                        // the original source indent — not a reliable anchor for subsequent
                         // non-starter lines.  Only record the input indent for li > 0.
                         if (li > 0)
                             lastStatementInputIndent = leadL;
@@ -1380,14 +1380,14 @@ namespace ReactiveUITK.Language.Formatter
                     // unclosed at end-of-line. Anchor to this line so future
                     // continuations can preserve their relative offset.
                     // li==0 is Trim()'d by the caller so its leadRaw=0
-                    // regardless of the original source indent ΓÇö skip
+                    // regardless of the original source indent — skip
                     // anchoring to avoid blowing up the offset on next line.
                     parenOpenLineEmitted = emittedTotal;
                     parenOpenLineInputIndent = leadRaw;
                     parenOpenAtBlockDepth = blockStack.Count;
                 }
 
-                // Push for a trailing '{' ΓÇö next lines should be one tabExp deeper.
+                // Push for a trailing '{' — next lines should be one tabExp deeper.
                 string tail = stripped.TrimEnd();
                 if (tail.Length > 0 && tail[tail.Length - 1] == '{')
                 {
@@ -1421,9 +1421,9 @@ namespace ReactiveUITK.Language.Formatter
         /// rather than being a continuation fragment (continuation arg, named arg, bare
         /// block opener, ternary arm, method chain, etc.).
         /// A line is a statement starter when it:
-        ///   ΓÇó begins with a well-known C# keyword (var, void, if, foreach, return, ΓÇª) or
-        ///   ΓÇó ends with <c>;</c> (expression-statement terminator) or
-        ///   ΓÇó ends with <c>{</c> AND has content before the brace (not just a bare <c>{</c>)
+        ///   • begins with a well-known C# keyword (var, void, if, foreach, return, …) or
+        ///   • ends with <c>;</c> (expression-statement terminator) or
+        ///   • ends with <c>{</c> AND has content before the brace (not just a bare <c>{</c>)
         /// Used in <see cref="EmitSetupCodeNormalized"/> to anchor depth-0 statement lines
         /// at <c>indentSpaces</c> regardless of their input indentation.
         /// </summary>
@@ -1438,12 +1438,12 @@ namespace ReactiveUITK.Language.Formatter
             if (first == '?' || first == ':' || first == '.')
                 return false;
 
-            // ΓöÇΓöÇ keyword prefix ΓåÆ always a statement opener ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── keyword prefix → always a statement opener ───────────────────
             foreach (var kw in s_statementKeywords)
                 if (s.StartsWith(kw, System.StringComparison.Ordinal))
                     return true;
 
-            // ΓöÇΓöÇ trailing character heuristics ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── trailing character heuristics ─────────────────────────────────
             string t = s.TrimEnd();
             if (t.Length == 0)
                 return false;
@@ -1533,11 +1533,11 @@ namespace ReactiveUITK.Language.Formatter
                     continue;
                 }
 
-                // Line comment ΓÇö rest of line is non-code.
+                // Line comment — rest of line is non-code.
                 if (c == '/' && i + 1 < line.Length && line[i + 1] == '/')
                     break;
 
-                // Block comment ΓÇö skip to closing */.
+                // Block comment — skip to closing */.
                 if (c == '/' && i + 1 < line.Length && line[i + 1] == '*')
                 {
                     i += 2;
@@ -1668,9 +1668,9 @@ namespace ReactiveUITK.Language.Formatter
 
         /// <summary>
         /// Normalises intra-line whitespace outside of string literals and
-        /// <c>// ΓÇª</c> line comments:
+        /// <c>// …</c> line comments:
         /// <list type="bullet">
-        ///   <item>Runs of 2+ consecutive spaces ΓåÆ single space.</item>
+        ///   <item>Runs of 2+ consecutive spaces → single space.</item>
         ///   <item>Spaces immediately after <c>(</c> are removed.</item>
         ///   <item>Spaces immediately before <c>)</c> are removed.</item>
         /// </list>
@@ -1721,7 +1721,7 @@ namespace ReactiveUITK.Language.Formatter
                     continue;
                 }
 
-                // Line comment ΓÇö flush pending space, then rest is literal.
+                // Line comment — flush pending space, then rest is literal.
                 if (c == '/' && i + 1 < line.Length && line[i + 1] == '/')
                 {
                     if (pendingSp)
@@ -1802,9 +1802,9 @@ namespace ReactiveUITK.Language.Formatter
                 _sb.Append($"<{el.TagName} {string.Join(" ", attrStrings)}{closing}");
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  CONTROL FLOW
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private void FormatIf(IfNode node)
         {
@@ -1821,7 +1821,7 @@ namespace ReactiveUITK.Language.Formatter
                 else
                 {
                     // Remove the '\n' that was appended after the previous closing '}'
-                    // so we can emit '}ΓÄ╡@else...' on the same line.
+                    // so we can emit '}⎵@else...' on the same line.
                     if (_sb.Length > 0 && _sb[_sb.Length - 1] == '\n')
                         _sb.Length--;
 
@@ -1950,14 +1950,14 @@ namespace ReactiveUITK.Language.Formatter
                 return;
             }
 
-            // No parsed body ΓåÆ pure C# code
+            // No parsed body → pure C# code
             if (!string.IsNullOrEmpty(bodyCode))
                 EmitSetupCodeNormalized(bodyCode, tabExp);
         }
 
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
         //  OUTPUT HELPERS
-        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        // ═══════════════════════════════════════════════════════════════════════
 
         private void EmitSetupCodeLines(string setupCode)
         {
@@ -2013,18 +2013,18 @@ namespace ReactiveUITK.Language.Formatter
                 var line = lines[i];
                 if (i == 0)
                 {
-                    // First line ΓÇö emit with the current indent prefix as-is.
+                    // First line — emit with the current indent prefix as-is.
                     if (_indent > 0)
                         _sb.Append(IndentStr());
                     _sb.Append(line.TrimEnd());
                 }
                 else if (string.IsNullOrWhiteSpace(line))
                 {
-                    // Blank line ΓÇö emit as truly empty (just the newline below).
+                    // Blank line — emit as truly empty (just the newline below).
                 }
                 else
                 {
-                    // Continuation line ΓÇö strip the common base indentation and
+                    // Continuation line — strip the common base indentation and
                     // re-prefix with current indent + remaining relative indent.
                     var expLine = line.Replace("\t", tabExp);
                     int lead = expLine.Length - expLine.TrimStart().Length;
@@ -2048,7 +2048,7 @@ namespace ReactiveUITK.Language.Formatter
                 : new string(' ', _indent * _opts.IndentSize);
         }
 
-        // ΓöÇΓöÇ JSX-in-setup formatting ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── JSX-in-setup formatting ───────────────────────────────────────────
 
         /// <summary>
         /// Emits function-style setup code that contains embedded JSX paren-blocks
@@ -2057,7 +2057,7 @@ namespace ReactiveUITK.Language.Formatter
         /// C# segments between JSX blocks are re-indented via
         /// <see cref="EmitCSharpLines"/>.  Each JSX block is parsed and formatted
         /// through <see cref="FormatNodeList"/> so it gets the same canonical
-        /// element / attribute layout as markup inside <c>return (ΓÇª)</c>.
+        /// element / attribute layout as markup inside <c>return (…)</c>.
         /// </summary>
         private void EmitSetupCodeWithJsx(
             string setupCode, DirectiveSet directives, string tabExp,
@@ -2079,7 +2079,7 @@ namespace ReactiveUITK.Language.Formatter
                 return;
             }
 
-            // ΓöÇΓöÇ Build a csharpWithPlaceholders string ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Build a csharpWithPlaceholders string ─────────────────────────
             // Replace each multi-line JSX paren-block with a single-line
             // placeholder that preserves the brace context.  EmitCSharpLines
             // formats the entire C# as one pass (correct brace tracking), then
@@ -2159,7 +2159,7 @@ namespace ReactiveUITK.Language.Formatter
             if (pos < setupCode.Length)
                 csBuilder.Append(setupCode, pos, setupCode.Length - pos);
 
-            // ΓöÇΓöÇ Format the entire C# (with placeholders) in one pass ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Format the entire C# (with placeholders) in one pass ──────────
             int savedSbLen = _sb.Length;
             EmitCSharpLines(
                 csBuilder.ToString(),
@@ -2173,7 +2173,7 @@ namespace ReactiveUITK.Language.Formatter
             if (multiLineBlocks.Count == 0)
                 return;
 
-            // ΓöÇΓöÇ Extract the formatted C# and splice JSX in ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Extract the formatted C# and splice JSX in ───────────────────
             string formattedCs = _sb.ToString(savedSbLen, _sb.Length - savedSbLen);
             _sb.Length = savedSbLen; // rewind
 
@@ -2247,7 +2247,7 @@ namespace ReactiveUITK.Language.Formatter
                 _sb.Append(prefix);
                 _sb.Append("(\n");
 
-                // ΓöÇΓöÇ Format JSX content ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Format JSX content ────────────────────────────────────────
                 _indent = jsxIndent + 1;
                 bool jsxEmitted = false;
 
@@ -2347,12 +2347,12 @@ namespace ReactiveUITK.Language.Formatter
                     );
                 }
 
-                // ΓöÇΓöÇ Closing ')' ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Closing ')' ───────────────────────────────────────────────
                 _indent = jsxIndent;
                 Ln(")" + suffix);
                 _indent = baseIndent;
 
-                // Don't append \n here ΓÇö the `Ln` already did.
+                // Don't append \n here — the `Ln` already did.
                 // But the for loop expects to append \n, so skip it for this line.
                 // Actually, Ln already appended \n. We just need to not double it.
                 // The loop would append \n if li < lines.Length - 1, but Ln already did.
@@ -2703,14 +2703,14 @@ namespace ReactiveUITK.Language.Formatter
         /// Pre-processes <paramref name="code"/> to normalise bare JSX after
         /// <c>=&gt;</c> (arrow) or <c>=</c> (assignment) into paren-wrapped form.
         /// <list type="bullet">
-        ///   <item><c>=&gt; &lt;Tag .../&gt;</c>  ΓåÆ  <c>=&gt; (&lt;Tag .../&gt;)</c></item>
-        ///   <item><c>= &lt;Tag .../&gt;</c>  ΓåÆ  <c>= (&lt;Tag .../&gt;)</c></item>
+        ///   <item><c>=&gt; &lt;Tag .../&gt;</c>  →  <c>=&gt; (&lt;Tag .../&gt;)</c></item>
+        ///   <item><c>= &lt;Tag .../&gt;</c>  →  <c>= (&lt;Tag .../&gt;)</c></item>
         /// </list>
         /// Also handles:
         /// <list type="bullet">
-        ///   <item><c>return &lt;Tag .../&gt;</c>  ΓåÆ  <c>return (&lt;Tag .../&gt;)</c></item>
-        ///   <item><c>? &lt;Tag .../&gt;</c> (ternary)  ΓåÆ  <c>? (&lt;Tag .../&gt;)</c></item>
-        ///   <item><c>: &lt;Tag .../&gt;</c> (ternary)  ΓåÆ  <c>: (&lt;Tag .../&gt;)</c></item>
+        ///   <item><c>return &lt;Tag .../&gt;</c>  →  <c>return (&lt;Tag .../&gt;)</c></item>
+        ///   <item><c>? &lt;Tag .../&gt;</c> (ternary)  →  <c>? (&lt;Tag .../&gt;)</c></item>
+        ///   <item><c>: &lt;Tag .../&gt;</c> (ternary)  →  <c>: (&lt;Tag .../&gt;)</c></item>
         /// </list>
         /// Already paren-wrapped expressions are left unchanged.  The result
         /// can then be scanned by <see cref="ScanJsxParenBlocks"/>.
@@ -2749,7 +2749,7 @@ namespace ReactiveUITK.Language.Formatter
                     i = saved;
                 }
 
-                // ΓöÇΓöÇ return <Tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── return <Tag ─────────────────────────────────────────
                 if (code[i] == 'r' && i + 5 < code.Length
                     && code.Substring(i, 6) == "return"
                     && (i == 0 || !(char.IsLetterOrDigit(code[i - 1]) || code[i - 1] == '_'))
@@ -2771,7 +2771,7 @@ namespace ReactiveUITK.Language.Formatter
                             // "return (\n<Tag..." matching the canonical form.
                             // Without the '\n', the first format pass produces
                             // "return (<Tag..." requiring a second pass to
-                            // break the line ΓÇö an idempotency bug.
+                            // break the line — an idempotency bug.
                             insertions.Add((peek, '('));
                             insertions.Add((peek, '\n'));
                             insertions.Add((jsxEnd, ')'));
@@ -2781,7 +2781,7 @@ namespace ReactiveUITK.Language.Formatter
                     }
                 }
 
-                // ΓöÇΓöÇ ? <Tag  (ternary true, but NOT ?. or ??) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── ? <Tag  (ternary true, but NOT ?. or ??) ────────────
                 if (code[i] == '?' && i + 1 < code.Length
                     && code[i + 1] != '.' && code[i + 1] != '?')
                 {
@@ -2805,7 +2805,7 @@ namespace ReactiveUITK.Language.Formatter
                     }
                 }
 
-                // ΓöÇΓöÇ : <Tag  (ternary false, but NOT ::) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── : <Tag  (ternary false, but NOT ::) ─────────────────
                 if (code[i] == ':' && i + 1 < code.Length && code[i + 1] != ':')
                 {
                     int peek = i + 1;

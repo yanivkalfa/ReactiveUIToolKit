@@ -14,7 +14,7 @@ public class EmitterTests
     private static string Wrap(string markup) =>
         "component MyComp {\n  return (\n" + markup + "\n  );\n}";
 
-    // ΓöÇΓöÇ Element emission ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Element emission ──────────────────────────────────────────────────────
 
     [Fact]
     public void SimpleElement_GeneratesVCall()
@@ -56,7 +56,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("V.Label("), "Expected V.Label call inside box");
     }
 
-    // ΓöÇΓöÇ Namespace / class structure ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Namespace / class structure ──────────────────────────────────────────
 
     [Fact]
     public void Namespace_EmittedInGeneratedSource()
@@ -103,7 +103,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("Hooks.UseState(") || result.SourceContains("useState("));
     }
 
-    // ΓöÇΓöÇ Control flow ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Control flow ─────────────────────────────────────────────────────────
 
     [Fact]
     public void IfDirective_GeneratesConditionalExpression()
@@ -112,7 +112,7 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
-        // @if ΓåÆ IIFE; the condition should appear in the generated source
+        // @if → IIFE; the condition should appear in the generated source
         Assert.True(result.SourceContains("flag"), "Condition should appear verbatim");
         Assert.True(
             result.SourceContains("Func<VirtualNode>")
@@ -131,7 +131,7 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
-        // @foreach ΓåÆ IIFE with list-building loop or .Select()
+        // @foreach → IIFE with list-building loop or .Select()
         Assert.True(
             result.SourceContains(".Select(") || result.SourceContains("foreach"),
             "Expected .Select( or foreach loop for @foreach"
@@ -232,7 +232,7 @@ public class EmitterTests
         // Verify no false UITKX0014 (hook in loop)
         Assert.False(
             result.HasDiagnostic("UITKX0014"),
-            "UITKX0014 should NOT fire ΓÇö hooks are at component top level, not inside @foreach.\n"
+            "UITKX0014 should NOT fire — hooks are at component top level, not inside @foreach.\n"
                 + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"))
         );
     }
@@ -317,7 +317,7 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ Key attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Key attribute ─────────────────────────────────────────────────────────
 
     [Fact]
     public void KeyAttribute_PassedAsSecondArgument()
@@ -327,7 +327,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("my-key"), "key value should appear in generated source");
     }
 
-    // ΓöÇΓöÇ Line directives ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Line directives ───────────────────────────────────────────────────────
 
     [Fact]
     public void GeneratedSource_ContainsLineDirectives()
@@ -352,7 +352,7 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ [UitkxElement] attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── [UitkxElement] attribute ─────────────────────────────────────────────
 
     [Fact]
     public void GeneratedClass_HasUitkxElementAttribute()
@@ -485,7 +485,7 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ ErrorBoundary emission ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── ErrorBoundary emission ───────────────────────────────────────────────
 
     [Fact]
     public void ErrorBoundary_GeneratesVErrorBoundaryCall()
@@ -600,19 +600,19 @@ public class EmitterTests
         Assert.True(result.SourceContains("target"), "Expected target expression in V.Portal call");
     }
 
-    // ΓöÇΓöÇ Peer component props resolution ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Peer component props resolution ──────────────────────────────────────
 
     [Fact]
     public void PeerComponent_WithProps_EmitsTypedVFuncAndPassesAttributes()
     {
-        // ChildComp.uitkx ΓÇö sub-component with a bool prop
+        // ChildComp.uitkx — sub-component with a bool prop
         const string childSrc = """
             component ChildComp(bool active = false) {
                 return (<Label text="child" />);
             }
             """;
 
-        // ParentComp.uitkx ΓÇö references ChildComp; its props type is peer-generated
+        // ParentComp.uitkx — references ChildComp; its props type is peer-generated
         const string parentSrc = """
             component ParentComp {
                 var flag = true;
@@ -646,7 +646,7 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ Nested Props class resolution (C# convention: TypeName.Props) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Nested Props class resolution (C# convention: TypeName.Props) ─────────
 
     [Fact]
     public void FuncComponent_WithNestedPropsClass_EmitsTypedVFuncAndPassesAttributes()
@@ -702,12 +702,12 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ ref={x} routing on user (UITKX) components ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── ref={x} routing on user (UITKX) components ────────────────────────────
 
     [Fact]
     public void UserComponent_SingleRefParam_RefAttrRoutedToMutableRefProp()
     {
-        // ChildComp.uitkx ΓÇö declares a single Hooks.MutableRef parameter.
+        // ChildComp.uitkx — declares a single Hooks.MutableRef parameter.
         const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef = null
@@ -716,7 +716,7 @@ public class EmitterTests
             }
             """;
 
-        // ParentComp.uitkx ΓÇö uses ref={myRef} shorthand on ChildComp.
+        // ParentComp.uitkx — uses ref={myRef} shorthand on ChildComp.
         const string parentSrc = """
             component ParentComp {
                 return (
@@ -755,7 +755,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_NoRefParam_RefAttrEmitsDiagnosticUITKX0020()
     {
-        // ChildComp.uitkx ΓÇö no MutableRef parameter; ref={} cannot be routed.
+        // ChildComp.uitkx — no MutableRef parameter; ref={} cannot be routed.
         const string childSrc = """
             component ChildComp(string? label = null) {
                 return (<Label text="child" />);
@@ -785,7 +785,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_MultipleRefParams_RefAttrEmitsDiagnosticUITKX0021()
     {
-        // ChildComp.uitkx ΓÇö two MutableRef parameters; ref={} is ambiguous.
+        // ChildComp.uitkx — two MutableRef parameters; ref={} is ambiguous.
         const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef  = null,
@@ -818,7 +818,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_RefAttrAndOtherProps_CombineCorrectly()
     {
-        // ChildComp.uitkx ΓÇö has a regular string prop + one MutableRef prop.
+        // ChildComp.uitkx — has a regular string prop + one MutableRef prop.
         const string childSrc = """
             component ChildComp(
                 string? label = null,
@@ -828,7 +828,7 @@ public class EmitterTests
             }
             """;
 
-        // ParentComp.uitkx ΓÇö passes both a regular attribute and ref={}.
+        // ParentComp.uitkx — passes both a regular attribute and ref={}.
         const string parentSrc = """
             component ParentComp {
                 return (
@@ -953,7 +953,7 @@ public class EmitterTests
         Assert.False(result.HasDiagnostic("UITKX0021"), "Unexpected UITKX0021.");
     }
 
-    // ΓöÇΓöÇ Asset path resolution ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Asset path resolution ─────────────────────────────────────────────────
 
     [Fact]
     public void Asset_RelativePath_Resolved()
@@ -1098,6 +1098,112 @@ public class EmitterTests
         Assert.True(
             result.SourceContains("using static ReactiveUITK.Props.Typed.CssHelpers;"),
             "Expected auto-injected CssHelpers using"
+        );
+    }
+
+    // ── Asset path resolution inside `module` blocks ──────────────────────────
+    // Regression coverage for the bug where ModuleEmitter emitted module bodies
+    // verbatim, causing Asset<T>("./x") / Asset<T>("../x") literals to reach the
+    // runtime UitkxAssetRegistry as raw relative strings (which the registry —
+    // keyed by resolved Unity asset paths — would never find).
+
+    [Fact]
+    public void Module_AssetCall_RelativePath_IsRewritten()
+    {
+        var src = """
+            @namespace Test
+            module AppRoot {
+              public static readonly string Bg = Asset<Texture2D>("./bg.png")?.name;
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/AppRoot.style.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/bg.png\""),
+            $"Expected './bg.png' rewritten to 'Assets/UI/bg.png'.\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"./bg.png\""),
+            "Relative module-body asset path leaked through unrewritten."
+        );
+    }
+
+    [Fact]
+    public void Module_AssetCall_DotDotPath_IsRewritten()
+    {
+        // The original failing case: `../Resources/background-01.png` inside a
+        // `module AppRoot { ... }` block in an .style.uitkx file.
+        var src = """
+            @namespace Test
+            module AppRoot {
+              public static readonly string Bg = Asset<Texture2D>("../Resources/bg.png")?.name;
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/AppRoot.style.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/Resources/bg.png\""),
+            $"Expected '../Resources/bg.png' rewritten to 'Assets/Resources/bg.png'.\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"../Resources/bg.png\""),
+            "Relative module-body asset path leaked through unrewritten."
+        );
+    }
+
+    [Fact]
+    public void Module_AssetCall_AbsolutePath_Unchanged()
+    {
+        // Absolute Assets/... paths must pass through untouched — no double-prefix.
+        var src = """
+            @namespace Test
+            module AppRoot {
+              public static readonly string Bg = Asset<Texture2D>("Assets/Fonts/custom.ttf")?.name;
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/AppRoot.style.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/Fonts/custom.ttf\""),
+            $"Expected absolute path unchanged. Got:\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"Assets/UI/Assets/Fonts/custom.ttf\""),
+            "Absolute path was incorrectly re-prefixed with the .uitkx directory."
+        );
+    }
+
+    // ── Asset path resolution inside `hook` bodies ────────────────────────────
+    // Parallel coverage for HookEmitter, which previously applied ApplyHookAliases
+    // but skipped ResolveAssetPaths.
+
+    [Fact]
+    public void Hook_AssetCall_RelativePath_IsRewritten()
+    {
+        var src = """
+            @namespace Test
+            hook useBg() -> string {
+              var tex = Asset<Texture2D>("./bg.png");
+              return tex?.name ?? "";
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/useBg.hooks.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/bg.png\""),
+            $"Expected './bg.png' rewritten to 'Assets/UI/bg.png' inside hook body.\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"./bg.png\""),
+            "Relative hook-body asset path leaked through unrewritten."
         );
     }
 
