@@ -61,15 +61,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             ["portal"] = new TagRes(TagKind.Portal, "Portal", null),
         };
 
-        private static readonly Dictionary<string, string> s_componentAliases = new Dictionary<
-            string,
-            string
-        >(StringComparer.Ordinal)
-        {
-            ["Router"] = "RouterFunc",
-            ["Route"] = "RouteFunc",
-            ["Link"] = "LinkFunc",
-        };
+        // Single source of truth lives in
+        // Shared/Core/Router/RouterTagAliases.cs.  Both the source generator
+        // and this HMR emitter consume the same dictionary so that markup tag
+        // resolution stays in lock-step across cold-build and hot-reload.
+        private static readonly IReadOnlyDictionary<string, string> s_componentAliases =
+            global::ReactiveUITK.Router.RouterTagAliases.Map;
 
         private const string QVNode = "global::ReactiveUITK.Core.VirtualNode";
 
