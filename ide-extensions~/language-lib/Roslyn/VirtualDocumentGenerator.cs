@@ -176,6 +176,11 @@ namespace ReactiveUITK.Language.Roslyn
         {
             "using static ReactiveUITK.Props.Typed.StyleKeys;",
             "using static ReactiveUITK.Props.Typed.CssHelpers;",
+            // Brings Asset<T>(...) and Ast<T>(...) into scope for component
+            // setup blocks, hook bodies, and module initializers — matches the
+            // using-static injected by every runtime emitter (CSharpEmitter,
+            // ModuleEmitter, HookEmitter, HmrCSharpEmitter, HmrHookEmitter).
+            "using static ReactiveUITK.AssetHelpers;",
             "using UColor = UnityEngine.Color;",
             // `using static StyleKeys` imports string constants (e.g. FlexDirection = "flexDirection")
             // that collide with identically-named enums/structs from UnityEngine.UIElements.
