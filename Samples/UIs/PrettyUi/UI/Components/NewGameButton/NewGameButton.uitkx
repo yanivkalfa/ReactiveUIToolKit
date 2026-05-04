@@ -1,0 +1,18 @@
+@namespace PrettyUi.App.Components
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component NewGameButton {
+  var navigate = RouterHooks.UseNavigate();
+
+  return (
+    <VisualElement style={Wrapper}>
+      <AppButton
+        text="New Game"
+        active={true}
+        onClick={() => navigate("/game", null)}
+        style={Button}
+      />
+    </VisualElement>
+  );
+}

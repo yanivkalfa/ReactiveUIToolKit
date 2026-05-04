@@ -1,0 +1,11 @@
+@namespace PrettyUi.App.Components
+@using UnityEngine.UIElements
+
+component ContentPanel(string title = "", string body = "") {
+  return (
+    <VisualElement style={Card}>
+      <Label text={title} style={Title} />
+      <Label text={body} style={Body} />
+    </VisualElement>
+  );
+}

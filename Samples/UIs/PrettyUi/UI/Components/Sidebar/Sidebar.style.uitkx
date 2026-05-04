@@ -1,0 +1,18 @@
+@namespace PrettyUi.App.Components
+@using PrettyUi.App
+@using UnityEngine
+
+module Sidebar {
+  public static readonly Style Wrapper = new Style {
+    Width = Px(Theme.SidebarWidth),
+    FlexShrink = 0f,
+    PaddingTop = 16f,
+    PaddingBottom = 16f,
+    PaddingLeft = 16f,
+    PaddingRight = 16f,
+  };
+
+  public static readonly Style Item = new Style {
+    MarginBottom = 8f,
+  };
+}

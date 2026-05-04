@@ -1,0 +1,25 @@
+@namespace PrettyUi.App.Components
+@using System
+@using System.Collections.Generic
+@using UnityEngine.UIElements
+
+component Sidebar(IReadOnlyList<SidebarItem>? items = null) {
+  var resolvedItems = items ?? Array.Empty<SidebarItem>();
+
+  return (
+    <VisualElement style={Wrapper}>
+      @foreach (var item in resolvedItems) {
+        return (
+          <AppButton
+            key={$"sidebar-{item.Id}"}
+            text={item.Label}
+            active={item.IsActive}
+            disabled={item.Disabled}
+            onClick={item.OnClick}
+            style={Item}
+          />
+        );
+      }
+    </VisualElement>
+  );
+}

@@ -982,15 +982,24 @@ namespace ReactiveUITK.EditorSupport.HMR
                 IList children
             )
             {
+                // Extract ref={x} BEFORE filtering so we can route it into the
+                // synthesized props object even when ref is the *only* attribute.
+                // SG mirrors this with PropsResolver.TryGetRefParamPropName at
+                // CSharpEmitter.cs:1162 — when omitted, ref={...} silently
+                // no-ops because the resolver-routed assignment never fires.
+                string refExpr = GetAttrExpr(attrs, "ref");
                 var filteredAttrs = FilterAttrs(attrs, "key");
                 filteredAttrs = FilterAttrs(filteredAttrs, "ref");
 
-                // Check if there are props → use V.Func<Props>(Type.Render, new Props { })
-                // Otherwise → use V.Func(Type.Render, key: ...)
-                if (filteredAttrs.Count > 0)
+                // Use the typed (props) path when there is at least one writable
+                // prop OR a ref to route. The no-props path (`V.Func(R, null, key)`)
+                // would discard a lone ref={x} attribute — restoring the very bug
+                // Issue 5 was filed against.
+                if (filteredAttrs.Count > 0 || refExpr != null)
                 {
-                    // Find the actual props type via runtime reflection
-                    string propsTypeName = FindPropsType(typeName);
+                    // Find props type AND scan it for the Ref<T>/MutableRef<T>
+                    // slot in a single reflection pass.
+                    var (propsTypeName, refSlotName) = FindPropsTypeAndRefSlot(typeName);
                     _sb.Append($"V.Func<{propsTypeName}>({typeName}.Render, ");
                     _sb.Append($"new {propsTypeName} {{ ");
                     bool first = true;
@@ -1004,6 +1013,29 @@ namespace ReactiveUITK.EditorSupport.HMR
                         _sb.Append($"{propName} = {val}");
                         first = false;
                     }
+
+                    // Route ref={x} into the resolved Ref<T>/MutableRef<T> slot.
+                    // No cast — the user's local is already typed by UseRef<T>(),
+                    // matching SG's emit shape (CSharpEmitter.cs:1175).
+                    if (refExpr != null && refSlotName != null)
+                    {
+                        if (!first)
+                            _sb.Append(", ");
+                        _sb.Append($"{refSlotName} = {refExpr}");
+                        first = false;
+                    }
+                    else if (refExpr != null)
+                    {
+                        // ref={x} on a component whose props expose no Ref<T> slot
+                        // is an authoring error. SG raises UITKX0020 here; HMR
+                        // logs a warning so the developer sees the divergence.
+                        UnityEngine.Debug.LogWarning(
+                            $"[HMR] {_displayName}: <{typeName} ref={{...}}> has no "
+                            + "matching Ref<T>/MutableRef<T> property on its Props type. "
+                            + "The ref will be ignored at runtime."
+                        );
+                    }
+
                     _sb.Append($" }}, key: {keyExpr}");
                 }
                 else
@@ -1056,7 +1088,28 @@ namespace ReactiveUITK.EditorSupport.HMR
             /// </summary>
             private static string FindPropsType(string typeName)
             {
-                Type componentType = null;
+                var (name, _) = FindPropsTypeAndRefSlot(typeName);
+                return name;
+            }
+
+            /// <summary>
+            /// Combined props-type + ref-slot resolution. Performs the same
+            /// reflection scan as <see cref="FindPropsType"/> but additionally
+            /// inspects the resolved Props type for a <c>Ref&lt;T&gt;</c> /
+            /// <c>Hooks.MutableRef&lt;T&gt;</c> property so HMR can route
+            /// <c>ref={x}</c> attributes into the synthesized props initializer
+            /// — mirroring SG's <c>PropsResolver.TryGetRefParamPropName</c>.
+            /// Returns a tuple of (formatted-name-for-emit, ref-slot-property-name)
+            /// where <c>RefSlotName</c> is <c>null</c> when no ref slot exists
+            /// (ambiguity is resolved by taking the first declared ref-typed
+            /// property — same precedence rule as SG's first-match behaviour).
+            /// </summary>
+            private static (string PropsTypeName, string RefSlotName) FindPropsTypeAndRefSlot(
+                string typeName
+            )
+            {
+                string resolvedName = null;
+                Type resolvedPropsType = null;
 
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
@@ -1070,9 +1123,6 @@ namespace ReactiveUITK.EditorSupport.HMR
                     {
                         if (type.Name != typeName)
                             continue;
-                        // Cache the first matching component type so we can fall back
-                        // to its namespace / nested types after the sibling search.
-                        componentType ??= type;
 
                         // Step 1 — sibling top-level {typeName}Props in the same namespace
                         // (the modern UITKX function-component pattern, e.g. RouterFunc /
@@ -1085,7 +1135,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                         if (sibling != null
                             && sibling.GetInterface("ReactiveUITK.Core.IProps") != null)
                         {
-                            return "global::" + siblingFullName;
+                            resolvedName = "global::" + siblingFullName;
+                            resolvedPropsType = sibling;
+                            goto resolved;
                         }
 
                         // Step 2 — nested {typeName}.{typeName}Props (the form generated
@@ -1094,22 +1146,71 @@ namespace ReactiveUITK.EditorSupport.HMR
                         if (nestedNamed != null
                             && nestedNamed.GetInterface("ReactiveUITK.Core.IProps") != null)
                         {
-                            return $"{typeName}.{siblingName}";
+                            resolvedName = $"{typeName}.{siblingName}";
+                            resolvedPropsType = nestedNamed;
+                            goto resolved;
                         }
 
                         // Step 3 — any nested IProps (legacy fallback).
                         foreach (var nested in type.GetNestedTypes())
                         {
                             if (nested.GetInterface("ReactiveUITK.Core.IProps") != null)
-                                return $"{typeName}.{nested.Name}";
+                            {
+                                resolvedName = $"{typeName}.{nested.Name}";
+                                resolvedPropsType = nested;
+                                goto resolved;
+                            }
                         }
                     }
                 }
 
-                // Last-resort fallback: assume the {Type}.{Type}Props convention so
-                // emitted code at least produces a clear CS error pointing at a
-                // recognizable name if the type is genuinely missing.
-                return $"{typeName}.{typeName}Props";
+                resolved:
+                if (resolvedName == null)
+                {
+                    // Last-resort fallback: assume the {Type}.{Type}Props convention so
+                    // emitted code at least produces a clear CS error pointing at a
+                    // recognizable name if the type is genuinely missing.
+                    return ($"{typeName}.{typeName}Props", null);
+                }
+
+                string refSlot = resolvedPropsType != null
+                    ? FindRefSlotName(resolvedPropsType)
+                    : null;
+                return (resolvedName, refSlot);
+            }
+
+            /// <summary>
+            /// Scans <paramref name="propsType"/>'s public instance properties for
+            /// the first one whose declared type is a generic instantiation of
+            /// <see cref="global::ReactiveUITK.Core.Ref{T}"/> or the deprecated
+            /// <c>Hooks.MutableRef&lt;T&gt;</c>. Returns the property name (the
+            /// slot HMR should assign <c>ref={x}</c> into) or <c>null</c> when
+            /// the props type has no such slot. Mirrors
+            /// <c>PropsResolver.GetMutableRefPropertyNames</c>'s first-match
+            /// behaviour at the reflection level.
+            /// </summary>
+            private static string FindRefSlotName(Type propsType)
+            {
+                foreach (var prop in propsType.GetProperties(
+                    System.Reflection.BindingFlags.Public
+                    | System.Reflection.BindingFlags.Instance))
+                {
+                    var pt = prop.PropertyType;
+                    if (!pt.IsGenericType)
+                        continue;
+                    var def = pt.GetGenericTypeDefinition();
+                    if (def == typeof(global::ReactiveUITK.Core.Ref<>))
+                        return prop.Name;
+                    // [Obsolete] backward-compat shape used in older user code.
+                    // Suppress CS0618: this is *exactly* the call site that has
+                    // to know about the legacy type so HMR can keep routing
+                    // ref={x} into pre-existing user components.
+#pragma warning disable CS0618
+                    if (def == typeof(global::ReactiveUITK.Core.Hooks.MutableRef<>))
+                        return prop.Name;
+#pragma warning restore CS0618
+                }
+                return null;
             }
 
             private void EmitSuspense(IList attrs, string keyExpr, IList children)
@@ -1300,6 +1401,11 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             private void EmitChildArgs(IList children)
             {
+                // UITKX0104 — warn on duplicate static string keys among siblings.
+                // Mirrors SG's CSharpEmitter.CheckDuplicateKeys (line 1631) so HMR
+                // surfaces the same authoring mistake the cold build catches.
+                CheckDuplicateKeys(children);
+
                 bool first = true;
                 for (int i = 0; i < children.Count; i++)
                 {
@@ -1311,6 +1417,47 @@ namespace ReactiveUITK.EditorSupport.HMR
                         _sb.Append(", ");
                     first = false;
                     EmitNode(children[i]);
+                }
+            }
+
+            /// <summary>
+            /// HMR mirror of SG's <c>CSharpEmitter.CheckDuplicateKeys</c>: walk
+            /// sibling element children, collect literal-string <c>key={...}</c>
+            /// values, and emit a one-line <c>Debug.LogWarning</c> on the first
+            /// duplicate. SG severity is Warning (UITKX0104), not Error, so HMR
+            /// must not <c>#error</c> here — that would over-fail relative to the
+            /// cold build. Non-literal key expressions are skipped (we cannot
+            /// statically resolve them).
+            /// </summary>
+            private void CheckDuplicateKeys(IList children)
+            {
+                HashSet<string> seen = null;
+                for (int i = 0; i < children.Count; i++)
+                {
+                    var child = children[i];
+                    if (child.GetType().Name != "ElementNode")
+                        continue;
+                    var attrs = UitkxHmrCompiler.GetItems(
+                        UitkxHmrCompiler.GetProp(child, "Attributes")
+                    );
+                    foreach (var attr in attrs)
+                    {
+                        string name = GP<string>(attr, "Name");
+                        if (!string.Equals(name, "key", StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        var val = UitkxHmrCompiler.GetProp(attr, "Value");
+                        if (val == null || val.GetType().Name != "StringLiteralValue")
+                            continue;
+                        string keyVal = GP<string>(val, "Value") ?? "";
+                        seen ??= new HashSet<string>(StringComparer.Ordinal);
+                        if (!seen.Add(keyVal))
+                        {
+                            UnityEngine.Debug.LogWarning(
+                                $"[HMR] UITKX0104: Duplicate key '{keyVal}' found "
+                                + $"among sibling elements in '{_displayName}'."
+                            );
+                        }
+                    }
                 }
             }
 
@@ -1921,15 +2068,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                     case "BooleanShorthandValue":
                         return "true";
                     case "JsxExpressionValue":
-                        // Element as attribute value — rare
+                        // Element as attribute value — e.g. <Route element={<HomePage/>}/>.
+                        // Mirrors SG's CSharpEmitter.EmitJsxToString: recursively emit the
+                        // nested element into _sb, capture the appended span, then truncate
+                        // _sb back so the captured text becomes our return value. Side
+                        // effects on _rentBuffer / _hoistedStyleFields are intentionally
+                        // shared with the parent emit so any pool-rents or hoisted styles
+                        // produced by the nested JSX still land in the parent's pre-return
+                        // block (and the parent's hoisted-fields section, respectively).
                         var innerEl = UitkxHmrCompiler.GetProp(val, "Element");
-                        if (innerEl != null)
-                        {
-                            var sb = new StringBuilder();
-                            // This is unusual — just emit null for now
-                            return "null /* jsx attr value */";
-                        }
-                        return "null";
+                        if (innerEl == null)
+                            return $"({QVNode})null";
+                        int startLen = _sb.Length;
+                        EmitNode(innerEl);
+                        string captured = _sb.ToString(startLen, _sb.Length - startLen);
+                        _sb.Length = startLen;
+                        return captured;
                     default:
                         return "null";
                 }
