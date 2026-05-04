@@ -1,0 +1,30 @@
+@namespace PrettyUi.App.Pages
+@using System
+@using System.Collections.Generic
+@using PrettyUi.App.Components
+@using ReactiveUITK.Router
+
+component HomePageSidebar {
+  var navigate = RouterHooks.UseNavigate();
+  var location = RouterHooks.UseLocation() ?? "/";
+
+  var entries = new (string Id, string Label, string Path)[] {
+    ("welcome", "Welcome", "/home/welcome"),
+    ("recap", "Recap", "/home/recap"),
+    ("credits", "Credits", "/home/credits"),
+  };
+
+  var items = new List<SidebarItem>(entries.Length);
+  foreach (var entry in entries) {
+    items.Add(new SidebarItem {
+      Id = entry.Id,
+      Label = entry.Label,
+      IsActive = location.StartsWith(entry.Path, StringComparison.Ordinal),
+      OnClick = () => navigate(entry.Path, null),
+    });
+  }
+
+  return (
+    <Sidebar items={items} />
+  );
+}

@@ -1,0 +1,35 @@
+@namespace PrettyUi.App.Components
+@using PrettyUi.App
+@using UnityEngine
+
+module ContentPanel {
+  public static readonly Style Card = new Style {
+    MaxWidth = Px(Theme.ContentMaxWidth),
+    PaddingTop = 20f,
+    PaddingBottom = 20f,
+    PaddingLeft = 20f,
+    PaddingRight = 20f,
+    BackgroundColor = Theme.BgPanel,
+    BorderRadius = Theme.Radius,
+    BorderTopWidth = Theme.BorderWidth,
+    BorderBottomWidth = Theme.BorderWidth,
+    BorderLeftWidth = Theme.BorderWidth,
+    BorderRightWidth = Theme.BorderWidth,
+    BorderTopColor = Theme.BorderSoft,
+    BorderBottomColor = Theme.BorderSoft,
+    BorderLeftColor = Theme.BorderSoft,
+    BorderRightColor = Theme.BorderSoft,
+  };
+
+  public static readonly Style Title = new Style {
+    FontSize = Theme.FsHeading,
+    Color = Theme.Accent,
+    MarginBottom = 12f,
+  };
+
+  public static readonly Style Body = new Style {
+    FontSize = Theme.FsBody,
+    Color = Theme.TextPrimary,
+    WhiteSpace = WsNormal,
+  };
+}
