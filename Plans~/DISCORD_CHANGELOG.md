@@ -1,3 +1,21 @@
+## [0.4.19] - 2026-05-04
+
+### Full HMR support for `module { … }` declarations
+
+`module { … }` declarations are now hot-reloadable end-to-end. Edit a `Style` field, a `static readonly Color`, or a 200-line `GameLogic.Tick(ref GameState st, …)` and the change takes effect on the next call — no Play-mode exit, no domain reload.
+
+**Per-method hot-swap.** A new source-generator pass (`ModuleBodyRewriter`) rewrites every top-level `static` method inside a module body into a public *trampoline* that bounces through an `__hmr_<name>_h<sig>` delegate field to a private body method. After each HMR compile, `UitkxHmrModuleMethodSwapper` rebinds every delegate field via `Delegate.CreateDelegate`. Custom delegate types preserve `ref`/`out`/`in`/`params` (impossible with `Func<>`/`Action<>`); FNV-1a signature hash disambiguates overloads; generic methods use a `MethodInfo` + `ConcurrentDictionary` cache. All `#if UNITY_EDITOR`-gated — zero overhead in player builds. Trampoline visibility tracks the original method, so `private static` methods using `private` nested types stay valid (no CS0050/CS0051/CS0052/CS0058/CS0059).
+
+**Documented contract** for every member kind: const → re-baked at compile time; `static readonly` → re-initialised every cycle; mutable static → preserved (caches/counters survive); static method → hot-swapped; instance / nested / new field / new method → verbatim or rude-edit. Matches React Fast Refresh and .NET Hot Reload conventions.
+
+**Rude-edit detection.** Adding a brand-new `static readonly` field mid-session can't grow the project type's metadata — the CLR seals it at load time. Instead of a silent `MissingFieldException` later, `UitkxHmrModuleStaticSwapper` now logs a once-per-session warning naming the field and the constraint. New `UitkxHmrController.AutoReloadOnRudeEdit` setting (EditorPref `UITKX_HMR_AutoReloadOnRudeEdit`, default `false`) automates the reload when enabled.
+
+**Plus 12 HMR ↔ source-generator parity bugs fixed** in `HmrCSharpEmitter`: sibling-Props resolution, JSX-as-attribute-value, duplicate-`key={}` warnings, `ref={x}` routing on function components, `Asset<T>(…)` resolution in module bodies, deterministic Roslyn overload picking, FQN-based type comparison, and more. New `UITKX0150` Info diagnostic surfaces module-body parse failures with verbatim fallback. **1142/1142 SG** passing.
+
+IDE extensions unchanged at VS Code **1.1.11** / VS 2022 **1.1.11** — runtime-only release.
+
+---
+
 ## [0.4.18] - 2026-05-03
 
 ### HMR `CS0426` on function components with sibling top-level Props — fixed

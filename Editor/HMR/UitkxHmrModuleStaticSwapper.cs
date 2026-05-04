@@ -106,11 +106,39 @@
 //      type.
 
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
 namespace ReactiveUITK.EditorSupport.HMR
 {
+    /// <summary>
+    /// Result of a single <see cref="UitkxHmrModuleStaticSwapper.SwapModuleStatics"/>
+    /// call.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AddedFieldsDetected"/> is the count of <c>static readonly</c> fields
+    /// that exist on the HMR-compiled type but have no corresponding slot on
+    /// the project-loaded type. These are CLR-level rude edits: the runtime
+    /// seals type metadata at load time, so the project type cannot grow new
+    /// fields without a full assembly reload. The swapper logs a once-per-session
+    /// warning for each newly-detected field; the controller may opt into
+    /// auto-triggering a domain reload when this count is &gt; 0.
+    /// </remarks>
+    internal readonly struct ModuleStaticSwapResult
+    {
+        public readonly int Copied;
+        public readonly int AddedFieldsDetected;
+
+        public ModuleStaticSwapResult(int copied, int addedFieldsDetected)
+        {
+            Copied = copied;
+            AddedFieldsDetected = addedFieldsDetected;
+        }
+
+        public static readonly ModuleStaticSwapResult Empty = default;
+    }
+
     /// <summary>
     /// Copies <c>static readonly</c> field values from the freshly-HMR-compiled
     /// assembly into the corresponding types of the project's loaded assemblies,
@@ -124,18 +152,26 @@ namespace ReactiveUITK.EditorSupport.HMR
         private const BindingFlags StaticFieldFlags =
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
 
+        // Once-per-session dedup of "added field" warnings. Key is
+        // "{Type.FullName}.{FieldName}". Cleared automatically on domain reload
+        // because all static state in the HMR Editor assembly resets then.
+        private static readonly HashSet<string> s_warnedAddedFields =
+            new HashSet<string>(StringComparer.Ordinal);
+
         /// <summary>
         /// For every type in <paramref name="hmrAssembly"/>, locate a project
-        /// type with the same <see cref="Type.FullName"/> and copy each
-        /// <c>static readonly</c> field's value across.
-        /// Safe to call when no module fields exist — returns 0.
+        /// type with the same <see cref="Type.FullName"/>, copy each
+        /// <c>static readonly</c> field's value across, and detect any
+        /// <c>static readonly</c> fields that exist only on the HMR side
+        /// (CLR rude edit — project type metadata is sealed at load time).
+        /// Safe to call when no module fields exist — returns <see cref="ModuleStaticSwapResult.Empty"/>.
         /// </summary>
-        /// <returns>Number of fields successfully copied.</returns>
-        public static int SwapModuleStatics(Assembly hmrAssembly)
+        public static ModuleStaticSwapResult SwapModuleStatics(Assembly hmrAssembly)
         {
-            if (hmrAssembly == null) return 0;
+            if (hmrAssembly == null) return ModuleStaticSwapResult.Empty;
 
             int copied = 0;
+            int addedFieldsDetected = 0;
 
             // GetTypes() can throw ReflectionTypeLoadException if a type fails
             // to load — but the HMR pipeline only continues past compile when
@@ -153,7 +189,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     "from HMR assembly — module statics will not be re-initialised. " +
                     $"({ex.Message})"
                 );
-                return 0;
+                return ModuleStaticSwapResult.Empty;
             }
 
             foreach (var hmrType in hmrTypes)
@@ -165,10 +201,62 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (projectType == null) continue;
 
                 copied += CopyStaticReadonlyFields(hmrType, projectType);
+                addedFieldsDetected += DetectAndWarnAddedFields(hmrType, projectType);
             }
 
-            return copied;
+            return new ModuleStaticSwapResult(copied, addedFieldsDetected);
         }
+
+        /// <summary>
+        /// Counts <c>static readonly</c> fields that exist on the HMR-compiled
+        /// type but NOT on the project-loaded type. For each such field, logs a
+        /// once-per-session warning explaining the CLR rude-edit constraint.
+        /// Returns the count of newly-detected fields (after dedup).
+        /// </summary>
+        private static int DetectAndWarnAddedFields(Type hmrType, Type projectType)
+        {
+            int newlyDetected = 0;
+
+            FieldInfo[] hmrFields;
+            try { hmrFields = hmrType.GetFields(StaticFieldFlags); }
+            catch { return 0; }
+
+            foreach (var hmrField in hmrFields)
+            {
+                if (!IsHotReinitableField(hmrField)) continue;
+
+                // Field exists on the project type — already handled by Copy.
+                if (projectType.GetField(hmrField.Name, StaticFieldFlags) != null)
+                    continue;
+
+                string key = hmrType.FullName + "." + hmrField.Name;
+                if (!s_warnedAddedFields.Add(key))
+                    continue; // already warned this session
+
+                newlyDetected++;
+
+                Debug.LogWarning(
+                    $"[HMR] '{hmrType.FullName}' has a newly-added 'static readonly' " +
+                    $"field '{hmrField.Name}' that does not exist on the project-loaded " +
+                    "type. The CLR seals type metadata at load time and cannot grow new " +
+                    "fields without a full assembly reload. Code recompiled by HMR (the " +
+                    "render delegate from this cycle) can use the field, but references " +
+                    "from non-HMR code (.cs scripts, untouched .uitkx files) will throw " +
+                    "MissingFieldException. Trigger a domain reload to materialise the " +
+                    "field everywhere — or enable EditorPref 'UITKX_HMR_AutoReloadOnRudeEdit'. " +
+                    "(Shown once per session per field.)"
+                );
+            }
+
+            return newlyDetected;
+        }
+
+        /// <summary>
+        /// Test/diagnostic helper — clears the once-per-session warning dedup
+        /// set so a subsequent <see cref="SwapModuleStatics"/> call will
+        /// re-warn for the same fields.
+        /// </summary>
+        internal static void ResetWarnDedupForTests() => s_warnedAddedFields.Clear();
 
         // ── Helpers ───────────────────────────────────────────────────────────
 

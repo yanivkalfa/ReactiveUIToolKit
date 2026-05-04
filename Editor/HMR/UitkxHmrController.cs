@@ -71,6 +71,17 @@ namespace ReactiveUITK.EditorSupport.HMR
             get => EditorPrefs.GetBool("UITKX_HMR_ShowNotify", true);
             set => EditorPrefs.SetBool("UITKX_HMR_ShowNotify", value);
         }
+        /// <summary>
+        /// When true, a detected CLR rude edit on a module type (newly-added
+        /// <c>static readonly</c> field) automatically triggers a domain
+        /// reload via <c>EditorUtility.RequestScriptReload</c> on the next
+        /// editor frame. Default false — a warning is logged either way.
+        /// </summary>
+        public bool AutoReloadOnRudeEdit
+        {
+            get => EditorPrefs.GetBool("UITKX_HMR_AutoReloadOnRudeEdit", false);
+            set => EditorPrefs.SetBool("UITKX_HMR_AutoReloadOnRudeEdit", value);
+        }
 
         // ── Memory tracking ─────────────────────────────────────────────────
         private long _sessionBaselineMemory;
@@ -341,16 +352,34 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // field initializers (e.g. removing a Style entry) had no
                 // effect until the user exited Play mode and forced a full
                 // assembly reload. See UitkxHmrModuleStaticSwapper for design.
-                int reInitedFields = 0;
+                ModuleStaticSwapResult moduleStaticResult = ModuleStaticSwapResult.Empty;
                 try
                 {
-                    reInitedFields = UitkxHmrModuleStaticSwapper
+                    moduleStaticResult = UitkxHmrModuleStaticSwapper
                         .SwapModuleStatics(result.LoadedAssembly);
                 }
                 catch (Exception ex)
                 {
                     UnityEngine.Debug.LogWarning(
                         $"[HMR] Module-static re-init failed: {ex.Message}"
+                    );
+                }
+                int reInitedFields = moduleStaticResult.Copied;
+                int addedFieldsDetected = moduleStaticResult.AddedFieldsDetected;
+
+                // Re-bind module static-method __hmr_* delegate fields. Mirrors
+                // the per-fiber render-delegate swap and the hook delegate swap,
+                // but operates type-wide on every module type in the HMR assembly.
+                int reInitedMethods = 0;
+                try
+                {
+                    reInitedMethods = UitkxHmrModuleMethodSwapper
+                        .SwapModuleMethods(result.LoadedAssembly);
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[HMR] Module-method re-init failed: {ex.Message}"
                     );
                 }
 
@@ -400,7 +429,36 @@ namespace ReactiveUITK.EditorSupport.HMR
                             + (reInitedFields > 0
                                 ? $" | Module statics re-init: {reInitedFields}"
                                 : string.Empty)
+                            + (reInitedMethods > 0
+                                ? $" | Module methods re-init: {reInitedMethods}"
+                                : string.Empty)
                     );
+
+                // Rude-edit handling: a newly-added `static readonly` field on
+                // a module type cannot be added to the project-loaded type
+                // (CLR seals type metadata). The swapper has already logged a
+                // once-per-session warning. If the user opted in, schedule a
+                // domain reload on the next editor frame to materialise the
+                // new field everywhere. We delay the reload so the current
+                // HMR cycle completes cleanly first (logs flush, etc.).
+                if (addedFieldsDetected > 0 && AutoReloadOnRudeEdit)
+                {
+                    Debug.Log(
+                        "[HMR] AutoReloadOnRudeEdit enabled — scheduling domain "
+                            + $"reload to materialise {addedFieldsDetected} newly-added "
+                            + "module field(s) on the project-loaded type(s)."
+                    );
+                    EditorApplication.delayCall += () =>
+                    {
+                        try { UnityEditor.EditorUtility.RequestScriptReload(); }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning(
+                                $"[HMR] AutoReloadOnRudeEdit: RequestScriptReload failed: {ex.Message}"
+                            );
+                        }
+                    };
+                }
 
                 // Remove from pending retries if this was a re-attempt
                 _pendingRetryPaths.Remove(uitkxPath);

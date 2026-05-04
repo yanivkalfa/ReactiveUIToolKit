@@ -6,6 +6,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.19] - 2026-05-04
+
+Full HMR support for `module { … }` declarations. The contract for what is and
+is not preserved across a hot-reload cycle is now explicit and matches the
+conventions used by React Fast Refresh and .NET Hot Reload.
+
+### HMR contract for `module { … }` bodies
+
+| Member kind | Behaviour on save |
+|---|---|
+| `public const X` | Re-baked into the call sites at compile time; new value visible after the next HMR swap (constants are folded by the C# compiler, so existing already-loaded code keeps the old value until that code is itself re-emitted). |
+| `public static readonly X` | **Re-initialised every HMR cycle** — the new initializer expression runs in the HMR-compiled assembly and the result is copied into the project type via `UitkxHmrModuleStaticSwapper`. |
+| `public static X` (mutable) | **Preserved** — runtime value carries across HMR cycles. Matches React Fast Refresh, .NET Hot Reload, and JS HMR. Use cases: lazy caches (`_textures`, `_built`), session counters, accumulated state. To reset, exit Play mode (or enable the opt-in auto-reload setting). |
+| `public static T Foo(…)` (method) | **Hot-swapped via per-method delegate trampolines** — supports `ref`/`out`/`in`/`params`, default values, generics, and overloads. Behind `#if UNITY_EDITOR`, zero overhead in player builds. |
+| Newly-added `static readonly` field | **CLR rude edit** — the project type's metadata is sealed by the runtime and cannot grow new fields. A warning is logged once per session per field; opt into `UITKX_HMR_AutoReloadOnRudeEdit` for an automatic domain reload. |
+| Newly-added method | The new method exists only on the HMR-compiled type. Calls from already-loaded (non-HMR'd) code throw `MissingMethodException`. Same workaround as new fields. |
+| Instance methods, properties, operators, nested-type members | Emitted verbatim — not hot-reloaded. Edit them and trigger a full domain reload to see changes. |
+
+### Added — HMR for module statics & methods
+
+- **Module `static readonly` field re-init.** New `UitkxHmrModuleStaticSwapper` copies static-readonly field values from the freshly HMR-compiled assembly into matching project types. Fixes the case where editing a `Style`/`Color` module field initializer reported a successful HMR cycle but the rendered UI kept showing the cold-build value until you exited Play mode.
+- **Module `static` method hot-swap.** New source-generator pass (`ModuleBodyRewriter`) rewrites every top-level `public static` method inside a `module { … }` body into a trampoline triplet: a public surface method that bounces through an `__hmr_<name>_h<sig>` delegate field to a private `__<name>_body_h<sig>` body method (all `#if UNITY_EDITOR`-gated). After each HMR compile, the new `UitkxHmrModuleMethodSwapper` rebinds every delegate field to the freshly compiled method via `Delegate.CreateDelegate`. Custom delegate types support `ref`/`out`/`in`/`params` (previously impossible with framework `Func<>`/`Action<>`); FNV-1a 32-bit signature hash disambiguates overloads; generic methods use a `MethodInfo` + `ConcurrentDictionary<Type, Delegate>` cache pattern. Trampolines preserve the original method's visibility so `private static` methods using `private` nested types stay valid (no CS0050/CS0051/CS0052/CS0058/CS0059).
+- **Rude-edit detection.** When you add a new `static readonly` field to a module mid-session, the CLR can't grow the project type's metadata — `UitkxHmrModuleStaticSwapper` now detects the mismatch and logs a once-per-session warning naming each affected field, the runtime constraint, and the available remediations.
+- **Opt-in auto-reload.** New `UitkxHmrController.AutoReloadOnRudeEdit` setting (EditorPref `UITKX_HMR_AutoReloadOnRudeEdit`, default `false`). When enabled and a rude edit lands, schedules `EditorUtility.RequestScriptReload()` via `EditorApplication.delayCall` so the new field/method materialises everywhere with one extra round-trip.
+- **`UITKX0150` Info diagnostic.** Emitted when the source generator cannot Roslyn-parse a module body for trampoline rewriting; falls back to verbatim emission so the module still compiles (only per-method HMR for that module is unavailable).
+
+### Fixed — 12 HMR ↔ source-generator parity bugs in `HmrCSharpEmitter`
+
+The HMR pipeline emits C# from a hand-written transpiler that must match the
+Roslyn-based source generator's output for any given `.uitkx` input. A round
+of cross-checking surfaced 12 long-standing divergences:
+
+- `ref={x}` on function components is now resolved to the props' `Ref<T>`/`MutableRef<T>` slot via the new `FindPropsTypeAndRefSlot` + `FindRefSlotName` helpers, instead of being treated as a literal `Ref` prop assignment (which silently dropped the binding).
+- JSX-as-attribute-value (e.g. React-Router `element={<X/>}`) now emits a real nested element via the `JsxExpressionValue` `_sb`-capture path instead of collapsing to `null`.
+- Sibling duplicate `key={…}` warnings are now raised at HMR-compile time via `CheckDuplicateKeys` from `EmitChildArgs`, matching SG's `UITKX0104`.
+- Sibling top-level Props classes (`RouterFunc` / `RouterFuncProps` at namespace scope) resolve correctly — three resolution paths now mirror the SG's `PropsResolver.TryGetFuncComponentPropsTypeName`.
+- `HmrCSharpEmitter.FindPropsType` no longer over-eagerly returns `{Type}.{Type}Props` and now walks all three legitimate Props shapes (sibling top-level, nested same-name, nested differently-named).
+- Function-component invocations correctly use `new …Props { … }` (not `BaseProps.__Rent`) — function-component Props derive from `IProps`, not `BaseProps`, and cannot be pooled.
+- `Asset<T>("./x")` / `Ast<T>("../x")` relative paths are resolved to absolute Unity-registry keys before HMR emit, so HMR-compiled and SG-compiled code produce identical literal strings (parity with `UitkxAssetRegistry`).
+- `UitkxHmrCompiler` adds a silent-drift list for 4 reflection-bound Roslyn methods, a deterministic `PickAllOptionalTailOverload` helper (overload picking is no longer order-sensitive across Roslyn versions), and an explicit `lineOffset:0` on `_uitkxParse`.
+- `CheckIfGenuinelyNew` uses fully-qualified type names so two unrelated modules with the same short name no longer fight over the swap slot.
+- `CompileHookModuleFile` correctly dispatches `HmrHookEmitter.EmitModules` so module bodies emitted by HMR compile end-to-end (exposed by Bug 1 from 0.4.17).
+
+### Changed
+
+- `UitkxHmrController.ProcessFileChange` extends its success log with `| Module statics re-init: N` and `| Module methods re-init: K` so the editor console makes it obvious which kind of HMR work happened on each save.
+- `UitkxHmrModuleStaticSwapper.SwapModuleStatics` returns a richer `ModuleStaticSwapResult { Copied, AddedFieldsDetected }` instead of a bare `int`.
+
+### Tests
+
+- 12 SG ↔ HMR emitter parity contract tests in `HmrEmitterParityContractTests` (5 from the parity-bugs round + 7 for the new module-method trampoline shape: trampoline-triplet shape, `ref` parameter custom-delegate, distinct overload hashes, generic-method `MethodInfo`-cache, non-method members emitted verbatim, instance-method untouched, default-parameter behaviour). 1142/1142 tests passing.
+
 ## [0.4.18] - 2026-05-03
 
 ### Fixed — HMR `CS0426` on function components with sibling top-level Props

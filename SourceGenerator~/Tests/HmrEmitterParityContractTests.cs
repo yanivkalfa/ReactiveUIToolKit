@@ -258,4 +258,234 @@ public class HmrEmitterParityContractTests
         Assert.Contains("new global::ReactiveUITK.HmrParity.Greeter.GreeterProps", output.GeneratedSource);
         Assert.DoesNotContain("__Rent", output.GeneratedSource);
     }
+
+    // ── Module static-method HMR rewrite (v0.4.20, Issue (a)) ───────────────────
+
+    /// <summary>
+    /// Every <c>public static</c> method declared inside a <c>module {…}</c>
+    /// body must compile into the HMR trampoline triplet:
+    /// <c>__hmr_&lt;Name&gt;_h&lt;sig&gt;</c> delegate field,
+    /// <c>__&lt;Name&gt;_body_h&lt;sig&gt;</c> private body method,
+    /// and a public trampoline that checks <c>HmrState.IsActive</c>.
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleStaticMethod_GeneratesTrampoline()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            module Calculator {
+                public static int Add(int a, int b) {
+                    return a + b;
+                }
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // HMR delegate slot — initialised to body method.
+        Assert.Contains("__hmr_Add_h", output.GeneratedSource);
+        // Body method synthesized with __<Name>_body_h<sig> shape.
+        Assert.Contains("__Add_body_h", output.GeneratedSource);
+        // Trampoline guards on HmrState.IsActive — exact pattern match.
+        Assert.Contains("global::ReactiveUITK.Core.HmrState.IsActive", output.GeneratedSource);
+        // Public surface is preserved (caller signature unchanged).
+        Assert.Contains("public static int Add(int a, int b)", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// <c>ref</c>/<c>out</c>/<c>in</c>/<c>params</c> parameters cannot be
+    /// expressed by <c>Func&lt;&gt;</c>/<c>Action&lt;&gt;</c>. The rewriter
+    /// MUST emit a custom delegate type so by-ref methods (e.g. DoomGame's
+    /// <c>Tick(ref GameState st, …)</c>) hot-reload correctly.
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleStaticMethod_RefParam_UsesCustomDelegate()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            module RefHolder {
+                public static void Bump(ref int value) {
+                    value++;
+                }
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Custom delegate declaration carrying the `ref` modifier — the whole
+        // point of NOT using Action<int>. Visibility tracks the original method
+        // (here `public`) so the synthesized declarations never tighten access.
+        Assert.Contains("public delegate void __Bump_h", output.GeneratedSource);
+        Assert.Contains("ref int value", output.GeneratedSource);
+        // Argument forwarding must keep the `ref` keyword.
+        Assert.Contains("(ref value)", output.GeneratedSource);
+        // Sanity: framework Action<int> must NOT be used as the field type.
+        Assert.DoesNotContain("global::System.Action<int> __hmr_Bump", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// Two static methods sharing the same name but different signatures
+    /// must produce two distinct <c>__hmr_*</c> field names. The signature
+    /// hash is the disambiguator; without it overloads would collide on
+    /// the same field slot and only the first emitted would HMR.
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleStaticMethod_Overloads_GetDistinctHashes()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            module Overloaded {
+                public static int Foo(int x) => x;
+                public static string Foo(string x) => x;
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Both overloads must appear with their own __hmr_Foo_h<hash> field.
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+            output.GeneratedSource, @"__hmr_Foo_h[0-9a-f]{8}");
+        // Each overload produces exactly one field declaration AND one
+        // call inside the trampoline body — so we expect at least 2
+        // distinct hashes across all matches.
+        var distinctHashes = matches
+            .Cast<System.Text.RegularExpressions.Match>()
+            .Select(m => m.Value)
+            .Distinct()
+            .ToList();
+        Assert.True(distinctHashes.Count >= 2,
+            $"Expected at least 2 distinct overload hashes, got {distinctHashes.Count}: " +
+            string.Join(", ", distinctHashes));
+    }
+
+    /// <summary>
+    /// Generic methods use the <c>MethodInfo</c> + <c>ConcurrentDictionary</c>
+    /// cache pattern (mirrors HookEmitter generic case). The cache keys per
+    /// closed type, the <c>MethodInfo</c> field is rebound by the swapper,
+    /// and the value is a delegate built via <c>MakeGenericMethod</c>.
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleGenericMethod_UsesMethodInfoCache()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            module Box {
+                public static T Identity<T>(T x) {
+                    return x;
+                }
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // MethodInfo backing field for the generic case. Visibility tracks the
+        // original method (here `public`).
+        Assert.Contains(
+            "public static global::System.Reflection.MethodInfo __hmr_Identity_h",
+            output.GeneratedSource);
+        // Per-closed-type delegate cache.
+        Assert.Contains(
+            "global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, global::System.Delegate>",
+            output.GeneratedSource);
+        // MakeGenericMethod call that closes the open MethodInfo per call site.
+        Assert.Contains("MakeGenericMethod", output.GeneratedSource);
+        // Trampoline preserves the generic signature.
+        Assert.Contains("public static T Identity<T>(T x)", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// <c>const</c> fields, <c>static readonly</c> fields, mutable static
+    /// fields, instance methods, properties, and nested types must all be
+    /// emitted verbatim — never wrapped in trampolines. Anything else would
+    /// be a regression on existing module behaviour.
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleNonMethodMembers_StayVerbatim()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+            @using System
+
+            module Mixed {
+                public const int VERSION = 7;
+                public static readonly string Tag = "abc";
+                private static int _counter;
+                public enum Color { Red, Green, Blue }
+                public struct Pair { public int A; public int B; }
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // No __hmr_ prefix should appear at all — there are no static methods.
+        Assert.DoesNotContain("__hmr_", output.GeneratedSource);
+        // Original member declarations preserved (substring matches the source).
+        Assert.Contains("public const int VERSION = 7", output.GeneratedSource);
+        Assert.Contains("public static readonly string Tag", output.GeneratedSource);
+        Assert.Contains("private static int _counter", output.GeneratedSource);
+        Assert.Contains("public enum Color", output.GeneratedSource);
+        Assert.Contains("public struct Pair", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// Instance methods inside a module are not hot-swappable (modules are
+    /// static-utility containers; instance dispatch needs a <c>this</c>-bound
+    /// delegate per receiver). They must emit verbatim.
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleInstanceMethod_NotRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            module HasInstanceMethod {
+                public void Foo() { }
+                public static void Bar() { }
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Only `Bar` is rewritten — `Foo` must stay verbatim.
+        Assert.Contains("__hmr_Bar_h", output.GeneratedSource);
+        Assert.DoesNotContain("__hmr_Foo_h", output.GeneratedSource);
+        Assert.Contains("public void Foo()", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// Default parameter values must survive on the public trampoline
+    /// (callers rely on them) but be elided from the body method (which
+    /// receives explicit arguments from the trampoline).
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleStaticMethod_DefaultParams_PreservedOnTrampoline()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            module Defaults {
+                public static int Add(int a, int b = 5) {
+                    return a + b;
+                }
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Trampoline: defaults present.
+        Assert.Contains("public static int Add(int a, int b = 5)", output.GeneratedSource);
+        // Body method: defaults stripped (explicit values forwarded).
+        Assert.Contains("private static int __Add_body_h", output.GeneratedSource);
+    }
 }

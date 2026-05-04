@@ -1,6 +1,7 @@
 @namespace PrettyUi.App.Pages
 @using PrettyUi.App
 @using UnityEngine
+@using UnityEngine.UIElements
 
 module MenuPage {
   public static readonly Style Root = new Style {
