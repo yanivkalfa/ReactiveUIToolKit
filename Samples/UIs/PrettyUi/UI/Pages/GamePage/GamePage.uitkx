@@ -1,0 +1,26 @@
+@namespace PrettyUi.App.Pages
+@using PrettyUi
+@using PrettyUi.App.Components
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component GamePage {
+  var navigate = RouterHooks.UseNavigate();
+
+  useEffect(() => {
+    GameSceneLoader.LoadAsync();
+    return () => GameSceneLoader.UnloadAsync();
+  }, new object[] { });
+
+  return (
+    <VisualElement style={Root} pickingMode={PickingMode.Ignore}>
+      <VisualElement style={Hud}>
+        <Label text="Game in progress" style={HudLabel} />
+        <AppButton
+          text="Back to Menu"
+          onClick={() => navigate("/home", null)}
+        />
+      </VisualElement>
+    </VisualElement>
+  );
+}

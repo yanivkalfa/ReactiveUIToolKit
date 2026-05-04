@@ -1,0 +1,7 @@
+@namespace PrettyUi.App.Pages
+
+module SettingsPage {
+  public static readonly Style ContentRoot = new Style {
+    FlexGrow = 1f,
+  };
+}

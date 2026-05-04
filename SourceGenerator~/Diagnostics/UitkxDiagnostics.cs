@@ -359,5 +359,26 @@ namespace ReactiveUITK.SourceGenerator
                 isEnabledByDefault: true,
                 description: "The generic type argument does not match the file extension. For example, a .png should be loaded as Texture2D or Sprite, not AudioClip."
             );
+
+        // ── Module HMR rewrite ───────────────────────────────────────────────
+
+        /// <summary>
+        /// UITKX0150 — The Roslyn parse of a module body failed, so the module
+        /// emitter fell back to verbatim emission. The module still compiles;
+        /// only per-method HMR for that module is unavailable until the parse
+        /// error is resolved. Severity is Info — verbatim emit is a graceful
+        /// fallback, not a build break.
+        /// </summary>
+        public static readonly DiagnosticDescriptor ModuleBodyParseFailed =
+            new DiagnosticDescriptor(
+                id: "UITKX0150",
+                title: "Module body could not be parsed for HMR rewrite",
+                messageFormat:
+                    "Module '{0}' body could not be parsed for HMR method-trampoline rewrite ({1}). Falling back to verbatim emission — the module still compiles, but per-method HMR for this module is unavailable until the parse error is fixed.",
+                category: Category,
+                defaultSeverity: DiagnosticSeverity.Info,
+                isEnabledByDefault: true,
+                description: "The source generator wraps each module body in a synthetic class and parses it with Roslyn so it can rewrite each top-level static method into a trampoline + delegate field + body method (the pattern that enables HMR). If parsing fails — usually because of a syntactic issue with the user code — the emitter falls back to writing the body verbatim, which is what the pre-HMR emitter always did."
+            );
     }
 }
