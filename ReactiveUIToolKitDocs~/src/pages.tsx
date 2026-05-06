@@ -55,6 +55,8 @@ import { ScrollerPage } from './pages/Components/Scroller/ScrollerPage'
 import { TextElementPage } from './pages/Components/TextElement/TextElementPage'
 import { PropertyInspectorPage } from './pages/Components/PropertyInspector/PropertyInspectorPage'
 import { TwoPaneSplitViewPage } from './pages/Components/TwoPaneSplitView/TwoPaneSplitViewPage'
+import { VideoPage } from './pages/Components/Video/VideoPage'
+import { AudioPage } from './pages/Components/Audio/AudioPage'
 
 
 export type Page = {
@@ -525,6 +527,22 @@ export const pages: Section[] = [
         keywords: ['split', 'editor'],
         group: 'advanced',
         element: () => <TwoPaneSplitViewPage />,
+      },
+      {
+        id: 'component-video',
+        title: 'Video',
+        path: '/components/video',
+        keywords: ['video', 'videoplayer', 'media', 'rendertexture', 'mediahost'],
+        group: 'basic',
+        element: () => <VideoPage />,
+      },
+      {
+        id: 'component-audio',
+        title: 'Audio',
+        path: '/components/audio',
+        keywords: ['audio', 'audiosource', 'sound', 'music', 'sfx', 'useSfx', 'mediahost'],
+        group: 'basic',
+        element: () => <AudioPage />,
       },
     ],
   },
