@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -15,51 +16,22 @@ namespace ReactiveUITK.EditorSupport.HMR
     /// </summary>
     internal static class HmrCSharpEmitter
     {
-        // ── Hardcoded tag → resolution map (mirrors PropsResolver.BuildFallbackMap) ─
-        private static readonly Dictionary<string, TagRes> s_tagMap = new Dictionary<
-            string,
-            TagRes
-        >(StringComparer.OrdinalIgnoreCase)
-        {
-            // Typed elements (no children)
-            ["label"] = TagRes.Typed("Label", "LabelProps"),
-            ["button"] = TagRes.Typed("Button", "ButtonProps"),
-            ["textfield"] = TagRes.Typed("TextField", "TextFieldProps"),
-            ["toggle"] = TagRes.Typed("Toggle", "ToggleProps"),
-            ["slider"] = TagRes.Typed("Slider", "SliderProps"),
-            ["sliderint"] = TagRes.Typed("SliderInt", "SliderIntProps"),
-            ["image"] = TagRes.Typed("Image", "ImageProps"),
-            ["listview"] = TagRes.Typed("ListView", "ListViewProps"),
-            ["treeview"] = TagRes.Typed("TreeView", "TreeViewProps"),
-            ["helpbox"] = TagRes.Typed("HelpBox", "HelpBoxProps"),
-            ["progressbar"] = TagRes.Typed("ProgressBar", "ProgressBarProps"),
-            ["tab"] = TagRes.Typed("Tab", "TabProps"),
-            ["tabview"] = TagRes.Typed("TabView", "TabViewProps"),
-            ["textelement"] = TagRes.Typed("TextElement", "TextElementProps"),
-            ["radiobutton"] = TagRes.Typed("RadioButton", "RadioButtonProps"),
-            ["radiobuttongroup"] = TagRes.Typed("RadioButtonGroup", "RadioButtonGroupProps"),
-            ["dropdownfield"] = TagRes.Typed("DropdownField", "DropdownFieldProps"),
-            ["enumfield"] = TagRes.Typed("EnumField", "EnumFieldProps"),
-            ["integerfield"] = TagRes.Typed("IntegerField", "IntegerFieldProps"),
-            ["floatfield"] = TagRes.Typed("FloatField", "FloatFieldProps"),
-            // Typed containers (accept children)
-            ["box"] = TagRes.TypedC("Box", "BoxProps"),
-            ["scrollview"] = TagRes.TypedC("ScrollView", "ScrollViewProps"),
-            ["foldout"] = TagRes.TypedC("Foldout", "FoldoutProps"),
-            ["groupbox"] = TagRes.TypedC("GroupBox", "GroupBoxProps"),
-            ["errorboundary"] = TagRes.TypedC("ErrorBoundary", "ErrorBoundaryProps"),
-            // VisualElement is typed with children
-            ["visualelement"] = TagRes.TypedC("VisualElement", "VisualElementProps"),
-            // Dictionary-based (accept children)
-            ["visualelementsafe"] = new TagRes(TagKind.Dict, "VisualElementSafe", null),
-            // Text
-            ["text"] = new TagRes(TagKind.Text, "Text", null),
-            // Fragment
-            ["fragment"] = new TagRes(TagKind.Fragment, "Fragment", null),
-            // Suspense, Portal
-            ["suspense"] = new TagRes(TagKind.Suspense, "Suspense", null),
-            ["portal"] = new TagRes(TagKind.Portal, "Portal", null),
-        };
+        // ── Built-in tag → resolution map ───────────────────────────────────
+        //
+        // Auto-discovered at type-init via reflection over
+        // <c>typeof(global::ReactiveUITK.V).GetMethods()</c>. Mirrors the
+        // source generator's <c>PropsResolver.BuildBuiltinMapFromCompilation</c>
+        // (Roslyn-based auto-scan) one-for-one — same classification rules,
+        // same key casing — so adding a new <c>V.Foo(FooProps, …)</c> factory
+        // is automatically picked up by both emitters with no further edits.
+        //
+        // Historically this was a 33-entry hand-maintained literal that
+        // silently drifted from <c>V.cs</c> every release (38 typed factories
+        // were missing as of 0.4.19, e.g. <c>&lt;Animate&gt;</c>,
+        // <c>&lt;Toolbar&gt;</c>, every editor field, etc.). The reflection
+        // discovery closes the entire bug class structurally.
+        private static readonly Dictionary<string, TagRes> s_tagMap =
+            HmrBuiltinTagDiscovery.BuildAutoDiscoveredTagMap();
 
         // Single source of truth lives in
         // Shared/Core/Router/RouterTagAliases.cs.  Both the source generator
@@ -1031,8 +1003,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                         // logs a warning so the developer sees the divergence.
                         UnityEngine.Debug.LogWarning(
                             $"[HMR] {_displayName}: <{typeName} ref={{...}}> has no "
-                            + "matching Ref<T>/MutableRef<T> property on its Props type. "
-                            + "The ref will be ignored at runtime."
+                                + "matching Ref<T>/MutableRef<T> property on its Props type. "
+                                + "The ref will be ignored at runtime."
                         );
                     }
 
@@ -1116,8 +1088,14 @@ namespace ReactiveUITK.EditorSupport.HMR
                     if (asm.IsDynamic)
                         continue;
                     Type[] types;
-                    try { types = asm.GetTypes(); }
-                    catch { continue; /* ReflectionTypeLoadException — skip */ }
+                    try
+                    {
+                        types = asm.GetTypes();
+                    }
+                    catch
+                    {
+                        continue; /* ReflectionTypeLoadException — skip */
+                    }
 
                     foreach (var type in types)
                     {
@@ -1132,8 +1110,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                             ? siblingName
                             : type.Namespace + "." + siblingName;
                         var sibling = asm.GetType(siblingFullName, throwOnError: false);
-                        if (sibling != null
-                            && sibling.GetInterface("ReactiveUITK.Core.IProps") != null)
+                        if (
+                            sibling != null
+                            && sibling.GetInterface("ReactiveUITK.Core.IProps") != null
+                        )
                         {
                             resolvedName = "global::" + siblingFullName;
                             resolvedPropsType = sibling;
@@ -1143,8 +1123,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                         // Step 2 — nested {typeName}.{typeName}Props (the form generated
                         // by the source generator for compiled UITKX components).
                         var nestedNamed = type.GetNestedType(siblingName);
-                        if (nestedNamed != null
-                            && nestedNamed.GetInterface("ReactiveUITK.Core.IProps") != null)
+                        if (
+                            nestedNamed != null
+                            && nestedNamed.GetInterface("ReactiveUITK.Core.IProps") != null
+                        )
                         {
                             resolvedName = $"{typeName}.{siblingName}";
                             resolvedPropsType = nestedNamed;
@@ -1173,9 +1155,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                     return ($"{typeName}.{typeName}Props", null);
                 }
 
-                string refSlot = resolvedPropsType != null
-                    ? FindRefSlotName(resolvedPropsType)
-                    : null;
+                string refSlot =
+                    resolvedPropsType != null ? FindRefSlotName(resolvedPropsType) : null;
                 return (resolvedName, refSlot);
             }
 
@@ -1191,9 +1172,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             /// </summary>
             private static string FindRefSlotName(Type propsType)
             {
-                foreach (var prop in propsType.GetProperties(
-                    System.Reflection.BindingFlags.Public
-                    | System.Reflection.BindingFlags.Instance))
+                foreach (
+                    var prop in propsType.GetProperties(
+                        System.Reflection.BindingFlags.Public
+                            | System.Reflection.BindingFlags.Instance
+                    )
+                )
                 {
                     var pt = prop.PropertyType;
                     if (!pt.IsGenericType)
@@ -1454,7 +1438,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                         {
                             UnityEngine.Debug.LogWarning(
                                 $"[HMR] UITKX0104: Duplicate key '{keyVal}' found "
-                                + $"among sibling elements in '{_displayName}'."
+                                    + $"among sibling elements in '{_displayName}'."
                             );
                         }
                     }
@@ -2163,6 +2147,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             ("useSignal(", "Hooks.UseSignal("),
             ("useDeferredValue(", "Hooks.UseDeferredValue("),
             ("useTransition(", "Hooks.UseTransition("),
+            ("useSfx(", "Hooks.UseSfx("),
             ("provideContext(", "Hooks.ProvideContext("),
         };
 
@@ -2598,7 +2583,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// Captures the hook name (without "Hooks." prefix) in group 1.
         /// </summary>
         private static readonly Regex s_hookSignatureRe = new Regex(
-            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|ProvideContext)(?:<[^>]*>)?\s*\(",
+            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
             RegexOptions.Compiled
         );
 
@@ -2723,6 +2708,134 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             public static TagRes TypedC(string method, string props) =>
                 new TagRes(TagKind.TypedC, method, props);
+        }
+
+        // ── Auto-discovery of V.* factory methods (mirrors SG's
+        // PropsResolver.BuildBuiltinMapFromCompilation) ─────────────────────
+        //
+        // Walks every public static <c>VirtualNode</c>-returning method on
+        // <c>global::ReactiveUITK.V</c> and classifies each by its first
+        // parameter's type:
+        //
+        //   • first param ends in "Props"  → Typed (or TypedC if last param is
+        //                                    <c>params VirtualNode[]</c>)
+        //   • first param implements
+        //     <c>IDictionary</c>/<c>IReadOnlyDictionary&lt;,&gt;</c>          → Dict
+        //   • method name is "Fragment"                                       → Fragment
+        //   • method name is "Text" + first param string                      → Text
+        //   • everything else (Func/Memo/Portal/Suspense/Router/etc.)         → SKIP
+        //                                                                       (manual
+        //                                                                       overrides
+        //                                                                       below
+        //                                                                       handle
+        //                                                                       the few
+        //                                                                       markup-relevant
+        //                                                                       skips)
+        //
+        // Generic methods (<c>V.Func&lt;T&gt;</c>) are skipped — they're
+        // resolved via the FuncComponent path, not the typed path. Inherited
+        // methods from <c>System.Object</c> are excluded via
+        // <c>BindingFlags.DeclaredOnly</c> (and would be filtered by the
+        // VirtualNode return-type check anyway).
+        //
+        // The discovery algorithm is also mirrored verbatim by
+        // <c>HmrBuiltinTagDiscoveryContractTests</c> in the SG test project
+        // (which cannot load this assembly because it depends on
+        // <c>UnityEditor</c>). If the algorithm here changes, the mirror in
+        // the test must change in lockstep.
+        private static class HmrBuiltinTagDiscovery
+        {
+            public static Dictionary<string, TagRes> BuildAutoDiscoveredTagMap()
+            {
+                var map = new Dictionary<string, TagRes>(StringComparer.OrdinalIgnoreCase);
+                var vType = typeof(global::ReactiveUITK.V);
+                var vNodeType = typeof(global::ReactiveUITK.Core.VirtualNode);
+                var vNodeArrayType = typeof(global::ReactiveUITK.Core.VirtualNode[]);
+                var paramArrayAttr = typeof(ParamArrayAttribute);
+
+                foreach (
+                    var m in vType.GetMethods(
+                        BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly
+                    )
+                )
+                {
+                    if (m.IsGenericMethodDefinition)
+                        continue;
+                    if (m.ReturnType != vNodeType)
+                        continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length == 0)
+                        continue;
+
+                    var firstType = ps[0].ParameterType;
+                    bool acceptsChildren =
+                        ps[ps.Length - 1].IsDefined(paramArrayAttr, false)
+                        && ps[ps.Length - 1].ParameterType == vNodeArrayType;
+
+                    // V.Fragment(string key = null, params VirtualNode[] children)
+                    if (m.Name == "Fragment")
+                    {
+                        map["fragment"] = new TagRes(TagKind.Fragment, "Fragment", null);
+                        continue;
+                    }
+
+                    // V.Text(string text, string key = null)
+                    if (m.Name == "Text" && firstType == typeof(string))
+                    {
+                        map["text"] = new TagRes(TagKind.Text, "Text", null);
+                        continue;
+                    }
+
+                    // Typed: first param is a *Props class.
+                    if (firstType.Name.EndsWith("Props", StringComparison.Ordinal))
+                    {
+                        var kind = acceptsChildren ? TagKind.TypedC : TagKind.Typed;
+                        var key = m.Name.ToLowerInvariant();
+                        // If overloads collide, prefer the no-children variant
+                        // (Typed) — same precedence as the legacy literal map.
+                        if (!map.TryGetValue(key, out var _existing) || kind == TagKind.Typed)
+                        {
+                            map[key] = new TagRes(kind, m.Name, firstType.Name);
+                        }
+                        continue;
+                    }
+
+                    // Dictionary-based (e.g. anything that takes IDictionary).
+                    if (
+                        typeof(System.Collections.IDictionary).IsAssignableFrom(firstType)
+                        || (
+                            firstType.IsGenericType
+                            && firstType.GetGenericTypeDefinition()
+                                == typeof(IReadOnlyDictionary<,>)
+                        )
+                    )
+                    {
+                        map[m.Name.ToLowerInvariant()] = new TagRes(TagKind.Dict, m.Name, null);
+                        continue;
+                    }
+
+                    // All other shapes (Func/Memo/Portal/Suspense/Router/etc.)
+                    // are skipped here — they're either routed through the
+                    // FuncComponent / component-alias paths, or handled by the
+                    // explicit manual overrides below.
+                }
+
+                // ── Manual overrides ────────────────────────────────────────
+                // Tags whose V.* factory has a non-*Props first parameter but
+                // whose markup tag must still resolve through the typed-path
+                // emitter.
+
+                // V.Suspense(Func<bool>|Task, …) → first param is Func/Task.
+                map["suspense"] = new TagRes(TagKind.Suspense, "Suspense", null);
+                // V.Portal(VisualElement target, …) → first param is VE.
+                map["portal"] = new TagRes(TagKind.Portal, "Portal", null);
+                // V.VisualElementSafe(object props, …) → dict-shape, first
+                // param is `object` (not detectable as IDictionary at type
+                // level since the runtime cast happens inside V).
+                map["visualelementsafe"] = new TagRes(TagKind.Dict, "VisualElementSafe", null);
+
+                return map;
+            }
         }
     }
 }

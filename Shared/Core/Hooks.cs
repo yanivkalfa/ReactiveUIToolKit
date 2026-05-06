@@ -359,6 +359,7 @@ namespace ReactiveUITK.Core
         private const string HookIdContext = "UseContext";
         private const string HookIdMutableRef = "UseMutableRef";
         private const string HookIdSignal = "UseSignal";
+        private const string HookIdSfx = "UseSfx";
 
         private static FunctionComponentState EnsureState(NodeMetadata metadata)
         {
@@ -1305,6 +1306,76 @@ namespace ReactiveUITK.Core
                 },
                 dependencies
             );
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  UseSfx — fire-and-forget one-shot audio
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Returns a stable <see cref="System.Action{AudioClip, float}"/> that
+        /// plays a one-shot <see cref="UnityEngine.AudioClip"/> on the shared
+        /// <c>MediaHost.Instance.SfxSource</c>. Call the returned delegate
+        /// from event handlers (button clicks, hover, etc.) — it never
+        /// allocates and returns the same delegate reference across renders
+        /// for stable identity in <c>UseEffect</c> dependency lists.
+        ///
+        /// <para>
+        /// The <paramref name="mixer"/> argument is captured at hook-call time
+        /// and re-applied each invocation. Changing it between renders
+        /// rebuilds the cached delegate.
+        /// </para>
+        ///
+        /// <para>
+        /// Hook-order signature: this hook reports as <c>UseSfx</c> in the
+        /// generated <c>HookSignatureAttribute</c>; it MUST appear in the
+        /// emitter regex whitelists at <c>CSharpEmitter.cs</c> and
+        /// <c>HmrCSharpEmitter.cs</c> for HMR rude-edit detection to work.
+        /// </para>
+        /// </summary>
+        public static System.Action<UnityEngine.AudioClip, float> UseSfx(
+            UnityEngine.Audio.AudioMixerGroup mixer = null
+        )
+        {
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (state == null)
+            {
+                return static (_, __) => { };
+            }
+            RecordHook(metadata, state, HookIdSfx);
+
+            state.HookStates ??= new System.Collections.Generic.List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
+            {
+                state.HookStates.Add(null);
+            }
+
+            var entry =
+                state.HookStates[state.HookIndex]
+                as System.Tuple<
+                    UnityEngine.Audio.AudioMixerGroup,
+                    System.Action<UnityEngine.AudioClip, float>
+                >;
+            if (entry == null || !ReferenceEquals(entry.Item1, mixer))
+            {
+                var capturedMixer = mixer;
+                System.Action<UnityEngine.AudioClip, float> action = (clip, volumeScale) =>
+                {
+                    if (clip == null)
+                        return;
+                    var src = ReactiveUITK.Core.Media.MediaHost.Instance.SfxSource;
+                    if (capturedMixer != null)
+                        src.outputAudioMixerGroup = capturedMixer;
+                    src.PlayOneShot(clip, UnityEngine.Mathf.Clamp01(volumeScale));
+                };
+                entry = System.Tuple.Create(capturedMixer, action);
+                state.HookStates[state.HookIndex] = entry;
+            }
+
+            state.HookIndex++;
+            SyncState(metadata, state);
+            return entry.Item2;
         }
 
         public static void UseTweenFloat(

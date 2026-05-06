@@ -851,6 +851,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 ),
                 ["errorboundary"] = Typed("ErrorBoundary", "ErrorBoundaryProps", children: true),
                 ["visualelementsafe"] = Dict("VisualElementSafe"),
+
+                // Function-component built-ins that delegate to V.Func<TProps>
+                // internally but, from the markup-resolver perspective, look
+                // identical to a typed-children element. Listed here so SG
+                // tests that don't reference the real V type can resolve them
+                // (HMR auto-discovers them via reflection regardless).
+                ["animate"] = Typed("Animate", "AnimateProps", children: true),
+                ["audio"] = Typed("Audio", "AudioProps", children: true),
+                ["video"] = Typed("Video", "VideoProps", children: true),
             };
         }
     }

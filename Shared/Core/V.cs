@@ -681,17 +681,9 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Routes(
-            string key = null,
-            params VirtualNode[] children
-        )
+        public static VirtualNode Routes(string key = null, params VirtualNode[] children)
         {
-            return Func(
-                RoutesFunc.Render,
-                Core.EmptyProps.Instance,
-                key,
-                children
-            );
+            return Func(RoutesFunc.Render, Core.EmptyProps.Instance, key, children);
         }
 
         public static VirtualNode NavLink(
@@ -732,7 +724,12 @@ namespace ReactiveUITK
         {
             return Func<NavigateFuncProps>(
                 NavigateFunc.Render,
-                new NavigateFuncProps { To = to, Replace = replace, State = state },
+                new NavigateFuncProps
+                {
+                    To = to,
+                    Replace = replace,
+                    State = state,
+                },
                 key
             );
         }
@@ -748,6 +745,43 @@ namespace ReactiveUITK
         )
         {
             return Func<AnimateProps>(AnimateFunc.Render, props, key, children);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  Media — <Audio> / <Video> (delegate to Func<TProps>)
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Hidden, side-effect-only Func-Component that rents a pooled
+        /// <see cref="UnityEngine.AudioSource"/> from
+        /// <see cref="ReactiveUITK.Core.Media.MediaHost"/>, configures it
+        /// from <see cref="AudioProps"/>, and returns it on unmount.
+        /// Renders a <c>Fragment</c> (no visual output).
+        /// </summary>
+        public static VirtualNode Audio(
+            AudioProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            return Func<AudioProps>(ReactiveUITK.Core.Media.AudioFunc.Render, props, key, children);
+        }
+
+        /// <summary>
+        /// Real positionable Func-Component that rents a pooled
+        /// <see cref="UnityEngine.Video.VideoPlayer"/> and a pooled
+        /// <see cref="UnityEngine.RenderTexture"/> from
+        /// <see cref="ReactiveUITK.Core.Media.MediaHost"/> and renders the
+        /// video into a <c>VisualElement</c>'s <c>backgroundImage</c>.
+        /// Accepts overlay children (e.g. play/pause buttons).
+        /// </summary>
+        public static VirtualNode Video(
+            VideoProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            return RentElementWithChildren("Video", key, props, children);
         }
 
         // ═══════════════════════════════════════════════════════════════════

@@ -785,6 +785,185 @@
         }
       ]
     },
+    "Audio": {
+      "propsType": "AudioProps",
+      "description": "Side-effect-only Func-Component that rents a pooled UnityEngine.AudioSource from MediaHost. Renders no visible content. Use for music tracks and configurable per-instance audio (positional, looping, with imperative controller). For fire-and-forget UI clicks, prefer the useSfx() hook.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "Clip",
+          "type": "AudioClip",
+          "description": "AudioClip to play."
+        },
+        {
+          "name": "Autoplay",
+          "type": "bool",
+          "description": "Start playback on mount. Default: true."
+        },
+        {
+          "name": "Loop",
+          "type": "bool",
+          "description": "Loop the clip."
+        },
+        {
+          "name": "Volume",
+          "type": "float",
+          "description": "Volume in [0, 1]. Default: 1."
+        },
+        {
+          "name": "Pitch",
+          "type": "float",
+          "description": "Pitch multiplier. Default: 1."
+        },
+        {
+          "name": "Mute",
+          "type": "bool",
+          "description": "Mute toggle."
+        },
+        {
+          "name": "Priority",
+          "type": "int",
+          "description": "0 = highest, 256 = lowest. Default: 128."
+        },
+        {
+          "name": "MixerGroup",
+          "type": "AudioMixerGroup",
+          "description": "Optional mixer group for routing."
+        },
+        {
+          "name": "SpatialBlend",
+          "type": "float",
+          "description": "0 = pure 2D, 1 = pure 3D positional. Default: 0."
+        },
+        {
+          "name": "PanStereo",
+          "type": "float",
+          "description": "Stereo pan in [-1, 1]."
+        },
+        {
+          "name": "RolloffMode",
+          "type": "AudioRolloffMode",
+          "description": "3D distance attenuation curve."
+        },
+        {
+          "name": "MinDistance",
+          "type": "float",
+          "description": "3D minimum-attenuation distance."
+        },
+        {
+          "name": "MaxDistance",
+          "type": "float",
+          "description": "3D maximum-attenuation distance."
+        },
+        {
+          "name": "WorldPosition",
+          "type": "Vector3?",
+          "description": "Optional world position for 3D audio."
+        },
+        {
+          "name": "OnStarted",
+          "type": "Action",
+          "description": "Fired when playback begins."
+        },
+        {
+          "name": "OnEnded",
+          "type": "Action",
+          "description": "Fired when non-looping playback completes."
+        },
+        {
+          "name": "Controller",
+          "type": "Ref<AudioController>",
+          "description": "Imperative handle (Play/Pause/Stop/Seek)."
+        }
+      ]
+    },
+    "Video": {
+      "propsType": "VideoProps",
+      "description": "Real positionable Func-Component that rents a pooled UnityEngine.Video.VideoPlayer and a pooled RenderTexture from MediaHost, writes the video into the host VisualElement's style.backgroundImage. Accepts overlay children (e.g. play/pause buttons).",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "Clip",
+          "type": "VideoClip",
+          "description": "Asset-imported VideoClip."
+        },
+        {
+          "name": "Url",
+          "type": "string",
+          "description": "Streaming URL alternative to Clip (HTTP, file://). Wins over Clip when both are set."
+        },
+        {
+          "name": "Autoplay",
+          "type": "bool",
+          "description": "Begin playback once prepared. Default: true."
+        },
+        {
+          "name": "Loop",
+          "type": "bool",
+          "description": "Loop the clip."
+        },
+        {
+          "name": "Muted",
+          "type": "bool",
+          "description": "Mute the audio track."
+        },
+        {
+          "name": "Volume",
+          "type": "float",
+          "description": "Audio volume in [0, 1]. Default: 1."
+        },
+        {
+          "name": "PlaybackSpeed",
+          "type": "float",
+          "description": "Playback speed multiplier. Default: 1."
+        },
+        {
+          "name": "ScaleMode",
+          "type": "string",
+          "description": "scaleToFit (default) | scaleAndCrop | stretchToFill — maps to BackgroundSize."
+        },
+        {
+          "name": "AudioOutputMode",
+          "type": "VideoAudioOutputMode",
+          "description": "How VideoPlayer outputs audio. Default: Direct."
+        },
+        {
+          "name": "MixerGroup",
+          "type": "AudioMixerGroup",
+          "description": "Optional mixer group when AudioOutputMode is AudioSource."
+        },
+        {
+          "name": "RenderTextureFormat",
+          "type": "RenderTextureFormat",
+          "description": "RT format. Default: ARGB32."
+        },
+        {
+          "name": "OnPrepared",
+          "type": "Action",
+          "description": "Fired once the player has finished preparing."
+        },
+        {
+          "name": "OnEnded",
+          "type": "Action",
+          "description": "Fired when non-looping playback completes."
+        },
+        {
+          "name": "OnError",
+          "type": "Action<string>",
+          "description": "Fired with error message if VideoPlayer reports one."
+        },
+        {
+          "name": "OnSeekCompleted",
+          "type": "Action",
+          "description": "Fired after a seek completes."
+        },
+        {
+          "name": "Controller",
+          "type": "Ref<VideoController>",
+          "description": "Imperative handle (Play/Pause/Stop/Seek)."
+        }
+      ]
+    },
     "ScrollView": {
       "propsType": "ScrollViewProps",
       "description": "Scrollable container.",
@@ -1772,14 +1951,46 @@
       "description": "Navigation link that applies an active style when its target matches the current location.",
       "acceptsChildren": false,
       "attributes": [
-        { "name": "to", "type": "string", "description": "Target path to navigate to." },
-        { "name": "label", "type": "string", "description": "Button label text." },
-        { "name": "replace", "type": "bool", "description": "Replace history entry instead of pushing." },
-        { "name": "end", "type": "bool", "description": "When true, only activate on an exact location match." },
-        { "name": "caseSensitive", "type": "bool", "description": "When true, comparison is case-sensitive." },
-        { "name": "style", "type": "Style", "description": "Inactive style." },
-        { "name": "activeStyle", "type": "Style", "description": "Style applied when the target matches the current location." },
-        { "name": "state", "type": "object", "description": "Arbitrary navigation state passed to the target." }
+        {
+          "name": "to",
+          "type": "string",
+          "description": "Target path to navigate to."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "description": "Button label text."
+        },
+        {
+          "name": "replace",
+          "type": "bool",
+          "description": "Replace history entry instead of pushing."
+        },
+        {
+          "name": "end",
+          "type": "bool",
+          "description": "When true, only activate on an exact location match."
+        },
+        {
+          "name": "caseSensitive",
+          "type": "bool",
+          "description": "When true, comparison is case-sensitive."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inactive style."
+        },
+        {
+          "name": "activeStyle",
+          "type": "Style",
+          "description": "Style applied when the target matches the current location."
+        },
+        {
+          "name": "state",
+          "type": "object",
+          "description": "Arbitrary navigation state passed to the target."
+        }
       ]
     },
     "Navigate": {
@@ -1787,9 +1998,21 @@
       "description": "Declarative redirect. When mounted, navigates to <to> exactly once. Defaults to history.replace.",
       "acceptsChildren": false,
       "attributes": [
-        { "name": "to", "type": "string", "description": "Target path to redirect to." },
-        { "name": "replace", "type": "bool", "description": "When true (default), replaces the current history entry instead of pushing." },
-        { "name": "state", "type": "object", "description": "Arbitrary navigation state." }
+        {
+          "name": "to",
+          "type": "string",
+          "description": "Target path to redirect to."
+        },
+        {
+          "name": "replace",
+          "type": "bool",
+          "description": "When true (default), replaces the current history entry instead of pushing."
+        },
+        {
+          "name": "state",
+          "type": "object",
+          "description": "Arbitrary navigation state."
+        }
       ]
     },
     "Suspense": {

@@ -355,6 +355,8 @@ namespace ReactiveUITK.Language.Roslyn
                     + "        private static void useLayoutEffect(\n"
                     + "            global::System.Func<global::System.Action> effectFactory,\n"
                     + "            params object[] deps) { }\n"
+                    + "        private static global::System.Action<global::UnityEngine.AudioClip, float>\n"
+                    + "            useSfx(global::UnityEngine.Audio.AudioMixerGroup mixer = null) => (_, __) => { };\n"
                     + "        private static T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "        private static T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
@@ -517,6 +519,8 @@ namespace ReactiveUITK.Language.Roslyn
                     + "        private void useLayoutEffect(\n"
                     + "            global::System.Func<global::System.Action> effectFactory,\n"
                     + "            params object[] deps) { }\n"
+                    + "        private global::System.Action<global::UnityEngine.AudioClip, float>\n"
+                    + "            useSfx(global::UnityEngine.Audio.AudioMixerGroup mixer = null) => (_, __) => { };\n"
                     + "        private T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "        private T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
@@ -1168,7 +1172,12 @@ namespace ReactiveUITK.Language.Roslyn
             {
                 // No JSX — emit entire body as a single mapped region
                 b.Scaffold($"#line {bodyCodeLine} \"{escapedPath}\"\n");
-                b.Mapped(bodyCode, bodyCodeOffset + uitkxOffsetAdjust, SourceRegionKind.CodeBlock, bodyCodeLine);
+                b.Mapped(
+                    bodyCode,
+                    bodyCodeOffset + uitkxOffsetAdjust,
+                    SourceRegionKind.CodeBlock,
+                    bodyCodeLine
+                );
                 b.Scaffold("\n#line hidden\n");
                 return;
             }
@@ -1221,7 +1230,12 @@ namespace ReactiveUITK.Language.Roslyn
                     int segAbsOffset = bodyCodeOffset + prev;
                     int segLine = CountLinesUpTo(bodyCode, prev, bodyCodeLine);
                     b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
-                    b.Mapped(seg, segAbsOffset + uitkxOffsetAdjust, SourceRegionKind.CodeBlock, segLine);
+                    b.Mapped(
+                        seg,
+                        segAbsOffset + uitkxOffsetAdjust,
+                        SourceRegionKind.CodeBlock,
+                        segLine
+                    );
                     b.Scaffold("\n");
                 }
 
@@ -1242,7 +1256,12 @@ namespace ReactiveUITK.Language.Roslyn
                 int tailAbsOffset = bodyCodeOffset + prev;
                 int tailLine = CountLinesUpTo(bodyCode, prev, bodyCodeLine);
                 b.Scaffold($"#line {tailLine} \"{escapedPath}\"\n");
-                b.Mapped(tail, tailAbsOffset + uitkxOffsetAdjust, SourceRegionKind.CodeBlock, tailLine);
+                b.Mapped(
+                    tail,
+                    tailAbsOffset + uitkxOffsetAdjust,
+                    SourceRegionKind.CodeBlock,
+                    tailLine
+                );
                 b.Scaffold("\n#line hidden\n");
             }
             else
@@ -1324,7 +1343,13 @@ namespace ReactiveUITK.Language.Roslyn
                 MarkupEndIndex: jsxText.Length
             );
             var diags = new List<ParseDiagnostic>();
-            var nodes = UitkxParser.Parse(jsxText, escapedPath, jsxDirectives, diags, lineOffset: srcLine - 1);
+            var nodes = UitkxParser.Parse(
+                jsxText,
+                escapedPath,
+                jsxDirectives,
+                diags,
+                lineOffset: srcLine - 1
+            );
 
             if (nodes.Length > 0)
             {

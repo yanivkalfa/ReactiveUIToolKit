@@ -131,6 +131,46 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
+        /// Tear down the entire mounted tree synchronously, running every
+        /// effect cleanup (UseEffect / UseLayoutEffect) and disposing every
+        /// signal subscription on the way down.
+        ///
+        /// <para>
+        /// This is the proper inverse of <see cref="CreateRoot"/>. It must
+        /// be called when the host (e.g. an EditorWindow) is going away
+        /// and the tree will not be re-rendered. Without it, function
+        /// components that own external resources (pooled
+        /// <c>VideoPlayer</c>, <c>AudioSource</c>, file handles, native
+        /// listeners, etc.) leak their resources because their cleanup
+        /// lambdas never run \u2014 e.g. an &lt;Audio&gt; element keeps
+        /// playing forever after its owning EditorWindow is closed.
+        /// </para>
+        /// </summary>
+        public void UnmountRoot()
+        {
+            if (_root?.Current == null)
+            {
+                _root = null;
+                return;
+            }
+
+            // Walk every child of the root fiber and treat each as a
+            // deletion. CommitDeletion recurses depth-first and runs all
+            // effect cleanups + signal subscription disposals before
+            // removing host elements.
+            var child = _root.Current.Child;
+            while (child != null)
+            {
+                var next = child.Sibling;
+                CommitDeletion(child);
+                child = next;
+            }
+
+            _root.Current.Child = null;
+            _root = null;
+        }
+
+        /// <summary>
         /// Schedule an update on a fiber (triggered by setState, props change, etc.)
         /// </summary>
         public void ScheduleUpdateOnFiber(
