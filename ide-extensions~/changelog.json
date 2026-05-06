@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-05-06",
+      "versions": {
+        "vscode": "1.1.12",
+        "vs2022": "1.1.12"
+      },
+      "shared": [
+        "Feature: New <Video> and <Audio> elements plus useSfx() hook for one-shot SFX. <Video> wraps a pooled VideoPlayer + RenderTexture under a shared MediaHost peer (HideAndDontSave GameObject), drives an Image sink via VideoPlayer.frameReady, and exposes a VideoController ref for imperative Play/Pause/Seek. <Audio> renders no visible content and rents an AudioSource from the same pool with declarative Clip/Loop/Volume/Autoplay props plus an AudioController ref. useSfx() returns a stable Action<AudioClip,float> that plays one-shots on MediaHost.Instance.SfxSource without per-render allocations. New MediaPlayground demo (editor window + runtime bootstrap) exercises every surface end-to-end. IDE virtual-document generator now scaffolds useSfx() in both function-style component and hook-document templates so Roslyn no longer reports CS0103 in the editor.",
+        "Fix: FiberRenderer.Clear() now runs effect cleanups before dropping the tree. The previous implementation cleared the container and nulled the root in one shot, never invoking the depth-first CommitDeletion path that fires UseEffect cleanup callbacks and disposes signals. Any UseEffect-owned resource (audio sources, timers, signal subscriptions, RenderTextures, etc.) leaked across editor-window close/reopen cycles. New FiberReconciler.UnmountRoot() walks _root.Current.Child and runs CommitDeletion on each, then nulls the root; FiberRenderer.Clear() calls it before the container clear. The leak only became visible with the new <Audio> element (background music kept playing forever after closing the demo window) but the root cause affected every Func-Component using UseEffect cleanup."
+      ]
+    },
+    {
       "date": "2026-05-03",
       "versions": {
         "vscode": "1.1.11",

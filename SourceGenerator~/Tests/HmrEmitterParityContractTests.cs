@@ -178,10 +178,7 @@ public class HmrEmitterParityContractTests
             """
         );
 
-        Assert.Contains(
-            output.Diagnostics,
-            d => d.Id == "UITKX0104"
-        );
+        Assert.Contains(output.Diagnostics, d => d.Id == "UITKX0104");
     }
 
     /// <summary>
@@ -255,7 +252,10 @@ public class HmrEmitterParityContractTests
         // `new ...GreeterProps { ... }`, NOT `BaseProps.__Rent<GreeterProps>()`.
         // The synthesized {Name}Props class derives from IProps (not BaseProps)
         // and cannot be pooled. SG emits the FQN form.
-        Assert.Contains("new global::ReactiveUITK.HmrParity.Greeter.GreeterProps", output.GeneratedSource);
+        Assert.Contains(
+            "new global::ReactiveUITK.HmrParity.Greeter.GreeterProps",
+            output.GeneratedSource
+        );
         Assert.DoesNotContain("__Rent", output.GeneratedSource);
     }
 
@@ -350,7 +350,9 @@ public class HmrEmitterParityContractTests
         Assert.NotNull(output.GeneratedSource);
         // Both overloads must appear with their own __hmr_Foo_h<hash> field.
         var matches = System.Text.RegularExpressions.Regex.Matches(
-            output.GeneratedSource, @"__hmr_Foo_h[0-9a-f]{8}");
+            output.GeneratedSource,
+            @"__hmr_Foo_h[0-9a-f]{8}"
+        );
         // Each overload produces exactly one field declaration AND one
         // call inside the trampoline body — so we expect at least 2
         // distinct hashes across all matches.
@@ -359,9 +361,11 @@ public class HmrEmitterParityContractTests
             .Select(m => m.Value)
             .Distinct()
             .ToList();
-        Assert.True(distinctHashes.Count >= 2,
-            $"Expected at least 2 distinct overload hashes, got {distinctHashes.Count}: " +
-            string.Join(", ", distinctHashes));
+        Assert.True(
+            distinctHashes.Count >= 2,
+            $"Expected at least 2 distinct overload hashes, got {distinctHashes.Count}: "
+                + string.Join(", ", distinctHashes)
+        );
     }
 
     /// <summary>
@@ -390,11 +394,13 @@ public class HmrEmitterParityContractTests
         // original method (here `public`).
         Assert.Contains(
             "public static global::System.Reflection.MethodInfo __hmr_Identity_h",
-            output.GeneratedSource);
+            output.GeneratedSource
+        );
         // Per-closed-type delegate cache.
         Assert.Contains(
             "global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, global::System.Delegate>",
-            output.GeneratedSource);
+            output.GeneratedSource
+        );
         // MakeGenericMethod call that closes the open MethodInfo per call site.
         Assert.Contains("MakeGenericMethod", output.GeneratedSource);
         // Trampoline preserves the generic signature.
@@ -487,5 +493,148 @@ public class HmrEmitterParityContractTests
         Assert.Contains("public static int Add(int a, int b = 5)", output.GeneratedSource);
         // Body method: defaults stripped (explicit values forwarded).
         Assert.Contains("private static int __Add_body_h", output.GeneratedSource);
+    }
+
+    // ── Media (v0.4.20) — <Audio>, <Video>, useSfx ─────────────────────────────
+
+    /// <summary>
+    /// <c>&lt;Audio&gt;</c> is a Func-Component but, because
+    /// <c>V.Audio(AudioProps, key, params children)</c> matches the
+    /// auto-discovery shape (first param ends in <c>Props</c>, last param
+    /// is <c>params VirtualNode[]</c>), SG and HMR both emit it through the
+    /// Typed-with-children path: <c>V.Audio(BaseProps.__Rent&lt;AudioProps&gt;()…)</c>.
+    /// HMR auto-discovery (Phase 1) ensures parity.
+    /// </summary>
+    [Fact]
+    public void Sg_AudioElement_EmitsThroughTypedPath()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component MusicPlayer {
+                return (<Audio Autoplay={true} Loop={true} Volume={0.5f} />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Typed-path emission: V.Audio(...) with rented AudioProps.
+        Assert.Contains("V.Audio(", output.GeneratedSource);
+        Assert.Contains("AudioProps", output.GeneratedSource);
+        // Specific prop assignments survive.
+        Assert.Contains("Autoplay = true", output.GeneratedSource);
+        Assert.Contains("Loop = true", output.GeneratedSource);
+        // Pooled (BaseProps.__Rent), NOT new — Audio is a typed built-in
+        // whose props extend BaseProps.
+        Assert.Contains("__Rent<", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// <c>&lt;Video&gt;</c> mirrors <c>&lt;Audio&gt;</c>'s emit shape via
+    /// auto-discovery. Verifies the URL streaming case (<c>Url</c> string
+    /// attribute) round-trips through the typed-prop pipeline.
+    /// </summary>
+    [Fact]
+    public void Sg_VideoElement_EmitsThroughTypedPath()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component VideoPanel {
+                return (<Video Url="https://example.com/clip.mp4" Autoplay={true} Muted={true} />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("V.Video(", output.GeneratedSource);
+        Assert.Contains("VideoProps", output.GeneratedSource);
+        Assert.Contains("Url = ", output.GeneratedSource);
+        Assert.Contains("Autoplay = true", output.GeneratedSource);
+        Assert.Contains("Muted = true", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// <c>&lt;Video&gt;</c> accepts overlay children (e.g. play/pause buttons
+    /// rendered on top of the video). Confirms SG emits the children-array
+    /// argument so HMR's TypedC dispatch produces the same shape.
+    /// </summary>
+    [Fact]
+    public void Sg_VideoElement_AcceptsOverlayChildren()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component VideoWithOverlay {
+                return (
+                    <Video Loop={true}>
+                        <Button text="Play" />
+                    </Video>
+                );
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Both V.Video and the inner V.Button must appear in the same
+        // generated unit — confirms TypedC dispatch flattened the child.
+        Assert.Contains("V.Video(", output.GeneratedSource);
+        Assert.Contains("V.Button(", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// <c>useSfx()</c> hook reports as <c>UseSfx</c> in the generated
+    /// <c>HookSignatureAttribute</c>. The signature is what HMR uses to
+    /// detect rude hook-order edits; if the hook is not in the regex
+    /// whitelist on either side, it's invisible to that mechanism.
+    /// </summary>
+    [Fact]
+    public void Sg_UseSfxHook_AppearsInHookSignature()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component SfxButton {
+                var playSfx = useSfx();
+                return (<Button text="Click" />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Lower-case alias rewritten to canonical Hooks.UseSfx call.
+        Assert.Contains("Hooks.UseSfx(", output.GeneratedSource);
+        // Hook-signature attribute carries the UseSfx token.
+        Assert.Contains("HookSignature", output.GeneratedSource);
+        Assert.Contains("UseSfx", output.GeneratedSource);
+    }
+
+    /// <summary>
+    /// PascalCase form (<c>Hooks.UseSfx</c>) is also matched by the hook
+    /// signature regex. Tests parity with the camelCase alias above.
+    /// </summary>
+    [Fact]
+    public void Sg_UseSfxPascalCase_AlsoDetectedBySignatureRegex()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component SfxButtonPascal {
+                var playSfx = Hooks.UseSfx();
+                return (<Button text="Click" />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseSfx(", output.GeneratedSource);
+        // Even though no alias-rewrite was needed (already PascalCase), the
+        // signature regex must still detect it.
+        Assert.Contains("UseSfx", output.GeneratedSource);
     }
 }
