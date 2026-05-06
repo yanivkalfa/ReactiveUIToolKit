@@ -7,6 +7,8 @@ import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
 import { UitkxAPIPage } from './pages/UITKX/API/UitkxAPIPage'
 import { UitkxComponentReferencePage } from './pages/UITKX/Components/UitkxComponentReferencePage'
 import { UitkxComponentsPage } from './pages/UITKX/Components/UitkxComponentsPage'
+import { VideoPage } from './pages/Components/Video/VideoPage'
+import { AudioPage } from './pages/Components/Audio/AudioPage'
 import { CompanionFilesPage } from './pages/UITKX/CompanionFiles/CompanionFilesPage'
 import { UitkxConceptsPage } from './pages/UITKX/Concepts/UitkxConceptsPage'
 import { UitkxConfigPage } from './pages/UITKX/Config/UitkxConfigPage'
@@ -155,11 +157,11 @@ export const sections: DocSection[] = [
       keywords: page.keywords,
       group: page.group,
       sinceUnity: page.sinceUnity,
-      element: () => (
-        <UitkxComponentReferencePage
-          title={page.title}
-        />
-      ),
+      element: () => {
+        if (page.title === 'Video') return <VideoPage />
+        if (page.title === 'Audio') return <AudioPage />
+        return <UitkxComponentReferencePage title={page.title} />
+      },
     })),
   },
   {
