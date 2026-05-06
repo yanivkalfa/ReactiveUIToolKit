@@ -397,6 +397,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             ("useSignal(", "Hooks.UseSignal("),
             ("useDeferredValue(", "Hooks.UseDeferredValue("),
             ("useTransition(", "Hooks.UseTransition("),
+            ("useSfx(", "Hooks.UseSfx("),
             ("provideContext(", "Hooks.ProvideContext("),
         };
 
@@ -465,7 +466,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private static readonly System.Text.RegularExpressions.Regex s_hookSignatureRe =
             new System.Text.RegularExpressions.Regex(
-                @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|ProvideContext)(?:<[^>]*>)?\s*\(",
+                @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
@@ -3045,7 +3046,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         internal static string ResolveAssetPaths(
             string expression,
             string filePath,
-            IList<Diagnostic> diagnostics)
+            IList<Diagnostic> diagnostics
+        )
         {
             if (string.IsNullOrEmpty(expression))
                 return expression;
