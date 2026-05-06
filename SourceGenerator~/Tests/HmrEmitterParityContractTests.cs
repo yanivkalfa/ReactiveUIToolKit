@@ -408,6 +408,133 @@ public class HmrEmitterParityContractTests
     }
 
     /// <summary>
+    /// Regression for v0.5.1: generic module methods generated invalid C#
+    /// in v0.4.19 / v0.5.0 due to two emit bugs in <c>ModuleBodyRewriter</c>:
+    /// <list type="number">
+    ///   <item><description>
+    ///     <c>AppendTypeArgs</c> emitted bare type-parameter names into the
+    ///     <c>MakeGenericMethod(...)</c> argument list, producing
+    ///     <c>MakeGenericMethod(TProps, TResult)</c> — CS0119
+    ///     ('TProps' is a type, which is not valid in the given context).
+    ///     The fix wraps each name in <c>typeof(...)</c>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     The synthesized <c>MethodInfo</c> HMR field was initialized as
+    ///     <c>= null;</c>. The field MUST start null (the trampoline checks
+    ///     <c>!= null</c> to fall through to the body method until the HMR
+    ///     swapper fills it via reflection), but consumer projects with
+    ///     <c>&lt;Nullable&gt;enable&lt;/Nullable&gt;</c> fired CS8625. The
+    ///     fix emits <c>= null!;</c> — same runtime value, no warning.
+    ///   </description></item>
+    /// </list>
+    /// This test compiles the generated C# end-to-end with
+    /// <c>UNITY_EDITOR</c> defined and nullable-context enabled. Substring
+    /// checks alone (as in <see cref="Sg_ModuleGenericMethod_UsesMethodInfoCache"/>)
+    /// missed both bugs because the broken output still contained
+    /// <c>MakeGenericMethod</c> and the field declaration.
+    /// </summary>
+    [Fact]
+    public void Sg_ModuleGenericMethod_GeneratedCodeCompiles_NoCS0119_NoCS8625()
+    {
+        // Multi-type-parameter generic with constraints — exercises the
+        // exact shape that broke in JustStayOn (Dialogs.utils.uitkx Register,
+        // RegisterComponent, Open, TryResolve, TryClose, IsRegistered).
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            module Dialogs {
+                public static int Register<TProps, TResult>(TProps props, TResult result)
+                    where TProps : class
+                {
+                    return 1;
+                }
+
+                public static TResult Open<TResult>(string id)
+                {
+                    return default(TResult);
+                }
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+
+        // Stub for ReactiveUITK.Core.HmrState (referenced by the trampoline).
+        const string Stubs =
+            """
+            namespace ReactiveUITK.Core
+            {
+                public static class HmrState
+                {
+                    public static bool IsActive => false;
+                }
+            }
+            """;
+
+        var parseOptions = new Microsoft.CodeAnalysis.CSharp.CSharpParseOptions(
+            languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest,
+            preprocessorSymbols: new[] { "UNITY_EDITOR" }
+        );
+
+        var trees = new[]
+        {
+            Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+                output.GeneratedSource!,
+                parseOptions
+            ),
+            Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(Stubs, parseOptions),
+        };
+
+        // Reference every assembly the host runtime trusts. Simpler &
+        // more reliable than hand-picking System.Reflection / System.Collections.Concurrent
+        // / System.ComponentModel under .NET 10 where types are split across
+        // many ref assemblies.
+        var trustedAssemblies =
+            (string)System.AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
+        var refs = trustedAssemblies
+            .Split(System.IO.Path.PathSeparator)
+            .Where(p => !string.IsNullOrEmpty(p) && System.IO.File.Exists(p))
+            .Select(p => (Microsoft.CodeAnalysis.MetadataReference)
+                Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(p))
+            .ToArray();
+
+        var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+            "ModuleGenericCompileCheck",
+            trees,
+            refs,
+            new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(
+                Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: Microsoft.CodeAnalysis.NullableContextOptions.Enable
+            )
+        );
+
+        // Bug-targeted assertion. We don't try to compile the *whole*
+        // generated file (it `using`s UnityEngine, ReactiveUITK.Props,
+        // AssetHelpers, etc. — providing all those stubs would balloon
+        // this test). Instead we filter to the two diagnostic IDs that
+        // pinpoint the v0.4.19 / v0.5.0 regression:
+        //   • CS0119 — `MakeGenericMethod(TProps, TResult)` (bare type
+        //     parameter names instead of typeof(...)).
+        //   • CS8625 — `MethodInfo … = null;` under nullable-enabled.
+        // Either appearing means the bug is back; neither appearing in a
+        // file that exercises the generic-module-method path means the
+        // emitter is producing valid C# for that shape.
+        var bugDiags = compilation
+            .GetDiagnostics()
+            .Where(d => d.Id == "CS0119" || d.Id == "CS8625")
+            .ToList();
+
+        Assert.True(
+            bugDiags.Count == 0,
+            "Generic module method emit regressed (CS0119 or CS8625):\n"
+                + string.Join("\n", bugDiags.Select(d => d.ToString()))
+                + "\n\n--- Generated Source ---\n"
+                + output.GeneratedSource
+        );
+    }
+
+    /// <summary>
     /// <c>const</c> fields, <c>static readonly</c> fields, mutable static
     /// fields, instance methods, properties, and nested types must all be
     /// emitted verbatim — never wrapped in trampolines. Anything else would

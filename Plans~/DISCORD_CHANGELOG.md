@@ -1,3 +1,21 @@
+## [0.5.1] - 2026-05-07
+
+### Generic `static` methods inside `module { … }` — fixed
+
+Consumer (JustStayOn) upgraded 0.4.15 → 0.5.0 and hit `CS0119: 'TProps' is a type, which is not valid in the given context` on every generic method inside `module Dialogs { Register<TProps,TResult>(...), Open<TProps,TResult>(...), … }`, plus `CS8625: Cannot convert null literal to non-nullable reference type` under `<Nullable>enable</Nullable>`. Both bugs sat dormant in `ModuleBodyRewriter` since 0.4.19 (the release that introduced `module { }` HMR). Non-generic methods worked fine — generic ones never ran through a real compiler in CI.
+
+**Bug 1 — CS0119.** `AppendTypeArgs` emitted bare type-parameter names into the synthesized `MethodInfo.MakeGenericMethod(...)` call → `MakeGenericMethod(TProps, TResult)`. `MakeGenericMethod` takes `params Type[]`. Fix: wrap each name in `typeof(...)` → `MakeGenericMethod(typeof(TProps), typeof(TResult))`.
+
+**Bug 2 — CS8625.** Generic-branch `MethodInfo` HMR field emitted as `= null;`. The field MUST start null — the trampoline checks `!= null` to fall through to the body method until `UitkxHmrModuleMethodSwapper` rebinds it via reflection. Fix: emit `= null!;`. Runtime value identical, nullable warning gone, swapper untouched.
+
+**Why this only hit now.** `module { }` HMR landed in 0.4.19 with substring-only test coverage. Both broken outputs still contained the markers the existing test asserted on (`MakeGenericMethod`, `__hmr_<name>_h…`). Real consumer code with generic module methods was the first end-to-end compile of that code path.
+
+**Test.** New `Sg_ModuleGenericMethod_GeneratedCodeCompiles_NoCS0119_NoCS8625` actually compiles the SG output through Roslyn (`UNITY_EDITOR` defined, nullable enabled) and asserts neither CS0119 nor CS8625 is raised. Bug class structurally impossible to recur silently. **1162/1162 SG** passing.
+
+Runtime-only release — IDE extensions unchanged.
+
+---
+
 ## [0.5.0] - 2026-05-06
 
 ### Media — `<Video>`, `<Audio>`, `useSfx()` + a fiber-unmount fix

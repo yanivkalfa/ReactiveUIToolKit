@@ -6,6 +6,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.1] - 2026-05-07
+
+### Fixed
+
+- **Generic `static` methods inside `module { … }` blocks now compile.** The
+  HMR trampoline rewriter (`SourceGenerator~/Emitter/ModuleBodyRewriter.cs`),
+  introduced in 0.4.19, emitted two pieces of invalid C# on the generic-method
+  branch — the bug was inert until a consumer authored a generic method inside
+  a `module { … }` body.
+  - **CS0119** (`'TProps' is a type, which is not valid in the given context`)
+    — `AppendTypeArgs` emitted bare type-parameter names into the synthesized
+    `MethodInfo.MakeGenericMethod(...)` call, e.g.
+    `MakeGenericMethod(TProps, TResult)`. `MakeGenericMethod` takes
+    `params Type[]`, so each name must be wrapped in `typeof(...)`. Fix:
+    `AppendTypeArgs` now emits `typeof(TProps), typeof(TResult)`.
+  - **CS8625** (`Cannot convert null literal to non-nullable reference type`)
+    — the synthesized `MethodInfo` HMR field was emitted as
+    `static MethodInfo __hmr_<name>_h<sig> = null;`. The field MUST start
+    `null` (the trampoline checks `!= null` to fall through to the body method
+    until `UitkxHmrModuleMethodSwapper` fills it via reflection), but consumer
+    projects with `<Nullable>enable</Nullable>` or
+    `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` failed compilation.
+    Fix: emit `= null!;` — runtime value identical, warning suppressed.
+- **Non-generic module methods, player builds, and the HMR swapper are
+  unaffected** — both fixes are purely emit-side, behind `#if UNITY_EDITOR`,
+  and `null!` is a compile-time null-forgiving annotation only.
+
+### Tests
+
+- New regression test
+  `Sg_ModuleGenericMethod_GeneratedCodeCompiles_NoCS0119_NoCS8625` in
+  `HmrEmitterParityContractTests` actually **compiles** the generated module
+  output through Roslyn (with `UNITY_EDITOR` defined and nullable enabled) and
+  asserts neither CS0119 nor CS8625 is raised. The pre-existing
+  `Sg_ModuleGenericMethod_UsesMethodInfoCache` test only did substring checks
+  and could not detect either bug. **1162/1162 SG** passing.
+
+### Notes
+
+- Runtime-only release. IDE extensions (VS Code, VS 2022) unchanged — the
+  rewriter pass is SG-only and never runs in the LSP.
+
 ## [0.5.0] - 2026-05-06
 
 ### Added
