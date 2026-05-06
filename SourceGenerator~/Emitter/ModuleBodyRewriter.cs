@@ -62,10 +62,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     {
         /// <summary>The transformed module body. Always non-null; on failure equals <see cref="OriginalBody"/>.</summary>
         public readonly string TransformedBody;
+
         /// <summary>The original (verbatim) body. Returned when parsing failed.</summary>
         public readonly string OriginalBody;
+
         /// <summary>True if Roslyn parsing failed and we fell back to verbatim.</summary>
         public readonly bool ParseFailed;
+
         /// <summary>Description of the parse failure (only set when <see cref="ParseFailed"/> is true).</summary>
         public readonly string FailureReason;
 
@@ -94,10 +97,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             string originalBody,
             string moduleName,
             int bodyStartLine,
-            string linePath)
+            string linePath
+        )
         {
             if (string.IsNullOrEmpty(originalBody))
-                return new RewriteResult(originalBody ?? string.Empty, originalBody ?? string.Empty, false, null);
+                return new RewriteResult(
+                    originalBody ?? string.Empty,
+                    originalBody ?? string.Empty,
+                    false,
+                    null
+                );
 
             // Wrap in a synthetic class so Roslyn can parse class members (free-floating
             // members are not parseable as a CompilationUnitSyntax). We keep track of how
@@ -130,7 +139,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     originalBody,
                     originalBody,
                     true,
-                    parseErrors[0].GetMessage());
+                    parseErrors[0].GetMessage()
+                );
             }
 
             var classNode = tree.GetRoot()
@@ -138,7 +148,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 .OfType<ClassDeclarationSyntax>()
                 .FirstOrDefault();
             if (classNode == null)
-                return new RewriteResult(originalBody, originalBody, true, "no class node in wrapped tree");
+                return new RewriteResult(
+                    originalBody,
+                    originalBody,
+                    true,
+                    "no class node in wrapped tree"
+                );
 
             var sb = new StringBuilder(originalBody.Length + 512);
             foreach (var member in classNode.Members)
@@ -156,7 +171,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             MemberDeclarationSyntax member,
             int wrapperLineOffset,
             int bodyStartLine,
-            string linePath)
+            string linePath
+        )
         {
             if (member is MethodDeclarationSyntax method && IsHotSwappable(method))
             {
@@ -180,21 +196,29 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private static bool IsHotSwappable(MethodDeclarationSyntax method)
         {
             // No body (interface/abstract/extern/partial-without-impl) → can't swap.
-            if (method.Body == null && method.ExpressionBody == null) return false;
+            if (method.Body == null && method.ExpressionBody == null)
+                return false;
 
             bool hasStatic = false;
             foreach (var mod in method.Modifiers)
             {
                 switch (mod.ValueText)
                 {
-                    case "static":   hasStatic = true; break;
-                    case "partial":  return false;
-                    case "extern":   return false;
-                    case "abstract": return false;
-                    case "unsafe":   return false; // would require unsafe delegate type — out of scope
+                    case "static":
+                        hasStatic = true;
+                        break;
+                    case "partial":
+                        return false;
+                    case "extern":
+                        return false;
+                    case "abstract":
+                        return false;
+                    case "unsafe":
+                        return false; // would require unsafe delegate type — out of scope
                 }
             }
-            if (!hasStatic) return false;
+            if (!hasStatic)
+                return false;
 
             // Reserve our own naming prefix.
             if (method.Identifier.ValueText.StartsWith("__", StringComparison.Ordinal))
@@ -215,24 +239,41 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private static string ExtractVisibility(SyntaxTokenList modifiers)
         {
-            bool hasPublic = false, hasInternal = false, hasProtected = false, hasPrivate = false;
+            bool hasPublic = false,
+                hasInternal = false,
+                hasProtected = false,
+                hasPrivate = false;
             foreach (var mod in modifiers)
             {
                 switch (mod.ValueText)
                 {
-                    case "public":    hasPublic = true; break;
-                    case "internal":  hasInternal = true; break;
-                    case "protected": hasProtected = true; break;
-                    case "private":   hasPrivate = true; break;
+                    case "public":
+                        hasPublic = true;
+                        break;
+                    case "internal":
+                        hasInternal = true;
+                        break;
+                    case "protected":
+                        hasProtected = true;
+                        break;
+                    case "private":
+                        hasPrivate = true;
+                        break;
                 }
             }
 
-            if (hasPublic) return "public";
-            if (hasProtected && hasInternal) return "protected internal";
-            if (hasPrivate && hasProtected)  return "private protected";
-            if (hasInternal) return "internal";
-            if (hasProtected) return "protected";
-            if (hasPrivate) return "private";
+            if (hasPublic)
+                return "public";
+            if (hasProtected && hasInternal)
+                return "protected internal";
+            if (hasPrivate && hasProtected)
+                return "private protected";
+            if (hasInternal)
+                return "internal";
+            if (hasProtected)
+                return "protected";
+            if (hasPrivate)
+                return "private";
             return "private"; // C# default for class members
         }
 
@@ -243,28 +284,33 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             MethodDeclarationSyntax method,
             int wrapperLineOffset,
             int bodyStartLine,
-            string linePath)
+            string linePath
+        )
         {
             string name = method.Identifier.ValueText;
             string returnType = method.ReturnType.ToString();
             bool isVoid = returnType == "void";
-            bool isGeneric = method.TypeParameterList != null
-                && method.TypeParameterList.Parameters.Count > 0;
+            bool isGeneric =
+                method.TypeParameterList != null && method.TypeParameterList.Parameters.Count > 0;
 
             // Original parameter list rendered verbatim (preserves modifiers,
             // default values, attributes). Used for the public trampoline AND
             // the body method AND the delegate type.
             string paramListSig = RenderParamList(method.ParameterList, includeDefaults: true);
-            string paramListSigNoDefaults = RenderParamList(method.ParameterList, includeDefaults: false);
+            string paramListSigNoDefaults = RenderParamList(
+                method.ParameterList,
+                includeDefaults: false
+            );
 
             // Argument list for forwarding the call, with proper ref/out/in keywords.
             string argList = RenderArgList(method.ParameterList);
 
             // Generic suffix and constraints.
             string genericSuffix = isGeneric ? method.TypeParameterList.ToString() : string.Empty;
-            string constraints = method.ConstraintClauses.Count == 0
-                ? string.Empty
-                : " " + string.Join(" ", method.ConstraintClauses.Select(c => c.ToString()));
+            string constraints =
+                method.ConstraintClauses.Count == 0
+                    ? string.Empty
+                    : " " + string.Join(" ", method.ConstraintClauses.Select(c => c.ToString()));
 
             // Stable, deterministic hash of the canonical signature. Distinguishes
             // overloads, never collides with user-named identifiers because of the
@@ -277,7 +323,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             // Original method attributes (e.g. [Obsolete], [Conditional]) propagate
             // to the trampoline so external behaviour is unchanged.
-            string attributes = string.Join(string.Empty, method.AttributeLists.Select(a => a.ToFullString()));
+            string attributes = string.Join(
+                string.Empty,
+                method.AttributeLists.Select(a => a.ToFullString())
+            );
 
             // Preserve the original method's visibility on the trampoline, the
             // synthesized delegate type, and the HMR field. Otherwise a `private
@@ -291,8 +340,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             string visibility = ExtractVisibility(method.Modifiers);
 
             // 1-based line of the user-visible body start.
-            int wrappedBodyLine = (method.Body ?? (SyntaxNode)method.ExpressionBody)
-                .GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+            int wrappedBodyLine =
+                (method.Body ?? (SyntaxNode)method.ExpressionBody)
+                    .GetLocation()
+                    .GetLineSpan()
+                    .StartLinePosition.Line + 1;
             int userBodyLine = wrappedBodyLine - wrapperLineOffset + bodyStartLine - 1;
 
             // ── Custom delegate + HMR field (Editor-only) ──────────────────
@@ -302,55 +354,117 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Generic delegate mirrors the method's generic arity & constraints.
                 // Visibility tracks the trampoline so a `private` method with
                 // `private` nested-type parameters does not trip CS0058/CS0059.
-                sb.Append("        ").Append(visibility).Append(" delegate ").Append(returnType).Append(' ')
-                  .Append(delegateTypeName).Append(genericSuffix).Append('(')
-                  .Append(paramListSigNoDefaults).Append(')').Append(constraints).AppendLine(";");
+                sb.Append("        ")
+                    .Append(visibility)
+                    .Append(" delegate ")
+                    .Append(returnType)
+                    .Append(' ')
+                    .Append(delegateTypeName)
+                    .Append(genericSuffix)
+                    .Append('(')
+                    .Append(paramListSigNoDefaults)
+                    .Append(')')
+                    .Append(constraints)
+                    .AppendLine(";");
 
-                sb.AppendLine("        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-                sb.Append("        ").Append(visibility).Append(" static global::System.Reflection.MethodInfo ")
-                  .Append(hmrFieldName).AppendLine(" = null;");
-                sb.AppendLine("        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-                sb.Append("        ").Append(visibility).Append(" static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, global::System.Delegate> ")
-                  .Append(hmrFieldName).AppendLine("_cache = new();");
+                sb.AppendLine(
+                    "        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+                );
+                // `= null!` (not `= null`) so consumer projects with
+                // <Nullable>enable</Nullable> don't fire CS8625. The field MUST
+                // start null — the trampoline checks `!= null` to fall through
+                // to the body method until the HMR swapper fills it via
+                // reflection. Runtime value is identical to plain `null`.
+                sb.Append("        ")
+                    .Append(visibility)
+                    .Append(" static global::System.Reflection.MethodInfo ")
+                    .Append(hmrFieldName)
+                    .AppendLine(" = null!;");
+                sb.AppendLine(
+                    "        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+                );
+                sb.Append("        ")
+                    .Append(visibility)
+                    .Append(
+                        " static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, global::System.Delegate> "
+                    )
+                    .Append(hmrFieldName)
+                    .AppendLine("_cache = new();");
             }
             else
             {
                 // Visibility tracks the trampoline (CS0052 + nested-type accessibility).
-                sb.Append("        ").Append(visibility).Append(" delegate ").Append(returnType).Append(' ')
-                  .Append(delegateTypeName).Append('(')
-                  .Append(paramListSigNoDefaults).AppendLine(");");
-                sb.AppendLine("        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-                sb.Append("        ").Append(visibility).Append(" static ").Append(delegateTypeName).Append(' ')
-                  .Append(hmrFieldName).Append(" = ").Append(bodyMethodName).AppendLine(";");
+                sb.Append("        ")
+                    .Append(visibility)
+                    .Append(" delegate ")
+                    .Append(returnType)
+                    .Append(' ')
+                    .Append(delegateTypeName)
+                    .Append('(')
+                    .Append(paramListSigNoDefaults)
+                    .AppendLine(");");
+                sb.AppendLine(
+                    "        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+                );
+                sb.Append("        ")
+                    .Append(visibility)
+                    .Append(" static ")
+                    .Append(delegateTypeName)
+                    .Append(' ')
+                    .Append(hmrFieldName)
+                    .Append(" = ")
+                    .Append(bodyMethodName)
+                    .AppendLine(";");
             }
             sb.AppendLine("#endif");
 
             // ── Trampoline (preserves original visibility) ──────────────
             sb.Append(attributes); // attribute lists already include trailing newline
-            sb.Append("        ").Append(visibility).Append(" static ").Append(returnType).Append(' ').Append(name)
-              .Append(genericSuffix).Append('(').Append(paramListSig).Append(')')
-              .Append(constraints).AppendLine();
+            sb.Append("        ")
+                .Append(visibility)
+                .Append(" static ")
+                .Append(returnType)
+                .Append(' ')
+                .Append(name)
+                .Append(genericSuffix)
+                .Append('(')
+                .Append(paramListSig)
+                .Append(')')
+                .Append(constraints)
+                .AppendLine();
             sb.AppendLine("        {");
 
             sb.AppendLine("#if UNITY_EDITOR");
             if (isGeneric)
             {
                 sb.Append("            if (global::ReactiveUITK.Core.HmrState.IsActive && ")
-                  .Append(hmrFieldName).AppendLine(" != null)");
+                    .Append(hmrFieldName)
+                    .AppendLine(" != null)");
                 sb.AppendLine("            {");
 
                 // Build typeof argument list from the generic type parameter names.
                 string typeofArgs = BuildTypeofArgs(method.TypeParameterList);
-                sb.Append("                var __del = (").Append(delegateTypeName).Append(genericSuffix).Append(')')
-                  .Append(hmrFieldName).AppendLine("_cache");
-                sb.Append("                    .GetOrAdd(typeof(").Append(typeofArgs).AppendLine("), __t =>");
+                sb.Append("                var __del = (")
+                    .Append(delegateTypeName)
+                    .Append(genericSuffix)
+                    .Append(')')
+                    .Append(hmrFieldName)
+                    .AppendLine("_cache");
+                sb.Append("                    .GetOrAdd(typeof(")
+                    .Append(typeofArgs)
+                    .AppendLine("), __t =>");
                 sb.AppendLine("                    {");
-                sb.Append("                        var __closed = ").Append(hmrFieldName)
-                  .Append(".MakeGenericMethod(");
+                sb.Append("                        var __closed = ")
+                    .Append(hmrFieldName)
+                    .Append(".MakeGenericMethod(");
                 AppendTypeArgs(sb, method.TypeParameterList);
                 sb.AppendLine(");");
-                sb.Append("                        return global::System.Delegate.CreateDelegate(typeof(")
-                  .Append(delegateTypeName).Append(genericSuffix).AppendLine("), __closed);");
+                sb.Append(
+                        "                        return global::System.Delegate.CreateDelegate(typeof("
+                    )
+                    .Append(delegateTypeName)
+                    .Append(genericSuffix)
+                    .AppendLine("), __closed);");
                 sb.AppendLine("                    });");
 
                 if (isVoid)
@@ -368,52 +482,89 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 sb.AppendLine("            if (global::ReactiveUITK.Core.HmrState.IsActive)");
                 if (isVoid)
                 {
-                    sb.Append("            { ").Append(hmrFieldName).Append('(').Append(argList).AppendLine("); return; }");
+                    sb.Append("            { ")
+                        .Append(hmrFieldName)
+                        .Append('(')
+                        .Append(argList)
+                        .AppendLine("); return; }");
                 }
                 else
                 {
-                    sb.Append("                return ").Append(hmrFieldName).Append('(').Append(argList).AppendLine(");");
+                    sb.Append("                return ")
+                        .Append(hmrFieldName)
+                        .Append('(')
+                        .Append(argList)
+                        .AppendLine(");");
                 }
             }
             sb.AppendLine("#endif");
 
             if (isVoid)
             {
-                sb.Append("            ").Append(bodyMethodName).Append(genericSuffix)
-                  .Append('(').Append(argList).AppendLine(");");
+                sb.Append("            ")
+                    .Append(bodyMethodName)
+                    .Append(genericSuffix)
+                    .Append('(')
+                    .Append(argList)
+                    .AppendLine(");");
             }
             else
             {
-                sb.Append("            return ").Append(bodyMethodName).Append(genericSuffix)
-                  .Append('(').Append(argList).AppendLine(");");
+                sb.Append("            return ")
+                    .Append(bodyMethodName)
+                    .Append(genericSuffix)
+                    .Append('(')
+                    .Append(argList)
+                    .AppendLine(");");
             }
             sb.AppendLine("        }");
 
             // ── Body method ────────────────────────────────────────────────
             sb.AppendLine("        [global::System.Runtime.CompilerServices.CompilerGenerated]");
-            sb.AppendLine("        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-            sb.Append("        private static ").Append(returnType).Append(' ').Append(bodyMethodName)
-              .Append(genericSuffix).Append('(').Append(paramListSigNoDefaults).Append(')')
-              .Append(constraints).AppendLine();
+            sb.AppendLine(
+                "        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+            );
+            sb.Append("        private static ")
+                .Append(returnType)
+                .Append(' ')
+                .Append(bodyMethodName)
+                .Append(genericSuffix)
+                .Append('(')
+                .Append(paramListSigNoDefaults)
+                .Append(')')
+                .Append(constraints)
+                .AppendLine();
 
             // Body itself with #line mapping back to the .uitkx file.
             if (method.Body != null)
             {
-                sb.Append("#line ").Append(userBodyLine).Append(" \"").Append(linePath).AppendLine("\"");
+                sb.Append("#line ")
+                    .Append(userBodyLine)
+                    .Append(" \"")
+                    .Append(linePath)
+                    .AppendLine("\"");
                 sb.AppendLine(method.Body.ToFullString().TrimEnd());
                 sb.AppendLine("#line hidden");
             }
             else if (method.ExpressionBody != null)
             {
                 sb.AppendLine("        {");
-                sb.Append("#line ").Append(userBodyLine).Append(" \"").Append(linePath).AppendLine("\"");
+                sb.Append("#line ")
+                    .Append(userBodyLine)
+                    .Append(" \"")
+                    .Append(linePath)
+                    .AppendLine("\"");
                 if (isVoid)
                 {
-                    sb.Append("            ").Append(method.ExpressionBody.Expression.ToString()).AppendLine(";");
+                    sb.Append("            ")
+                        .Append(method.ExpressionBody.Expression.ToString())
+                        .AppendLine(";");
                 }
                 else
                 {
-                    sb.Append("            return ").Append(method.ExpressionBody.Expression.ToString()).AppendLine(";");
+                    sb.Append("            return ")
+                        .Append(method.ExpressionBody.Expression.ToString())
+                        .AppendLine(";");
                 }
                 sb.AppendLine("#line hidden");
                 sb.AppendLine("        }");
@@ -432,7 +583,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             var sb = new StringBuilder();
             for (int i = 0; i < paramList.Parameters.Count; i++)
             {
-                if (i > 0) sb.Append(", ");
+                if (i > 0)
+                    sb.Append(", ");
                 var p = paramList.Parameters[i];
 
                 // Modifiers (ref/out/in/params/this).
@@ -459,14 +611,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             var sb = new StringBuilder();
             for (int i = 0; i < paramList.Parameters.Count; i++)
             {
-                if (i > 0) sb.Append(", ");
+                if (i > 0)
+                    sb.Append(", ");
                 var p = paramList.Parameters[i];
 
                 foreach (var mod in p.Modifiers)
                 {
                     // `params` and `this` are call-site sugar — don't forward them.
                     var v = mod.ValueText;
-                    if (v == "params" || v == "this") continue;
+                    if (v == "params" || v == "this")
+                        continue;
                     sb.Append(v).Append(' ');
                 }
                 sb.Append(p.Identifier.ValueText);
@@ -480,12 +634,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // multiple type-args wrap in a value-tuple typeof which gives a
             // distinct cache key per concrete combination.
             var ps = tpl.Parameters;
-            if (ps.Count == 1) return ps[0].Identifier.ValueText;
+            if (ps.Count == 1)
+                return ps[0].Identifier.ValueText;
 
             var sb = new StringBuilder("(");
             for (int i = 0; i < ps.Count; i++)
             {
-                if (i > 0) sb.Append(", ");
+                if (i > 0)
+                    sb.Append(", ");
                 sb.Append(ps[i].Identifier.ValueText);
             }
             sb.Append(')');
@@ -494,11 +650,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private static void AppendTypeArgs(StringBuilder sb, TypeParameterListSyntax tpl)
         {
+            // Used to build the argument list for `MethodInfo.MakeGenericMethod(...)`,
+            // which takes `params Type[]`. Type-parameter names are TYPE references, not
+            // expressions — they must be wrapped in `typeof(...)` to become `Type` values.
+            // Without the wrapper the emitted code is `MakeGenericMethod(TProps, TResult)`
+            // which fails with CS0119 ("'TProps' is a type, which is not valid in the
+            // given context").
             var ps = tpl.Parameters;
             for (int i = 0; i < ps.Count; i++)
             {
-                if (i > 0) sb.Append(", ");
-                sb.Append(ps[i].Identifier.ValueText);
+                if (i > 0)
+                    sb.Append(", ");
+                sb.Append("typeof(").Append(ps[i].Identifier.ValueText).Append(')');
             }
         }
 
@@ -519,7 +682,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 bool first = true;
                 foreach (var p in method.ParameterList.Parameters)
                 {
-                    if (!first) sb.Append(',');
+                    if (!first)
+                        sb.Append(',');
                     first = false;
                     foreach (var mod in p.Modifiers)
                     {
@@ -527,7 +691,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         // `params` is call-site sugar but DOES affect overload identity,
                         // so include it in the hash. `this` is also significant for
                         // extension-method detection though we don't support those.
-                        if (v != "this") sb.Append(v).Append(' ');
+                        if (v != "this")
+                            sb.Append(v).Append(' ');
                     }
                     sb.Append(p.Type?.ToString() ?? "?");
                 }
