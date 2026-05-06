@@ -27,6 +27,7 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "ProgressBar");
                 RegisterIfAllowed(registry, "RepeatButton");
                 RegisterIfAllowed(registry, "Image");
+                RegisterIfAllowed(registry, "Video");
                 RegisterIfAllowed(registry, "ScrollView");
                 RegisterIfAllowed(registry, "Slider");
                 RegisterIfAllowed(registry, "SliderInt");
@@ -108,6 +109,7 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "ProgressBar", allowedSet);
             RegisterIfAllowed(registry, "RepeatButton", allowedSet);
             RegisterIfAllowed(registry, "Image", allowedSet);
+            RegisterIfAllowed(registry, "Video", allowedSet);
             RegisterIfAllowed(registry, "ScrollView", allowedSet);
             RegisterIfAllowed(registry, "Slider", allowedSet);
             RegisterIfAllowed(registry, "SliderInt", allowedSet);
@@ -231,6 +233,9 @@ namespace ReactiveUITK.Elements
                         break;
                     case "Image":
                         registry.Register("Image", new ImageElementAdapter());
+                        break;
+                    case "Video":
+                        registry.Register("Video", new VideoElementAdapter());
                         break;
                     case "ScrollView":
                         registry.Register("ScrollView", new ScrollViewElementAdapter());

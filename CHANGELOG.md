@@ -6,6 +6,67 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.0] - 2026-05-06
+
+### Added
+
+- **`<Video>` element** (Pattern A — element adapter). Wraps a pooled
+  `VideoPlayer` + `RenderTexture` rented from the new `MediaHost` peer pool and
+  feeds the decoded RT into a UI Toolkit `Image` sink via
+  `Image.image = renderTexture`. Repaints are driven by
+  `VideoPlayer.frameReady` (no polling). An editor-only
+  `EditorApplication.QueuePlayerLoopUpdate()` pump advances the player when
+  Unity isn't ticking. Declarative props: `Clip`, `Loop`, `Autoplay`, `Muted`,
+  `ScaleMode`, `Volume`. Imperative `VideoController` ref:
+  `Play`/`Pause`/`Seek`/`StepForward`.
+- **`<Audio>` element** (Pattern B — Func-Component). Renders no visible
+  content; rents an `AudioSource` from `MediaHost` via `UseEffect` and returns
+  it on unmount. Props: `Clip`, `Loop`, `Autoplay`, `Volume`, `Pitch`,
+  `SpatialBlend`, optional `AudioMixerGroup`. Imperative `AudioController` ref.
+- **`useSfx()` hook** — returns a stable `Action<AudioClip, float>` that calls
+  `MediaHost.Instance.SfxSource.PlayOneShot(clip, volumeScale)`. Zero per-call
+  allocation, identical delegate reference across renders so it composes
+  cleanly inside `UseEffect` dependency lists. Optional `AudioMixerGroup`
+  parameter is captured at hook-call time.
+- **`MediaHost` peer pool** — `HideAndDontSave` GameObject hosting all
+  `VideoPlayer` and `AudioSource` instances plus a stable `SfxSource`. Pool
+  rent/return is reference-counted; `RenderTexture`s pooled by
+  `(width, height, depth)` tuple. Survives domain reloads via lazy
+  resurrection.
+- **MediaPlayground demo** — `Samples/Shared/MediaPlaygroundDemoPage.uitkx`
+  exercises every media surface end-to-end. Editor window at
+  `ReactiveUITK > Demos > Media Playground`; runtime bootstrap
+  (`MediaPlaygroundRuntimeBootstrap.cs`) for play-mode testing.
+
+### Fixed
+
+- **`FiberRenderer.Clear()` now runs effect cleanups before dropping the
+  tree.** The previous implementation cleared the container and nulled the
+  root in a single call, never invoking the depth-first `CommitDeletion` path
+  that fires `UseEffect` cleanup callbacks and disposes signals. Any
+  `UseEffect`-owned resource (audio sources, timers, signal subscriptions,
+  `RenderTexture`s, animation handles) leaked across editor-window close /
+  reopen cycles. New `FiberReconciler.UnmountRoot()` walks
+  `_root.Current.Child` and runs `CommitDeletion` on each child before the
+  root is nulled. `EditorRootRendererUtility.Unmount()` now calls
+  `EditorRenderScheduler.Instance.PumpNow()` after `Unmount()` so cleanups
+  drain synchronously before the editor window closes. The leak only became
+  visible with `<Audio>` (background music kept playing forever) but the same
+  code path affected every Func-Component using `UseEffect` cleanup.
+- **IDE — `useSfx()` no longer reports `CS0103` in `.uitkx` files.** The LSP
+  scaffolds private hook stubs into a virtual document so Roslyn can
+  type-check setup code; `useSfx` had been added to the source generator and
+  HMR alias regexes when it shipped but was never added to the LSP's stub
+  list. Stubs added to both function-style component and hook-document
+  scaffolds in `VirtualDocumentGenerator`.
+
+### IDE extensions
+
+- VS Code **1.1.11 → 1.1.12**
+- Visual Studio 2022 **1.1.11 → 1.1.12**
+
+---
+
 ## [0.4.19] - 2026-05-04
 
 Full HMR support for `module { … }` declarations. The contract for what is and

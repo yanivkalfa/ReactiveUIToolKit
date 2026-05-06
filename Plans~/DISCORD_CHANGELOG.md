@@ -1,18 +1,42 @@
+## [0.5.0] - 2026-05-06
+
+### Media — `<Video>`, `<Audio>`, `useSfx()` + a fiber-unmount fix
+
+Two declarative elements and one hook bring video/audio into UITKX, all rendered through one shared host.
+
+**`<Video>`.** Pooled `VideoPlayer` + `RenderTexture` from a new `MediaHost`, fed into a UI Toolkit `Image` via `image = renderTexture` (`style.backgroundImage` caches stale samples). `frameReady` drives `MarkDirtyRepaint()`; an editor-only `QueuePlayerLoopUpdate()` pump advances the player when Unity isn't ticking. Props: `Clip`/`Loop`/`Autoplay`/`Muted`/`ScaleMode`/`Volume` + `VideoController` ref.
+
+**`<Audio>` (Func-Component).** No visible content; rents an `AudioSource` via `UseEffect`, returns it on unmount. Same shape minus visuals + `Pitch`/`SpatialBlend`/`AudioMixerGroup`. `AudioController` ref.
+
+**`useSfx()`.** Stable, allocation-free `Action<AudioClip, float>` backed by `MediaHost.Instance.SfxSource.PlayOneShot`. Same delegate ref across renders.
+
+**`MediaHost`.** `HideAndDontSave` GameObject; reference-counted player/source pools; RT pool keyed by `(w, h, depth)`. Survives domain reloads.
+
+**Fix — `FiberRenderer.Clear()` runs effect cleanups.** The audio leak surfaced it: closing the demo window left music playing forever. The stub cleared the container and nulled the root without invoking `CommitDeletion` — every `UseEffect` cleanup (timers, signal subs, RTs, audio) leaked on every editor mount/unmount. New `FiberReconciler.UnmountRoot()` runs depth-first `CommitDeletion`; `EditorRootRendererUtility.Unmount()` drains via `EditorRenderScheduler.PumpNow()`.
+
+**IDE — `useSfx()` recognized in the editor.** Added to the LSP virtual-document hook-stub list (it was in SG/HMR alias regexes but missing here, so the editor reported `CS0103`).
+
+**Demo.** `MediaPlaygroundDemoPage.uitkx` covers everything. Editor: `ReactiveUITK > Demos > Media Playground`.
+
+VS Code **1.1.11 → 1.1.12** · VS 2022 **1.1.11 → 1.1.12** ride along.
+
+---
+
 ## [0.4.19] - 2026-05-04
 
 ### Full HMR support for `module { … }` declarations
 
-`module { … }` declarations are now hot-reloadable end-to-end. Edit a `Style` field, a `static readonly Color`, or a 200-line `GameLogic.Tick(ref GameState st, …)` and the change takes effect on the next call — no Play-mode exit, no domain reload.
+`module { … }` is now hot-reloadable end-to-end. Edit a `Style` field, a `static readonly Color`, or a 200-line `GameLogic.Tick(ref GameState st, …)` and the change takes effect on the next call — no Play-mode exit, no domain reload.
 
-**Per-method hot-swap.** A new source-generator pass (`ModuleBodyRewriter`) rewrites every top-level `static` method inside a module body into a public *trampoline* that bounces through an `__hmr_<name>_h<sig>` delegate field to a private body method. After each HMR compile, `UitkxHmrModuleMethodSwapper` rebinds every delegate field via `Delegate.CreateDelegate`. Custom delegate types preserve `ref`/`out`/`in`/`params` (impossible with `Func<>`/`Action<>`); FNV-1a signature hash disambiguates overloads; generic methods use a `MethodInfo` + `ConcurrentDictionary` cache. All `#if UNITY_EDITOR`-gated — zero overhead in player builds. Trampoline visibility tracks the original method, so `private static` methods using `private` nested types stay valid (no CS0050/CS0051/CS0052/CS0058/CS0059).
+**Per-method hot-swap.** New SG pass (`ModuleBodyRewriter`) rewrites every top-level `static` method into a public trampoline bouncing through an `__hmr_<name>_h<sig>` delegate field to a private body method. `UitkxHmrModuleMethodSwapper` rebinds each field via `Delegate.CreateDelegate` after every HMR compile. Custom delegate types preserve `ref`/`out`/`in`/`params`; FNV-1a signature hash disambiguates overloads; generics use a `MethodInfo` + `ConcurrentDictionary` cache. `#if UNITY_EDITOR`-gated — zero player-build overhead. Trampoline visibility tracks the original, so `private static` methods using `private` nested types stay valid.
 
-**Documented contract** for every member kind: const → re-baked at compile time; `static readonly` → re-initialised every cycle; mutable static → preserved (caches/counters survive); static method → hot-swapped; instance / nested / new field / new method → verbatim or rude-edit. Matches React Fast Refresh and .NET Hot Reload conventions.
+**Documented contract** per member kind: const → re-baked at compile; `static readonly` → re-initialised each cycle; mutable static → preserved; static method → hot-swapped; instance / nested / new field-or-method → verbatim or rude-edit.
 
-**Rude-edit detection.** Adding a brand-new `static readonly` field mid-session can't grow the project type's metadata — the CLR seals it at load time. Instead of a silent `MissingFieldException` later, `UitkxHmrModuleStaticSwapper` now logs a once-per-session warning naming the field and the constraint. New `UitkxHmrController.AutoReloadOnRudeEdit` setting (EditorPref `UITKX_HMR_AutoReloadOnRudeEdit`, default `false`) automates the reload when enabled.
+**Rude-edit detection.** Adding a new `static readonly` mid-session can't grow the project type's metadata — the CLR seals it at load. Instead of a silent `MissingFieldException` later, `UitkxHmrModuleStaticSwapper` logs a once-per-session warning. New `UitkxHmrController.AutoReloadOnRudeEdit` EditorPref (default `false`) automates the reload.
 
-**Plus 12 HMR ↔ source-generator parity bugs fixed** in `HmrCSharpEmitter`: sibling-Props resolution, JSX-as-attribute-value, duplicate-`key={}` warnings, `ref={x}` routing on function components, `Asset<T>(…)` resolution in module bodies, deterministic Roslyn overload picking, FQN-based type comparison, and more. New `UITKX0150` Info diagnostic surfaces module-body parse failures with verbatim fallback. **1142/1142 SG** passing.
+**12 HMR ↔ SG parity bugs fixed** in `HmrCSharpEmitter`: sibling-Props, JSX-as-attribute-value, duplicate-`key={}`, `ref={x}` on Func components, `Asset<T>(…)` in module bodies, deterministic Roslyn overload picking, FQN type comparison. New `UITKX0150` surfaces module-body parse failures with verbatim fallback. **1142/1142 SG** passing.
 
-IDE extensions unchanged at VS Code **1.1.11** / VS 2022 **1.1.11** — runtime-only release.
+IDE extensions unchanged — runtime-only release.
 
 ---
 
@@ -20,22 +44,21 @@ IDE extensions unchanged at VS Code **1.1.11** / VS 2022 **1.1.11** — runtime-
 
 ### HMR `CS0426` on function components with sibling top-level Props — fixed
 
-Right after 0.4.17 unblocked HMR compilation of module/style/hook files, a follow-up surfaced: `[HMR] Compilation failed for AppRoot... CS0426: The type name 'RouterFuncProps' does not exist in the type 'RouterFunc'`. Root cause was a long-standing convention divergence between source-gen and HMR that only became reachable once HMR could actually compile these files end-to-end.
+After 0.4.17 unblocked HMR compilation of module/style/hook files, a follow-up surfaced: `[HMR] Compilation failed for AppRoot... CS0426: The type name 'RouterFuncProps' does not exist in the type 'RouterFunc'`. A long-standing convention divergence between SG and HMR that only became reachable once HMR could compile these files end-to-end.
 
-**The bug.** Function-component Props classes ship in three legitimate shapes:
+**The bug.** Func-component Props classes ship in three legitimate shapes:
 
-1. **Sibling top-level** — `RouterFunc` and `RouterFuncProps` both at namespace scope, neither nested. Used by `ReactiveUITK.Router`.
-2. **Nested same-name** — `CompFunc.CompFuncProps` (the source generator's own default emission).
-3. **Nested differently-named** — `ValuesBarFunc.Props` (legacy hand-written pattern).
+1. **Sibling top-level** — `RouterFunc` + `RouterFuncProps` both at namespace scope, neither nested. Used by `ReactiveUITK.Router`.
+2. **Nested same-name** — `CompFunc.CompFuncProps` (the SG's default emission).
+3. **Nested differently-named** — `ValuesBarFunc.Props` (legacy hand-written).
 
-Source-gen's `PropsResolver.TryGetFuncComponentPropsTypeName` already walked all three. HMR's `FindPropsType` only walked nested types and shipped `{Type}.{Type}Props` unconditionally — so any component using shape (1) compiled fine through source-gen but failed CS0426 through HMR.
+SG's `PropsResolver.TryGetFuncComponentPropsTypeName` walked all three. HMR's `FindPropsType` only walked nested types and shipped `{Type}.{Type}Props` unconditionally — shape (1) compiled fine through SG but failed CS0426 through HMR.
 
-**The fix.** `FindPropsType` now mirrors `PropsResolver` lookup order verbatim — sibling top-level first, then nested same-name, then any nested `IProps`, then a convention fallback. Single resolver, three resolution paths, one canonical answer per component.
+**The fix.** `FindPropsType` now mirrors `PropsResolver` verbatim — sibling top-level first, then nested same-name, then any nested `IProps`, then a convention fallback. One canonical answer per component.
 
-**Tests.** Two complementary layers running on every push, PR, and pre-publish:
-
-- **SG-side parity test** drives the generator with the real `RouterFunc` / `RouterFuncProps` shape and asserts the typed `V.Func<global::Ns.RouterFuncProps>` is emitted (not the broken nested form). Pins the contract HMR mirrors.
-- **HMR algorithm contract tests** — five Roslyn-in-memory cases (sibling / nested-named / nested-legacy / sibling-wins-priority / negative fallback) mirror `FindPropsType` verbatim, since the Editor assembly's `UnityEditor` deps prevent the standalone .NET test runner from loading it directly.
+**Tests.** Two layers on every push/PR/publish:
+- **SG-side parity test** drives the generator with the real `RouterFunc` / `RouterFuncProps` shape and asserts `V.Func<global::Ns.RouterFuncProps>` is emitted.
+- **HMR algorithm contract tests** — five Roslyn-in-memory cases (sibling / nested-named / nested-legacy / sibling-wins-priority / negative fallback) mirror `FindPropsType` verbatim, since the Editor assembly's `UnityEditor` deps block direct loading by the standalone test runner.
 
 **1070/1070 SG** passing.
 
@@ -47,21 +70,13 @@ VS Code **1.1.10 → 1.1.11** · VS 2022 **1.1.10 → 1.1.11** ride the same rel
 
 ### Two converging bugs around `.style.uitkx` / `.hooks.uitkx` — both fixed
 
-A consumer hit `[UITKX] Asset not found in registry: "../Resources/background-01.png"` from `AppRoot.style.uitkx`. Investigation surfaced two independent latent bugs that both manifest in module/style/hook files.
+Consumer hit `[UITKX] Asset not found in registry: "../Resources/background-01.png"`. Two independent latent bugs converged in module/style/hook files.
 
-**Bug 1 — HMR `ArgumentException` on every save.** `UitkxHmrCompiler.InvokeWithDefaults` had two `params object[]` overloads. C# overload resolution preferred `string → object target` over `string → params object[]`, so calls bound to the *wrong* overload — the first `string` arg silently became the (ignored) target receiver and every following arg shifted left by one position. A `List<ParseDiagnostic>` then landed in `DirectiveParser.Parse`'s `filePath` slot:
+**Bug 1 — HMR `ArgumentException` on every save.** `UitkxHmrCompiler.InvokeWithDefaults` had two `params object[]` overloads; C# resolution preferred `string → object target`, shifting all args left and landing a `List<ParseDiagnostic>` in `DirectiveParser.Parse`'s `filePath` slot. Collapsed to a single canonical `(MethodInfo, object target, params object[])` with mandatory `target` — bug class structurally impossible to recur. All 11 call sites updated.
 
-> `ArgumentException: Object of type 'List<ParseDiagnostic>' cannot be converted to type 'System.String'.`
+**Bug 2 — `Asset<T>(...)` not rewritten in `module` / `hook` bodies.** `UitkxAssetRegistry` is keyed by resolved paths; the emitter rewrite covered setup code + JSX + `@if`/`@foreach`/`@switch` but skipped module/hook bodies, so `Asset<Texture2D>("../Resources/bg.png")` shipped as the raw literal while registry sync wrote the resolved key — runtime miss. `ResolveAssetPaths` promoted to `internal static` shared by `CSharpEmitter`/`HookEmitter`/`ModuleEmitter`; HMR's `HmrCSharpEmitter.ResolveAssetPaths` visibility lifted so `HmrHookEmitter` routes module+hook bodies through it. Source-gen and HMR now emit literal-identical asset strings.
 
-The two overloads were collapsed into a single canonical `(MethodInfo method, object target, params object[] args)` where `target` is **mandatory** — making the entire bug class structurally impossible to recur. All 11 call sites updated.
-
-**Bug 2 — `Asset<T>(...)` literals never rewritten in `module` / `hook` bodies.** The runtime `UitkxAssetRegistry` is keyed by **resolved** Unity asset paths (`Assets/Resources/background-01.png`); the compile-time emitter is supposed to rewrite `Asset<T>("./relative")` → that key. The rewrite covered component setup code, JSX attributes, and `@if`/`@foreach`/`@switch` bodies — but **not** `module {}` / `hook {}` bodies. So `BackgroundImage = Asset<Texture2D>("../Resources/bg.png")` shipped as the raw relative literal while the registry sync wrote the resolved key independently. The two halves disagreed → runtime miss.
-
-`ResolveAssetPaths` was promoted from a private instance method on `EmitContext` to an `internal static` shared by all three source-gen emitters (`CSharpEmitter`, `HookEmitter`, `ModuleEmitter`); HMR's parallel `HmrCSharpEmitter.ResolveAssetPaths` had its visibility promoted so `HmrHookEmitter` can route module + hook bodies through it. Source-gen and HMR now produce literal-identical asset strings.
-
-**Why these are related.** `.style.uitkx` and `.hooks.uitkx` are the convergence point — Bug 1 prevented HMR from compiling them at all, Bug 2 meant even when source-gen ran cleanly, the registry lookup still missed. Both bugs needed fixing for `Asset<T>` inside `module` / `hook` blocks to work end-to-end.
-
-**Tests.** 4 new regression tests in `EmitterTests` (module + relative `./`, module + `../`, module + absolute, hook + relative). They run on every push, every PR, and before every package publish via the existing GitHub Actions workflows — the bug class cannot ship again. **1064/1064 SG** passing.
+**Tests.** 4 new `EmitterTests` regressions (module `./`, module `../`, module absolute, hook `./`) run on every push/PR/publish. **1064/1064 SG** passing.
 
 VS Code **1.1.9 → 1.1.10** · VS 2022 **1.1.9 → 1.1.10** ride the same release.
 
