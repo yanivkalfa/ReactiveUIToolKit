@@ -10,6 +10,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not RectFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -20,6 +35,18 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<RectFieldProps>.Return(this);
         }
     }
 }

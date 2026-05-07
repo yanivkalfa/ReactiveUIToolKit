@@ -14,7 +14,7 @@ public class EmitterTests
     private static string Wrap(string markup) =>
         "component MyComp {\n  return (\n" + markup + "\n  );\n}";
 
-    // ΓöÇΓöÇ Element emission ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Element emission ──────────────────────────────────────────────────────
 
     [Fact]
     public void SimpleElement_GeneratesVCall()
@@ -56,7 +56,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("V.Label("), "Expected V.Label call inside box");
     }
 
-    // ΓöÇΓöÇ Namespace / class structure ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Namespace / class structure ──────────────────────────────────────────
 
     [Fact]
     public void Namespace_EmittedInGeneratedSource()
@@ -103,7 +103,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("Hooks.UseState(") || result.SourceContains("useState("));
     }
 
-    // ΓöÇΓöÇ Control flow ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Control flow ─────────────────────────────────────────────────────────
 
     [Fact]
     public void IfDirective_GeneratesConditionalExpression()
@@ -112,7 +112,7 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
-        // @if ΓåÆ IIFE; the condition should appear in the generated source
+        // @if → IIFE; the condition should appear in the generated source
         Assert.True(result.SourceContains("flag"), "Condition should appear verbatim");
         Assert.True(
             result.SourceContains("Func<VirtualNode>")
@@ -131,16 +131,18 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
-        // @foreach ΓåÆ IIFE with list-building loop or .Select()
+        // @foreach → IIFE with list-building loop or .Select()
         Assert.True(
             result.SourceContains(".Select(") || result.SourceContains("foreach"),
-            "Expected .Select( or foreach loop for @foreach");
+            "Expected .Select( or foreach loop for @foreach"
+        );
     }
 
     [Fact]
     public void ForeachDirective_WithSetupCode_GeneratesIIFE()
     {
-        var src = Wrap("""
+        var src = Wrap(
+            """
             <box>
                 @foreach (var entry in log) {
                     var a = "test";
@@ -150,13 +152,25 @@ public class EmitterTests
                 }
                 <label text="after" />
             </box>
-            """);
+            """
+        );
         var result = GeneratorTestHelper.Run(src);
 
-        Assert.True(result.SourceWasProduced,
-            "Expected generated source.\n" + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
-        Assert.True(result.SourceContains("var a = \"test\""),
-            "Expected setup code in output. Generated:\n" + (result.GeneratedSource ?? "<null>"));
+        Assert.True(
+            result.SourceWasProduced,
+            "Expected generated source.\n"
+                + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"))
+        );
+        Assert.True(
+            result.SourceContains("var a = \"test\""),
+            "Expected setup code in output. Generated:\n" + (result.GeneratedSource ?? "<null>")
+        );
+        // Inner per-iteration IIFE should NOT exist (OPT-10)
+        Assert.False(
+            result.SourceContains("Func<global::ReactiveUITK.Core.VirtualNode>>)"),
+            "Inner per-iteration IIFE should be eliminated (OPT-10).\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
     }
 
     [Fact]
@@ -183,24 +197,44 @@ public class EmitterTests
             """;
         var result = GeneratorTestHelper.Run(src);
 
-        Assert.True(result.SourceWasProduced,
+        Assert.True(
+            result.SourceWasProduced,
             "Expected generated source but got diagnostics:\n"
-            + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
+                + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"))
+        );
 
-        // Verify structure ΓÇö IIFE brace balance must be correct
-        Assert.True(result.SourceContains("var prefix = \"[LOG] \""),
-            "Expected foreach setup code in generated output.\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
+        // Verify structure — outer IIFE brace balance must be correct
+        Assert.True(
+            result.SourceContains("var prefix = \"[LOG] \""),
+            "Expected foreach setup code in generated output.\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
 
-        // Verify the closing pattern matches EmitForNode/EmitWhileNode: ); } return __r.ToArray(); }))()
-        Assert.True(result.SourceContains("} return __r.ToArray(); }))()"),
-            "IIFE must have exactly 2 closing braces (foreach body + IIFE lambda).\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
-        Assert.False(result.SourceContains("}} return __r.ToArray();"),
-            "Double '}}' in plain string = 4 braces (bug). Must use single '}' each.\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
+        // Verify body code is inlined directly (no inner per-iteration IIFE)
+        Assert.True(
+            result.SourceContains("__r.Add("),
+            "Expected __r.Add() for inlined return.\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
+
+        // Verify the closing pattern: foreach body brace + outer IIFE brace
+        Assert.True(
+            result.SourceContains("} return __r.ToArray(); }))()"),
+            "Outer IIFE must have exactly 2 closing braces (foreach body + IIFE lambda).\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
+        Assert.False(
+            result.SourceContains("}} return __r.ToArray();"),
+            "Double '}}' in plain string = 4 braces (bug). Must use single '}' each.\nGenerated:\n"
+                + (result.GeneratedSource ?? "<null>")
+        );
 
         // Verify no false UITKX0014 (hook in loop)
-        Assert.False(result.HasDiagnostic("UITKX0014"),
-            "UITKX0014 should NOT fire ΓÇö hooks are at component top level, not inside @foreach.\n"
-            + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
+        Assert.False(
+            result.HasDiagnostic("UITKX0014"),
+            "UITKX0014 should NOT fire — hooks are at component top level, not inside @foreach.\n"
+                + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"))
+        );
     }
 
     [Fact]
@@ -277,10 +311,13 @@ public class EmitterTests
 
         Assert.True(result.SourceWasProduced);
         // @if without @else should produce `: null` in the ternary
-        Assert.True(result.SourceContains(": null") || result.SourceContains("(VirtualNode)null"), "Missing @else should generate null fallback");
+        Assert.True(
+            result.SourceContains(": null") || result.SourceContains("(VirtualNode)null"),
+            "Missing @else should generate null fallback"
+        );
     }
 
-    // ΓöÇΓöÇ Key attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Key attribute ─────────────────────────────────────────────────────────
 
     [Fact]
     public void KeyAttribute_PassedAsSecondArgument()
@@ -290,7 +327,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("my-key"), "key value should appear in generated source");
     }
 
-    // ΓöÇΓöÇ Line directives ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Line directives ───────────────────────────────────────────────────────
 
     [Fact]
     public void GeneratedSource_ContainsLineDirectives()
@@ -315,7 +352,7 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ [UitkxElement] attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── [UitkxElement] attribute ─────────────────────────────────────────────
 
     [Fact]
     public void GeneratedClass_HasUitkxElementAttribute()
@@ -448,7 +485,7 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ ErrorBoundary emission ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── ErrorBoundary emission ───────────────────────────────────────────────
 
     [Fact]
     public void ErrorBoundary_GeneratesVErrorBoundaryCall()
@@ -563,19 +600,19 @@ public class EmitterTests
         Assert.True(result.SourceContains("target"), "Expected target expression in V.Portal call");
     }
 
-    // ΓöÇΓöÇ Peer component props resolution ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Peer component props resolution ──────────────────────────────────────
 
     [Fact]
     public void PeerComponent_WithProps_EmitsTypedVFuncAndPassesAttributes()
     {
-        // ChildComp.uitkx ΓÇö sub-component with a bool prop
+        // ChildComp.uitkx — sub-component with a bool prop
         const string childSrc = """
             component ChildComp(bool active = false) {
                 return (<Label text="child" />);
             }
             """;
 
-        // ParentComp.uitkx ΓÇö references ChildComp; its props type is peer-generated
+        // ParentComp.uitkx — references ChildComp; its props type is peer-generated
         const string parentSrc = """
             component ParentComp {
                 var flag = true;
@@ -609,7 +646,7 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ Nested Props class resolution (C# convention: TypeName.Props) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Nested Props class resolution (C# convention: TypeName.Props) ─────────
 
     [Fact]
     public void FuncComponent_WithNestedPropsClass_EmitsTypedVFuncAndPassesAttributes()
@@ -665,12 +702,12 @@ public class EmitterTests
         );
     }
 
-    // ΓöÇΓöÇ ref={x} routing on user (UITKX) components ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── ref={x} routing on user (UITKX) components ────────────────────────────
 
     [Fact]
     public void UserComponent_SingleRefParam_RefAttrRoutedToMutableRefProp()
     {
-        // ChildComp.uitkx ΓÇö declares a single Hooks.MutableRef parameter.
+        // ChildComp.uitkx — declares a single Hooks.MutableRef parameter.
         const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef = null
@@ -679,7 +716,7 @@ public class EmitterTests
             }
             """;
 
-        // ParentComp.uitkx ΓÇö uses ref={myRef} shorthand on ChildComp.
+        // ParentComp.uitkx — uses ref={myRef} shorthand on ChildComp.
         const string parentSrc = """
             component ParentComp {
                 return (
@@ -718,7 +755,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_NoRefParam_RefAttrEmitsDiagnosticUITKX0020()
     {
-        // ChildComp.uitkx ΓÇö no MutableRef parameter; ref={} cannot be routed.
+        // ChildComp.uitkx — no MutableRef parameter; ref={} cannot be routed.
         const string childSrc = """
             component ChildComp(string? label = null) {
                 return (<Label text="child" />);
@@ -748,7 +785,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_MultipleRefParams_RefAttrEmitsDiagnosticUITKX0021()
     {
-        // ChildComp.uitkx ΓÇö two MutableRef parameters; ref={} is ambiguous.
+        // ChildComp.uitkx — two MutableRef parameters; ref={} is ambiguous.
         const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef  = null,
@@ -781,7 +818,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_RefAttrAndOtherProps_CombineCorrectly()
     {
-        // ChildComp.uitkx ΓÇö has a regular string prop + one MutableRef prop.
+        // ChildComp.uitkx — has a regular string prop + one MutableRef prop.
         const string childSrc = """
             component ChildComp(
                 string? label = null,
@@ -791,7 +828,7 @@ public class EmitterTests
             }
             """;
 
-        // ParentComp.uitkx ΓÇö passes both a regular attribute and ref={}.
+        // ParentComp.uitkx — passes both a regular attribute and ref={}.
         const string parentSrc = """
             component ParentComp {
                 return (
@@ -916,7 +953,7 @@ public class EmitterTests
         Assert.False(result.HasDiagnostic("UITKX0021"), "Unexpected UITKX0021.");
     }
 
-    // ΓöÇΓöÇ Asset path resolution ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Asset path resolution ─────────────────────────────────────────────────
 
     [Fact]
     public void Asset_RelativePath_Resolved()
@@ -1064,6 +1101,178 @@ public class EmitterTests
         );
     }
 
+    // ── Asset path resolution inside `module` blocks ──────────────────────────
+    // Regression coverage for the bug where ModuleEmitter emitted module bodies
+    // verbatim, causing Asset<T>("./x") / Asset<T>("../x") literals to reach the
+    // runtime UitkxAssetRegistry as raw relative strings (which the registry —
+    // keyed by resolved Unity asset paths — would never find).
+
+    [Fact]
+    public void Module_AssetCall_RelativePath_IsRewritten()
+    {
+        var src = """
+            @namespace Test
+            module AppRoot {
+              public static readonly string Bg = Asset<Texture2D>("./bg.png")?.name;
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/AppRoot.style.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/bg.png\""),
+            $"Expected './bg.png' rewritten to 'Assets/UI/bg.png'.\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"./bg.png\""),
+            "Relative module-body asset path leaked through unrewritten."
+        );
+    }
+
+    [Fact]
+    public void Module_AssetCall_DotDotPath_IsRewritten()
+    {
+        // The original failing case: `../Resources/background-01.png` inside a
+        // `module AppRoot { ... }` block in an .style.uitkx file.
+        var src = """
+            @namespace Test
+            module AppRoot {
+              public static readonly string Bg = Asset<Texture2D>("../Resources/bg.png")?.name;
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/AppRoot.style.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/Resources/bg.png\""),
+            $"Expected '../Resources/bg.png' rewritten to 'Assets/Resources/bg.png'.\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"../Resources/bg.png\""),
+            "Relative module-body asset path leaked through unrewritten."
+        );
+    }
+
+    [Fact]
+    public void Module_AssetCall_AbsolutePath_Unchanged()
+    {
+        // Absolute Assets/... paths must pass through untouched — no double-prefix.
+        var src = """
+            @namespace Test
+            module AppRoot {
+              public static readonly string Bg = Asset<Texture2D>("Assets/Fonts/custom.ttf")?.name;
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/AppRoot.style.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/Fonts/custom.ttf\""),
+            $"Expected absolute path unchanged. Got:\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"Assets/UI/Assets/Fonts/custom.ttf\""),
+            "Absolute path was incorrectly re-prefixed with the .uitkx directory."
+        );
+    }
+
+    // ── Asset path resolution inside `hook` bodies ────────────────────────────
+    // Parallel coverage for HookEmitter, which previously applied ApplyHookAliases
+    // but skipped ResolveAssetPaths.
+
+    [Fact]
+    public void Hook_AssetCall_RelativePath_IsRewritten()
+    {
+        var src = """
+            @namespace Test
+            hook useBg() -> string {
+              var tex = Asset<Texture2D>("./bg.png");
+              return tex?.name ?? "";
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/useBg.hooks.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/bg.png\""),
+            $"Expected './bg.png' rewritten to 'Assets/UI/bg.png' inside hook body.\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("\"./bg.png\""),
+            "Relative hook-body asset path leaked through unrewritten."
+        );
+    }
+
+    // ── Sibling top-level Props class resolution ─────────────────────────────
+    // Regression coverage for the RouterFunc/RouterFuncProps shape: a function
+    // component (`RouterFunc`) and its props class (`RouterFuncProps`) declared
+    // as siblings at namespace scope (both top-level, neither nested in the
+    // other). HMR previously only walked nested types and shipped
+    // `RouterFunc.RouterFuncProps` (CS0426). Source-gen `PropsResolver` already
+    // handles this case via `TryGetFuncComponentPropsTypeName`'s sibling lookup;
+    // this test pins that contract so any drift fails CI.
+
+    [Fact]
+    public void FuncComponent_WithSiblingTopLevelPropsClass_EmitsTypedVFunc()
+    {
+        // Mirrors the actual ReactiveUITK.Router.RouterFunc / RouterFuncProps
+        // declaration shape: both classes at namespace scope, neither nested.
+        const string extraCSharp = """
+            using ReactiveUITK.Core;
+            using System.Collections.Generic;
+
+            namespace MyApp.Routing
+            {
+                public static class RouterFunc
+                {
+                    public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
+                        => null;
+                }
+
+                public sealed class RouterFuncProps : IProps
+                {
+                    public string Path { get; set; }
+                }
+            }
+            """;
+
+        const string uitkx = """
+            @namespace MyApp.UI
+            @using MyApp.Routing
+
+            component MyPage {
+                return (<RouterFunc path="/home" />);
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunWithExtraCSharp(uitkx, extraCSharp, "MyPage.uitkx");
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
+
+        // Must use the typed V.Func<RouterFuncProps> overload referencing the
+        // sibling top-level class — NOT the nested form RouterFunc.RouterFuncProps
+        // (which would produce CS0426 because no such nested type exists).
+        Assert.True(
+            result.SourceContains("V.Func<global::MyApp.Routing.RouterFuncProps>"),
+            $"Expected V.Func<global::MyApp.Routing.RouterFuncProps>. Got:\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("RouterFunc.RouterFuncProps"),
+            $"Sibling Props was incorrectly emitted as a nested type. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Path = \"/home\""),
+            $"Expected 'Path = \"/home\"' prop forwarded. Got:\n{result.GeneratedSource}"
+        );
+    }
+
     [Fact]
     public void BareAssignWithNestedDirective_InsideDirectiveBody_JsxIsEmitted()
     {
@@ -1090,9 +1299,474 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src, "Test.uitkx");
         Assert.True(result.SourceWasProduced, "No source produced");
         Assert.False(result.SourceContains("= <Box>"), "Raw bare JSX leaked into generated source");
-        Assert.True(result.SourceContains("V.Box("), "Expected V.Box() call from the bare assignment");
-        Assert.True(result.SourceContains("V.Label("), "Expected V.Label() inside the bare-assigned Box");
+        Assert.True(
+            result.SourceContains("V.Box("),
+            "Expected V.Box() call from the bare assignment"
+        );
+        Assert.True(
+            result.SourceContains("V.Label("),
+            "Expected V.Label() inside the bare-assigned Box"
+        );
     }
 
-}
+    // ── RewriteReturnsForInline unit tests ──────────────────────────────
 
+    [Theory]
+    [InlineData("return null;", "continue;")]
+    [InlineData("  return null;", "  continue;")]
+    [InlineData("return null ;", "continue;")]
+    public void RewriteReturns_ReturnNull_BecomesContinue(string input, string expected)
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void RewriteReturns_ReturnExpr_BecomesAddContinue()
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            "return V.Label();",
+            "__r"
+        );
+        Assert.Equal("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_ReturnParenExpr_UnwrapsParens()
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            "return (V.Label());",
+            "__r"
+        );
+        Assert.Equal("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_SetupCodeThenReturn_PreservesSetup()
+    {
+        var input = "var x = 1; return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Equal("var x = 1; __r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_GuardReturnNull_ThenReturnExpr()
+    {
+        var input = "if (x) { return null; } return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Equal("if (x) { continue; } __r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_LambdaReturnNotRewritten()
+    {
+        var input = "Func<int> f = () => { return 42; }; return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Contains("return 42;", result);
+        Assert.Contains("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_StringWithReturnNotRewritten()
+    {
+        var input = "var s = \"return null;\"; return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Contains("\"return null;\"", result);
+        Assert.Contains("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_BreakAndContinuePassThrough()
+    {
+        var input = "if (i < 3) { continue; } if (i > 6) { break; } return (V.Label());";
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            input,
+            "__r"
+        );
+        Assert.Contains("continue;", result);
+        Assert.Contains("break;", result);
+        Assert.Contains("__r.Add(V.Label()); continue;", result);
+    }
+
+    [Fact]
+    public void RewriteReturns_CustomListVar()
+    {
+        var result = ReactiveUITK.SourceGenerator.Emitter.EmitContext.RewriteReturnsForInline(
+            "return V.Box();",
+            "__items"
+        );
+        Assert.Equal("__items.Add(V.Box()); continue;", result);
+    }
+
+    // ── OPT-V2-2 Phase A: static-style hoisting ────────────────────────────
+    //
+    // These tests verify the SG hoists `style={new Style { ... }}` initializers
+    // to class-level `static readonly Style __sty_N = ...;` fields when every
+    // initializer value is a compile-time constant, and falls back to per-render
+    // pool rent (or raw allocation for tuple form) otherwise.
+
+    [Fact]
+    public void StyleHoist_TupleSyntaxAllLiterals_HoistedToStaticField()
+    {
+        const string src = """
+            component HoistTuple {
+                return (
+                    <Box style={new Style { (StyleKeys.Width, 100f), (StyleKeys.Height, 50f) }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "HoistTuple.uitkx");
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.GetMessage()))}"
+        );
+        Assert.True(
+            result.SourceContains(
+                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+            ),
+            $"Expected hoisted static field __sty_0. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("__sty_0"),
+            "Expected the hoisted style to be referenced at the call site"
+        );
+        Assert.False(
+            result.SourceContains("Style.__Rent()"),
+            "Hoisted styles must not call Style.__Rent()"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_SetterSyntaxAllLiterals_HoistedToStaticField()
+    {
+        const string src = """
+            component HoistSetter {
+                return (
+                    <Box style={new Style { Width = 100f, Height = 50f }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "HoistSetter.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains(
+                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+            ),
+            $"Expected hoisted static field. Got:\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("Style.__Rent()"),
+            "Setter-form all-literal style must not call __Rent()"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_DynamicValue_StaysOnRentPath()
+    {
+        const string src = """
+            component DynamicStyle {
+                var w = 100f;
+                return (
+                    <Box style={new Style { Width = w }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "DynamicStyle.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Style with non-literal value must NOT be hoisted. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Style.__Rent()"),
+            "Dynamic style must still rent from the pool"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_NewColorWithLiteralArgs_Hoists()
+    {
+        const string src = """
+            component ColorLiteral {
+                return (
+                    <Box style={new Style { (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 0.9f)) }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "ColorLiteral.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains(
+                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+            ),
+            $"new Color(literal-args) must be hoist-safe. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_DottedEnumRef_Hoists()
+    {
+        const string src = """
+            component EnumRef {
+                return (
+                    <Box style={new Style { (StyleKeys.FlexDirection, "column") }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "EnumRef.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("__sty_0"),
+            $"Tuple with string-literal value must hoist. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_MultipleSiblings_GetUniqueIds()
+    {
+        const string src = """
+            component TwoStatics {
+                return (
+                    <Box>
+                        <Label text="a" style={new Style { (StyleKeys.Width, 10f) }} />
+                        <Label text="b" style={new Style { (StyleKeys.Width, 20f) }} />
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "TwoStatics.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("__sty_0"), "Expected __sty_0");
+        Assert.True(result.SourceContains("__sty_1"), "Expected __sty_1 for second hoist");
+    }
+
+    [Fact]
+    public void StyleHoist_EmptyStyleBody_NotHoisted()
+    {
+        const string src = """
+            component EmptyStyle {
+                return (
+                    <Box style={new Style { }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "EmptyStyle.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            "Empty-body Style is deferred to a future EmptyStyle singleton; must not hoist"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_MixedStaticAndDynamic_HoistsOnlyStatic()
+    {
+        const string src = """
+            component Mixed {
+                var sz = 50f;
+                return (
+                    <Box>
+                        <Label text="a" style={new Style { (StyleKeys.Width, 10f) }} />
+                        <Label text="b" style={new Style { Width = sz }} />
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "Mixed.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("__sty_0"), "Static style must hoist");
+        Assert.True(result.SourceContains("Style.__Rent()"), "Dynamic style must still rent");
+        Assert.False(result.SourceContains("__sty_1"), "Only one hoist expected");
+    }
+
+    [Fact]
+    public void StyleHoist_TupleWithVariableValue_NotHoisted()
+    {
+        const string src = """
+            component TupleDynamic {
+                var w = 100f;
+                return (
+                    <Box style={new Style { (StyleKeys.Width, w) }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "TupleDynamic.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Tuple with bare-identifier value must NOT hoist. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_NonStyleAttributeUnaffected()
+    {
+        const string src = """
+            component PlainBox {
+                return (
+                    <Box>
+                        <Label text="hi" />
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "PlainBox.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(result.SourceContains("__sty_"), "No style attribute → no hoist");
+    }
+
+    [Fact]
+    public void StyleHoist_InstanceMemberOnLocal_NotHoisted()
+    {
+        // Regression: `areaSize.x` is a local-variable member access, NOT a static
+        // reference. Must not be hoisted to a class-level field (where the local
+        // would be out of scope, causing CS0103). The classifier requires the
+        // first dotted segment to start uppercase (PascalCase = type/enum/static
+        // class convention) — locals are camelCase and are correctly rejected.
+        const string src = """
+            component AreaBox {
+                var areaSize = new UnityEngine.Vector2(100f, 50f);
+                return (
+                    <Box style={new Style { Width = areaSize.x, Height = areaSize.y }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "AreaBox.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Instance-member access on local must NOT hoist (would cause CS0103). Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Style.__Rent()"),
+            "Local-derived style must still rent from the pool"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_InstanceMemberInTuple_NotHoisted()
+    {
+        // Same regression in tuple form: (StyleKeys.Width, box.size) — `box.size`
+        // is a local foreach-variable member access; must not hoist.
+        const string src = """
+            component Boxes {
+                var boxes = new[] { new { size = 5f } };
+                return (
+                    <Box>
+                        @foreach (var box in boxes) {
+                            return (
+                                <Label text="x" style={new Style { (StyleKeys.Width, box.size) }} />
+                            );
+                        }
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "Boxes.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Instance-member on loop local must NOT hoist. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    // ── Router primitives — alias-map resolution ────────────────────────────
+    // Verifies the source generator wires every <RouterTagAliases.Map> entry
+    // through to a V.Func(<TypeName>.Render, ...) emission, exercising the
+    // shared dictionary at Shared/Core/Router/RouterTagAliases.cs.
+
+    [Fact]
+    public void RouterTag_EmitsRouterFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Router/>"));
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("RouterFunc.Render"),
+            $"Expected V.Func(RouterFunc.Render, ...). Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void RouteTag_EmitsRouteFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Route path=\"/\"/>"));
+        Assert.True(result.SourceContains("RouteFunc.Render"));
+    }
+
+    [Fact]
+    public void OutletTag_EmitsOutletFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Outlet/>"));
+        Assert.True(
+            result.SourceContains("OutletFunc.Render"),
+            $"Expected OutletFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void RoutesTag_EmitsRoutesFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Routes><Route path=\"/\"/></Routes>"));
+        Assert.True(
+            result.SourceContains("RoutesFunc.Render"),
+            $"Expected RoutesFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void NavLinkTag_EmitsNavLinkFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<NavLink to=\"/\" label=\"Home\"/>"));
+        Assert.True(
+            result.SourceContains("NavLinkFunc.Render"),
+            $"Expected NavLinkFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void NavigateTag_EmitsNavigateFunc()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<Navigate to=\"/home\"/>"));
+        Assert.True(
+            result.SourceContains("NavigateFunc.Render"),
+            $"Expected NavigateFunc.Render call. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    // NOTE: Per-attribute pass-through coverage for the new Index/End/CaseSensitive
+    // properties cannot be validated in this isolated test compilation because the
+    // generator skips its strongly-typed props block when the *FuncProps type is
+    // not resolvable (no Unity reference to ReactiveUITK.Shared.dll here).  The
+    // Index/End/CaseSensitive attributes follow the exact same emission path as
+    // the existing Router/Route/Link properties, which are exercised end-to-end
+    // by the FormatterSnapshotTests against real .uitkx samples
+    // (Samples/Components/RouterDemoFunc/RouterOutletDemo.uitkx now uses these
+    // attributes in production-shaped markup).
+}

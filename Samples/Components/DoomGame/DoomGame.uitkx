@@ -1,0 +1,51 @@
+@namespace Samples.DoomGame
+@using System
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+
+component DoomGame {
+  var (screen, setScreen) = useState(GameScreen.MainMenu);
+  var (level, setLevel) = useState(1);
+  var (difficulty, setDifficulty) = useState(Difficulty.Normal);
+  var (sessionVersion, setSessionVersion) = useState(0);
+
+  Action handleStart = () => {
+    setSessionVersion(v => v + 1);
+    setScreen(GameScreen.Game);
+  };
+  Action handleExit = () => setScreen(GameScreen.MainMenu);
+  Action handleNext = () => {
+    if (level < 6) { setLevel(level + 1); setSessionVersion(v => v + 1); }
+    else { setScreen(GameScreen.MainMenu); setLevel(1); }
+  };
+
+  return (
+    <VisualElement
+      style={new Style{ FlexGrow = 1f, BackgroundColor = new Color(0f, 0f, 0f, 1f) }}
+    >
+      @if (screen == GameScreen.MainMenu) {
+        return (
+          <DoomMainMenu
+            level={level}
+            difficulty={difficulty}
+            onLevelChange={l => setLevel(l)}
+            onDifficultyChange={d => setDifficulty(d)}
+            onStart={handleStart}
+          />
+        );
+      } @else {
+        return (
+          <DoomGameScreen
+            restartVersion={sessionVersion}
+            level={level}
+            difficulty={difficulty}
+            onExit={handleExit}
+            onNextLevel={handleNext}
+          />
+        );
+      }
+    </VisualElement>
+  );
+}

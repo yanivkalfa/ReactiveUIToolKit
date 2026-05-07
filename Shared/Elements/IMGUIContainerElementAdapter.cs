@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -42,6 +43,30 @@ namespace ReactiveUITK.Elements
                 c.onGUIHandler = a;
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is IMGUIContainer c && props is IMGUIContainerProps ip)
+            {
+                if (ip.OnGUI != null)
+                    c.onGUIHandler = ip.OnGUI;
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is IMGUIContainer c
+                && prev is IMGUIContainerProps ip
+                && next is IMGUIContainerProps inext
+            )
+            {
+                if (ip.OnGUI != inext.OnGUI)
+                    c.onGUIHandler = inext.OnGUI;
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

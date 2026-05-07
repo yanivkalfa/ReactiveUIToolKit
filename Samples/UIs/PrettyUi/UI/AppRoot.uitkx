@@ -1,0 +1,21 @@
+@namespace PrettyUi.App
+@using PrettyUi.App.Pages
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component AppRoot {
+  return (
+    <VisualElement style={Root}>
+      <Router initialPath="/home/welcome">
+        <Routes>
+          <Route path="/game" element={<GamePage />} />
+          <Route path="/" element={<MenuPage />}>
+            <Route path="home/*" element={<HomePage />} />
+            <Route path="settings/*" element={<SettingsPage />} />
+            <Route path="news/*" element={<NewsPage />} />
+          </Route>
+        </Routes>
+      </Router>
+    </VisualElement>
+  );
+}

@@ -23,6 +23,41 @@ namespace ReactiveUITK.Props.Typed
 
         public string LabelText { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TextFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Multiline != o.Multiline)
+                return false;
+            if (Password != o.Password)
+                return false;
+            if (ReadOnly != o.ReadOnly)
+                return false;
+            if (MaxLength != o.MaxLength)
+                return false;
+            if (Placeholder != o.Placeholder)
+                return false;
+            if (HidePlaceholderOnFocus != o.HidePlaceholderOnFocus)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(Input, o.Input))
+                return false;
+            if (!ReferenceEquals(TextElement, o.TextElement))
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (LabelText != o.LabelText)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -79,6 +114,28 @@ namespace ReactiveUITK.Props.Typed
                 dict["textElement"] = TextElement;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Multiline = null;
+            Password = null;
+            ReadOnly = null;
+            MaxLength = null;
+            Placeholder = null;
+            HidePlaceholderOnFocus = null;
+            Label = null;
+            Input = null;
+            TextElement = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            LabelText = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TextFieldProps>.Return(this);
         }
     }
 }

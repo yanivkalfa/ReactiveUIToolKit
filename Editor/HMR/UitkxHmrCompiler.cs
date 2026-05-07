@@ -171,9 +171,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // ── 1. Parse directives ──────────────────────────────────────
                 var stepSw = Stopwatch.StartNew();
                 var diagList = CreateDiagnosticList();
-                var directives = _directiveParse.Invoke(
+                var directives = InvokeWithDefaults(
+                    _directiveParse,
                     null,
-                    new object[] { source, uitkxPath, diagList, true }
+                    source, uitkxPath, diagList, true
                 );
 
                 if (directives == null)
@@ -194,18 +195,26 @@ namespace ReactiveUITK.EditorSupport.HMR
                 result.ComponentName = componentName;
 
                 // ── 2. Parse AST ─────────────────────────────────────────────
-                var astNodes = _uitkxParse.Invoke(
+                // All 6 args explicit: source, filePath, directives, diagnostics,
+                // validateSingleRoot=false, lineOffset=0. Passing 0 explicitly
+                // (instead of letting InvokeWithDefaults pad it) silences the
+                // drift warning while preserving the correct freestanding-file
+                // semantics. If UitkxParser.Parse ever gains a 7th param, the
+                // drift warning fires loud-and-clear so HMR can be updated.
+                var astNodes = InvokeWithDefaults(
+                    _uitkxParse,
                     null,
-                    new object[] { source, uitkxPath, directives, diagList, false }
+                    source, uitkxPath, directives, diagList, false, 0
                 );
                 stepSw.Stop();
                 result.ParseMs = stepSw.Elapsed.TotalMilliseconds;
 
                 // ── 3. Canonical lowering + Emit C# ──────────────────────────
                 stepSw = Stopwatch.StartNew();
-                var lowered = _canonicalLower.Invoke(
+                var lowered = InvokeWithDefaults(
+                    _canonicalLower,
                     null,
-                    new object[] { directives, astNodes, uitkxPath }
+                    directives, astNodes, uitkxPath
                 );
 
                 // Build a delegate that can parse standalone JSX fragments.
@@ -214,10 +223,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 {
                     string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
                     var miniDiags = CreateDiagnosticList();
-                    var miniDir = _directiveParse.Invoke(
-                        null, new object[] { synthetic, path, miniDiags, false });
-                    var nodes = _uitkxParse.Invoke(
-                        null, new object[] { synthetic, path, miniDir, miniDiags, false });
+                    var miniDir = InvokeWithDefaults(
+                        _directiveParse, null, synthetic, path, miniDiags, false);
+                    var nodes = InvokeWithDefaults(
+                        _uitkxParse, null, synthetic, path, miniDir, miniDiags, false, 0);
                     return GetItems(nodes);
                 };
 
@@ -273,11 +282,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Track whether this component is genuinely new (first-time check only).
                 // Existing components (already in a project assembly) must NOT be added
                 // as cross-references or they cause CS0433 duplicate-type errors.
+                // FQN match (component-namespace + name) — see Issue 8 in the bug plan.
                 if (!_genuinelyNewComponents.Contains(componentName))
-                    CheckIfGenuinelyNew(componentName);
+                    CheckIfGenuinelyNew(componentName, ns);
             }
             catch (Exception ex)
             {
+                result.IsInfrastructureError = IsInfrastructureException(ex);
                 result.Error = ex is TargetInvocationException tie
                     ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}\n{tie.InnerException?.StackTrace}"
                     : $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
@@ -345,6 +356,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
             catch (Exception ex)
             {
+                result.IsInfrastructureError = IsInfrastructureException(ex);
                 result.Error = ex is System.Reflection.TargetInvocationException tie
                     ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}\n{tie.InnerException?.StackTrace}"
                     : $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
@@ -385,8 +397,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 {
                     string companionSource = File.ReadAllText(file);
                     var diagList = CreateDiagnosticList();
-                    var companionDir = _directiveParse.Invoke(
-                        null, new object[] { companionSource, file, diagList, true });
+                    var companionDir = InvokeWithDefaults(
+                        _directiveParse, null, companionSource, file, diagList, true);
                     if (companionDir == null) continue;
 
                     // Emit module bodies (style constants, utility methods, etc.)
@@ -559,11 +571,22 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
         }
 
-        private void CheckIfGenuinelyNew(string componentName)
+        private void CheckIfGenuinelyNew(string componentName, string expectedNamespace)
         {
             // Scan loaded assemblies (excluding HMR assemblies) for a type matching
-            // the component name. If none found, the component is genuinely new and
-            // needs to be added as a cross-reference for dependents.
+            // the component's *fully-qualified* name. If none found, the component
+            // is genuinely new and needs to be added as a cross-reference for
+            // dependents.
+            //
+            // FQN match (rather than the bare-name match used pre-fix) prevents a
+            // false "exists" hit when an unrelated assembly happens to declare a
+            // public type literally named e.g. `App` or `Page` — which would
+            // suppress cross-reference registration and break dependents at
+            // compile time. See Plans~/PRETTY_UI_HMR_BUGS.md Issue 8.
+            string expectedFqn = string.IsNullOrEmpty(expectedNamespace)
+                ? componentName
+                : expectedNamespace + "." + componentName;
+
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (asm.IsDynamic || string.IsNullOrEmpty(asm.Location))
@@ -574,7 +597,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 {
                     foreach (var type in asm.GetExportedTypes())
                     {
-                        if (type.Name.Equals(componentName, StringComparison.OrdinalIgnoreCase))
+                        // Match by FQN (case-sensitive — namespaces and type names
+                        // are case-sensitive in C# regardless of source casing).
+                        if (string.Equals(type.FullName, expectedFqn, StringComparison.Ordinal))
                             return; // exists in a pre-existing assembly — NOT new
                     }
                 }
@@ -712,16 +737,21 @@ namespace ReactiveUITK.EditorSupport.HMR
             _parseOptions = defaultProp.GetValue(null);
 
             // CSharpSyntaxTree.ParseText(string text, CSharpParseOptions options, ...)
+            // Roslyn ships multiple overloads of ParseText. The canonical one we want
+            // has all-optional tail (so we can pass just the text + parse options) —
+            // a non-deterministic First() pick can land on a (string,string,...)
+            // overload that breaks our call shape. PickAllOptionalTailOverload makes
+            // the discovery deterministic across Roslyn versions.
             var syntaxTreeType = _roslynCSharpAsm.GetType(
                 "Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree"
             );
-            _parseText = syntaxTreeType
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .First(m =>
-                    m.Name == "ParseText"
-                    && m.GetParameters().Length >= 1
-                    && m.GetParameters()[0].ParameterType == typeof(string)
-                );
+            _parseText = PickAllOptionalTailOverload(
+                syntaxTreeType,
+                "ParseText",
+                typeof(string),
+                BindingFlags.Public | BindingFlags.Static
+            );
+            RegisterSilentDrift(_parseText);
 
             // CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullable, optimize, ...)
             var outputKindType = _roslynCommonAsm.GetType("Microsoft.CodeAnalysis.OutputKind");
@@ -783,35 +813,49 @@ namespace ReactiveUITK.EditorSupport.HMR
                     _compilationOptions = withOpt.Invoke(_compilationOptions, new[] { releaseVal });
             }
 
-            // CSharpCompilation.Create(string, IEnumerable<SyntaxTree>, IEnumerable<MetadataReference>, CSharpCompilationOptions)
+            // CSharpCompilation.Create(string asmName, IEnumerable<SyntaxTree>?,
+            //                          IEnumerable<MetadataReference>?, CSharpCompilationOptions?)
+            // The 4-arg form is the canonical all-optional-tail overload today; using
+            // the picker keeps us safe if Roslyn ever ships a sibling 4-arg shape.
             var compilationType = _roslynCSharpAsm.GetType(
                 "Microsoft.CodeAnalysis.CSharp.CSharpCompilation"
             );
-            _compilationCreate = compilationType
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .First(m => m.Name == "Create" && m.GetParameters().Length == 4);
+            _compilationCreate = PickAllOptionalTailOverload(
+                compilationType,
+                "Create",
+                typeof(string),
+                BindingFlags.Public | BindingFlags.Static
+            );
+            RegisterSilentDrift(_compilationCreate);
 
-            // MetadataReference.CreateFromFile(string, MetadataReferenceProperties, DocumentationProvider)
+            // MetadataReference.CreateFromFile(string path, MetadataReferenceProperties, DocumentationProvider)
             var metaRefType = _roslynCommonAsm.GetType("Microsoft.CodeAnalysis.MetadataReference");
-            _createFromFile = metaRefType
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .First(m =>
-                    m.Name == "CreateFromFile"
-                    && m.GetParameters().Length > 0
-                    && m.GetParameters()[0].ParameterType == typeof(string)
-                );
+            _createFromFile = PickAllOptionalTailOverload(
+                metaRefType,
+                "CreateFromFile",
+                typeof(string),
+                BindingFlags.Public | BindingFlags.Static
+            );
+            RegisterSilentDrift(_createFromFile);
 
-            // Compilation.Emit(Stream peStream, ...) — many optional params, first is Stream
+            // Compilation.Emit(Stream peStream, Stream pdbStream = null, ...) —
+            // critical: Roslyn has multiple Emit overloads where param[1] is
+            // a non-defaulted Stream (e.g. metadataPEStream variants). The old
+            // First() pick was non-deterministic across runtimes; that's the
+            // root cause of the Issue 3 "missing required argument 'pdbStream'"
+            // failure. PickAllOptionalTailOverload guarantees we pick the
+            // canonical overload where pdbStream and everything after it
+            // have compile-time defaults.
             var baseCompilationType = _roslynCommonAsm.GetType(
                 "Microsoft.CodeAnalysis.Compilation"
             );
-            _emitToStream = baseCompilationType
-                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .First(m =>
-                    m.Name == "Emit"
-                    && m.GetParameters().Length > 0
-                    && m.GetParameters()[0].ParameterType == typeof(Stream)
-                );
+            _emitToStream = PickAllOptionalTailOverload(
+                baseCompilationType,
+                "Emit",
+                typeof(Stream),
+                BindingFlags.Public | BindingFlags.Instance
+            );
+            RegisterSilentDrift(_emitToStream);
 
             // Incremental compilation handles:
             // Compilation.RemoveSyntaxTrees(params SyntaxTree[])
@@ -837,39 +881,6 @@ namespace ReactiveUITK.EditorSupport.HMR
                     && m.GetParameters().Length == 1
                     && m.GetParameters()[0].ParameterType == typeof(string)
                 );
-        }
-
-        /// <summary>
-        /// Invoke a method filling in default values for any optional parameters
-        /// beyond those explicitly provided.
-        /// </summary>
-        private static object InvokeWithDefaults(
-            MethodInfo method,
-            object target,
-            params object[] explicitArgs
-        )
-        {
-            var parms = method.GetParameters();
-            var allArgs = new object[parms.Length];
-            for (int i = 0; i < parms.Length; i++)
-            {
-                if (i < explicitArgs.Length)
-                {
-                    allArgs[i] = explicitArgs[i];
-                }
-                else if (parms[i].HasDefaultValue)
-                {
-                    var def = parms[i].DefaultValue;
-                    allArgs[i] = def is System.DBNull ? null : def;
-                }
-                else
-                {
-                    allArgs[i] = parms[i].ParameterType.IsValueType
-                        ? Activator.CreateInstance(parms[i].ParameterType)
-                        : null;
-                }
-            }
-            return method.Invoke(target, allArgs);
         }
 
         private void BuildMetadataReferences()
@@ -1394,6 +1405,187 @@ namespace ReactiveUITK.EditorSupport.HMR
                 items.Add(item);
             return items;
         }
+
+        // ── Defensive reflection invoker ─────────────────────────────────────
+        // Tracks per-MethodInfo whether we've already warned about silent
+        // padding, so a single drift is reported once per session instead of
+        // flooding the console on every .uitkx save.
+        private static readonly HashSet<MethodInfo> _paddedMethodWarnings = new();
+        private static readonly object _paddedMethodWarningsLock = new();
+
+        // ── Drift-warning suppression set ────────────────────────────────────
+        // Roslyn-targeted MethodInfos registered here are *intentionally*
+        // called with a short positional arg list whose tail is filled from
+        // compile-time defaults (the canonical "all-optional-tail" overload
+        // shape returned by PickAllOptionalTailOverload). Drift warnings for
+        // those calls are pure noise. Language-library calls are NOT in this
+        // set so genuine API drift in the parser/lowering pipeline still
+        // surfaces loud-and-clear on the very first save.
+        private static readonly HashSet<MethodInfo> _silentDriftMethods = new();
+        private static readonly object _silentDriftMethodsLock = new();
+
+        private static void RegisterSilentDrift(MethodInfo m)
+        {
+            if (m == null) return;
+            lock (_silentDriftMethodsLock) _silentDriftMethods.Add(m);
+        }
+
+        /// <summary>
+        /// Locates the canonical "all-optional-tail" overload of a reflected
+        /// method. Filters by <paramref name="name"/> and the type of parameter
+        /// 0 (<paramref name="firstParamType"/>), then prefers the SHORTEST
+        /// overload where every parameter from index 1 onward has
+        /// <c>HasDefaultValue == true</c>. Falls back to the shortest matching
+        /// overload regardless of optionality if no all-optional-tail candidate
+        /// exists.
+        /// <para>
+        /// Critical for Roslyn discovery: <see cref="System.Linq.Enumerable.First{TSource}(System.Collections.Generic.IEnumerable{TSource}, Func{TSource, bool})"/>
+        /// has no documented ordering guarantee across runtime versions, and
+        /// <c>Compilation.Emit</c> in particular ships multiple <c>(Stream, …)</c>
+        /// overloads where parameter 1 is a non-defaulted <c>Stream</c>. A
+        /// non-deterministic First() pick on those silently fails at invoke time.
+        /// </para>
+        /// </summary>
+        private static MethodInfo PickAllOptionalTailOverload(
+            Type declaringType,
+            string name,
+            Type firstParamType,
+            BindingFlags flags
+        )
+        {
+            if (declaringType == null) return null;
+
+            MethodInfo allOptionalBest = null;
+            int allOptionalBestLen = int.MaxValue;
+            MethodInfo anyMatchBest = null;
+            int anyMatchBestLen = int.MaxValue;
+
+            foreach (var m in declaringType.GetMethods(flags))
+            {
+                if (m.Name != name) continue;
+                var ps = m.GetParameters();
+                if (ps.Length == 0) continue;
+                if (ps[0].ParameterType != firstParamType) continue;
+
+                if (ps.Length < anyMatchBestLen)
+                {
+                    anyMatchBest = m;
+                    anyMatchBestLen = ps.Length;
+                }
+
+                bool tailAllOptional = true;
+                for (int i = 1; i < ps.Length; i++)
+                {
+                    if (!ps[i].HasDefaultValue)
+                    {
+                        tailAllOptional = false;
+                        break;
+                    }
+                }
+                if (!tailAllOptional) continue;
+                if (ps.Length < allOptionalBestLen)
+                {
+                    allOptionalBest = m;
+                    allOptionalBestLen = ps.Length;
+                }
+            }
+
+            return allOptionalBest ?? anyMatchBest;
+        }
+
+        /// <summary>
+        /// Invokes a reflective method, padding short argument arrays with each
+        /// parameter's compile-time default value when the language library has
+        /// gained new optional parameters since this HMR build was shipped.
+        /// Surfaces silent API drift via a one-time <c>LogWarning</c> per
+        /// <see cref="MethodInfo"/>, and throws a clear <see cref="ArgumentException"/>
+        /// when the mismatch is irrecoverable (too many args, or a non-optional
+        /// parameter is missing).
+        ///
+        /// <para>The <paramref name="target"/> argument is the receiver for
+        /// instance methods, or <c>null</c> for static methods. It is mandatory
+        /// (rather than defaulted) so that overload resolution cannot silently
+        /// shift a <c>string</c> argument into the receiver slot — a class of
+        /// bug that previously hid behind two competing <c>params</c> overloads.</para>
+        ///
+        /// <para>Methods registered via <see cref="RegisterSilentDrift"/> skip
+        /// the warning (see field comments for rationale).</para>
+        /// </summary>
+        private static object InvokeWithDefaults(
+            MethodInfo method,
+            object target,
+            params object[] args)
+        {
+            if (method == null) throw new ArgumentNullException(nameof(method));
+            args ??= Array.Empty<object>();
+
+            var parameters = method.GetParameters();
+            if (args.Length == parameters.Length)
+                return method.Invoke(target, args);
+
+            if (args.Length > parameters.Length)
+            {
+                throw new ArgumentException(
+                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed " +
+                    $"{args.Length} args but the loaded language library declares " +
+                    $"{parameters.Length} parameter(s). The HMR compiler must be updated.");
+            }
+
+            // args.Length < parameters.Length — pad missing tail with defaults.
+            var padded = new object[parameters.Length];
+            Array.Copy(args, padded, args.Length);
+            for (int i = args.Length; i < parameters.Length; i++)
+            {
+                var p = parameters[i];
+                if (!p.HasDefaultValue)
+                {
+                    throw new ArgumentException(
+                        $"[HMR] {method.DeclaringType?.Name}.{method.Name}: missing " +
+                        $"required argument '{p.Name}' (position {i}). The HMR compiler " +
+                        $"is out of sync with the loaded language library.");
+                }
+                padded[i] = p.DefaultValue;
+            }
+
+            bool firstWarning;
+            lock (_paddedMethodWarningsLock)
+                firstWarning = _paddedMethodWarnings.Add(method);
+            bool isSilent;
+            lock (_silentDriftMethodsLock)
+                isSilent = _silentDriftMethods.Contains(method);
+            if (firstWarning && !isSilent)
+            {
+                Debug.LogWarning(
+                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed " +
+                    $"{args.Length} args but the loaded language library declares " +
+                    $"{parameters.Length} parameter(s); padded missing tail with " +
+                    $"compile-time defaults. Update the HMR compiler to pass the " +
+                    $"new arguments explicitly.");
+            }
+
+            return method.Invoke(target, padded);
+        }
+
+        /// <summary>
+        /// Classifies whether an exception caught inside the HMR compile pipeline
+        /// represents an infrastructure failure (HMR plumbing is broken) as opposed
+        /// to a user-authored .uitkx error. Infrastructure failures cause the
+        /// controller to log one error and self-disable; user errors continue to
+        /// follow the warn + retry cascade flow.
+        /// </summary>
+        internal static bool IsInfrastructureException(Exception ex)
+        {
+            if (ex == null) return false;
+            // Unwrap reflection wrapper.
+            if (ex is TargetInvocationException tie && tie.InnerException != null)
+                ex = tie.InnerException;
+            return ex is TargetParameterCountException
+                || ex is MissingMethodException
+                || ex is MissingFieldException
+                || ex is TypeLoadException
+                || ex is ReflectionTypeLoadException
+                || ex is BadImageFormatException;
+        }
     }
 
     // ── Result ────────────────────────────────────────────────────────────────
@@ -1428,5 +1620,15 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         public string TimingBreakdown =>
             $"Parse: {ParseMs:F1}ms | Emit: {EmitMs:F1}ms | Compile: {CompileMs:F1}ms | Swap: {SwapMs:F1}ms | Total: {TotalMs:F1}ms";
+
+        /// <summary>
+        /// True when the failure is caused by HMR infrastructure drift
+        /// (reflection signature mismatch against the language library, missing
+        /// type/method, or assembly load failure) rather than a user-authored
+        /// .uitkx error. Triggers a one-time error log + self-disable in the
+        /// controller — restart Unity or click Start in the HMR window after
+        /// rebuilding the language library.
+        /// </summary>
+        public bool IsInfrastructureError;
     }
 }

@@ -1,0 +1,37 @@
+@namespace PrettyUi.App.Pages
+@using PrettyUi.App.Components
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component NewsPage {
+  var navigate = RouterHooks.UseNavigate(replace: true);
+  var location = RouterHooks.UseLocation() ?? "/";
+
+  useEffect(() => {
+    if (location == "/news" || location == "/news/") {
+      navigate("/news/v110", null);
+    }
+    return null;
+  }, new object[] { location });
+
+  var content = (
+    <VisualElement style={ContentRoot}>
+      <Route
+        path="v110"
+        element={<ContentPanel title="v1.1.0 — Spring Update" body="New zone, three new enemies, and a soft rebalance pass on early-game weapons." />}
+      />
+      <Route
+        path="v108"
+        element={<ContentPanel title="v1.0.8 — Polish Pass" body="Localization fixes, a few crash fixes, and improved gamepad navigation in menus." />}
+      />
+      <Route
+        path="v107"
+        element={<ContentPanel title="v1.0.7 — Hotfix" body="Resolved a save-corruption issue when alt-tabbing during autosave." />}
+      />
+    </VisualElement>
+  );
+
+  return (
+    <PageShell sidebar={<NewsPageSidebar />} content={content} />
+  );
+}

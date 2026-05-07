@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -11,73 +12,41 @@ namespace ReactiveUITK.EditorSupport.HMR
     /// <summary>
     /// Walks the AST produced by ReactiveUITK.Language.dll (accessed via reflection)
     /// and emits compilable C# source code equivalent to CSharpEmitter from the
-    /// source generator ΓÇö but without requiring Roslyn types.
+    /// source generator — but without requiring Roslyn types.
     /// </summary>
     internal static class HmrCSharpEmitter
     {
-        // ΓöÇΓöÇ Hardcoded tag ΓåÆ resolution map (mirrors PropsResolver.BuildFallbackMap) ΓöÇ
-        private static readonly Dictionary<string, TagRes> s_tagMap = new Dictionary<
-            string,
-            TagRes
-        >(StringComparer.OrdinalIgnoreCase)
-        {
-            // Typed elements (no children)
-            ["label"] = TagRes.Typed("Label", "LabelProps"),
-            ["button"] = TagRes.Typed("Button", "ButtonProps"),
-            ["textfield"] = TagRes.Typed("TextField", "TextFieldProps"),
-            ["toggle"] = TagRes.Typed("Toggle", "ToggleProps"),
-            ["slider"] = TagRes.Typed("Slider", "SliderProps"),
-            ["sliderint"] = TagRes.Typed("SliderInt", "SliderIntProps"),
-            ["image"] = TagRes.Typed("Image", "ImageProps"),
-            ["listview"] = TagRes.Typed("ListView", "ListViewProps"),
-            ["treeview"] = TagRes.Typed("TreeView", "TreeViewProps"),
-            ["helpbox"] = TagRes.Typed("HelpBox", "HelpBoxProps"),
-            ["progressbar"] = TagRes.Typed("ProgressBar", "ProgressBarProps"),
-            ["tab"] = TagRes.Typed("Tab", "TabProps"),
-            ["tabview"] = TagRes.Typed("TabView", "TabViewProps"),
-            ["textelement"] = TagRes.Typed("TextElement", "TextElementProps"),
-            ["radiobutton"] = TagRes.Typed("RadioButton", "RadioButtonProps"),
-            ["radiobuttongroup"] = TagRes.Typed("RadioButtonGroup", "RadioButtonGroupProps"),
-            ["dropdownfield"] = TagRes.Typed("DropdownField", "DropdownFieldProps"),
-            ["enumfield"] = TagRes.Typed("EnumField", "EnumFieldProps"),
-            ["integerfield"] = TagRes.Typed("IntegerField", "IntegerFieldProps"),
-            ["floatfield"] = TagRes.Typed("FloatField", "FloatFieldProps"),
-            // Typed containers (accept children)
-            ["box"] = TagRes.TypedC("Box", "BoxProps"),
-            ["scrollview"] = TagRes.TypedC("ScrollView", "ScrollViewProps"),
-            ["foldout"] = TagRes.TypedC("Foldout", "FoldoutProps"),
-            ["groupbox"] = TagRes.TypedC("GroupBox", "GroupBoxProps"),
-            ["errorboundary"] = TagRes.TypedC("ErrorBoundary", "ErrorBoundaryProps"),
-            // VisualElement is typed with children
-            ["visualelement"] = TagRes.TypedC("VisualElement", "VisualElementProps"),
-            // Dictionary-based (accept children)
-            ["visualelementsafe"] = new TagRes(TagKind.Dict, "VisualElementSafe", null),
-            // Text
-            ["text"] = new TagRes(TagKind.Text, "Text", null),
-            // Fragment
-            ["fragment"] = new TagRes(TagKind.Fragment, "Fragment", null),
-            // Suspense, Portal
-            ["suspense"] = new TagRes(TagKind.Suspense, "Suspense", null),
-            ["portal"] = new TagRes(TagKind.Portal, "Portal", null),
-        };
+        // ── Built-in tag → resolution map ───────────────────────────────────
+        //
+        // Auto-discovered at type-init via reflection over
+        // <c>typeof(global::ReactiveUITK.V).GetMethods()</c>. Mirrors the
+        // source generator's <c>PropsResolver.BuildBuiltinMapFromCompilation</c>
+        // (Roslyn-based auto-scan) one-for-one — same classification rules,
+        // same key casing — so adding a new <c>V.Foo(FooProps, …)</c> factory
+        // is automatically picked up by both emitters with no further edits.
+        //
+        // Historically this was a 33-entry hand-maintained literal that
+        // silently drifted from <c>V.cs</c> every release (38 typed factories
+        // were missing as of 0.4.19, e.g. <c>&lt;Animate&gt;</c>,
+        // <c>&lt;Toolbar&gt;</c>, every editor field, etc.). The reflection
+        // discovery closes the entire bug class structurally.
+        private static readonly Dictionary<string, TagRes> s_tagMap =
+            HmrBuiltinTagDiscovery.BuildAutoDiscoveredTagMap();
 
-        private static readonly Dictionary<string, string> s_componentAliases = new Dictionary<
-            string,
-            string
-        >(StringComparer.Ordinal)
-        {
-            ["Router"] = "RouterFunc",
-            ["Route"] = "RouteFunc",
-            ["Link"] = "LinkFunc",
-        };
+        // Single source of truth lives in
+        // Shared/Core/Router/RouterTagAliases.cs.  Both the source generator
+        // and this HMR emitter consume the same dictionary so that markup tag
+        // resolution stays in lock-step across cold-build and hot-reload.
+        private static readonly IReadOnlyDictionary<string, string> s_componentAliases =
+            global::ReactiveUITK.Router.RouterTagAliases.Map;
 
         private const string QVNode = "global::ReactiveUITK.Core.VirtualNode";
 
-        // ΓöÇΓöÇ Public entry point ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Public entry point ────────────────────────────────────────────────
 
         /// <summary>
         /// Parses a JSX markup fragment and returns the AST nodes (opaque IList).
-        /// Signature: (jsxText, filePath, startLine) ΓåÆ IList of AST nodes.
+        /// Signature: (jsxText, filePath, startLine) → IList of AST nodes.
         /// </summary>
         internal delegate IList MarkupParseFunc(string jsxText, string filePath, int startLine);
 
@@ -97,11 +66,21 @@ namespace ReactiveUITK.EditorSupport.HMR
             return ctx.ToString();
         }
 
-        // ΓöÇΓöÇ Emit context (stateful per invocation) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Emit context (stateful per invocation) ────────────────────────────
 
         private sealed class EmitCtx
         {
             private readonly StringBuilder _sb = new StringBuilder(4096);
+            private StringBuilder _rentBuffer = new StringBuilder();
+            private int _poolVarId;
+
+            // OPT-V2-2 Phase A: hoisted static-style fields collected during the
+            // render-body walk. Flushed into the partial class body just before its
+            // closing brace. The hoisted instances are created with `new Style { ... }`
+            // (generation == 0) so __ScheduleReturn skips them and DiffStyle bails on
+            // SameInstance across renders. Mirrors the SG behaviour 1:1.
+            private readonly StringBuilder _hoistedStyleFields = new StringBuilder();
+            private int _hoistCounter;
             private readonly object _directives;
             private readonly string _filePath;
             private readonly string _displayName;
@@ -157,7 +136,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 // Header
-                L("// <auto-generated ΓÇö do not edit ΓÇö HMR />");
+                L("// <auto-generated — do not edit — HMR />");
                 L(
                     "#pragma warning disable CS0105,CS0162,CS8600,CS8601,CS8602,CS8603,CS8604,CS8625"
                 );
@@ -245,7 +224,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L($"            IReadOnlyList<{QVNode}> __children)");
                 L("        {");
 
-                // Props binding ΓÇö HMR uses reflection to read props from ANY
+                // Props binding — HMR uses reflection to read props from ANY
                 // assembly's props type, avoiding cross-assembly type mismatch.
                 if (_isFunctionStyle && _functionParams.Count > 0)
                 {
@@ -300,9 +279,28 @@ namespace ReactiveUITK.EditorSupport.HMR
                 else if (markupNodes.Count == 1)
                 {
                     int srcLine = GP<int>(markupNodes[0], "SourceLine");
+
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
+
+                    int mark = _sb.Length;
+                    EmitNode(markupNodes[0]);
+                    string expr = _sb.ToString(mark, _sb.Length - mark);
+                    _sb.Length = mark;
+
+                    // Emit pool-rent statements before return
+                    if (_rentBuffer.Length > 0)
+                    {
+                        L($"#line hidden");
+                        _sb.Append("            ");
+                        _sb.AppendLine(_rentBuffer.ToString());
+                        L($"#line default");
+                    }
+                    _rentBuffer = savedRent;
+
                     L($"#line {srcLine} \"{_linePath}\"");
                     _sb.Append("            return ");
-                    EmitNode(markupNodes[0]);
+                    _sb.Append(expr);
                     _sb.AppendLine(";");
                 }
                 else
@@ -319,11 +317,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (_isFunctionStyle && _functionParams.Count > 0)
                     EmitFunctionPropsClass();
 
+                // OPT-V2-2 Phase A: emit any hoisted static Style fields collected
+                // during the render-body walk.
+                if (_hoistedStyleFields.Length > 0)
+                {
+                    L("");
+                    L("        // ── Hoisted static styles (OPT-V2-2) ──");
+                    _sb.Append(_hoistedStyleFields.ToString());
+                }
+
                 L("    }"); // close class
                 L("}"); // close namespace
             }
 
-            // ΓöÇΓöÇ Setup-code JSX splice ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Setup-code JSX splice ─────────────────────────────────────
 
             /// <summary>
             /// Replaces embedded JSX markup spans inside <paramref name="setupCode"/>
@@ -379,6 +386,10 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     if (nodes != null && nodes.Count > 0)
                     {
+                        // Save rent buffer — inline JSX may produce rent statements
+                        var savedRent = _rentBuffer;
+                        _rentBuffer = new StringBuilder();
+
                         int savedLen = _sb.Length;
                         if (nodes.Count == 1)
                             EmitNode(nodes[0]);
@@ -390,6 +401,24 @@ namespace ReactiveUITK.EditorSupport.HMR
                         }
                         string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                         _sb.Length = savedLen;
+
+                        // Insert rent statements at the last statement boundary
+                        string inlineRent = _rentBuffer.ToString();
+                        _rentBuffer = savedRent;
+                        if (inlineRent.Length > 0)
+                        {
+                            int insertPos = 0;
+                            for (int si = spliced.Length - 1; si >= 0; si--)
+                            {
+                                char ch = spliced[si];
+                                if (ch == ';' || ch == '}')
+                                {
+                                    insertPos = si + 1;
+                                    break;
+                                }
+                            }
+                            spliced.Insert(insertPos, inlineRent);
+                        }
                         spliced.Append(emittedCs.Trim());
                     }
                     else
@@ -501,6 +530,10 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     if (nodes != null && nodes.Count > 0)
                     {
+                        // Save rent buffer — inline JSX may produce rent statements
+                        var savedRent = _rentBuffer;
+                        _rentBuffer = new StringBuilder();
+
                         int savedLen = _sb.Length;
                         if (nodes.Count == 1)
                         {
@@ -523,6 +556,28 @@ namespace ReactiveUITK.EditorSupport.HMR
                             );
                         string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                         _sb.Length = savedLen;
+
+                        // Inline rent statements before the expression at the splice point
+                        string inlineRent = _rentBuffer.ToString();
+                        _rentBuffer = savedRent;
+                        if (inlineRent.Length > 0)
+                        {
+                            // Find the last statement boundary in the accumulated text.
+                            // Rent statements must appear as standalone statements, not
+                            // after 'return' or 'yield return'. Insert right after the
+                            // last ';' or '}', or at position 0 if none found.
+                            int insertPos = 0;
+                            for (int si = spliced.Length - 1; si >= 0; si--)
+                            {
+                                char ch = spliced[si];
+                                if (ch == ';' || ch == '}')
+                                {
+                                    insertPos = si + 1;
+                                    break;
+                                }
+                            }
+                            spliced.Insert(insertPos, inlineRent);
+                        }
                         spliced.Append(emittedCs.Trim());
                     }
                     else
@@ -541,7 +596,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             /// <summary>
             /// Processes directive body code through the full transformation pipeline:
-            /// splice JSX ΓåÆ hook aliases ΓåÆ asset paths.
+            /// splice JSX → hook aliases → asset paths.
             /// </summary>
             private string TransformBodyCode(object directiveNode)
             {
@@ -560,7 +615,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return code;
             }
 
-            // ΓöÇΓöÇ Node emission ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Node emission ─────────────────────────────────────────────
 
             private void EmitNode(object node)
             {
@@ -652,7 +707,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     return;
                 }
 
-                // PascalCase ΓåÆ function component
+                // PascalCase → function component
                 if (char.IsUpper(tagName[0]))
                 {
                     string lookupName = s_componentAliases.TryGetValue(tagName, out var aliased)
@@ -662,7 +717,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     return;
                 }
 
-                // Unknown tag ΓåÆ null with comment
+                // Unknown tag → null with comment
                 _sb.Append($"({QVNode})null /* unknown: {tagName} */");
             }
 
@@ -675,21 +730,29 @@ namespace ReactiveUITK.EditorSupport.HMR
             private void EmitExpression(object node)
             {
                 string expr = GP<string>(node, "Expression") ?? "";
-                // @(expr) ΓÇö passed as-is into __C which handles VirtualNode,
+                // @(expr) — passed as-is into __C which handles VirtualNode,
                 // VirtualNode[], and IEnumerable<VirtualNode> (e.g. @(__children)).
                 _sb.Append($"({expr})");
             }
 
-            // ΓöÇΓöÇ Element emission variants ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Element emission variants ──────────────────────────────────
 
             private void EmitFragment(string keyExpr, IList children)
             {
                 _sb.Append($"V.Fragment(key: {keyExpr}");
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -710,33 +773,111 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 var filteredAttrs = FilterAttrs(attrs, "key");
 
-                _sb.Append($"V.{res.MethodName}(new {res.PropsType} {{ ");
-                bool first = true;
-                foreach (var attr in filteredAttrs)
+                // ErrorBoundaryProps extends IProps (not BaseProps) — cannot be pooled
+                bool skipPooling = res.PropsType == "ErrorBoundaryProps";
+
+                if (skipPooling)
                 {
-                    string name = GP<string>(attr, "Name") ?? "";
-                    string val = AttrToExpr(attr);
-                    string propName = ToPascal(name);
-                    if (!first)
-                        _sb.Append(", ");
-                    _sb.Append($"{propName} = {val}");
-                    first = false;
+                    _sb.Append($"V.{res.MethodName}(new {res.PropsType} {{ ");
+                    bool first = true;
+                    foreach (var attr in filteredAttrs)
+                    {
+                        string name = GP<string>(attr, "Name") ?? "";
+                        string val = AttrToExpr(attr);
+                        string propName = ToPascal(name);
+                        if (!first)
+                            _sb.Append(", ");
+                        _sb.Append($"{propName} = {val}");
+                        first = false;
+                    }
+                    if (injectUssKeys)
+                    {
+                        if (!first)
+                            _sb.Append(", ");
+                        _sb.Append(
+                            "ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                        );
+                    }
+                    _sb.Append($" }}, key: {keyExpr}");
                 }
-                if (injectUssKeys)
+                else
                 {
-                    if (!first)
-                        _sb.Append(", ");
-                    _sb.Append(
-                        "ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                    // ── Pool-rent emission ──
+                    int pId = _poolVarId++;
+                    string propsVar = $"__p_{pId}";
+                    _rentBuffer.Append(
+                        $"var {propsVar} = global::ReactiveUITK.Props.Typed.BaseProps.__Rent<{res.PropsType}>(); "
                     );
-                }
-                _sb.Append($" }}, key: {keyExpr}");
+
+                    string styleVarName = null;
+                    foreach (var attr in filteredAttrs)
+                    {
+                        string name = GP<string>(attr, "Name") ?? "";
+                        if (string.Equals(ToPascal(name), "Style", StringComparison.Ordinal))
+                        {
+                            string val = AttrToExpr(attr);
+
+                            // ── OPT-V2-2 Phase A: try to hoist all-literal styles ──
+                            if (TryHoistStaticStyle(val, out string hoistedName))
+                            {
+                                styleVarName = hoistedName;
+                            }
+                            else if (TryExtractNewStyleInit(val, out string body))
+                            {
+                                int sId = _poolVarId++;
+                                styleVarName = $"__s_{sId}";
+                                _rentBuffer.Append(
+                                    $"var {styleVarName} = global::ReactiveUITK.Props.Typed.Style.__Rent(); "
+                                );
+                                var inits = SplitTopLevelCommas(body);
+                                foreach (var init in inits)
+                                {
+                                    string trimmed = init.Trim();
+                                    if (trimmed.Length > 0)
+                                        _rentBuffer.Append($"{styleVarName}.{trimmed}; ");
+                                }
+                            }
+                            break;
+                        }
+                    }
+
+                    foreach (var attr in filteredAttrs)
+                    {
+                        string name = GP<string>(attr, "Name") ?? "";
+                        string propName = ToPascal(name);
+                        string val;
+                        if (
+                            string.Equals(propName, "Style", StringComparison.Ordinal)
+                            && styleVarName != null
+                        )
+                            val = styleVarName;
+                        else
+                            val = AttrToExpr(attr);
+                        _rentBuffer.Append($"{propsVar}.{propName} = {val}; ");
+                    }
+                    if (injectUssKeys)
+                    {
+                        _rentBuffer.Append(
+                            $"{propsVar}.ExtraProps = new Dictionary<string, object> {{ {{ \"__ussKeys\", __uitkx_ussKeys }} }}; "
+                        );
+                    }
+
+                    _sb.Append($"V.{res.MethodName}({propsVar}, key: {keyExpr}");
+                } // end else (!skipPooling)
 
                 if (res.Kind == TagKind.TypedC && children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -791,9 +932,17 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -805,15 +954,24 @@ namespace ReactiveUITK.EditorSupport.HMR
                 IList children
             )
             {
+                // Extract ref={x} BEFORE filtering so we can route it into the
+                // synthesized props object even when ref is the *only* attribute.
+                // SG mirrors this with PropsResolver.TryGetRefParamPropName at
+                // CSharpEmitter.cs:1162 — when omitted, ref={...} silently
+                // no-ops because the resolver-routed assignment never fires.
+                string refExpr = GetAttrExpr(attrs, "ref");
                 var filteredAttrs = FilterAttrs(attrs, "key");
                 filteredAttrs = FilterAttrs(filteredAttrs, "ref");
 
-                // Check if there are props ΓåÆ use V.Func<Props>(Type.Render, new Props { })
-                // Otherwise ΓåÆ use V.Func(Type.Render, key: ...)
-                if (filteredAttrs.Count > 0)
+                // Use the typed (props) path when there is at least one writable
+                // prop OR a ref to route. The no-props path (`V.Func(R, null, key)`)
+                // would discard a lone ref={x} attribute — restoring the very bug
+                // Issue 5 was filed against.
+                if (filteredAttrs.Count > 0 || refExpr != null)
                 {
-                    // Find the actual props type via runtime reflection
-                    string propsTypeName = FindPropsType(typeName);
+                    // Find props type AND scan it for the Ref<T>/MutableRef<T>
+                    // slot in a single reflection pass.
+                    var (propsTypeName, refSlotName) = FindPropsTypeAndRefSlot(typeName);
                     _sb.Append($"V.Func<{propsTypeName}>({typeName}.Render, ");
                     _sb.Append($"new {propsTypeName} {{ ");
                     bool first = true;
@@ -827,18 +985,52 @@ namespace ReactiveUITK.EditorSupport.HMR
                         _sb.Append($"{propName} = {val}");
                         first = false;
                     }
+
+                    // Route ref={x} into the resolved Ref<T>/MutableRef<T> slot.
+                    // No cast — the user's local is already typed by UseRef<T>(),
+                    // matching SG's emit shape (CSharpEmitter.cs:1175).
+                    if (refExpr != null && refSlotName != null)
+                    {
+                        if (!first)
+                            _sb.Append(", ");
+                        _sb.Append($"{refSlotName} = {refExpr}");
+                        first = false;
+                    }
+                    else if (refExpr != null)
+                    {
+                        // ref={x} on a component whose props expose no Ref<T> slot
+                        // is an authoring error. SG raises UITKX0020 here; HMR
+                        // logs a warning so the developer sees the divergence.
+                        UnityEngine.Debug.LogWarning(
+                            $"[HMR] {_displayName}: <{typeName} ref={{...}}> has no "
+                                + "matching Ref<T>/MutableRef<T> property on its Props type. "
+                                + "The ref will be ignored at runtime."
+                        );
+                    }
+
                     _sb.Append($" }}, key: {keyExpr}");
                 }
                 else
                 {
-                    _sb.Append($"V.Func({typeName}.Render, key: {keyExpr}");
+                    // Explicit positional null in the IProps `props` slot — see
+                    // CSharpEmitter.cs (cold-build twin) for the CS8323 rationale.
+                    _sb.Append($"V.Func({typeName}.Render, null, key: {keyExpr}");
                 }
 
                 if (children.Count > 0)
                 {
-                    _sb.Append(", children: __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        // Phase A bypass: V.Func<P>(R, props, key: k, child1, child2, ...)
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", children: __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -847,32 +1039,162 @@ namespace ReactiveUITK.EditorSupport.HMR
             /// Find the props type for a function component by searching loaded assemblies.
             /// Tries: TypeName.TypeNameProps (uitkx convention), TypeName.Props (manual convention).
             /// </summary>
+            /// <summary>
+            /// Resolves the props type for a function-style component, mirroring the
+            /// source generator's <c>PropsResolver.TryGetFuncComponentPropsTypeName</c>
+            /// fallback chain. Looks for, in order:
+            /// <list type="number">
+            ///   <item>A sibling top-level <c>{typeName}Props</c> class in the same
+            ///     namespace as the component (e.g. <c>RouterFunc</c> +
+            ///     <c>RouterFuncProps</c> in <c>ReactiveUITK.Router</c>).</item>
+            ///   <item>A nested <c>{typeName}.{typeName}Props</c> implementing
+            ///     <c>IProps</c> (the convention emitted by the source generator
+            ///     for UITKX function components compiled into referenced assemblies).</item>
+            ///   <item>Any nested type implementing <c>IProps</c> (legacy fallback).</item>
+            /// </list>
+            /// Returns a fully-qualified name when (1) matches so emitted code remains
+            /// valid even when the consumer's <c>@using</c> directives don't cover the
+            /// props' namespace; otherwise returns the bare nested form.
+            /// Falls back to <c>{typeName}.{typeName}Props</c> only when nothing is
+            /// found — preserves prior behaviour for unknown components.
+            /// </summary>
             private static string FindPropsType(string typeName)
             {
+                var (name, _) = FindPropsTypeAndRefSlot(typeName);
+                return name;
+            }
+
+            /// <summary>
+            /// Combined props-type + ref-slot resolution. Performs the same
+            /// reflection scan as <see cref="FindPropsType"/> but additionally
+            /// inspects the resolved Props type for a <c>Ref&lt;T&gt;</c> /
+            /// <c>Hooks.MutableRef&lt;T&gt;</c> property so HMR can route
+            /// <c>ref={x}</c> attributes into the synthesized props initializer
+            /// — mirroring SG's <c>PropsResolver.TryGetRefParamPropName</c>.
+            /// Returns a tuple of (formatted-name-for-emit, ref-slot-property-name)
+            /// where <c>RefSlotName</c> is <c>null</c> when no ref slot exists
+            /// (ambiguity is resolved by taking the first declared ref-typed
+            /// property — same precedence rule as SG's first-match behaviour).
+            /// </summary>
+            private static (string PropsTypeName, string RefSlotName) FindPropsTypeAndRefSlot(
+                string typeName
+            )
+            {
+                string resolvedName = null;
+                Type resolvedPropsType = null;
+
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     if (asm.IsDynamic)
                         continue;
+                    Type[] types;
                     try
                     {
-                        foreach (var type in asm.GetTypes())
+                        types = asm.GetTypes();
+                    }
+                    catch
+                    {
+                        continue; /* ReflectionTypeLoadException — skip */
+                    }
+
+                    foreach (var type in types)
+                    {
+                        if (type.Name != typeName)
+                            continue;
+
+                        // Step 1 — sibling top-level {typeName}Props in the same namespace
+                        // (the modern UITKX function-component pattern, e.g. RouterFunc /
+                        // RouterFuncProps both declared at namespace scope).
+                        string siblingName = typeName + "Props";
+                        string siblingFullName = string.IsNullOrEmpty(type.Namespace)
+                            ? siblingName
+                            : type.Namespace + "." + siblingName;
+                        var sibling = asm.GetType(siblingFullName, throwOnError: false);
+                        if (
+                            sibling != null
+                            && sibling.GetInterface("ReactiveUITK.Core.IProps") != null
+                        )
                         {
-                            if (type.Name != typeName)
-                                continue;
-                            // Look for nested types that implement IProps
-                            foreach (var nested in type.GetNestedTypes())
+                            resolvedName = "global::" + siblingFullName;
+                            resolvedPropsType = sibling;
+                            goto resolved;
+                        }
+
+                        // Step 2 — nested {typeName}.{typeName}Props (the form generated
+                        // by the source generator for compiled UITKX components).
+                        var nestedNamed = type.GetNestedType(siblingName);
+                        if (
+                            nestedNamed != null
+                            && nestedNamed.GetInterface("ReactiveUITK.Core.IProps") != null
+                        )
+                        {
+                            resolvedName = $"{typeName}.{siblingName}";
+                            resolvedPropsType = nestedNamed;
+                            goto resolved;
+                        }
+
+                        // Step 3 — any nested IProps (legacy fallback).
+                        foreach (var nested in type.GetNestedTypes())
+                        {
+                            if (nested.GetInterface("ReactiveUITK.Core.IProps") != null)
                             {
-                                if (nested.GetInterface("ReactiveUITK.Core.IProps") != null)
-                                    return $"{typeName}.{nested.Name}";
+                                resolvedName = $"{typeName}.{nested.Name}";
+                                resolvedPropsType = nested;
+                                goto resolved;
                             }
                         }
                     }
-                    catch
-                    { /* ReflectionTypeLoadException ΓÇö skip */
-                    }
                 }
-                // Fallback: assume uitkx convention
-                return $"{typeName}.{typeName}Props";
+
+                resolved:
+                if (resolvedName == null)
+                {
+                    // Last-resort fallback: assume the {Type}.{Type}Props convention so
+                    // emitted code at least produces a clear CS error pointing at a
+                    // recognizable name if the type is genuinely missing.
+                    return ($"{typeName}.{typeName}Props", null);
+                }
+
+                string refSlot =
+                    resolvedPropsType != null ? FindRefSlotName(resolvedPropsType) : null;
+                return (resolvedName, refSlot);
+            }
+
+            /// <summary>
+            /// Scans <paramref name="propsType"/>'s public instance properties for
+            /// the first one whose declared type is a generic instantiation of
+            /// <see cref="global::ReactiveUITK.Core.Ref{T}"/> or the deprecated
+            /// <c>Hooks.MutableRef&lt;T&gt;</c>. Returns the property name (the
+            /// slot HMR should assign <c>ref={x}</c> into) or <c>null</c> when
+            /// the props type has no such slot. Mirrors
+            /// <c>PropsResolver.GetMutableRefPropertyNames</c>'s first-match
+            /// behaviour at the reflection level.
+            /// </summary>
+            private static string FindRefSlotName(Type propsType)
+            {
+                foreach (
+                    var prop in propsType.GetProperties(
+                        System.Reflection.BindingFlags.Public
+                            | System.Reflection.BindingFlags.Instance
+                    )
+                )
+                {
+                    var pt = prop.PropertyType;
+                    if (!pt.IsGenericType)
+                        continue;
+                    var def = pt.GetGenericTypeDefinition();
+                    if (def == typeof(global::ReactiveUITK.Core.Ref<>))
+                        return prop.Name;
+                    // [Obsolete] backward-compat shape used in older user code.
+                    // Suppress CS0618: this is *exactly* the call site that has
+                    // to know about the legacy type so HMR can keep routing
+                    // ref={x} into pre-existing user components.
+#pragma warning disable CS0618
+                    if (def == typeof(global::ReactiveUITK.Core.Hooks.MutableRef<>))
+                        return prop.Name;
+#pragma warning restore CS0618
+                }
+                return null;
             }
 
             private void EmitSuspense(IList attrs, string keyExpr, IList children)
@@ -882,9 +1204,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append($"V.Suspense({isReady}, {fallback}, key: {keyExpr}");
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -895,14 +1225,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append($"V.Portal({target}, key: {keyExpr}");
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
 
-            // ΓöÇΓöÇ Control flow ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Control flow ──────────────────────────────────────────────
 
             private void EmitIf(object node)
             {
@@ -910,7 +1248,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     UitkxHmrCompiler.GetProp(node, "Branches")
                 );
 
-                // IIFE ΓÇö body code contains return statements at arbitrary depth
+                // IIFE — body code contains return statements at arbitrary depth
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 for (int i = 0; i < branches.Count; i++)
                 {
@@ -928,12 +1266,19 @@ namespace ReactiveUITK.EditorSupport.HMR
                         _sb.Append(" else { ");
                     }
 
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
                     string bodyCode = TransformBodyCode(branch);
+                    string rentStmts = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
+
                     if (!string.IsNullOrEmpty(bodyCode))
                     {
                         _sb.Append(bodyCode);
                         _sb.Append(" ");
                     }
+                    if (rentStmts.Length > 0)
+                        _sb.Append(rentStmts);
                     _sb.Append("}");
                 }
                 _sb.Append($" return ({QVNode})null; }}))()");
@@ -944,55 +1289,65 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string iterDecl = GP<string>(node, "IteratorDeclaration") ?? "var item";
                 string collExpr = GP<string>(node, "CollectionExpression") ?? "new object[0]";
 
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 string bodyCode = TransformBodyCode(node);
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
 
-                // IIFE with nested IIFE per iteration
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
                 _sb.Append($"foreach ({iterDecl} in {collExpr}) {{ ");
-                if (!string.IsNullOrEmpty(bodyCode))
+                if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                 {
-                    _sb.Append(
-                        $"__items.Add(((Func<{QVNode}>)(() => {{ {bodyCode} return ({QVNode})null; }}))());"
-                    );
+                    string inlined = RewriteReturnsForInline(bodyCode, "__items");
+                    _sb.Append($"{rentStmts}{inlined} ");
                 }
-                _sb.Append(" } ");
+                _sb.Append("} ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
             }
 
             private void EmitFor(object node)
             {
                 string forExpr = GP<string>(node, "ForExpression") ?? "";
+
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 string bodyCode = TransformBodyCode(node);
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
 
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
                 _sb.Append($"for ({forExpr}) {{ ");
-                if (!string.IsNullOrEmpty(bodyCode))
+                if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                 {
-                    _sb.Append(
-                        $"__items.Add(((Func<{QVNode}>)(() => {{ {bodyCode} return ({QVNode})null; }}))());"
-                    );
+                    string inlined = RewriteReturnsForInline(bodyCode, "__items");
+                    _sb.Append($"{rentStmts}{inlined} ");
                 }
-                _sb.Append(" } ");
+                _sb.Append("} ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
             }
 
             private void EmitWhile(object node)
             {
                 string cond = GP<string>(node, "Condition") ?? "false";
+
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 string bodyCode = TransformBodyCode(node);
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
 
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
                 _sb.Append($"while ({cond}) {{ ");
-                if (!string.IsNullOrEmpty(bodyCode))
+                if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                 {
-                    _sb.Append(
-                        $"__items.Add(((Func<{QVNode}>)(() => {{ {bodyCode} return ({QVNode})null; }}))());"
-                    );
+                    string inlined = RewriteReturnsForInline(bodyCode, "__items");
+                    _sb.Append($"{rentStmts}{inlined} ");
                 }
-                _sb.Append(" } ");
+                _sb.Append("} ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
             }
 
@@ -1008,25 +1363,37 @@ namespace ReactiveUITK.EditorSupport.HMR
                     string val = GP<string>(c, "ValueExpression");
                     _sb.Append(val != null ? $"case {val}: " : "default: ");
 
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
                     string bodyCode = TransformBodyCode(c);
-                    if (!string.IsNullOrEmpty(bodyCode))
+                    string rentStmts = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
+
+                    if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                     {
                         _sb.Append("{ ");
                         _sb.Append(bodyCode);
+                        if (rentStmts.Length > 0)
+                            _sb.Append(" ").Append(rentStmts);
                         _sb.Append(" } ");
                     }
                 }
                 _sb.Append($"}} return ({QVNode})null; }}))()");
             }
 
-            // ΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Helpers ───────────────────────────────────────────────────
 
             private void EmitChildArgs(IList children)
             {
+                // UITKX0104 — warn on duplicate static string keys among siblings.
+                // Mirrors SG's CSharpEmitter.CheckDuplicateKeys (line 1631) so HMR
+                // surfaces the same authoring mistake the cold build catches.
+                CheckDuplicateKeys(children);
+
                 bool first = true;
                 for (int i = 0; i < children.Count; i++)
                 {
-                    // Comments emit nothing ΓÇö skip to avoid dangling commas
+                    // Comments emit nothing — skip to avoid dangling commas
                     if (children[i].GetType().Name == "CommentNode")
                         continue;
 
@@ -1037,27 +1404,133 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
             }
 
+            /// <summary>
+            /// HMR mirror of SG's <c>CSharpEmitter.CheckDuplicateKeys</c>: walk
+            /// sibling element children, collect literal-string <c>key={...}</c>
+            /// values, and emit a one-line <c>Debug.LogWarning</c> on the first
+            /// duplicate. SG severity is Warning (UITKX0104), not Error, so HMR
+            /// must not <c>#error</c> here — that would over-fail relative to the
+            /// cold build. Non-literal key expressions are skipped (we cannot
+            /// statically resolve them).
+            /// </summary>
+            private void CheckDuplicateKeys(IList children)
+            {
+                HashSet<string> seen = null;
+                for (int i = 0; i < children.Count; i++)
+                {
+                    var child = children[i];
+                    if (child.GetType().Name != "ElementNode")
+                        continue;
+                    var attrs = UitkxHmrCompiler.GetItems(
+                        UitkxHmrCompiler.GetProp(child, "Attributes")
+                    );
+                    foreach (var attr in attrs)
+                    {
+                        string name = GP<string>(attr, "Name");
+                        if (!string.Equals(name, "key", StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        var val = UitkxHmrCompiler.GetProp(attr, "Value");
+                        if (val == null || val.GetType().Name != "StringLiteralValue")
+                            continue;
+                        string keyVal = GP<string>(val, "Value") ?? "";
+                        seen ??= new HashSet<string>(StringComparer.Ordinal);
+                        if (!seen.Add(keyVal))
+                        {
+                            UnityEngine.Debug.LogWarning(
+                                $"[HMR] UITKX0104: Duplicate key '{keyVal}' found "
+                                    + $"among sibling elements in '{_displayName}'."
+                            );
+                        }
+                    }
+                }
+            }
+
+            // ============================================================
+            //  Phase A children classifier (mirrors CSharpEmitter)
+            // ============================================================
+            //
+            // Returns true when *every* non-comment child is statically guaranteed
+            // to produce exactly one non-null VirtualNode (only ElementNode and
+            // TextNode), AND there is at least one such child.  Caller may then
+            // bypass `__C(...)` and pass children directly into the container's
+            // `params VirtualNode[] children` parameter.  Must be kept in lock-step
+            // with CSharpEmitter.TryClassifySimpleChildren so HMR'd components have
+            // the same alloc shape as their source-gen'd counterparts.
+            private static bool TryClassifySimpleChildren(IList children)
+            {
+                int effectiveCount = 0;
+                for (int i = 0; i < children.Count; i++)
+                {
+                    string n = children[i].GetType().Name;
+                    if (n == "CommentNode")
+                        continue;
+                    if (n == "ElementNode" || n == "TextNode")
+                    {
+                        effectiveCount++;
+                        continue;
+                    }
+                    return false;
+                }
+                return effectiveCount > 0;
+            }
+
             private void EmitHelper()
             {
+                // Two-pass count-then-fill into a single fresh VirtualNode[count].
+                // Mirrors CSharpEmitter.EmitHelperMethod's Phase B body.
+                //
+                //   * skips null VNodes (from @if without @else)
+                //   * fast path for VirtualNode[] (the common case after Phase A)
+                //   * fast path for IReadOnlyList<VirtualNode> (slot pass-through:
+                //     @(__children) where __children has compile-time type
+                //     IReadOnlyList<VirtualNode>)
+                //   * fallback to non-generic IEnumerable for anything else
                 L($"        private static {QVNode}[] __C(params object[] items)");
                 L("        {");
-                L(
-                    $"            var result = new System.Collections.Generic.List<{QVNode}>(items.Length);"
-                );
-                L("            for (int i = 0; i < items.Length; i++)");
+                L("            // Pass 1: count valid VNodes.");
+                L("            int __count = 0;");
+                L("            for (int __i = 0; __i < items.Length; __i++)");
                 L("            {");
-                L("                var item = items[i];");
-                L("                if (item == null) continue;");
-                L($"                if (item is {QVNode} v) {{ result.Add(v); continue; }}");
+                L("                var __ci = items[__i];");
+                L("                if (__ci == null) continue;");
                 L(
-                    $"                if (item is {QVNode}[] arr) {{ result.AddRange(arr); continue; }}"
+                    $"                if (__ci is {QVNode} __vn) {{ if (__vn != null) __count++; continue; }}"
                 );
-                L("                if (item is System.Collections.IEnumerable seq)");
                 L(
-                    $"                    foreach (var child in seq) if (child is {QVNode} cv) result.Add(cv);"
+                    $"                if (__ci is {QVNode}[] __arr) {{ for (int __j = 0; __j < __arr.Length; __j++) if (__arr[__j] != null) __count++; continue; }}"
+                );
+                L(
+                    $"                if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros) {{ int __rn = __ros.Count; for (int __j = 0; __j < __rn; __j++) if (__ros[__j] != null) __count++; continue; }}"
+                );
+                L("                if (__ci is System.Collections.IEnumerable __seq)");
+                L(
+                    $"                    foreach (var __sn in __seq) if (__sn is {QVNode} __cv && __cv != null) __count++;"
                 );
                 L("            }");
-                L("            return result.ToArray();");
+                L($"            if (__count == 0) return global::System.Array.Empty<{QVNode}>();");
+                L("");
+                L("            // Pass 2: fill into pre-sized array.");
+                L($"            var __result = new {QVNode}[__count];");
+                L("            int __k = 0;");
+                L("            for (int __i = 0; __i < items.Length; __i++)");
+                L("            {");
+                L("                var __ci = items[__i];");
+                L("                if (__ci == null) continue;");
+                L(
+                    $"                if (__ci is {QVNode} __vn) {{ if (__vn != null) __result[__k++] = __vn; continue; }}"
+                );
+                L(
+                    $"                if (__ci is {QVNode}[] __arr) {{ for (int __j = 0; __j < __arr.Length; __j++) {{ var __sn = __arr[__j]; if (__sn != null) __result[__k++] = __sn; }} continue; }}"
+                );
+                L(
+                    $"                if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros) {{ int __rn = __ros.Count; for (int __j = 0; __j < __rn; __j++) {{ var __sn = __ros[__j]; if (__sn != null) __result[__k++] = __sn; }} continue; }}"
+                );
+                L("                if (__ci is System.Collections.IEnumerable __seq)");
+                L(
+                    $"                    foreach (var __sn in __seq) if (__sn is {QVNode} __cv && __cv != null) __result[__k++] = __cv;"
+                );
+                L("            }");
+                L("            return __result;");
                 L("        }");
                 L("");
 
@@ -1139,7 +1612,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("        }");
             }
 
-            // ΓöÇΓöÇ Attribute helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Attribute helpers ─────────────────────────────────────────
 
             private string ExtractKey(IList attrs)
             {
@@ -1156,6 +1629,401 @@ namespace ReactiveUITK.EditorSupport.HMR
                         return AttrToExpr(attr);
                 }
                 return null;
+            }
+
+            private static bool TryExtractNewStyleInit(string expr, out string body)
+            {
+                body = null;
+                if (expr == null)
+                    return false;
+                int idx = expr.IndexOf("new Style {", StringComparison.Ordinal);
+                if (idx < 0)
+                    idx = expr.IndexOf("new Style{", StringComparison.Ordinal);
+                if (idx < 0)
+                    return false;
+                int braceStart = expr.IndexOf('{', idx);
+                if (braceStart < 0)
+                    return false;
+                int depth = 1;
+                int i = braceStart + 1;
+                while (i < expr.Length && depth > 0)
+                {
+                    if (expr[i] == '{')
+                        depth++;
+                    else if (expr[i] == '}')
+                        depth--;
+                    i++;
+                }
+                if (depth != 0)
+                    return false;
+                body = expr.Substring(braceStart + 1, i - braceStart - 2).Trim();
+                if (body.Length > 0 && body[0] == '(')
+                    return false; // tuple, not initializer
+                return true;
+            }
+
+            private static List<string> SplitTopLevelCommas(string text)
+            {
+                var parts = new List<string>();
+                int start = 0;
+                int depth = 0;
+                for (int i = 0; i < text.Length; i++)
+                {
+                    char c = text[i];
+                    if (c == '(' || c == '{' || c == '[')
+                        depth++;
+                    else if (c == ')' || c == '}' || c == ']')
+                        depth--;
+                    else if (c == ',' && depth == 0)
+                    {
+                        parts.Add(text.Substring(start, i - start));
+                        start = i + 1;
+                    }
+                }
+                if (start < text.Length)
+                    parts.Add(text.Substring(start));
+                return parts;
+            }
+
+            // ── OPT-V2-2 Phase A: static-style hoisting (mirror of CSharpEmitter) ──
+
+            private static readonly HashSet<string> s_literalCtorTypes = new HashSet<string>(
+                StringComparer.Ordinal
+            )
+            {
+                "Color",
+                "Color32",
+                "Vector2",
+                "Vector3",
+                "Vector4",
+                "Vector2Int",
+                "Vector3Int",
+                "Length",
+                "TimeValue",
+                "Rect",
+                "Quaternion",
+                // OPT-V2-2 — newly hoistable struct ctors used by 9-slice / text-shadow / advanced-font helpers
+                "TextShadow",
+                "FontDefinition",
+            };
+
+            /// <summary>
+            /// Returns <c>true</c> iff <paramref name="val"/> is `new Style { ... }`
+            /// with all-literal initializers. On success, allocates a static field
+            /// name in the enclosing partial class and appends its declaration.
+            /// </summary>
+            private bool TryHoistStaticStyle(string val, out string hoistName)
+            {
+                hoistName = null;
+                if (string.IsNullOrEmpty(val))
+                    return false;
+
+                string trimmed = val.Trim();
+                int idx;
+                if (trimmed.StartsWith("new Style{", StringComparison.Ordinal))
+                    idx = "new Style".Length;
+                else if (trimmed.StartsWith("new Style {", StringComparison.Ordinal))
+                    idx = "new Style ".Length;
+                else
+                    return false;
+
+                int braceOpen = trimmed.IndexOf('{', idx);
+                if (braceOpen < 0)
+                    return false;
+
+                int depth = 0;
+                int braceClose = -1;
+                for (int i = braceOpen; i < trimmed.Length; i++)
+                {
+                    char c = trimmed[i];
+                    if (c == '{')
+                        depth++;
+                    else if (c == '}')
+                    {
+                        depth--;
+                        if (depth == 0)
+                        {
+                            braceClose = i;
+                            break;
+                        }
+                    }
+                }
+                if (braceClose < 0)
+                    return false;
+
+                string after = trimmed.Substring(braceClose + 1).Trim();
+                if (after.Length > 0)
+                    return false;
+
+                string body = trimmed.Substring(braceOpen + 1, braceClose - braceOpen - 1).Trim();
+                if (body.Length == 0)
+                    return false;
+
+                if (!IsHoistableInitializerBody(body))
+                    return false;
+
+                int hid = _hoistCounter++;
+                hoistName = $"__sty_{hid}";
+                _hoistedStyleFields.Append("        ");
+                _hoistedStyleFields.Append(
+                    "private static readonly global::ReactiveUITK.Props.Typed.Style "
+                );
+                _hoistedStyleFields.Append(hoistName);
+                _hoistedStyleFields.Append(" = new global::ReactiveUITK.Props.Typed.Style { ");
+                _hoistedStyleFields.Append(body);
+                _hoistedStyleFields.AppendLine(" };");
+                return true;
+            }
+
+            private static bool IsHoistableInitializerBody(string body)
+            {
+                var parts = SplitTopLevelCommas(body);
+                foreach (var raw in parts)
+                {
+                    string part = raw.Trim();
+                    if (part.Length == 0)
+                        continue;
+
+                    if (part[0] == '(')
+                    {
+                        if (part[part.Length - 1] != ')')
+                            return false;
+                        string inner = part.Substring(1, part.Length - 2);
+                        var tupleArgs = SplitTopLevelCommas(inner);
+                        if (tupleArgs.Count != 2)
+                            return false;
+                        if (!IsLiteralExpression(tupleArgs[0].Trim()))
+                            return false;
+                        if (!IsLiteralExpression(tupleArgs[1].Trim()))
+                            return false;
+                    }
+                    else
+                    {
+                        int eq = FindTopLevelEquals(part);
+                        if (eq < 0)
+                            return false;
+                        string lhs = part.Substring(0, eq).Trim();
+                        string rhs = part.Substring(eq + 1).Trim();
+                        if (!IsSimpleIdentifier(lhs))
+                            return false;
+                        if (!IsLiteralExpression(rhs))
+                            return false;
+                    }
+                }
+                return true;
+            }
+
+            private static int FindTopLevelEquals(string s)
+            {
+                int depth = 0;
+                for (int i = 0; i < s.Length; i++)
+                {
+                    char c = s[i];
+                    if (c == '(' || c == '{' || c == '[')
+                        depth++;
+                    else if (c == ')' || c == '}' || c == ']')
+                        depth--;
+                    else if (c == '=' && depth == 0)
+                    {
+                        if (i + 1 < s.Length && s[i + 1] == '=')
+                        {
+                            i++;
+                            continue;
+                        }
+                        if (i > 0 && (s[i - 1] == '!' || s[i - 1] == '<' || s[i - 1] == '>'))
+                            continue;
+                        if (i + 1 < s.Length && s[i + 1] == '>')
+                        {
+                            i++;
+                            continue;
+                        }
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            private static bool IsLiteralExpression(string expr)
+            {
+                if (string.IsNullOrEmpty(expr))
+                    return false;
+                expr = expr.Trim();
+                if (expr.Length == 0)
+                    return false;
+
+                if (expr == "null" || expr == "true" || expr == "false")
+                    return true;
+
+                if (expr[0] == '"' && expr[expr.Length - 1] == '"' && expr.Length >= 2)
+                {
+                    for (int i = 1; i < expr.Length - 1; i++)
+                    {
+                        if (expr[i] == '"' && expr[i - 1] != '\\')
+                            return false;
+                    }
+                    return true;
+                }
+                if (
+                    expr.Length >= 3
+                    && expr[0] == '@'
+                    && expr[1] == '"'
+                    && expr[expr.Length - 1] == '"'
+                )
+                {
+                    for (int i = 2; i < expr.Length - 1; i++)
+                        if (expr[i] == '"')
+                            return false;
+                    return true;
+                }
+                if (expr[0] == '\'' && expr[expr.Length - 1] == '\'')
+                    return true;
+
+                if (IsNumericLiteral(expr))
+                    return true;
+                if (IsHexLiteral(expr))
+                    return true;
+                if (IsDottedReference(expr))
+                    return true;
+                if (TryParseLiteralCtor(expr))
+                    return true;
+
+                return false;
+            }
+
+            private static bool IsNumericLiteral(string s)
+            {
+                int i = 0;
+                if (s[i] == '-' || s[i] == '+')
+                    i++;
+                if (i >= s.Length)
+                    return false;
+                bool seenDigit = false;
+                bool seenDot = false;
+                while (i < s.Length && (char.IsDigit(s[i]) || s[i] == '.'))
+                {
+                    if (s[i] == '.')
+                    {
+                        if (seenDot)
+                            return false;
+                        seenDot = true;
+                    }
+                    else
+                    {
+                        seenDigit = true;
+                    }
+                    i++;
+                }
+                if (!seenDigit)
+                    return false;
+                while (i < s.Length)
+                {
+                    char c = s[i];
+                    if (
+                        c == 'f'
+                        || c == 'F'
+                        || c == 'd'
+                        || c == 'D'
+                        || c == 'm'
+                        || c == 'M'
+                        || c == 'u'
+                        || c == 'U'
+                        || c == 'l'
+                        || c == 'L'
+                    )
+                        i++;
+                    else
+                        return false;
+                }
+                return true;
+            }
+
+            private static bool IsHexLiteral(string s)
+            {
+                int i = 0;
+                if (s[i] == '-' || s[i] == '+')
+                    i++;
+                if (i + 2 > s.Length)
+                    return false;
+                if (s[i] != '0' || (s[i + 1] != 'x' && s[i + 1] != 'X'))
+                    return false;
+                i += 2;
+                bool seenDigit = false;
+                while (i < s.Length && IsHexDigit(s[i]))
+                {
+                    seenDigit = true;
+                    i++;
+                }
+                if (!seenDigit)
+                    return false;
+                while (i < s.Length)
+                {
+                    char c = s[i];
+                    if (c == 'u' || c == 'U' || c == 'l' || c == 'L')
+                        i++;
+                    else
+                        return false;
+                }
+                return true;
+            }
+
+            private static bool IsHexDigit(char c) =>
+                (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+
+            private static bool IsDottedReference(string s)
+            {
+                if (s.IndexOf('.') < 0)
+                    return false;
+                if (s.IndexOf('(') >= 0 || s.IndexOf('[') >= 0)
+                    return false;
+                var parts = s.Split('.');
+                // First segment must start uppercase (type/enum/static-class convention).
+                // Rejects instance-member access on locals (e.g. box.size, areaSize.x).
+                if (parts.Length == 0 || parts[0].Length == 0 || !char.IsUpper(parts[0][0]))
+                    return false;
+                foreach (var p in parts)
+                {
+                    if (!IsSimpleIdentifier(p))
+                        return false;
+                }
+                return true;
+            }
+
+            private static bool IsSimpleIdentifier(string s)
+            {
+                if (string.IsNullOrEmpty(s))
+                    return false;
+                if (!(char.IsLetter(s[0]) || s[0] == '_'))
+                    return false;
+                for (int i = 1; i < s.Length; i++)
+                {
+                    if (!(char.IsLetterOrDigit(s[i]) || s[i] == '_'))
+                        return false;
+                }
+                return true;
+            }
+
+            private static bool TryParseLiteralCtor(string s)
+            {
+                if (!s.StartsWith("new ", StringComparison.Ordinal))
+                    return false;
+                int parenOpen = s.IndexOf('(');
+                if (parenOpen < 0)
+                    return false;
+                if (s[s.Length - 1] != ')')
+                    return false;
+                string typeName = s.Substring(4, parenOpen - 4).Trim();
+                if (!s_literalCtorTypes.Contains(typeName))
+                    return false;
+                string args = s.Substring(parenOpen + 1, s.Length - parenOpen - 2);
+                if (args.Trim().Length == 0)
+                    return true;
+                var parts = SplitTopLevelCommas(args);
+                foreach (var p in parts)
+                {
+                    if (!IsLiteralExpression(p.Trim()))
+                        return false;
+                }
+                return true;
             }
 
             private string AttrToExpr(object attr)
@@ -1184,15 +2052,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                     case "BooleanShorthandValue":
                         return "true";
                     case "JsxExpressionValue":
-                        // Element as attribute value ΓÇö rare
+                        // Element as attribute value — e.g. <Route element={<HomePage/>}/>.
+                        // Mirrors SG's CSharpEmitter.EmitJsxToString: recursively emit the
+                        // nested element into _sb, capture the appended span, then truncate
+                        // _sb back so the captured text becomes our return value. Side
+                        // effects on _rentBuffer / _hoistedStyleFields are intentionally
+                        // shared with the parent emit so any pool-rents or hoisted styles
+                        // produced by the nested JSX still land in the parent's pre-return
+                        // block (and the parent's hoisted-fields section, respectively).
                         var innerEl = UitkxHmrCompiler.GetProp(val, "Element");
-                        if (innerEl != null)
-                        {
-                            var sb = new StringBuilder();
-                            // This is unusual ΓÇö just emit null for now
-                            return "null /* jsx attr value */";
-                        }
-                        return "null";
+                        if (innerEl == null)
+                            return $"({QVNode})null";
+                        int startLen = _sb.Length;
+                        EmitNode(innerEl);
+                        string captured = _sb.ToString(startLen, _sb.Length - startLen);
+                        _sb.Length = startLen;
+                        return captured;
                     default:
                         return "null";
                 }
@@ -1214,11 +2089,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 if (string.IsNullOrEmpty(name))
                     return name;
-                // Common pattern: onClick ΓåÆ OnClick, text ΓåÆ Text
+                // Common pattern: onClick → OnClick, text → Text
                 return char.ToUpper(name[0]) + name.Substring(1);
             }
 
-            // ΓöÇΓöÇ Output helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+            // ── Output helpers ────────────────────────────────────────────
 
             private void L(string line) => _sb.AppendLine(line);
 
@@ -1255,9 +2130,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
         }
 
-        // ΓöÇΓöÇ Tag resolution types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Tag resolution types ──────────────────────────────────────────────
 
-        // ΓöÇΓöÇ Hook alias substitution (mirrors CSharpEmitter.ApplyHookAliases) ΓöÇΓöÇ
+        // ── Hook alias substitution (mirrors CSharpEmitter.ApplyHookAliases) ──
 
         private static readonly (string From, string To)[] s_hookAliases =
         {
@@ -1272,6 +2147,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             ("useSignal(", "Hooks.UseSignal("),
             ("useDeferredValue(", "Hooks.UseDeferredValue("),
             ("useTransition(", "Hooks.UseTransition("),
+            ("useSfx(", "Hooks.UseSfx("),
             ("provideContext(", "Hooks.ProvideContext("),
         };
 
@@ -1281,7 +2157,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             RegexOptions.Compiled
         );
 
-        // Matches setter lambda calls: setFoo(v => ...) ΓåÆ setFoo.Set(v => ...)
+        // Matches setter lambda calls: setFoo(v => ...) → setFoo.Set(v => ...)
         private static readonly Regex s_setterLambdaRe = new Regex(
             @"\b(set[A-Z][a-zA-Z0-9_]*)\(\s*(?=[a-zA-Z_][a-zA-Z0-9_]*\s*=>|\([^)]*\)\s*=>)",
             RegexOptions.Compiled
@@ -1293,9 +2169,385 @@ namespace ReactiveUITK.EditorSupport.HMR
             RegexOptions.Compiled
         );
 
+        /// <summary>
+        /// Rewrites top-level <c>return EXPR;</c> statements in transformed body code
+        /// so the code can be inlined directly inside a loop body instead of an IIFE lambda.
+        /// <list type="bullet">
+        ///   <item><c>return null;</c> becomes <c>continue;</c></item>
+        ///   <item><c>return EXPR;</c> becomes <c>listVar.Add(EXPR); continue;</c></item>
+        /// </list>
+        /// Returns inside nested lambda bodies (<c>=&gt; { ... }</c>) are left untouched.
+        /// </summary>
+        private static string RewriteReturnsForInline(string code, string listVar)
+        {
+            if (string.IsNullOrEmpty(code))
+                return code;
+
+            var result = new StringBuilder(code.Length + 64);
+            int len = code.Length;
+            int lambdaDepth = 0;
+
+            var braceIsLambda = new Stack<bool>();
+
+            int i = 0;
+            while (i < len)
+            {
+                char c = code[i];
+
+                // Skip string literals
+                if (c == '"')
+                {
+                    if (i > 0 && code[i - 1] == '@')
+                    {
+                        result.Append(c);
+                        i++;
+                        while (i < len)
+                        {
+                            result.Append(code[i]);
+                            if (code[i] == '"')
+                            {
+                                if (i + 1 < len && code[i + 1] == '"')
+                                {
+                                    result.Append(code[i + 1]);
+                                    i += 2;
+                                }
+                                else
+                                {
+                                    i++;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                i++;
+                            }
+                        }
+                        continue;
+                    }
+                    result.Append(c);
+                    i++;
+                    while (i < len)
+                    {
+                        result.Append(code[i]);
+                        if (code[i] == '\\')
+                        {
+                            i++;
+                            if (i < len)
+                            {
+                                result.Append(code[i]);
+                                i++;
+                            }
+                        }
+                        else if (code[i] == '"')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+
+                if (c == '\'')
+                {
+                    result.Append(c);
+                    i++;
+                    while (i < len)
+                    {
+                        result.Append(code[i]);
+                        if (code[i] == '\\')
+                        {
+                            i++;
+                            if (i < len)
+                            {
+                                result.Append(code[i]);
+                                i++;
+                            }
+                        }
+                        else if (code[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+
+                if (c == '/' && i + 1 < len && code[i + 1] == '/')
+                {
+                    while (i < len && code[i] != '\n')
+                    {
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    continue;
+                }
+
+                if (c == '/' && i + 1 < len && code[i + 1] == '*')
+                {
+                    result.Append(code[i]);
+                    result.Append(code[i + 1]);
+                    i += 2;
+                    while (i < len)
+                    {
+                        if (code[i] == '*' && i + 1 < len && code[i + 1] == '/')
+                        {
+                            result.Append(code[i]);
+                            result.Append(code[i + 1]);
+                            i += 2;
+                            break;
+                        }
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Track => { for lambda body detection
+                if (c == '=' && i + 1 < len && code[i + 1] == '>')
+                {
+                    result.Append('=');
+                    result.Append('>');
+                    i += 2;
+                    while (
+                        i < len
+                        && (code[i] == ' ' || code[i] == '\t' || code[i] == '\r' || code[i] == '\n')
+                    )
+                    {
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    if (i < len && code[i] == '{')
+                    {
+                        braceIsLambda.Push(true);
+                        lambdaDepth++;
+                        result.Append('{');
+                        i++;
+                    }
+                    continue;
+                }
+
+                if (c == '{')
+                {
+                    braceIsLambda.Push(false);
+                    result.Append(c);
+                    i++;
+                    continue;
+                }
+                if (c == '}')
+                {
+                    if (braceIsLambda.Count > 0 && braceIsLambda.Pop())
+                        lambdaDepth--;
+                    result.Append(c);
+                    i++;
+                    continue;
+                }
+
+                // Detect 'return' keyword at lambda depth 0
+                if (
+                    lambdaDepth == 0
+                    && c == 'r'
+                    && i + 5 < len
+                    && code[i + 1] == 'e'
+                    && code[i + 2] == 't'
+                    && code[i + 3] == 'u'
+                    && code[i + 4] == 'r'
+                    && code[i + 5] == 'n'
+                    && (i + 6 >= len || !char.IsLetterOrDigit(code[i + 6]) && code[i + 6] != '_')
+                )
+                {
+                    if (i > 0 && (char.IsLetterOrDigit(code[i - 1]) || code[i - 1] == '_'))
+                    {
+                        result.Append(c);
+                        i++;
+                        continue;
+                    }
+
+                    int afterReturn = i + 6;
+                    int exprStart = afterReturn;
+                    while (
+                        exprStart < len
+                        && (
+                            code[exprStart] == ' '
+                            || code[exprStart] == '\t'
+                            || code[exprStart] == '\r'
+                            || code[exprStart] == '\n'
+                        )
+                    )
+                        exprStart++;
+
+                    // Case 1: return null;
+                    if (
+                        exprStart + 4 <= len
+                        && code[exprStart] == 'n'
+                        && code[exprStart + 1] == 'u'
+                        && code[exprStart + 2] == 'l'
+                        && code[exprStart + 3] == 'l'
+                    )
+                    {
+                        int afterNull = exprStart + 4;
+                        while (
+                            afterNull < len
+                            && (
+                                code[afterNull] == ' '
+                                || code[afterNull] == '\t'
+                                || code[afterNull] == '\r'
+                                || code[afterNull] == '\n'
+                            )
+                        )
+                            afterNull++;
+                        if (afterNull < len && code[afterNull] == ';')
+                        {
+                            result.Append("continue;");
+                            i = afterNull + 1;
+                            continue;
+                        }
+                    }
+
+                    // Case 2/3: return EXPR; or return (EXPR);
+                    int semi = FindStatementEnd(code, exprStart);
+                    if (semi >= 0)
+                    {
+                        string expr = code.Substring(exprStart, semi - exprStart).Trim();
+                        if (expr.Length >= 2 && expr[0] == '(')
+                        {
+                            int matchClose = FindMatchingClose(expr, 0, '(', ')');
+                            if (matchClose == expr.Length - 1)
+                                expr = expr.Substring(1, expr.Length - 2).Trim();
+                        }
+                        result.Append(listVar).Append(".Add(").Append(expr).Append("); continue;");
+                        i = semi + 1;
+                        continue;
+                    }
+                }
+
+                result.Append(c);
+                i++;
+            }
+
+            return result.ToString();
+        }
+
+        private static int FindStatementEnd(string code, int start)
+        {
+            int depth = 0;
+            int i = start;
+            int len = code.Length;
+            while (i < len)
+            {
+                char c = code[i];
+                if (c == '"')
+                {
+                    if (i > 0 && code[i - 1] == '@')
+                    {
+                        i++;
+                        while (i < len)
+                        {
+                            if (code[i] == '"')
+                            {
+                                if (i + 1 < len && code[i + 1] == '"')
+                                {
+                                    i += 2;
+                                }
+                                else
+                                {
+                                    i++;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                i++;
+                            }
+                        }
+                        continue;
+                    }
+                    i++;
+                    while (i < len)
+                    {
+                        if (code[i] == '\\')
+                        {
+                            i += 2;
+                        }
+                        else if (code[i] == '"')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+                if (c == '\'')
+                {
+                    i++;
+                    while (i < len)
+                    {
+                        if (code[i] == '\\')
+                        {
+                            i += 2;
+                        }
+                        else if (code[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+                if (c == '(' || c == '{' || c == '[')
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+                if (c == ')' || c == '}' || c == ']')
+                {
+                    depth--;
+                    i++;
+                    continue;
+                }
+                if (c == ';' && depth == 0)
+                    return i;
+                i++;
+            }
+            return -1;
+        }
+
+        private static int FindMatchingClose(string s, int start, char open, char close)
+        {
+            int depth = 0;
+            for (int i = start; i < s.Length; i++)
+            {
+                if (s[i] == open)
+                    depth++;
+                else if (s[i] == close)
+                {
+                    depth--;
+                    if (depth == 0)
+                        return i;
+                }
+            }
+            return -1;
+        }
+
         private static string ApplyHookAliases(string code)
         {
-            // Setter lambda sugar: setFoo(v => v+1) ΓåÆ setFoo.Set(v => v+1)
+            // Setter lambda sugar: setFoo(v => v+1) → setFoo.Set(v => v+1)
             code = s_setterLambdaRe.Replace(code, "$1.Set(");
 
             if (
@@ -1304,7 +2556,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             )
                 return code;
 
-            // Generic hook calls: useRef<T>( ΓåÆ Hooks.UseRef<T>(
+            // Generic hook calls: useRef<T>( → Hooks.UseRef<T>(
             code = s_genericHookAliasRe.Replace(
                 code,
                 m =>
@@ -1323,15 +2575,15 @@ namespace ReactiveUITK.EditorSupport.HMR
             return code;
         }
 
-        // ΓöÇΓöÇ Hook signature extraction ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Hook signature extraction ──────────────────────────────────────────
 
         /// <summary>
-        /// Matches any hook call in setup code ΓÇö both user-written camelCase
+        /// Matches any hook call in setup code — both user-written camelCase
         /// (useState, useEffect) and fully-qualified PascalCase (Hooks.UseState).
         /// Captures the hook name (without "Hooks." prefix) in group 1.
         /// </summary>
         private static readonly Regex s_hookSignatureRe = new Regex(
-            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|ProvideContext)(?:<[^>]*>)?\s*\(",
+            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
             RegexOptions.Compiled
         );
 
@@ -1369,7 +2621,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (char.IsUpper(name[0]))
                 return name;
 
-            // camelCase ΓåÆ PascalCase: useState ΓåÆ UseState, provideContext ΓåÆ ProvideContext
+            // camelCase → PascalCase: useState → UseState, provideContext → ProvideContext
             if (name.StartsWith("use"))
                 return "Use" + char.ToUpper(name[3]) + name.Substring(4);
             if (name.StartsWith("provide"))
@@ -1378,9 +2630,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             return name;
         }
 
-        // ΓöÇΓöÇ Asset path resolution (mirrors CSharpEmitter) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Asset path resolution (mirrors CSharpEmitter) ─────────────────────
 
-        private static string ResolveAssetPaths(string expression, string filePath)
+        internal static string ResolveAssetPaths(string expression, string filePath)
         {
             return s_assetCallRe.Replace(
                 expression,
@@ -1456,6 +2708,134 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             public static TagRes TypedC(string method, string props) =>
                 new TagRes(TagKind.TypedC, method, props);
+        }
+
+        // ── Auto-discovery of V.* factory methods (mirrors SG's
+        // PropsResolver.BuildBuiltinMapFromCompilation) ─────────────────────
+        //
+        // Walks every public static <c>VirtualNode</c>-returning method on
+        // <c>global::ReactiveUITK.V</c> and classifies each by its first
+        // parameter's type:
+        //
+        //   • first param ends in "Props"  → Typed (or TypedC if last param is
+        //                                    <c>params VirtualNode[]</c>)
+        //   • first param implements
+        //     <c>IDictionary</c>/<c>IReadOnlyDictionary&lt;,&gt;</c>          → Dict
+        //   • method name is "Fragment"                                       → Fragment
+        //   • method name is "Text" + first param string                      → Text
+        //   • everything else (Func/Memo/Portal/Suspense/Router/etc.)         → SKIP
+        //                                                                       (manual
+        //                                                                       overrides
+        //                                                                       below
+        //                                                                       handle
+        //                                                                       the few
+        //                                                                       markup-relevant
+        //                                                                       skips)
+        //
+        // Generic methods (<c>V.Func&lt;T&gt;</c>) are skipped — they're
+        // resolved via the FuncComponent path, not the typed path. Inherited
+        // methods from <c>System.Object</c> are excluded via
+        // <c>BindingFlags.DeclaredOnly</c> (and would be filtered by the
+        // VirtualNode return-type check anyway).
+        //
+        // The discovery algorithm is also mirrored verbatim by
+        // <c>HmrBuiltinTagDiscoveryContractTests</c> in the SG test project
+        // (which cannot load this assembly because it depends on
+        // <c>UnityEditor</c>). If the algorithm here changes, the mirror in
+        // the test must change in lockstep.
+        private static class HmrBuiltinTagDiscovery
+        {
+            public static Dictionary<string, TagRes> BuildAutoDiscoveredTagMap()
+            {
+                var map = new Dictionary<string, TagRes>(StringComparer.OrdinalIgnoreCase);
+                var vType = typeof(global::ReactiveUITK.V);
+                var vNodeType = typeof(global::ReactiveUITK.Core.VirtualNode);
+                var vNodeArrayType = typeof(global::ReactiveUITK.Core.VirtualNode[]);
+                var paramArrayAttr = typeof(ParamArrayAttribute);
+
+                foreach (
+                    var m in vType.GetMethods(
+                        BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly
+                    )
+                )
+                {
+                    if (m.IsGenericMethodDefinition)
+                        continue;
+                    if (m.ReturnType != vNodeType)
+                        continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length == 0)
+                        continue;
+
+                    var firstType = ps[0].ParameterType;
+                    bool acceptsChildren =
+                        ps[ps.Length - 1].IsDefined(paramArrayAttr, false)
+                        && ps[ps.Length - 1].ParameterType == vNodeArrayType;
+
+                    // V.Fragment(string key = null, params VirtualNode[] children)
+                    if (m.Name == "Fragment")
+                    {
+                        map["fragment"] = new TagRes(TagKind.Fragment, "Fragment", null);
+                        continue;
+                    }
+
+                    // V.Text(string text, string key = null)
+                    if (m.Name == "Text" && firstType == typeof(string))
+                    {
+                        map["text"] = new TagRes(TagKind.Text, "Text", null);
+                        continue;
+                    }
+
+                    // Typed: first param is a *Props class.
+                    if (firstType.Name.EndsWith("Props", StringComparison.Ordinal))
+                    {
+                        var kind = acceptsChildren ? TagKind.TypedC : TagKind.Typed;
+                        var key = m.Name.ToLowerInvariant();
+                        // If overloads collide, prefer the no-children variant
+                        // (Typed) — same precedence as the legacy literal map.
+                        if (!map.TryGetValue(key, out var _existing) || kind == TagKind.Typed)
+                        {
+                            map[key] = new TagRes(kind, m.Name, firstType.Name);
+                        }
+                        continue;
+                    }
+
+                    // Dictionary-based (e.g. anything that takes IDictionary).
+                    if (
+                        typeof(System.Collections.IDictionary).IsAssignableFrom(firstType)
+                        || (
+                            firstType.IsGenericType
+                            && firstType.GetGenericTypeDefinition()
+                                == typeof(IReadOnlyDictionary<,>)
+                        )
+                    )
+                    {
+                        map[m.Name.ToLowerInvariant()] = new TagRes(TagKind.Dict, m.Name, null);
+                        continue;
+                    }
+
+                    // All other shapes (Func/Memo/Portal/Suspense/Router/etc.)
+                    // are skipped here — they're either routed through the
+                    // FuncComponent / component-alias paths, or handled by the
+                    // explicit manual overrides below.
+                }
+
+                // ── Manual overrides ────────────────────────────────────────
+                // Tags whose V.* factory has a non-*Props first parameter but
+                // whose markup tag must still resolve through the typed-path
+                // emitter.
+
+                // V.Suspense(Func<bool>|Task, …) → first param is Func/Task.
+                map["suspense"] = new TagRes(TagKind.Suspense, "Suspense", null);
+                // V.Portal(VisualElement target, …) → first param is VE.
+                map["portal"] = new TagRes(TagKind.Portal, "Portal", null);
+                // V.VisualElementSafe(object props, …) → dict-shape, first
+                // param is `object` (not detectable as IDictionary at type
+                // level since the runtime cast happens inside V).
+                map["visualelementsafe"] = new TagRes(TagKind.Dict, "VisualElementSafe", null);
+
+                return map;
+            }
         }
     }
 }

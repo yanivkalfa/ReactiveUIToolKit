@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -169,6 +170,90 @@ namespace ReactiveUITK.Elements
                     new Dictionary<string, object> { { entry.Key, entry.Value } }
                 );
             }
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is Toggle toggle && props is ToggleProps tp)
+            {
+                if (tp.Value.HasValue)
+                    toggle.value = tp.Value.Value;
+                if (tp.Text != null)
+                    toggle.text = tp.Text;
+                if (tp.OnChange != null)
+                    PropsApplier.ApplySingle(element, null, "onChange", tp.OnChange);
+                if (tp.Label != null)
+                {
+                    var labelEl = ResolveSlotElement(toggle, "label");
+                    if (labelEl != null)
+                        PropsApplier.Apply(labelEl, tp.Label);
+                }
+                if (tp.Input != null)
+                {
+                    var inputEl = ResolveSlotElement(toggle, "input");
+                    if (inputEl != null)
+                        PropsApplier.Apply(inputEl, tp.Input);
+                }
+                if (tp.Checkmark != null)
+                {
+                    var checkmarkEl = ResolveSlotElement(toggle, "checkmark");
+                    if (checkmarkEl != null)
+                        PropsApplier.Apply(checkmarkEl, tp.Checkmark);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is Toggle toggle && prev is ToggleProps tp && next is ToggleProps tn)
+            {
+                if (tp.Value != tn.Value && tn.Value.HasValue)
+                    toggle.value = tn.Value.Value;
+                if (tp.Text != tn.Text)
+                    toggle.text = tn.Text ?? string.Empty;
+                if (tp.OnChange != tn.OnChange)
+                {
+                    if (tn.OnChange != null)
+                        PropsApplier.ApplySingle(element, tp.OnChange, "onChange", tn.OnChange);
+                    else if (tp.OnChange != null)
+                        PropsApplier.RemoveProp(element, "onChange", tp.OnChange);
+                }
+                if (!ReferenceEquals(tp.Label, tn.Label))
+                {
+                    var labelEl = ResolveSlotElement(toggle, "label");
+                    if (labelEl != null)
+                    {
+                        if (tp.Label != null && tn.Label != null)
+                            PropsApplier.ApplyDiff(labelEl, tp.Label, tn.Label);
+                        else if (tn.Label != null)
+                            PropsApplier.Apply(labelEl, tn.Label);
+                    }
+                }
+                if (!ReferenceEquals(tp.Input, tn.Input))
+                {
+                    var inputEl = ResolveSlotElement(toggle, "input");
+                    if (inputEl != null)
+                    {
+                        if (tp.Input != null && tn.Input != null)
+                            PropsApplier.ApplyDiff(inputEl, tp.Input, tn.Input);
+                        else if (tn.Input != null)
+                            PropsApplier.Apply(inputEl, tn.Input);
+                    }
+                }
+                if (!ReferenceEquals(tp.Checkmark, tn.Checkmark))
+                {
+                    var checkmarkEl = ResolveSlotElement(toggle, "checkmark");
+                    if (checkmarkEl != null)
+                    {
+                        if (tp.Checkmark != null && tn.Checkmark != null)
+                            PropsApplier.ApplyDiff(checkmarkEl, tp.Checkmark, tn.Checkmark);
+                        else if (tn.Checkmark != null)
+                            PropsApplier.Apply(checkmarkEl, tn.Checkmark);
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
 
         private static VisualElement ResolveSlotElement(Toggle toggleElement, string slotKey)

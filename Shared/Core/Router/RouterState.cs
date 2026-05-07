@@ -10,7 +10,8 @@ namespace ReactiveUITK.Router
             RouterNavigateHandler replace,
             RouterGoHandler go,
             RouterCanGoHandler canGo,
-            Func<Func<RouterLocation, RouterLocation, bool>, IDisposable> registerBlocker
+            Func<Func<RouterLocation, RouterLocation, bool>, IDisposable> registerBlocker,
+            string basename = null
         )
         {
             Location = location ?? RouterPath.Parse("/");
@@ -19,6 +20,7 @@ namespace ReactiveUITK.Router
             Go = go;
             CanGo = canGo;
             RegisterBlocker = registerBlocker;
+            Basename = string.IsNullOrEmpty(basename) ? "/" : RouterPath.Normalize(basename);
         }
 
         public RouterLocation Location { get; }
@@ -35,6 +37,14 @@ namespace ReactiveUITK.Router
             Func<RouterLocation, RouterLocation, bool>,
             IDisposable
         > RegisterBlocker { get; }
+
+        /// <summary>
+        /// Optional URL prefix the router treats as the root of the
+        /// application (defaults to <c>"/"</c>).  All locations are exposed
+        /// to consumers stripped of the basename; navigation calls re-attach
+        /// it transparently.
+        /// </summary>
+        public string Basename { get; }
     }
 
     public delegate bool RouterNavigateHandler(string path, object state = null);

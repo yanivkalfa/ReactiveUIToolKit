@@ -9,6 +9,14 @@
     <SelfContained>false</SelfContained>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Version>1.0.0</Version>
+    <!--
+      RS2008: "Enable analyzer release tracking" — meant for analyzer NuGet
+      packages that ship AnalyzerReleases.{Shipped,Unshipped}.md.  This project
+      is a console EXE that uses DiagnosticDescriptor at runtime to publish
+      LSP diagnostics, not a packaged analyzer.  The warning targets the wrong
+      project type here.
+    -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9" />

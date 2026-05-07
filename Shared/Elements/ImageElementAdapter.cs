@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -121,6 +122,52 @@ namespace ReactiveUITK.Elements
                 }
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is Image img && props is ImageProps ip)
+            {
+                if (ip.Texture != null)
+                    img.image = ip.Texture;
+                if (ip.Sprite != null)
+                    img.sprite = ip.Sprite;
+                if (ip.ScaleMode != null)
+                {
+                    var sms = ip.ScaleMode.ToLowerInvariant();
+                    img.scaleMode = sms switch
+                    {
+                        "scalefit" or "scaletofit" => ScaleMode.ScaleToFit,
+                        "scalefill" or "scaletofill" => ScaleMode.ScaleAndCrop,
+                        "crop" or "center" => ScaleMode.ScaleAndCrop,
+                        _ => ScaleMode.StretchToFill,
+                    };
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is Image img && prev is ImageProps ip && next is ImageProps inext)
+            {
+                if (ip.Texture != inext.Texture && inext.Texture != null)
+                    img.image = inext.Texture;
+                if (ip.Sprite != inext.Sprite && inext.Sprite != null)
+                    img.sprite = inext.Sprite;
+                if (ip.ScaleMode != inext.ScaleMode && inext.ScaleMode != null)
+                {
+                    var sms = inext.ScaleMode.ToLowerInvariant();
+                    img.scaleMode = sms switch
+                    {
+                        "scalefit" or "scaletofit" => ScaleMode.ScaleToFit,
+                        "scalefill" or "scaletofill" => ScaleMode.ScaleAndCrop,
+                        "crop" or "center" => ScaleMode.ScaleAndCrop,
+                        _ => ScaleMode.StretchToFill,
+                    };
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

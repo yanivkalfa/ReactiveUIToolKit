@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -82,6 +83,55 @@ namespace ReactiveUITK.Elements
             }
             PropsApplier.ApplyDiff(element, previous, next);
         }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is PropertyField pf && props is PropertyFieldProps fp)
+            {
+                if (fp.Label != null)
+                    pf.label = fp.Label;
+                if (fp.Target != null && !string.IsNullOrEmpty(fp.BindingPath))
+                {
+                    try
+                    {
+                        var so = new SerializedObject(fp.Target);
+                        var sp = so.FindProperty(fp.BindingPath);
+                        if (sp != null)
+                            pf.BindProperty(sp);
+                    }
+                    catch { }
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is PropertyField pf
+                && prev is PropertyFieldProps fp
+                && next is PropertyFieldProps fn
+            )
+            {
+                if (fp.Label != fn.Label && fn.Label != null)
+                    pf.label = fn.Label;
+                if (fp.Target != fn.Target || fp.BindingPath != fn.BindingPath)
+                {
+                    if (fn.Target != null && !string.IsNullOrEmpty(fn.BindingPath))
+                    {
+                        try
+                        {
+                            var so = new SerializedObject(fn.Target);
+                            var sp = so.FindProperty(fn.BindingPath);
+                            if (sp != null)
+                                pf.BindProperty(sp);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
+        }
     }
 
     public sealed class InspectorElementAdapter : BaseElementAdapter
@@ -122,6 +172,36 @@ namespace ReactiveUITK.Elements
                 }
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is InspectorElement ins && props is InspectorElementProps fp)
+            {
+                if (fp.Target != null)
+                {
+                    ins.Clear();
+                    ins.Add(new InspectorElement(fp.Target));
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is InspectorElement ins
+                && prev is InspectorElementProps fp
+                && next is InspectorElementProps fn
+            )
+            {
+                if (fp.Target != fn.Target && fn.Target != null)
+                {
+                    ins.Clear();
+                    ins.Add(new InspectorElement(fn.Target));
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

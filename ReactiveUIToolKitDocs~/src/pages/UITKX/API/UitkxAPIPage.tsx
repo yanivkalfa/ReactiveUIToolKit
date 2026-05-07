@@ -61,13 +61,19 @@ export const UitkxAPIPage: FC = () => (
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ReactiveUITK.Router.RouterHooks</code> — hook helpers: <code>UseRouter()</code>, <code>UseLocation()</code>, <code>UseLocationInfo()</code>, <code>UseParams()</code>, <code>UseQuery()</code>, <code>UseNavigationState()</code>, <code>UseNavigate()</code>, <code>UseGo()</code>, <code>UseCanGo()</code>, <code>UseBlocker()</code>.</>} />
+          <ListItemText primary={<><code>ReactiveUITK.Router.RouterHooks</code> — hook helpers: <code>UseRouter()</code>, <code>UseLocation()</code>, <code>UseLocationInfo()</code>, <code>UseParams()</code>, <code>UseQuery()</code>, <code>UseSearchParams()</code>, <code>UseNavigationState()</code>, <code>UseNavigate()</code>, <code>UseNavigate(NavigateOptions)</code>, <code>UseGo()</code>, <code>UseCanGo()</code>, <code>UseBlocker()</code>, <code>UsePrompt()</code>, <code>UseRouteMatch()</code>, <code>UseMatches()</code>, <code>UseNavigationBase()</code>, <code>UseResolvedPath()</code>, <code>{'UseOutletContext<T>()'}</code>.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Router primitives (factories on <code>V</code> and intrinsic tags in <code>.uitkx</code>): <code>Router</code>, <code>Route</code>, <code>Routes</code>, <code>Outlet</code>, <code>NavLink</code> (alias <code>RouterNavLink</code>), <code>Navigate</code>, <code>Link</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<><code>ReactiveUITK.Router.IRouterHistory</code>, <code>MemoryHistory</code> — the history abstraction. Supply a custom <code>IRouterHistory</code> to control how locations are stored.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ReactiveUITK.Router.RouterLocation</code>, <code>RouterPath</code>, <code>RouteMatch</code> — types describing the current location, parsed path, and route matching result.</>} />
+          <ListItemText primary={<><code>ReactiveUITK.Router.RouterLocation</code>, <code>RouterPath</code>, <code>RouteMatch</code>, <code>NavigateOptions</code> — types describing the current location, parsed path, route matching result, and navigation options.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>ReactiveUITK.Router.RouteRanker</code> — internal port of RR's <code>flattenRoutes</code> + <code>rankRouteBranches</code> + <code>computeScore</code>, shared by <code>{'<Routes>'}</code> and the layout-route flow on <code>{'<Route>'}</code>.</>} />
         </ListItem>
       </List>
     </Box>

@@ -9,6 +9,21 @@ namespace ReactiveUITK.Props.Typed
         public float? HighValue { get; set; }
         public float? Value { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ScrollerProps o)
+                return false;
+            if (LowValue != o.LowValue)
+                return false;
+            if (HighValue != o.HighValue)
+                return false;
+            if (Value != o.Value)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -19,6 +34,18 @@ namespace ReactiveUITK.Props.Typed
             if (Value.HasValue)
                 map["value"] = Value.Value;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            LowValue = null;
+            HighValue = null;
+            Value = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ScrollerProps>.Return(this);
         }
     }
 }

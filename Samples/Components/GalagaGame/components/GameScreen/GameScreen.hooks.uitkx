@@ -1,0 +1,95 @@
+﻿@namespace Samples.GalagaGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.GalagaGame.GalagaTypes
+@using static Samples.GalagaGame.GalagaTypes.C
+@using static Samples.GalagaGame.GameLogic
+
+hook useGalagaGame(
+  Ref<VisualElement?> boardRef
+) -> (
+  GameState state,
+  Action restart,
+  KeyboardEventHandler onKeyDown
+) {
+  var initialState = useMemo(() => Tick.CreateInitialState(), 0);
+  var (state, setState) = useState<GameState>(initialState);
+  var stateRef = useRef<GameState>(initialState);
+
+  var leftHeld = useRef(false);
+  var rightHeld = useRef(false);
+  var spaceHeld = useRef(false);
+  var lastTime = useRef(-1f);
+  var rng = useRef(new System.Random());
+  var restartPending = useRef(0);
+
+  Action restart = () => {
+    restartPending.Current = 2;
+  };
+
+  KeyboardEventHandler onKeyDown = e => {
+    switch (e.KeyCode) {
+      case KeyCode.LeftArrow: leftHeld.Current = true; break;
+      case KeyCode.RightArrow: rightHeld.Current = true; break;
+      case KeyCode.Space: spaceHeld.Current = true; break;
+    }
+    e.StopPropagation();
+  };
+
+  useEffect(() => {
+    var el = boardRef?.Current;
+    if (el == null) return null;
+
+    el.schedule.Execute(() => el.Focus());
+
+    EventCallback<KeyUpEvent> keyUpCb = e => {
+      switch (e.keyCode) {
+        case KeyCode.LeftArrow: leftHeld.Current = false; break;
+        case KeyCode.RightArrow: rightHeld.Current = false; break;
+        case KeyCode.Space: spaceHeld.Current = false; break;
+      }
+      e.StopPropagation();
+    };
+    el.RegisterCallback(keyUpCb);
+
+    IVisualElementScheduledItem ticker = el.schedule.Execute(() => {
+      if (restartPending.Current > 0) {
+        restartPending.Current--;
+        if (restartPending.Current == 0) {
+          var fresh = Tick.CreateInitialState();
+          stateRef.Current = fresh;
+          leftHeld.Current = false;
+          rightHeld.Current = false;
+          spaceHeld.Current = false;
+          lastTime.Current = -1f;
+          rng.Current = new System.Random();
+          setState(fresh);
+          el.schedule.Execute(() => el.Focus());
+        }
+        return;
+      }
+
+      float now = Time.realtimeSinceStartup;
+      if (lastTime.Current < 0) { lastTime.Current = now; return; }
+      float dt = Mathf.Min(now - lastTime.Current, 0.05f);
+      lastTime.Current = now;
+
+      var s = stateRef.Current;
+      if (s.Phase == GamePhase.GameOver || s.Phase == GamePhase.Victory) return;
+
+      s = Tick.Update(s, dt, leftHeld.Current, rightHeld.Current, spaceHeld.Current, rng.Current);
+
+      stateRef.Current = s;
+      setState(s);
+    }).Every(16);
+
+    return () => {
+      el.UnregisterCallback(keyUpCb);
+      ticker.Pause();
+    };
+  }, new object[] { boardRef?.Current });
+
+  return (state, restart, onKeyDown);
+}

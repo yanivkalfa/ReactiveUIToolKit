@@ -89,6 +89,16 @@ namespace ReactiveUITK.EditorSupport
             {
                 renderer.Unmount();
                 renderersByHost.Remove(hostElement);
+                // Drain all queued effect cleanups synchronously. Without
+                // this, effects (e.g. AudioFunc/VideoFunc cleanups that
+                // stop playback and return pooled peers) are enqueued on
+                // the editor scheduler and only run on the next
+                // EditorApplication.update tick. When the calling
+                // EditorWindow is being closed the next tick may not
+                // reach those cleanups before the user reopens the
+                // window, leaving pooled AudioSources still playing
+                // \u2014 the \"audio stacks every reopen\" symptom.
+                EditorRenderScheduler.Instance.PumpNow();
             }
         }
     }

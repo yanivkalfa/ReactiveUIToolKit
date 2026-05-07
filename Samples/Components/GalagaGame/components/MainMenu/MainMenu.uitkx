@@ -1,0 +1,18 @@
+@namespace Samples.GalagaGame
+@using System
+
+component MainMenu(Action onNewGame) {
+  return (
+    <VisualElement style={MainMenuStyles.Container}>
+      <VisualElement style={MainMenuStyles.MenuBox}>
+        <Label text="GALAGA" style={MainMenuStyles.Title} />
+        <Label text="ReactiveUITK Edition" style={MainMenuStyles.Subtitle} />
+        <Button
+          text="New Game"
+          onClick={_ => onNewGame()}
+          style={MainMenuStyles.MenuButton}
+        />
+      </VisualElement>
+    </VisualElement>
+  );
+}

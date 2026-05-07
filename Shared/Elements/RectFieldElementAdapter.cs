@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -94,6 +95,56 @@ namespace ReactiveUITK.Elements
                 if (input != null)
                     PropsApplier.Apply(input, viMap);
             }
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is RectField field && props is RectFieldProps fp)
+            {
+                if (fp.Value.HasValue)
+                    field.value = fp.Value.Value;
+                if (fp.Label != null && field.labelElement != null)
+                    PropsApplier.Apply(field.labelElement, fp.Label);
+                if (fp.VisualInput != null)
+                {
+                    var input = field.Q<VisualElement>(className: "unity-base-field__input");
+                    if (input != null)
+                        PropsApplier.Apply(input, fp.VisualInput);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is RectField field
+                && prev is RectFieldProps fp
+                && next is RectFieldProps fn
+            )
+            {
+                if (fp.Value != fn.Value && fn.Value.HasValue)
+                    field.value = fn.Value.Value;
+                if (!ReferenceEquals(fp.Label, fn.Label) && field.labelElement != null)
+                {
+                    if (fp.Label != null && fn.Label != null)
+                        PropsApplier.ApplyDiff(field.labelElement, fp.Label, fn.Label);
+                    else if (fn.Label != null)
+                        PropsApplier.Apply(field.labelElement, fn.Label);
+                }
+                if (!ReferenceEquals(fp.VisualInput, fn.VisualInput))
+                {
+                    var input = field.Q<VisualElement>(className: "unity-base-field__input");
+                    if (input != null)
+                    {
+                        if (fp.VisualInput != null && fn.VisualInput != null)
+                            PropsApplier.ApplyDiff(input, fp.VisualInput, fn.VisualInput);
+                        else if (fn.VisualInput != null)
+                            PropsApplier.Apply(input, fn.VisualInput);
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

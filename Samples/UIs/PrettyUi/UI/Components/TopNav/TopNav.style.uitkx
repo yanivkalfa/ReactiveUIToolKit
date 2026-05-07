@@ -1,0 +1,20 @@
+@namespace PrettyUi.App.Components
+@using PrettyUi.App
+@using UnityEngine
+
+module TopNav {
+  public static readonly Style Bar = new Style {
+    Height = Px(Theme.NavHeight),
+    FlexDirection = FlexRow,
+    AlignItems = AlignCenter,
+    PaddingLeft = 16f,
+    PaddingRight = 16f,
+    BorderBottomWidth = Theme.BorderWidth,
+    BorderBottomColor = Theme.BorderSoft,
+    FlexShrink = 0f,
+  };
+
+  public static readonly Style ItemSpacing = new Style {
+    MarginRight = 8f,
+  };
+}

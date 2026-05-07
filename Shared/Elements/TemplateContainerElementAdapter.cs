@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -53,6 +54,31 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(tc.contentContainer, ccMap);
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (
+                element is TemplateContainer tc
+                && props.ContentContainer is Dictionary<string, object> ccMap
+            )
+            {
+                PropsApplier.Apply(tc.contentContainer, ccMap);
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is TemplateContainer tc)
+            {
+                if (
+                    !ReferenceEquals(prev.ContentContainer, next.ContentContainer)
+                    && next.ContentContainer is Dictionary<string, object> ccMap
+                )
+                    PropsApplier.Apply(tc.contentContainer, ccMap);
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

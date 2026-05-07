@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using ReactiveUITK.Props.Typed;
 
 namespace ReactiveUITK.Core
 {
@@ -25,37 +26,80 @@ namespace ReactiveUITK.Core
         private static readonly IReadOnlyList<PropTypeDefinition> EmptyPropTypesInstance =
             new ReadOnlyCollection<PropTypeDefinition>(Array.Empty<PropTypeDefinition>());
 
-        public VirtualNodeType NodeType { get; }
-        public string ElementTypeName { get; }
-        public UnityEngine.UIElements.VisualElement PortalTarget { get; }
-        public VirtualNode Fallback { get; }
-        public System.Func<bool> SuspenseReady { get; }
-        public System.Threading.Tasks.Task SuspenseReadyTask { get; }
-        public string TextContent { get; }
-        public string Key { get; }
-        public IReadOnlyDictionary<string, object> Properties { get; }
-        public IReadOnlyList<VirtualNode> Children { get; }
-        public VirtualNode ErrorFallback { get; }
-        public ErrorEventHandler ErrorHandler { get; }
-        public string ErrorResetToken { get; }
+        // ═══════════════════════════════════════════════════════════════════
+        //  Pool infrastructure
+        //  generation = 0 → user-created via public constructor (not pooled)
+        //  generation > 0 → rented from pool via __Rent()
+        // ═══════════════════════════════════════════════════════════════════
+        internal uint _generation;
+
+        private const int PoolCapacity = 4096;
+        private static readonly Stack<VirtualNode> s_pool = new Stack<VirtualNode>(256);
+        private static readonly List<VirtualNode> s_pendingReturn = new List<VirtualNode>(4096);
+        private static uint s_nextGeneration = 1;
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  Backing fields — internal so V.cs factories can set them directly
+        // ═══════════════════════════════════════════════════════════════════
+        internal VirtualNodeType _nodeType;
+        internal string _elementTypeName;
+        internal UnityEngine.UIElements.VisualElement _portalTarget;
+        internal VirtualNode _fallback;
+        internal System.Func<bool> _suspenseReady;
+        internal System.Threading.Tasks.Task _suspenseReadyTask;
+        internal string _textContent;
+        internal string _key;
+        internal IReadOnlyDictionary<string, object> _properties;
+        internal IReadOnlyList<VirtualNode> _children;
+        internal VirtualNode _errorFallback;
+        internal ErrorEventHandler _errorHandler;
+        internal string _errorResetToken;
+        internal IReadOnlyList<PropTypeDefinition> _propTypes;
+        internal System.Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> _typedFunctionRender;
+        internal IProps _typedProps;
+        internal BaseProps _hostProps;
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  Public read-only properties
+        // ═══════════════════════════════════════════════════════════════════
+        public VirtualNodeType NodeType => _nodeType;
+        public string ElementTypeName => _elementTypeName;
+        public UnityEngine.UIElements.VisualElement PortalTarget => _portalTarget;
+        public VirtualNode Fallback => _fallback;
+        public System.Func<bool> SuspenseReady => _suspenseReady;
+        public System.Threading.Tasks.Task SuspenseReadyTask => _suspenseReadyTask;
+        public string TextContent => _textContent;
+        public string Key => _key;
+        public IReadOnlyDictionary<string, object> Properties => _properties;
+        public IReadOnlyList<VirtualNode> Children => _children;
+        public VirtualNode ErrorFallback => _errorFallback;
+        public ErrorEventHandler ErrorHandler => _errorHandler;
+        public string ErrorResetToken => _errorResetToken;
+        public IReadOnlyList<PropTypeDefinition> PropTypes => _propTypes;
 
         // ── Typed-props path ─────────────────────────────────────────────────
         /// <summary>
         /// Typed render delegate. Set when <c>V.Func&lt;TProps&gt;</c> or <c>V.Func(IProps)</c> is used.
         /// </summary>
-        public System.Func<
-            IProps,
-            IReadOnlyList<VirtualNode>,
-            VirtualNode
-        > TypedFunctionRender { get; }
+        public System.Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> TypedFunctionRender =>
+            _typedFunctionRender;
 
         /// <summary>
         /// Typed props instance. Non-null when <c>V.Func&lt;TProps&gt;</c> was used.
         /// </summary>
-        public IProps TypedProps { get; }
+        public IProps TypedProps => _typedProps;
 
+        /// <summary>
+        /// Typed host props for built-in host elements. Non-null when a typed
+        /// <c>V.*</c> factory (e.g. <c>V.Label</c>) is used. Eliminates the
+        /// <c>ToDictionary()</c> allocation on the hot path.
+        /// </summary>
+        public BaseProps HostProps => _hostProps;
 
-
+        /// <summary>
+        /// Public constructor for backward compatibility and user-created VNodes.
+        /// Instances created via this constructor have generation=0 (not pooled).
+        /// </summary>
         public VirtualNode(
             VirtualNodeType nodeType,
             string elementTypeName,
@@ -72,50 +116,61 @@ namespace ReactiveUITK.Core
             string errorResetToken = null,
             IReadOnlyList<PropTypeDefinition> propTypes = null,
             System.Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> typedFunctionRender = null,
-            IProps typedProps = null
+            IProps typedProps = null,
+            BaseProps hostProps = null
         )
         {
-            NodeType = nodeType;
-            ElementTypeName = elementTypeName;
-            TextContent = textContent;
-            Key = key;
-            // Trust immutability: callers (V.cs factories) already create fresh dictionaries
-            // via ToDictionary(). Defensive cloning was tripling allocation per element.
-            Properties = properties ?? EmptyPropsInstance;
-            Children = children ?? EmptyChildrenInstance;
-            PortalTarget = portalTarget;
-            Fallback = fallback;
-            SuspenseReady = suspenseReady;
-            SuspenseReadyTask = suspenseReadyTask;
-            ErrorFallback = errorFallback;
-            ErrorHandler = errorHandler;
-            ErrorResetToken = errorResetToken;
-            PropTypes = ClonePropTypes(propTypes);
-            TypedFunctionRender = typedFunctionRender;
-            TypedProps = typedProps;
+            _generation = 0; // user-created, not from pool
+            _nodeType = nodeType;
+            _elementTypeName = elementTypeName;
+            _textContent = textContent;
+            _key = key;
+            _properties = properties ?? EmptyPropsInstance;
+            _children = children ?? EmptyChildrenInstance;
+            _portalTarget = portalTarget;
+            _fallback = fallback;
+            _suspenseReady = suspenseReady;
+            _suspenseReadyTask = suspenseReadyTask;
+            _errorFallback = errorFallback;
+            _errorHandler = errorHandler;
+            _errorResetToken = errorResetToken;
+            _propTypes = ClonePropTypes(propTypes);
+            _typedFunctionRender = typedFunctionRender;
+            _typedProps = typedProps;
+            _hostProps = hostProps;
+        }
+
+        /// <summary>
+        /// Private parameterless constructor used by the pool.
+        /// </summary>
+        private VirtualNode()
+        {
+            _properties = EmptyPropsInstance;
+            _children = EmptyChildrenInstance;
+            _propTypes = EmptyPropTypesInstance;
         }
 
         private VirtualNode(VirtualNode template, IReadOnlyList<PropTypeDefinition> propTypes)
         {
-            NodeType = template.NodeType;
-            ElementTypeName = template.ElementTypeName;
-            PortalTarget = template.PortalTarget;
-            Fallback = template.Fallback;
-            SuspenseReady = template.SuspenseReady;
-            SuspenseReadyTask = template.SuspenseReadyTask;
-            TextContent = template.TextContent;
-            Key = template.Key;
-            Properties = template.Properties;
-            Children = template.Children;
-            ErrorFallback = template.ErrorFallback;
-            ErrorHandler = template.ErrorHandler;
-            ErrorResetToken = template.ErrorResetToken;
-            PropTypes = ClonePropTypes(propTypes);
-            TypedFunctionRender = template.TypedFunctionRender;
-            TypedProps = template.TypedProps;
+            _generation = 0; // template copies are not pooled
+            _nodeType = template._nodeType;
+            _elementTypeName = template._elementTypeName;
+            _portalTarget = template._portalTarget;
+            _fallback = template._fallback;
+            _suspenseReady = template._suspenseReady;
+            _suspenseReadyTask = template._suspenseReadyTask;
+            _textContent = template._textContent;
+            _key = template._key;
+            _properties = template._properties;
+            _children = template._children;
+            _errorFallback = template._errorFallback;
+            _errorHandler = template._errorHandler;
+            _errorResetToken = template._errorResetToken;
+            _propTypes = ClonePropTypes(propTypes);
+            _typedFunctionRender = template._typedFunctionRender;
+            _typedProps = template._typedProps;
+            _hostProps = template._hostProps;
         }
-
-        public IReadOnlyList<PropTypeDefinition> PropTypes { get; }
 
         internal static IReadOnlyDictionary<string, object> EmptyProps => EmptyPropsInstance;
 
@@ -129,6 +184,87 @@ namespace ReactiveUITK.Core
             }
             return new VirtualNode(this, propTypes);
         }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  Pool API
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Rent a VirtualNode from the pool. The returned instance has all
+        /// fields reset to defaults. Callers (V.cs factories) must set the
+        /// required fields before returning the VNode to the caller.
+        /// </summary>
+        internal static VirtualNode __Rent()
+        {
+            VirtualNode v;
+            if (s_pool.Count > 0)
+            {
+                v = s_pool.Pop();
+                v.__Reset();
+            }
+            else
+            {
+                v = new VirtualNode();
+            }
+            uint gen = s_nextGeneration++;
+            if (gen == 0)
+                gen = s_nextGeneration++; // skip 0 on overflow
+            v._generation = gen;
+            return v;
+        }
+
+        /// <summary>
+        /// Clear all fields to defaults for reuse.
+        /// </summary>
+        private void __Reset()
+        {
+            _nodeType = default;
+            _elementTypeName = null;
+            _portalTarget = null;
+            _fallback = null;
+            _suspenseReady = null;
+            _suspenseReadyTask = null;
+            _textContent = null;
+            _key = null;
+            _properties = EmptyPropsInstance;
+            _children = EmptyChildrenInstance;
+            _errorFallback = null;
+            _errorHandler = null;
+            _errorResetToken = null;
+            _propTypes = EmptyPropTypesInstance;
+            _typedFunctionRender = null;
+            _typedProps = null;
+            _hostProps = null;
+        }
+
+        /// <summary>
+        /// Schedule a VirtualNode for return to pool on next flush.
+        /// Nodes with generation 0 (user-created via public constructor) are ignored.
+        /// </summary>
+        internal static void __ScheduleReturn(VirtualNode v)
+        {
+            if (v == null || v._generation == 0)
+                return;
+            s_pendingReturn.Add(v);
+        }
+
+        /// <summary>
+        /// Move all pending returns into the pool.
+        /// Called once per frame after the full commit tree walk.
+        /// </summary>
+        internal static void __FlushReturns()
+        {
+            for (int i = 0; i < s_pendingReturn.Count; i++)
+            {
+                if (s_pool.Count < PoolCapacity)
+                    s_pool.Push(s_pendingReturn[i]);
+            }
+            s_pendingReturn.Clear();
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  Legacy helpers
+        // ═══════════════════════════════════════════════════════════════════
 
         private static IReadOnlyDictionary<string, object> CloneProps(
             IReadOnlyDictionary<string, object> props

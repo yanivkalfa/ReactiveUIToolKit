@@ -1,0 +1,17 @@
+@namespace PrettyUi.App
+@using System.Collections.Generic
+
+module StyleExtensions {
+  public static Style Extend(params Style[] styles) {
+    var combined = new Style();
+    if (styles == null) return combined;
+
+    foreach (var source in styles) {
+      if (source == null) continue;
+      foreach (KeyValuePair<string, object> pair in source) {
+        combined[pair.Key] = pair.Value;
+      }
+    }
+    return combined;
+  }
+}

@@ -1,0 +1,37 @@
+@namespace PrettyUi.App.Pages
+@using PrettyUi.App.Components
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component SettingsPage {
+  var navigate = RouterHooks.UseNavigate(replace: true);
+  var location = RouterHooks.UseLocation() ?? "/";
+
+  useEffect(() => {
+    if (location == "/settings" || location == "/settings/") {
+      navigate("/settings/audio", null);
+    }
+    return null;
+  }, new object[] { location });
+
+  var content = (
+    <VisualElement style={ContentRoot}>
+      <Route
+        path="audio"
+        element={<ContentPanel title="Audio" body="Master / SFX / Music sliders go here." />}
+      />
+      <Route
+        path="video"
+        element={<ContentPanel title="Video" body="Resolution, fullscreen mode, vsync, and quality preset selectors live here." />}
+      />
+      <Route
+        path="controls"
+        element={<ContentPanel title="Controls" body="Keybindings, mouse sensitivity, and invert-Y go here." />}
+      />
+    </VisualElement>
+  );
+
+  return (
+    <PageShell sidebar={<SettingsPageSidebar />} content={content} />
+  );
+}

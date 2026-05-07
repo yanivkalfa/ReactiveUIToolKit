@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -77,6 +78,73 @@ namespace ReactiveUITK.Elements
                 }
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is SliderInt slider && props is SliderIntProps tp)
+            {
+                if (tp.LowValue.HasValue)
+                    slider.lowValue = tp.LowValue.Value;
+                if (tp.HighValue.HasValue)
+                    slider.highValue = tp.HighValue.Value;
+                if (tp.Value.HasValue)
+                    slider.value = tp.Value.Value;
+                if (!string.IsNullOrEmpty(tp.Direction))
+                {
+                    var ds = tp.Direction.ToLowerInvariant();
+                    slider.direction =
+                        ds == "vertical" ? SliderDirection.Vertical : SliderDirection.Horizontal;
+                }
+                if (tp.OnChange != null)
+                    PropsApplier.ApplySingle(element, null, "onChange", tp.OnChange);
+                if (tp.OnChangeCapture != null)
+                    PropsApplier.ApplySingle(element, null, "onChangeCapture", tp.OnChangeCapture);
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is SliderInt slider
+                && prev is SliderIntProps tp
+                && next is SliderIntProps tn
+            )
+            {
+                if (tp.LowValue != tn.LowValue && tn.LowValue.HasValue)
+                    slider.lowValue = tn.LowValue.Value;
+                if (tp.HighValue != tn.HighValue && tn.HighValue.HasValue)
+                    slider.highValue = tn.HighValue.Value;
+                if (tp.Value != tn.Value && tn.Value.HasValue)
+                    slider.value = tn.Value.Value;
+                if (tp.Direction != tn.Direction && !string.IsNullOrEmpty(tn.Direction))
+                {
+                    var ds = tn.Direction.ToLowerInvariant();
+                    slider.direction =
+                        ds == "vertical" ? SliderDirection.Vertical : SliderDirection.Horizontal;
+                }
+                if (tp.OnChange != tn.OnChange)
+                {
+                    if (tn.OnChange != null)
+                        PropsApplier.ApplySingle(element, tp.OnChange, "onChange", tn.OnChange);
+                    else if (tp.OnChange != null)
+                        PropsApplier.RemoveProp(element, "onChange", tp.OnChange);
+                }
+                if (tp.OnChangeCapture != tn.OnChangeCapture)
+                {
+                    if (tn.OnChangeCapture != null)
+                        PropsApplier.ApplySingle(
+                            element,
+                            tp.OnChangeCapture,
+                            "onChangeCapture",
+                            tn.OnChangeCapture
+                        );
+                    else if (tp.OnChangeCapture != null)
+                        PropsApplier.RemoveProp(element, "onChangeCapture", tp.OnChangeCapture);
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

@@ -182,16 +182,16 @@ public class DiagnosticTests
         );
     }
 
-    // ── Structural violations (UITKX0017–0019) ───────────────────────────────
+    // ── Structural violations (UITKX0108, UITKX0018, UITKX0019) ─────────────
 
     [Fact]
-    public void UITKX0017_MultipleRootElements()
+    public void UITKX0108_MultipleRootElements()
     {
         var src = Wrap("<box/>\n<label text=\"oops\"/>");
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
-            result.HasDiagnostic("UITKX0017"),
-            "Expected UITKX0017 when component has more than one root element"
+            result.HasDiagnostic("UITKX0108"),
+            "Expected UITKX0108 when component has more than one root element"
         );
     }
 
@@ -312,10 +312,12 @@ public class DiagnosticTests
         );
     }
 
-    // ── Key/reconciler warnings (UITKX0009, UITKX0010) ──────────────────────
+    // ── Key/reconciler warnings (UITKX0106, UITKX0104) ──────────────────────
+    // (Renumbered from UITKX0009/0010 to align with the live analyzer's
+    //  DiagnosticCodes.MissingKey / DiagnosticCodes.DuplicateKey codes.)
 
     [Fact]
-    public void UITKX0009_ForeachMissingKey()
+    public void UITKX0106_ForeachMissingKey()
     {
         // Element inside @foreach has no key attribute
         var src = Wrap("""
@@ -327,13 +329,13 @@ public class DiagnosticTests
             """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
-            result.HasDiagnostic("UITKX0009"),
-            "Expected UITKX0009 when @foreach element lacks a key attribute"
+            result.HasDiagnostic("UITKX0106"),
+            "Expected UITKX0106 when @foreach element lacks a key attribute"
         );
     }
 
     [Fact]
-    public void UITKX0010_DuplicateSiblingKey()
+    public void UITKX0104_DuplicateSiblingKey()
     {
         var src = Wrap("""
             <box>
@@ -343,13 +345,13 @@ public class DiagnosticTests
             """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
-            result.HasDiagnostic("UITKX0010"),
-            "Expected UITKX0010 when two siblings share the same string key"
+            result.HasDiagnostic("UITKX0104"),
+            "Expected UITKX0104 when two siblings share the same string key"
         );
     }
 
     [Fact]
-    public void UITKX0010_NotFiredForUniqueKeys()
+    public void UITKX0104_NotFiredForUniqueKeys()
     {
         var src = Wrap("""
             <box>
@@ -359,8 +361,8 @@ public class DiagnosticTests
             """);
         var result = GeneratorTestHelper.Run(src);
         Assert.False(
-            result.HasDiagnostic("UITKX0010"),
-            "UITKX0010 should not fire when sibling keys are unique"
+            result.HasDiagnostic("UITKX0104"),
+            "UITKX0104 should not fire when sibling keys are unique"
         );
     }
 
@@ -388,11 +390,11 @@ public class DiagnosticTests
                         or "UITKX0014"
                         or "UITKX0015"
                         or "UITKX0016"
-                        or "UITKX0017"
+                        or "UITKX0108"
                         or "UITKX0018"
                         or "UITKX0019"
-                        or "UITKX0009"
-                        or "UITKX0010"
+                        or "UITKX0106"
+                        or "UITKX0104"
         );
     }
 

@@ -1,0 +1,196 @@
+@namespace Samples.GalagaGame
+@using System
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.GalagaGame.GalagaTypes
+@using static Samples.GalagaGame.GalagaTypes.C
+
+module SpriteAtlas {
+  // ───── Sprite frame definition ─────
+
+  public struct SpriteFrame {
+    public int X;
+    public int Y;
+    public int W;
+    public int H;
+    public SpriteFrame(int x, int y, int w = 16, int h = 16) { X = x; Y = y; W = w; H = h; }
+  }
+
+  // ───── Sheet dimensions (actual pixel size of spritemap.png) ─────
+  public const int SHEET_W = 457;
+  public const int SHEET_H = 216;
+
+  // ───── Player ship ─────
+  // Frame 6 = upright facing up
+  public static readonly SpriteFrame PlayerShip = new SpriteFrame(109, 1);
+  public static readonly SpriteFrame PlayerShipRed = new SpriteFrame(109, 19);
+  public static readonly SpriteFrame LivesIcon = new SpriteFrame(289, 172);
+
+  // ───── Player explosion (32x32) ─────
+  public static readonly SpriteFrame[] PlayerExplosion = new SpriteFrame[] {
+    new SpriteFrame(145, 1, 32, 32),
+    new SpriteFrame(179, 1, 32, 32),
+    new SpriteFrame(213, 1, 32, 32),
+    new SpriteFrame(247, 1, 32, 32),
+  };
+
+  // ───── Enemy explosion (32x32) ─────
+  public static readonly SpriteFrame[] EnemyExplosion = new SpriteFrame[] {
+    new SpriteFrame(289, 1, 32, 32),
+    new SpriteFrame(323, 1, 32, 32),
+    new SpriteFrame(357, 1, 32, 32),
+    new SpriteFrame(391, 1, 32, 32),
+    new SpriteFrame(425, 1, 32, 32),
+  };
+
+  // ───── Missiles ─────
+  // Row 0: (289,118), (307,118), (325,118) — angles: right, down-right, down
+  // Row 1: (289,136), (307,136), (325,136)
+  // Row 2: (289,154), (307,154), (325,154)
+  // Missile up = (307,118) is the one pointing up
+  public static readonly SpriteFrame MissileUp = new SpriteFrame(307, 154);
+  public static readonly SpriteFrame MissileDown = new SpriteFrame(307, 118);
+
+  // ───── Tractor beam (48x80) ─────
+  public static readonly SpriteFrame[] TractorBeam = new SpriteFrame[] {
+    new SpriteFrame(289, 36, 48, 80),
+    new SpriteFrame(289, 36, 48, 80),
+    new SpriteFrame(289, 36, 48, 80),
+  };
+
+  // ───── Enemy rotation frames (left→upright, 8 frames each) ─────
+
+  // Commander (green, full health)
+  public static readonly SpriteFrame[] Commander1 = new SpriteFrame[] {
+    new SpriteFrame(1, 37), new SpriteFrame(19, 37), new SpriteFrame(37, 37), new SpriteFrame(55, 37),
+    new SpriteFrame(73, 37), new SpriteFrame(91, 37), new SpriteFrame(109, 37), new SpriteFrame(127, 37),
+  };
+  // Commander (damaged)
+  public static readonly SpriteFrame[] Commander2 = new SpriteFrame[] {
+    new SpriteFrame(1, 55), new SpriteFrame(19, 55), new SpriteFrame(37, 55), new SpriteFrame(55, 55),
+    new SpriteFrame(73, 55), new SpriteFrame(91, 55), new SpriteFrame(109, 55), new SpriteFrame(127, 55),
+  };
+  // Goei (butterfly)
+  public static readonly SpriteFrame[] Goei = new SpriteFrame[] {
+    new SpriteFrame(1, 73), new SpriteFrame(19, 73), new SpriteFrame(37, 73), new SpriteFrame(55, 73),
+    new SpriteFrame(73, 73), new SpriteFrame(91, 73), new SpriteFrame(109, 73), new SpriteFrame(127, 73),
+  };
+  // Zako (bee)
+  public static readonly SpriteFrame[] Zako = new SpriteFrame[] {
+    new SpriteFrame(1, 109), new SpriteFrame(19, 109), new SpriteFrame(37, 109), new SpriteFrame(55, 109),
+    new SpriteFrame(73, 109), new SpriteFrame(91, 109), new SpriteFrame(109, 109),
+  };
+
+  // ───── Style builders ─────
+
+  public static Style MakeSpriteStyle(Texture2D texture, SpriteFrame frame, float x, float y,
+  float scaleX = 1f, float scaleY = 1f) {
+    int sw = frame.W * SPRITE_SCALE;
+    int sh = frame.H * SPRITE_SCALE;
+    int bgW = SHEET_W * SPRITE_SCALE;
+    int bgH = SHEET_H * SPRITE_SCALE;
+    int posX = frame.X * SPRITE_SCALE;
+    int posY = frame.Y * SPRITE_SCALE;
+
+    return new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.Left, x),
+      (StyleKeys.Top, y),
+      (StyleKeys.Width, (float)(sw - 2)),
+      (StyleKeys.Height, (float)(sh - 2)),
+      (StyleKeys.BackgroundImage, texture),
+      (StyleKeys.BackgroundSize, new BackgroundSize(new Length(bgW, LengthUnit.Pixel), new Length(bgH, LengthUnit.Pixel))),
+      (StyleKeys.BackgroundPositionX, new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(-posX, LengthUnit.Pixel))),
+      (StyleKeys.BackgroundPositionY, new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(-(posY + 1), LengthUnit.Pixel))),
+      (StyleKeys.Scale, new[] { scaleX, scaleY }),
+      (StyleKeys.BorderWidth, 0f),
+      (StyleKeys.BorderColor, new Color(0, 0, 0, 0)),
+      (StyleKeys.Margin, 0f),
+      (StyleKeys.Padding, 0f),
+      (StyleKeys.Overflow, "hidden"),
+    };
+  }
+
+  // ───── Enemy frame selection ─────
+  // Rotation frames: 0=facing left, maxFrame=facing down (toward player).
+  // In formation enemies already face down. For other directions, use scale flips.
+
+  public static (SpriteFrame frame, float sx, float sy) GetEnemySprite(
+  EnemyType type, int health, float angle) {
+    // angle: 0 = moving up, PI/2 = right, PI = down, 3*PI/2 = left
+    float a = angle % (2f * Mathf.PI);
+    if (a < 0) a += 2f * Mathf.PI;
+
+    SpriteFrame[] frames;
+    switch (type) {
+      case EnemyType.Commander:
+      frames = health >= 2 ? Commander1 : Commander2;
+      break;
+      case EnemyType.Goei:
+      frames = Goei;
+      break;
+      default:
+      frames = Zako;
+      break;
+    }
+
+    int maxFrame = frames.Length - 1;
+
+    // Sprites natively cover left(frame 0) to down(maxFrame).
+    // Quadrant mapping:
+    //   Down→Left  (PI..3PI/2):   frames maxFrame→0, no flip  (native quadrant)
+    //   Left→Up    (3PI/2..2PI):  frames 0→maxFrame, sy=-1    (flip down→up)
+    //   Up→Right   (0..PI/2):     frames maxFrame→0, sy=-1, then sx=-1
+    //   Right→Down (PI/2..PI):    frames 0→maxFrame, sx=-1    (mirror left→right)
+
+    float sx = 1f, sy = 1f;
+    float quadrant = a / (Mathf.PI * 0.5f);
+    int frameIdx;
+
+    if (quadrant < 1f) {
+      // Up to Right (0 to PI/2)
+      float t = quadrant;
+      frameIdx = Mathf.RoundToInt(maxFrame * (1f - t));
+      if (t < 0.5f) { sy = -1f; }
+      else { sx = -1f; }
+    } else if (quadrant < 2f) {
+      // Right to Down (PI/2 to PI)
+      float t = quadrant - 1f;
+      frameIdx = Mathf.RoundToInt(maxFrame * t);
+      if (t < 0.5f) { sx = -1f; }
+    } else if (quadrant < 3f) {
+      // Down to Left (PI to 3*PI/2) — native sprite quadrant
+      float t = quadrant - 2f;
+      frameIdx = Mathf.RoundToInt(maxFrame * (1f - t));
+    } else {
+      // Left to Up (3*PI/2 to 2*PI)
+      float t = quadrant - 3f;
+      frameIdx = Mathf.RoundToInt(maxFrame * t);
+      if (t > 0.5f) { sy = -1f; }
+    }
+
+    frameIdx = Mathf.Clamp(frameIdx, 0, maxFrame);
+    return (frames[frameIdx], sx, sy);
+  }
+
+  // Convenience: formation enemies face down (native sprite orientation)
+  public static (SpriteFrame frame, float sx, float sy) GetFormationSprite(EnemyType type, int health, float animFrame) {
+    SpriteFrame[] frames;
+    switch (type) {
+      case EnemyType.Commander:
+      frames = health >= 2 ? Commander1 : Commander2;
+      break;
+      case EnemyType.Goei:
+      frames = Goei;
+      break;
+      default:
+      frames = Zako;
+      break;
+    }
+    int maxFrame = frames.Length - 1;
+    int idx = ((int)animFrame % 2 == 0) ? maxFrame : maxFrame - 1;
+    idx = Mathf.Clamp(idx, 0, maxFrame);
+    // Sprites natively face down — no flip needed
+    return (frames[idx], 1f, 1f);
+  }
+}

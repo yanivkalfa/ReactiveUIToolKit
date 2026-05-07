@@ -24,6 +24,37 @@ namespace ReactiveUITK.Props.Typed
         public ChangeEventHandler<float> OnChange { get; set; }
         public ChangeEventHandler<float> OnChangeCapture { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not SliderProps o)
+                return false;
+            if (LowValue != o.LowValue)
+                return false;
+            if (HighValue != o.HighValue)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Direction != o.Direction)
+                return false;
+            if (!ReferenceEquals(Input, o.Input))
+                return false;
+            if (!ReferenceEquals(Track, o.Track))
+                return false;
+            if (!ReferenceEquals(DragContainer, o.DragContainer))
+                return false;
+            if (!ReferenceEquals(Handle, o.Handle))
+                return false;
+            if (!ReferenceEquals(HandleBorder, o.HandleBorder))
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -72,6 +103,26 @@ namespace ReactiveUITK.Props.Typed
                 dict["onChangeCapture"] = OnChangeCapture;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            LowValue = null;
+            HighValue = null;
+            Value = null;
+            Direction = null;
+            Input = null;
+            Track = null;
+            DragContainer = null;
+            Handle = null;
+            HandleBorder = null;
+            OnChange = null;
+            OnChangeCapture = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<SliderProps>.Return(this);
         }
     }
 }

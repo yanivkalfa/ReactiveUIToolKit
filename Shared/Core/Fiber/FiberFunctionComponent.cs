@@ -88,6 +88,7 @@ namespace ReactiveUITK.Core.Fiber
                 }
                 // Commit props so the next render cycle sees matching props for ArePropsEqual
                 wipFiber.Props = wipFiber.PendingProps;
+                wipFiber.HostProps = wipFiber.PendingHostProps;
                 // Also commit typed props so the next cycle's equality check works correctly
                 wipFiber.TypedProps = wipFiber.TypedPendingProps;
 
@@ -154,13 +155,12 @@ namespace ReactiveUITK.Core.Fiber
                 }
 
                 // Call the render function (typed IProps path — all function components).
+                // Children may be null on the very first render before parent sets them.
+                // Fall back to empty list for safety.
                 childVNode = wipFiber.TypedRender(
                     wipFiber.TypedPendingProps ?? EmptyProps.Instance,
-                    wipFiber.Children
+                    wipFiber.Children ?? VirtualNode.EmptyChildren
                 );
-
-                // Store rendered vnode
-                wipFiber.LastRenderedVNode = childVNode;
             }
             finally
             {

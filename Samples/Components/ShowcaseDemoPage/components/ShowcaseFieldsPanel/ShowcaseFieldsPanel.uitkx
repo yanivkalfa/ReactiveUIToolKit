@@ -81,7 +81,7 @@ component ShowcaseFieldsPanel {
         />
         <Label text="TemplateContainer" />
         <TemplateContainer
-          contentContainer={new Style { (Padding, 6f), (BackgroundColor, new Color(1f, 1f, 1f, 1f)) }}
+          contentContainer={new Dictionary<string, object> { { "style", new Style { (Padding, 6f), (BackgroundColor, new Color(1f, 1f, 1f, 1f)) } } }}
           style={new Style { (BorderWidth, 1f), (BorderColor, new Color(0.85f, 0.85f, 0.85f, 1f)) }}
         >
           <Label text="Inside TemplateContainer" />

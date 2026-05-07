@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
@@ -33,10 +34,9 @@ namespace ReactiveUITK.Elements
             );
             if (properties.TryGetValue("orientation", out var o) && o is string s)
             {
-                split.orientation =
-                    s.Equals("vertical", System.StringComparison.OrdinalIgnoreCase)
-                        ? TwoPaneSplitViewOrientation.Vertical
-                        : TwoPaneSplitViewOrientation.Horizontal;
+                split.orientation = s.Equals("vertical", System.StringComparison.OrdinalIgnoreCase)
+                    ? TwoPaneSplitViewOrientation.Vertical
+                    : TwoPaneSplitViewOrientation.Horizontal;
             }
             PropsApplier.Apply(element, properties);
         }
@@ -69,6 +69,55 @@ namespace ReactiveUITK.Elements
                         : TwoPaneSplitViewOrientation.Horizontal;
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is TwoPaneSplitView split && props is TwoPaneSplitViewProps fp)
+            {
+                if (fp.FixedPaneIndex.HasValue)
+                    split.fixedPaneIndex = fp.FixedPaneIndex.Value;
+                if (fp.FixedPaneInitialDimension.HasValue)
+                    split.fixedPaneInitialDimension = fp.FixedPaneInitialDimension.Value;
+                if (!string.IsNullOrEmpty(fp.Orientation))
+                {
+                    split.orientation = fp.Orientation.Equals(
+                        "vertical",
+                        System.StringComparison.OrdinalIgnoreCase
+                    )
+                        ? TwoPaneSplitViewOrientation.Vertical
+                        : TwoPaneSplitViewOrientation.Horizontal;
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is TwoPaneSplitView split
+                && prev is TwoPaneSplitViewProps fp
+                && next is TwoPaneSplitViewProps fn
+            )
+            {
+                if (fp.FixedPaneIndex != fn.FixedPaneIndex && fn.FixedPaneIndex.HasValue)
+                    split.fixedPaneIndex = fn.FixedPaneIndex.Value;
+                if (
+                    fp.FixedPaneInitialDimension != fn.FixedPaneInitialDimension
+                    && fn.FixedPaneInitialDimension.HasValue
+                )
+                    split.fixedPaneInitialDimension = fn.FixedPaneInitialDimension.Value;
+                if (fp.Orientation != fn.Orientation && !string.IsNullOrEmpty(fn.Orientation))
+                {
+                    split.orientation = fn.Orientation.Equals(
+                        "vertical",
+                        System.StringComparison.OrdinalIgnoreCase
+                    )
+                        ? TwoPaneSplitViewOrientation.Vertical
+                        : TwoPaneSplitViewOrientation.Horizontal;
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

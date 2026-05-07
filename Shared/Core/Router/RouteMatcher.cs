@@ -12,6 +12,17 @@ namespace ReactiveUITK.Router
             RouteMatch parentMatch
         )
         {
+            return Match(currentLocation, pattern, exact, parentMatch, caseSensitive: false);
+        }
+
+        public static RouteMatch Match(
+            string currentLocation,
+            string pattern,
+            bool exact,
+            RouteMatch parentMatch,
+            bool caseSensitive
+        )
+        {
             string normalizedLocation = RouterPath.Normalize(currentLocation);
             if (string.IsNullOrEmpty(pattern))
             {
@@ -47,6 +58,10 @@ namespace ReactiveUITK.Router
                 return null;
             }
 
+            StringComparison comparison = caseSensitive
+                ? StringComparison.Ordinal
+                : StringComparison.OrdinalIgnoreCase;
+
             Dictionary<string, string> parameters = null;
             for (int i = 0; i < matchSegmentCount; i++)
             {
@@ -66,13 +81,7 @@ namespace ReactiveUITK.Router
                     }
                     continue;
                 }
-                if (
-                    !string.Equals(
-                        patternSegment,
-                        locationSegment,
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
+                if (!string.Equals(patternSegment, locationSegment, comparison))
                 {
                     return null;
                 }

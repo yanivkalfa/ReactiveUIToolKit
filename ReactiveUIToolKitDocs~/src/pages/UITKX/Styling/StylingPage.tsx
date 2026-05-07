@@ -369,6 +369,10 @@ export const StylingPage: FC = () => {
           <TableRow><TableCell><code>ScaleMode</code></TableCell><TableCell><code>ScaleStretch</code>, <code>ScaleFit</code>, <code>ScaleCrop</code></TableCell></TableRow>
           <TableRow><TableCell><code>TwoPaneSplitViewOrientation</code></TableCell><TableCell><code>OrientHorizontal</code>, <code>OrientVertical</code></TableCell></TableRow>
           <TableRow><TableCell><code>ColumnSortingMode</code></TableCell><TableCell><code>SortNone</code>, <code>SortDefault</code>, <code>SortCustom</code></TableCell></TableRow>
+          <TableRow><TableCell><code>SliceType</code></TableCell><TableCell><code>SliceFill</code>, <code>SliceTile</code></TableCell></TableRow>
+          <TableRow><TableCell><code>OverflowClipBox</code></TableCell><TableCell><code>ClipPaddingBox</code>, <code>ClipContentBox</code></TableCell></TableRow>
+          <TableRow><TableCell><code>TextGeneratorType</code></TableCell><TableCell><code>TextGenStandard</code>, <code>TextGenAdvanced</code></TableCell></TableRow>
+          <TableRow><TableCell><code>EditorTextRenderingMode</code></TableCell><TableCell><code>EditorTextSDF</code>, <code>EditorTextBitmap</code></TableCell></TableRow>
         </TableBody>
       </Table>
     </TableContainer>
@@ -396,6 +400,8 @@ export const StylingPage: FC = () => {
           <TableRow><TableCell><code>TransformOrigin</code></TableCell><TableCell><code>Origin(x, y)</code>, <code>OriginCenter</code></TableCell></TableRow>
           <TableRow><TableCell><code>Translate</code></TableCell><TableCell><code>Xlate(x, y)</code></TableCell></TableRow>
           <TableRow><TableCell><code>EasingFunction</code></TableCell><TableCell><code>Easing(mode)</code>, <code>EaseDefault</code>, <code>EaseLinear</code>, <code>EaseIn</code>, <code>EaseOut</code>, <code>EaseInOut</code>, + sine/cubic/circ/elastic/back/bounce variants</TableCell></TableRow>
+          <TableRow><TableCell><code>TextShadow</code></TableCell><TableCell><code>Shadow(dx, dy, blur, color)</code></TableCell></TableRow>
+          <TableRow><TableCell><code>FontDefinition</code></TableCell><TableCell><code>FontDef(font)</code></TableCell></TableRow>
         </TableBody>
       </Table>
     </TableContainer>

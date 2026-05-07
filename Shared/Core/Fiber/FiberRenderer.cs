@@ -52,10 +52,21 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Clear and unmount
+        /// Clear and unmount the entire tree.
+        ///
+        /// <para>
+        /// Runs every effect cleanup (UseEffect / UseLayoutEffect) and
+        /// disposes every signal subscription before clearing the host
+        /// container. This is critical for components that own external
+        /// resources (pooled <c>VideoPlayer</c>, <c>AudioSource</c>,
+        /// timers, native listeners, etc.) \u2014 without this they leak,
+        /// e.g. an &lt;Audio&gt; element keeps playing forever after its
+        /// owning EditorWindow is closed.
+        /// </para>
         /// </summary>
         public void Clear()
         {
+            _reconciler?.UnmountRoot();
             _container.Clear();
             _root = null;
         }

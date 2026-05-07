@@ -16,6 +16,29 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not DropdownFieldProps o)
+                return false;
+            if (!ReferenceEquals(Choices, o.Choices))
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -48,6 +71,22 @@ namespace ReactiveUITK.Props.Typed
                 dict["visualInput"] = VisualInput;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            Choices = null;
+            Value = null;
+            SelectedIndex = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<DropdownFieldProps>.Return(this);
         }
     }
 }

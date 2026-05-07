@@ -2,12 +2,12 @@
 
 namespace ReactiveUITK.Language.Nodes
 {
-    // ΓöÇΓöÇ Base ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Base ─────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Base record for every node produced by the UITKX markup parser.
     /// Every node carries the 1-based line number in the .uitkx source file and
-    /// the file path ΓÇö both are used by the emitter to write <c>#line</c> directives
+    /// the file path — both are used by the emitter to write <c>#line</c> directives
     /// so that compiler errors and debugger breakpoints point at the .uitkx file,
     /// not the generated C#.
     ///
@@ -26,7 +26,7 @@ namespace ReactiveUITK.Language.Nodes
         public int EndColumn { get; init; } = 0;
     }
 
-    // ΓöÇΓöÇ Leaf nodes ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Leaf nodes ────────────────────────────────────────────────────────────
 
     /// <summary>Raw text content between elements, e.g. "Hello World".</summary>
     public sealed record TextNode(string Content, int SourceLine, string SourceFile)
@@ -60,15 +60,15 @@ namespace ReactiveUITK.Language.Nodes
     public sealed record CommentNode(string Content, int SourceLine, string SourceFile, bool IsBlock = false)
         : AstNode(SourceLine, SourceFile);
 
-    // ΓöÇΓöÇ Attribute value discriminated-union ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Attribute value discriminated-union ──────────────────────────────────
 
     /// <summary>Base record for the three possible forms of an attribute value.</summary>
     public abstract record AttributeValue;
 
-    /// <summary><c>attr="Hello World"</c> ΓÇö a static string literal.</summary>
+    /// <summary><c>attr="Hello World"</c> — a static string literal.</summary>
     public sealed record StringLiteralValue(string Value) : AttributeValue;
 
-    /// <summary><c>attr={someExpr}</c> ΓÇö an arbitrary C# expression.</summary>
+    /// <summary><c>attr={someExpr}</c> — an arbitrary C# expression.</summary>
     public sealed record CSharpExpressionValue(
         string Expression,
         /// <summary>
@@ -80,19 +80,19 @@ namespace ReactiveUITK.Language.Nodes
     ) : AttributeValue;
 
     /// <summary>
-    /// <c>disabled</c> ΓÇö boolean shorthand: attribute present ΓåÆ <c>true</c>,
-    /// absent ΓåÆ <c>false</c>.
+    /// <c>disabled</c> — boolean shorthand: attribute present → <c>true</c>,
+    /// absent → <c>false</c>.
     /// </summary>
     public sealed record BooleanShorthandValue : AttributeValue;
 
     /// <summary>
-    /// <c>attr={&lt;Tag /&gt;}</c> ΓÇö an inline JSX element used as an attribute
+    /// <c>attr={&lt;Tag /&gt;}</c> — an inline JSX element used as an attribute
     /// value. The contained <see cref="ElementNode"/> is emitted as a
     /// <c>VirtualNode</c> expression in the generated C#.
     /// </summary>
     public sealed record JsxExpressionValue(ElementNode? Element) : AttributeValue;
 
-    // ΓöÇΓöÇ Attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Attribute ─────────────────────────────────────────────────────────────
 
     /// <summary>A single attribute on an element, e.g. <c>text="Hi"</c>.</summary>
     public sealed record AttributeNode(string Name, AttributeValue Value, int SourceLine)
@@ -104,7 +104,7 @@ namespace ReactiveUITK.Language.Nodes
         public int NameEndColumn { get; init; } = 0;
     }
 
-    // ΓöÇΓöÇ Element node ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Element node ─────────────────────────────────────────────────────────
 
     /// <summary>
     /// An XML-like element: either self-closing <c>&lt;Tag /&gt;</c> or block
@@ -129,7 +129,7 @@ namespace ReactiveUITK.Language.Nodes
         public int CloseTagLine { get; init; } = 0;
     }
 
-    // ΓöÇΓöÇ Control flow ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Control flow ──────────────────────────────────────────────────────────
 
     /// <summary>
     /// One branch of an <c>@if</c>/<c>@else if</c>/<c>@else</c> chain.

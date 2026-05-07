@@ -6,6 +6,832 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.1] - 2026-05-07
+
+### Fixed
+
+- **Generic `static` methods inside `module { … }` blocks now compile.** The
+  HMR trampoline rewriter (`SourceGenerator~/Emitter/ModuleBodyRewriter.cs`),
+  introduced in 0.4.19, emitted two pieces of invalid C# on the generic-method
+  branch — the bug was inert until a consumer authored a generic method inside
+  a `module { … }` body.
+  - **CS0119** (`'TProps' is a type, which is not valid in the given context`)
+    — `AppendTypeArgs` emitted bare type-parameter names into the synthesized
+    `MethodInfo.MakeGenericMethod(...)` call, e.g.
+    `MakeGenericMethod(TProps, TResult)`. `MakeGenericMethod` takes
+    `params Type[]`, so each name must be wrapped in `typeof(...)`. Fix:
+    `AppendTypeArgs` now emits `typeof(TProps), typeof(TResult)`.
+  - **CS8625** (`Cannot convert null literal to non-nullable reference type`)
+    — the synthesized `MethodInfo` HMR field was emitted as
+    `static MethodInfo __hmr_<name>_h<sig> = null;`. The field MUST start
+    `null` (the trampoline checks `!= null` to fall through to the body method
+    until `UitkxHmrModuleMethodSwapper` fills it via reflection), but consumer
+    projects with `<Nullable>enable</Nullable>` or
+    `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` failed compilation.
+    Fix: emit `= null!;` — runtime value identical, warning suppressed.
+- **Non-generic module methods, player builds, and the HMR swapper are
+  unaffected** — both fixes are purely emit-side, behind `#if UNITY_EDITOR`,
+  and `null!` is a compile-time null-forgiving annotation only.
+
+### Tests
+
+- New regression test
+  `Sg_ModuleGenericMethod_GeneratedCodeCompiles_NoCS0119_NoCS8625` in
+  `HmrEmitterParityContractTests` actually **compiles** the generated module
+  output through Roslyn (with `UNITY_EDITOR` defined and nullable enabled) and
+  asserts neither CS0119 nor CS8625 is raised. The pre-existing
+  `Sg_ModuleGenericMethod_UsesMethodInfoCache` test only did substring checks
+  and could not detect either bug. **1162/1162 SG** passing.
+
+### Notes
+
+- Runtime-only release. IDE extensions (VS Code, VS 2022) unchanged — the
+  rewriter pass is SG-only and never runs in the LSP.
+
+## [0.5.0] - 2026-05-06
+
+### Added
+
+- **`<Video>` element** (Pattern A — element adapter). Wraps a pooled
+  `VideoPlayer` + `RenderTexture` rented from the new `MediaHost` peer pool and
+  feeds the decoded RT into a UI Toolkit `Image` sink via
+  `Image.image = renderTexture`. Repaints are driven by
+  `VideoPlayer.frameReady` (no polling). An editor-only
+  `EditorApplication.QueuePlayerLoopUpdate()` pump advances the player when
+  Unity isn't ticking. Declarative props: `Clip`, `Loop`, `Autoplay`, `Muted`,
+  `ScaleMode`, `Volume`. Imperative `VideoController` ref:
+  `Play`/`Pause`/`Seek`/`StepForward`.
+- **`<Audio>` element** (Pattern B — Func-Component). Renders no visible
+  content; rents an `AudioSource` from `MediaHost` via `UseEffect` and returns
+  it on unmount. Props: `Clip`, `Loop`, `Autoplay`, `Volume`, `Pitch`,
+  `SpatialBlend`, optional `AudioMixerGroup`. Imperative `AudioController` ref.
+- **`useSfx()` hook** — returns a stable `Action<AudioClip, float>` that calls
+  `MediaHost.Instance.SfxSource.PlayOneShot(clip, volumeScale)`. Zero per-call
+  allocation, identical delegate reference across renders so it composes
+  cleanly inside `UseEffect` dependency lists. Optional `AudioMixerGroup`
+  parameter is captured at hook-call time.
+- **`MediaHost` peer pool** — `HideAndDontSave` GameObject hosting all
+  `VideoPlayer` and `AudioSource` instances plus a stable `SfxSource`. Pool
+  rent/return is reference-counted; `RenderTexture`s pooled by
+  `(width, height, depth)` tuple. Survives domain reloads via lazy
+  resurrection.
+- **MediaPlayground demo** — `Samples/Shared/MediaPlaygroundDemoPage.uitkx`
+  exercises every media surface end-to-end. Editor window at
+  `ReactiveUITK > Demos > Media Playground`; runtime bootstrap
+  (`MediaPlaygroundRuntimeBootstrap.cs`) for play-mode testing.
+
+### Fixed
+
+- **`FiberRenderer.Clear()` now runs effect cleanups before dropping the
+  tree.** The previous implementation cleared the container and nulled the
+  root in a single call, never invoking the depth-first `CommitDeletion` path
+  that fires `UseEffect` cleanup callbacks and disposes signals. Any
+  `UseEffect`-owned resource (audio sources, timers, signal subscriptions,
+  `RenderTexture`s, animation handles) leaked across editor-window close /
+  reopen cycles. New `FiberReconciler.UnmountRoot()` walks
+  `_root.Current.Child` and runs `CommitDeletion` on each child before the
+  root is nulled. `EditorRootRendererUtility.Unmount()` now calls
+  `EditorRenderScheduler.Instance.PumpNow()` after `Unmount()` so cleanups
+  drain synchronously before the editor window closes. The leak only became
+  visible with `<Audio>` (background music kept playing forever) but the same
+  code path affected every Func-Component using `UseEffect` cleanup.
+- **IDE — `useSfx()` no longer reports `CS0103` in `.uitkx` files.** The LSP
+  scaffolds private hook stubs into a virtual document so Roslyn can
+  type-check setup code; `useSfx` had been added to the source generator and
+  HMR alias regexes when it shipped but was never added to the LSP's stub
+  list. Stubs added to both function-style component and hook-document
+  scaffolds in `VirtualDocumentGenerator`.
+
+### IDE extensions
+
+- VS Code **1.1.11 → 1.1.12**
+- Visual Studio 2022 **1.1.11 → 1.1.12**
+
+---
+
+## [0.4.19] - 2026-05-04
+
+Full HMR support for `module { … }` declarations. The contract for what is and
+is not preserved across a hot-reload cycle is now explicit and matches the
+conventions used by React Fast Refresh and .NET Hot Reload.
+
+### HMR contract for `module { … }` bodies
+
+| Member kind | Behaviour on save |
+|---|---|
+| `public const X` | Re-baked into the call sites at compile time; new value visible after the next HMR swap (constants are folded by the C# compiler, so existing already-loaded code keeps the old value until that code is itself re-emitted). |
+| `public static readonly X` | **Re-initialised every HMR cycle** — the new initializer expression runs in the HMR-compiled assembly and the result is copied into the project type via `UitkxHmrModuleStaticSwapper`. |
+| `public static X` (mutable) | **Preserved** — runtime value carries across HMR cycles. Matches React Fast Refresh, .NET Hot Reload, and JS HMR. Use cases: lazy caches (`_textures`, `_built`), session counters, accumulated state. To reset, exit Play mode (or enable the opt-in auto-reload setting). |
+| `public static T Foo(…)` (method) | **Hot-swapped via per-method delegate trampolines** — supports `ref`/`out`/`in`/`params`, default values, generics, and overloads. Behind `#if UNITY_EDITOR`, zero overhead in player builds. |
+| Newly-added `static readonly` field | **CLR rude edit** — the project type's metadata is sealed by the runtime and cannot grow new fields. A warning is logged once per session per field; opt into `UITKX_HMR_AutoReloadOnRudeEdit` for an automatic domain reload. |
+| Newly-added method | The new method exists only on the HMR-compiled type. Calls from already-loaded (non-HMR'd) code throw `MissingMethodException`. Same workaround as new fields. |
+| Instance methods, properties, operators, nested-type members | Emitted verbatim — not hot-reloaded. Edit them and trigger a full domain reload to see changes. |
+
+### Added — HMR for module statics & methods
+
+- **Module `static readonly` field re-init.** New `UitkxHmrModuleStaticSwapper` copies static-readonly field values from the freshly HMR-compiled assembly into matching project types. Fixes the case where editing a `Style`/`Color` module field initializer reported a successful HMR cycle but the rendered UI kept showing the cold-build value until you exited Play mode.
+- **Module `static` method hot-swap.** New source-generator pass (`ModuleBodyRewriter`) rewrites every top-level `public static` method inside a `module { … }` body into a trampoline triplet: a public surface method that bounces through an `__hmr_<name>_h<sig>` delegate field to a private `__<name>_body_h<sig>` body method (all `#if UNITY_EDITOR`-gated). After each HMR compile, the new `UitkxHmrModuleMethodSwapper` rebinds every delegate field to the freshly compiled method via `Delegate.CreateDelegate`. Custom delegate types support `ref`/`out`/`in`/`params` (previously impossible with framework `Func<>`/`Action<>`); FNV-1a 32-bit signature hash disambiguates overloads; generic methods use a `MethodInfo` + `ConcurrentDictionary<Type, Delegate>` cache pattern. Trampolines preserve the original method's visibility so `private static` methods using `private` nested types stay valid (no CS0050/CS0051/CS0052/CS0058/CS0059).
+- **Rude-edit detection.** When you add a new `static readonly` field to a module mid-session, the CLR can't grow the project type's metadata — `UitkxHmrModuleStaticSwapper` now detects the mismatch and logs a once-per-session warning naming each affected field, the runtime constraint, and the available remediations.
+- **Opt-in auto-reload.** New `UitkxHmrController.AutoReloadOnRudeEdit` setting (EditorPref `UITKX_HMR_AutoReloadOnRudeEdit`, default `false`). When enabled and a rude edit lands, schedules `EditorUtility.RequestScriptReload()` via `EditorApplication.delayCall` so the new field/method materialises everywhere with one extra round-trip.
+- **`UITKX0150` Info diagnostic.** Emitted when the source generator cannot Roslyn-parse a module body for trampoline rewriting; falls back to verbatim emission so the module still compiles (only per-method HMR for that module is unavailable).
+
+### Fixed — 12 HMR ↔ source-generator parity bugs in `HmrCSharpEmitter`
+
+The HMR pipeline emits C# from a hand-written transpiler that must match the
+Roslyn-based source generator's output for any given `.uitkx` input. A round
+of cross-checking surfaced 12 long-standing divergences:
+
+- `ref={x}` on function components is now resolved to the props' `Ref<T>`/`MutableRef<T>` slot via the new `FindPropsTypeAndRefSlot` + `FindRefSlotName` helpers, instead of being treated as a literal `Ref` prop assignment (which silently dropped the binding).
+- JSX-as-attribute-value (e.g. React-Router `element={<X/>}`) now emits a real nested element via the `JsxExpressionValue` `_sb`-capture path instead of collapsing to `null`.
+- Sibling duplicate `key={…}` warnings are now raised at HMR-compile time via `CheckDuplicateKeys` from `EmitChildArgs`, matching SG's `UITKX0104`.
+- Sibling top-level Props classes (`RouterFunc` / `RouterFuncProps` at namespace scope) resolve correctly — three resolution paths now mirror the SG's `PropsResolver.TryGetFuncComponentPropsTypeName`.
+- `HmrCSharpEmitter.FindPropsType` no longer over-eagerly returns `{Type}.{Type}Props` and now walks all three legitimate Props shapes (sibling top-level, nested same-name, nested differently-named).
+- Function-component invocations correctly use `new …Props { … }` (not `BaseProps.__Rent`) — function-component Props derive from `IProps`, not `BaseProps`, and cannot be pooled.
+- `Asset<T>("./x")` / `Ast<T>("../x")` relative paths are resolved to absolute Unity-registry keys before HMR emit, so HMR-compiled and SG-compiled code produce identical literal strings (parity with `UitkxAssetRegistry`).
+- `UitkxHmrCompiler` adds a silent-drift list for 4 reflection-bound Roslyn methods, a deterministic `PickAllOptionalTailOverload` helper (overload picking is no longer order-sensitive across Roslyn versions), and an explicit `lineOffset:0` on `_uitkxParse`.
+- `CheckIfGenuinelyNew` uses fully-qualified type names so two unrelated modules with the same short name no longer fight over the swap slot.
+- `CompileHookModuleFile` correctly dispatches `HmrHookEmitter.EmitModules` so module bodies emitted by HMR compile end-to-end (exposed by Bug 1 from 0.4.17).
+
+### Changed
+
+- `UitkxHmrController.ProcessFileChange` extends its success log with `| Module statics re-init: N` and `| Module methods re-init: K` so the editor console makes it obvious which kind of HMR work happened on each save.
+- `UitkxHmrModuleStaticSwapper.SwapModuleStatics` returns a richer `ModuleStaticSwapResult { Copied, AddedFieldsDetected }` instead of a bare `int`.
+
+### Tests
+
+- 12 SG ↔ HMR emitter parity contract tests in `HmrEmitterParityContractTests` (5 from the parity-bugs round + 7 for the new module-method trampoline shape: trampoline-triplet shape, `ref` parameter custom-delegate, distinct overload hashes, generic-method `MethodInfo`-cache, non-method members emitted verbatim, instance-method untouched, default-parameter behaviour). 1142/1142 tests passing.
+
+## [0.4.18] - 2026-05-03
+
+### Fixed — HMR `CS0426` on function components with sibling top-level Props
+
+A consumer hit `[HMR] Compilation failed for AppRoot... CS0426: The type name
+'RouterFuncProps' does not exist in the type 'RouterFunc'` immediately after
+shipping 0.4.17. Root cause was a long-standing convention divergence between
+the source generator and the HMR compiler that only surfaced once HMR could
+actually compile module/style/hook files end-to-end (Bugs 1 & 2 from 0.4.17).
+
+#### The bug
+
+Function-component Props classes are emitted in three legitimate shapes:
+
+1. **Sibling top-level** — `RouterFunc` and `RouterFuncProps` both at namespace
+   scope, neither nested. Used by `ReactiveUITK.Router`.
+2. **Nested same-name** — `CompFunc.CompFuncProps` (the source generator's own
+   default emission shape).
+3. **Nested differently-named** — `ValuesBarFunc.Props` (legacy hand-written
+   pattern still in use).
+
+The source generator's `PropsResolver.TryGetFuncComponentPropsTypeName` already
+walked all three. HMR's `HmrCSharpEmitter.FindPropsType` only walked nested
+types and shipped `{Type}.{Type}Props` unconditionally — so any component using
+shape (1) compiled fine through source-gen but failed CS0426 through HMR.
+
+#### The fix
+
+`FindPropsType` now mirrors `PropsResolver` lookup order verbatim:
+
+1. Sibling top-level `{typeName}Props` in same namespace as the located
+   component type → returns `"global::" + siblingFullName` (typed Props).
+2. Nested `{typeName}.{typeName}Props` implementing `IProps` → returns
+   `"{typeName}.{siblingName}"`.
+3. Any nested `IProps` (legacy fallback) → returns `"{typeName}.{nested.Name}"`.
+4. Convention fallback string (preserves prior behavior for genuinely missing
+   types so the resulting CS error points at a recognizable location).
+
+#### Tests
+
+Two complementary layers, both running on every push, every PR, and before
+every package publish via the existing GitHub Actions workflows:
+
+- **SG-side parity test** (`FuncComponent_WithSiblingTopLevelPropsClass_EmitsTypedVFunc`)
+  — drives the generator with the real `RouterFunc` / `RouterFuncProps` shape
+  and asserts it emits `V.Func<global::Ns.RouterFuncProps>` rather than the
+  broken nested form. Pins the contract HMR mirrors.
+- **HMR algorithm contract tests** (`HmrFindPropsTypeContractTests`) — five
+  cases exercising the algorithm against in-memory Roslyn-compiled assemblies
+  (sibling / nested-named / nested-legacy / sibling-wins-priority / negative
+  fallback). Mirrors `FindPropsType` verbatim because the Editor assembly
+  (`UnityEditor` deps) cannot be loaded by the standalone .NET test runner.
+
+**1070/1070 SG** passing.
+
+VS Code **1.1.10 → 1.1.11** · VS 2022 **1.1.10 → 1.1.11** ride the same release.
+
+---
+
+## [0.4.17] - 2026-05-03
+
+### Fixed — HMR overload-resolution bug + asset-path rewrite gap in `module` / `hook` bodies
+
+Two related production-grade fixes converging on `.style.uitkx` / `.hooks.uitkx`
+files. Both were silent until they met in a real consumer project (the
+`AppRoot.style.uitkx` / `Asset<Texture2D>("../Resources/background-01.png")`
+case), so this release also adds CI coverage so neither can recur.
+
+#### Bug 1 — HMR `ArgumentException` on every `.uitkx` save
+
+`UitkxHmrCompiler.InvokeWithDefaults` had two `params object[]` overloads:
+
+- `InvokeWithDefaults(MethodInfo, object target, params object[])` (instance/static aware)
+- `InvokeWithDefaults(MethodInfo, params object[])` (static-only, with API-drift padding)
+
+C# overload resolution prefers `string → object target` over `string →
+params object[]`, so calls like `InvokeWithDefaults(_directiveParse, source,
+uitkxPath, diagList, true)` silently bound to the **first** overload —
+`source` became the (ignored) target receiver and every subsequent argument
+shifted left by one position, dropping a `List<ParseDiagnostic>` into
+`DirectiveParser.Parse(string source, string filePath, ...)`'s `filePath`
+slot. Result on every `.uitkx` save during play mode:
+
+```
+ArgumentException: Object of type
+'System.Collections.Generic.List`1[ReactiveUITK.Language.Parser.ParseDiagnostic]'
+cannot be converted to type 'System.String'.
+```
+
+The two overloads were collapsed into a single canonical signature
+`InvokeWithDefaults(MethodInfo method, object target, params object[] args)`
+where `target` is **mandatory** (not defaulted) — this makes the entire
+class of "string arg accidentally captured as receiver" bug structurally
+impossible to recur. All eleven call sites updated to pass an explicit
+`null` (static methods) or the actual receiver (instance methods like
+`Compilation.Emit(stream)`).
+
+#### Bug 2 — `Asset<T>("./x")` / `Asset<T>("../x")` not rewritten in `module` / `hook` bodies
+
+The runtime `UitkxAssetRegistry` is a flat dictionary keyed by **resolved**
+Unity asset paths (e.g. `Assets/Resources/background-01.png`). The compile-
+time emitters are responsible for rewriting every `Asset<T>("./relative")`
+literal in the generated C# from the relative form to that resolved key,
+so that runtime `Get<T>(string key)` finds the entry.
+
+That rewrite (`ResolveAssetPaths`) was applied to component setup code,
+JSX attribute expressions, and directive (`@if` / `@foreach` / `@switch`)
+bodies — but **not** to `module { ... }` or `hook { ... }` bodies. So:
+
+```uitkx
+module AppRoot {
+  public static readonly Style Root = new Style {
+    BackgroundImage = Asset<Texture2D>("../Resources/background-01.png"),
+  };
+}
+```
+
+…shipped the literal `"../Resources/background-01.png"` to runtime, while
+the editor-side `UitkxAssetRegistrySync` (which scans the same source
+independently) wrote the entry under the resolved key
+`Assets/Resources/background-01.png`. The two halves no longer agreed,
+so `Asset<T>("…")` returned `null` with a warning:
+
+```
+[UITKX] Asset not found in registry: "../Resources/background-01.png"
+```
+
+Both emitter pipelines were widened to apply `ResolveAssetPaths` to
+module/hook bodies:
+
+- **Source generator** — `ModuleEmitter.Emit` and `HookEmitter.EmitSingleHook`
+  now call the same shared `EmitContext.ResolveAssetPaths` that powers
+  setup code and JSX attributes. The helper was promoted from a private
+  instance method to an `internal static` so all three emitters share a
+  single implementation (no semantic drift).
+- **HMR** — `HmrHookEmitter.EmitModules` and `HmrHookEmitter.EmitSingleHookBody`
+  now route bodies through `HmrCSharpEmitter.ResolveAssetPaths` (visibility
+  promoted from `private` to `internal`). HMR-recompiled assemblies now
+  produce literal-identical asset strings to source-generated ones.
+
+#### Why these two are related
+
+`.style.uitkx` and `.hooks.uitkx` files are the convergence point. Bug 1
+prevented HMR from ever compiling those files (Parse blew up). Bug 2 meant
+that even when source-gen ran cleanly, the registry lookup still missed
+because the literal stayed unrewritten. Both bugs needed to be fixed for
+`Asset<T>` inside `module` / `hook` blocks to work end-to-end.
+
+#### Tests
+
+Four new regression tests in `SourceGenerator~/Tests/EmitterTests.cs`:
+
+- `Module_AssetCall_RelativePath_IsRewritten` — `./bg.png` → `Assets/UI/bg.png`
+- `Module_AssetCall_DotDotPath_IsRewritten` — the exact failing case
+  (`../Resources/bg.png` → `Assets/Resources/bg.png`)
+- `Module_AssetCall_AbsolutePath_Unchanged` — negative test, no double-prefix
+- `Hook_AssetCall_RelativePath_IsRewritten` — parity for `HookEmitter`
+
+These run on every push, every PR, and before every package publish via
+`.github/workflows/test.yml` and `.github/workflows/publish.yml`, so the
+bug class cannot ship again. **1064/1064 SG** passing.
+
+#### Files touched
+
+- `Editor/HMR/UitkxHmrCompiler.cs` — overload collapse + 11 call-site updates
+- `Editor/HMR/HmrCSharpEmitter.cs` — `ResolveAssetPaths` visibility
+- `Editor/HMR/HmrHookEmitter.cs` — apply asset-path rewrite to hook + module bodies
+- `SourceGenerator~/Emitter/CSharpEmitter.cs` — `ResolveAssetPaths` (and helpers
+  `ResolveRelativePath` / `GetUitkxAssetDir` / `GetProjectRoot`) promoted to
+  pure statics taking `(filePath, diagnostics)` parameters
+- `SourceGenerator~/Emitter/HookEmitter.cs` — wire asset-path rewrite after
+  hook-alias substitution
+- `SourceGenerator~/Emitter/ModuleEmitter.cs` — wire asset-path rewrite for
+  every module body
+- `SourceGenerator~/Tests/EmitterTests.cs` — 4 new regression tests
+
+VS Code **1.1.9 → 1.1.10** · VS 2022 **1.1.9 → 1.1.10** ride the same release.
+
+## [0.4.16] - 2026-05-03
+
+### Fixed — HMR `TargetParameterCountException` + production-grade hardening
+
+A reflection signature drift between the editor-only HMR compiler and the
+loaded `ReactiveUITK.Language.dll` (`UitkxParser.Parse` gained an optional
+`lineOffset` parameter in 0.4.7) caused `TargetParameterCountException` to
+fire on every `.uitkx` save during play mode, swallowed silently into a
+`Debug.LogWarning` and an infinite retry storm. This release fixes the
+immediate symptom and adds two layers of defense so the same class of
+plumbing failure cannot recur silently.
+
+#### Layer 1 — immediate fix
+
+`UitkxHmrCompiler` now passes the trailing `lineOffset = 0` argument to
+both `_uitkxParse.Invoke` sites in `Compile()` and the `parseMarkup`
+delegate. Hot reload of components, hooks, and modules works again
+during play mode.
+
+#### Layer 2 — defensive `InvokeWithDefaults` helper
+
+All six reflective invocations into the language library
+(`DirectiveParser.Parse`, `UitkxParser.Parse`, `CanonicalLowering.LowerToRenderRoots`)
+now route through a new `InvokeWithDefaults(MethodInfo, params object[])`
+helper that pads short argument arrays with each parameter's compile-time
+`DefaultValue`. When padding is actually triggered, a one-time
+`Debug.LogWarning` per `MethodInfo` surfaces silent API drift the next
+time it happens — instead of failing, HMR keeps working with sensible
+defaults and tells you to update the call site.
+
+#### Layer 3 — infrastructure-error classifier + self-disable
+
+`HmrCompileResult` gained a `bool IsInfrastructureError` flag. The
+compiler's catch blocks classify the inner exception type
+(`TargetParameterCountException | MissingMethodException |
+MissingFieldException | TypeLoadException | ReflectionTypeLoadException |
+BadImageFormatException`) and set the flag. `UitkxHmrController` checks
+the flag before its existing CS0103 retry cascade: on the first
+infrastructure failure it emits a single `Debug.LogError` with
+actionable text, then calls `Stop()` (the only safe disable path —
+unhooks events, stops the file watcher, unlocks the assembly-reload
+suppressor, restores `Application.runInBackground`, clears retry
+queues). The user can re-`Start` from the HMR window after rebuilding
+the language library; a `_loggedInfrastructureFailure` gate is reset on
+`Start()` so future sessions get a fresh shot.
+
+User-authored compile errors (`CS0103`, `CS1xxx`, syntax errors) are
+still returned as strings on `result.Error` and follow the existing
+warn + retry cascade — only true infrastructure plumbing failures
+self-disable.
+
+Files changed: [Editor/HMR/UitkxHmrCompiler.cs](Editor/HMR/UitkxHmrCompiler.cs),
+[Editor/HMR/UitkxHmrController.cs](Editor/HMR/UitkxHmrController.cs).
+Source generator, runtime, build, and IDE extension surfaces are
+untouched. All 1060 source-generator tests pass.
+
+## [0.4.15] - 2026-05-03
+
+### Fixed
+
+- **Source generator (CS8323):** the no-props `V.Func` emit branch produced
+  `V.Func(Type.Render, key: "k", child)` when a parameterless user component
+  wrapped element children (e.g. `<MenuPage><HomePage/></MenuPage>`). The
+  named `key:` argument landed at call slot 2 while its natural slot is 3,
+  triggering CS8323 ("Named argument used out-of-position but is followed by
+  an unnamed argument"). Emit now inserts a positional `null` for the IProps
+  `props` slot — `V.Func(Type.Render, null, key: "k", child)` — mirroring the
+  shape already used by the typed-props branch. Zero runtime / IL change
+  (`null` flows through `?? EmptyProps.Instance` exactly as the implicit
+  default did). Patch applied to both the cold-build emitter and the HMR
+  emitter so hot-reload behaves identically. Regression test added
+  ([NoPropsFuncWithChildrenRegressionTest.cs](SourceGenerator~/Tests/NoPropsFuncWithChildrenRegressionTest.cs))
+  recompiles the generated source against a real-shape `V.Func` stub and
+  asserts no CS8323.
+
+## [0.4.14] - 2026-05-03
+
+### Router — React-Router-v6 parity for layout routes, ranking, and DX hooks
+
+This release closes the structural gap between the UITKX router and React Router v6.
+Existing apps continue to work unchanged — every change is additive — but new apps
+can now compose layout routes with `<Outlet/>`, rely on deterministic
+ranking via `<Routes>`, and use the same DX hooks RR users expect.
+
+#### New components
+
+- **`<Outlet/>`** — render-slot for nested routes. A parent `<Route element=...>`
+  with child `<Route>`s now publishes the matched child into context; the
+  descendant `<Outlet/>` renders it. Optional `context` prop is exposed to
+  descendants via `RouterHooks.UseOutletContext<T>()`.
+- **`<Routes>`** — first-match-wins selector. Walks child `<Route>` declarations,
+  ranks them with a port of RR's `rankRouteBranches` / `computeScore` (constants
+  unchanged: `staticSegmentValue=10`, `dynamicSegmentValue=3`, `splatPenalty=-2`,
+  `indexRouteValue=2`, `emptySegmentValue=1`), and renders only the highest-ranked
+  match. Replaces ad-hoc "two routes both matched" foot-guns.
+- **`<NavLink>`** — built-in navigation link with active styling (`activeStyle`,
+  `end`, `caseSensitive`). Activation rules mirror RR exactly, including the
+  `to="/"` special case.
+- **`<Navigate to>`** — declarative redirect. Defaults to `replace=true` so
+  redirects don't grow history. Useful for `<Route path="/" element={<Navigate to="/welcome"/>}/>`.
+
+#### `<Route>` upgrades
+
+- `index="true"` — index routes match the parent pattern exactly (no extra segment).
+  Setting both `index` and `path` now throws an actionable
+  `InvalidOperationException`.
+- `caseSensitive="true"` — opt-in to case-sensitive segment matching for that
+  Route only (default remains case-insensitive for back-compat).
+- **Layout routes** — when both `element=...` and child `<Route>`s are present,
+  `<Route>` now acts as a layout: it ranks the children, publishes the matched
+  child to the descendant `<Outlet/>`, and renders its element wrapper. When no
+  nested `<Route>`s are present, behavior is byte-identical to today.
+
+#### `<Router>` upgrades
+
+- `basename="/app"` — URL prefix the router treats as the application root.
+  Locations are stripped of the prefix on the way in and re-attached on the
+  way out (push/replace).
+- Nested `<Router>` is now a hard error
+  (`InvalidOperationException("UITKX <Router> cannot be nested ...")`)
+  instead of silently shadowing context — mirrors RR's `invariant(!useInRouterContext())`.
+
+#### New hooks (`RouterHooks`)
+
+- `UseOutletContext<T>()` — typed accessor for the value passed via
+  `<Outlet context=...>`.
+- `UseMatches()` — ordered chain of `RouteMatch` from root → current route
+  (breadcrumbs / debug overlays / analytics).
+- `UseResolvedPath(string to)` — pure path resolver against the current
+  navigation base.
+- `UseSearchParams()` — `(IReadOnlyDictionary<string,string> Query, Action<…,bool> Set)`
+  tuple. The setter preserves the path component and replaces only the query.
+- `UsePrompt(bool when, string message = null)` — convenience over `UseBlocker`.
+- `UseNavigate(NavigateOptions options)` — overload returning a path-only
+  navigator pre-bound to `Replace`/`State`. Old `UseNavigate(bool replace = false)`
+  remains for back-compat.
+
+#### Ranker
+
+- New internal `RouteRanker` (port of RR `flattenRoutes` + `rankRouteBranches` +
+  `computeScore`) shared by `<Routes>` and the layout-route flow on `<Route>`.
+  Higher-score routes win; ties break by declaration order.
+
+#### Source generator + HMR
+
+- `Router/Route/Link` alias map de-duplicated. Single source of truth lives at
+  `Shared/Core/Router/RouterTagAliases.cs` and is linked into the source generator
+  via `<Compile Include>`. Adding a new router primitive now touches **one**
+  dictionary entry instead of two. New entries: `Outlet → OutletFunc`,
+  `Routes → RoutesFunc`, `NavLink → NavLinkFunc`, `Navigate → NavigateFunc`.
+
+#### IDE schema
+
+- `ide-extensions~/grammar/uitkx-schema.json` updated with full attribute
+  metadata for the new components. VS Code, Rider, and Visual Studio extensions
+  inherit autocompletion and inline documentation automatically.
+
+#### Tests
+
+- 6 new emission tests in `SourceGenerator~/Tests/EmitterTests.cs` lock the
+  alias map to its expected codegen for every router primitive.
+- 1063 total source-generator tests (was 1057); same 2 pre-existing snapshot
+  failures (PortalsPlayground.uitkx) unrelated to this change.
+
+#### Internals
+
+- `RouteMatcher.Match` now accepts an optional `caseSensitive` parameter
+  (overload preserves the old default-case-insensitive behavior).
+- `RouterPath` gained `BuildQuery`, `StripBasename`, `WithBasename` helpers.
+- `RouterContextKeys` gained `OutletElement`, `OutletContext`, and `MatchChain`.
+- `RouterState` gained `Basename` plus a constructor parameter (default `"/"`).
+- `RouteFuncProps` gained `Index` and `CaseSensitive`. `RouterFuncProps` gained
+  `Basename`. All defaults preserve current behavior.
+
+#### Backward compatibility
+
+Every change is additive. Existing samples (`RouterDemoFunc`, `MainMenuRouterDemoFunc`,
+and downstream user apps) compile and render byte-identically. The only
+behavioral change is:
+- Nested `<Router>` now throws (previously silently shadowed).
+- `<Route index>` with a path now throws (previously silently ignored both).
+
+Both throws replace **silently broken** behavior with **loudly broken** behavior
+and catch real bugs at startup instead of in production.
+
+#### Deferred (intentional)
+
+- **Optional segments (`:lang?`)** — Phase 3.7 in
+  `Plans~/ROUTER_GAP_CLOSURE_PLAN.md`. Requires porting `explodeOptionalSegments`
+  and reworking the ranker's stability ordering; safe to add later as it's purely
+  additive in `RouteMatcher`/`RouteRanker`.
+- **Static analyzer for ambiguous sibling `<Route>` patterns** — Phase 4.2.
+  Best implemented as an AST pass in
+  `ide-extensions~/language-lib/Diagnostics/DiagnosticsAnalyzer.cs` once user
+  reports validate the noise/signal ratio. Until then, wrap competing routes in
+  `<Routes>` to get deterministic first-match-wins behavior.
+
+See `Plans~/ROUTER_GAP_CLOSURE_PLAN.md` and `Plans~/ROUTER_REACT_ROUTER_COMPARISON.md`
+for the full design analysis.
+
+## [0.4.13] - 2026-05-02
+
+### IStyle coverage — 13 missing properties wired end-to-end
+
+Closes the long-standing gap between `UnityEngine.UIElements.IStyle` (Unity
+6.2 floor: 84 properties) and the UITKX style pipeline. All 13 properties
+listed below are now first-class typed setters with full bitmask diffing,
+SetByKey/GetByKey support, pool reset, source-generator literal hoisting,
+HMR mirror, and IDE schema entries. A new xUnit coverage test
+(`IStyleCoverageTests`, 7 facts) locks parity in CI so future Unity
+versions cannot land an unwired property.
+
+#### New typed `Style` properties
+
+- **9-slice (6 props):** `UnitySliceLeft`, `UnitySliceRight`, `UnitySliceTop`,
+  `UnitySliceBottom` (each `StyleInt`), `UnitySliceScale` (`StyleFloat`),
+  `UnitySliceType` (`SliceType` — `Sliced` / `Tiled`).
+- **Clipping:** `UnityOverflowClipBox` (`OverflowClipBox` —
+  `PaddingBox` / `ContentBox`).
+- **Text spacing:** `UnityParagraphSpacing` (`StyleLength`),
+  `WordSpacing` (`StyleLength`).
+- **Text shadow:** `TextShadow` (`TextShadow` struct — offset, blur, color).
+- **Advanced font:** `UnityFontDefinition` (`FontDefinition` — wraps a
+  legacy `Font` or a TextCore `FontAsset`).
+- **Text generator:** `UnityTextGenerator` (`TextGeneratorType` —
+  `Standard` / `Advanced`).
+- **Editor text rendering:** `UnityEditorTextRenderingMode`
+  (`EditorTextRenderingMode` — `SDF` / `Bitmap`; editor-only behaviour).
+
+#### New `CssHelpers` shortcuts
+
+- `SliceFill`, `SliceTile` (SliceType)
+- `ClipPaddingBox`, `ClipContentBox` (OverflowClipBox)
+- `TextGenStandard`, `TextGenAdvanced` (TextGeneratorType)
+- `EditorTextSDF`, `EditorTextBitmap` (EditorTextRenderingMode)
+- `Shadow(dx, dy, blur, color)` → `TextShadow`
+- `FontDef(font)` → `FontDefinition`
+
+#### Fix — 19 pre-existing missing `styleResetters`
+
+While auditing setter/resetter parity, surfaced 19 `IStyle` properties
+that had a `styleSetters` entry but no matching `styleResetters` entry
+(silently leaked previous values when removed from a style block):
+`alignContent`, `alignItems`, `alignSelf`, `backgroundPositionX`,
+`backgroundPositionY`, `backgroundRepeat`, `backgroundSize`,
+`flexDirection`, `flexWrap`, `fontFamily`, `fontSize`, `justifyContent`,
+`position`, `rotate`, `scale`, `textAlign`, `transformOrigin`,
+`translate`, `unityFontStyle`. All now reset to `StyleKeyword.Null`.
+
+#### Internals
+
+- `Style` bit budget extended from 79 to 92 (`_setBits1` bits 15–27;
+  total 128 still in budget).
+- `Style.__Rent()` pool reset now clears `_textShadow` and
+  `_unityFontDefinition` (reference-bearing structs).
+- Source-generator hoisting whitelist (`s_literalCtorTypes` in
+  `CSharpEmitter` and HMR mirror) now accepts `TextShadow` and
+  `FontDefinition` literal initializers — all-literal `Style` blocks
+  with `Css.Shadow(...)` or `Css.FontDef(...)` get lifted to a
+  `private static readonly Style __sty_N` and reused across renders.
+- IDE schema (`uitkx-schema.json`) gained 4 enum value lists:
+  `unitySliceType`, `unityOverflowClipBox`, `unityTextGenerator`,
+  `unityEditorTextRenderingMode`.
+
+#### Documentation
+
+- Styling page property catalog: 13 new property cards across the Text,
+  Enum Styles, Background, and Assets categories.
+- Styling page enum-shortcuts table: 4 new rows (SliceType,
+  OverflowClipBox, TextGeneratorType, EditorTextRenderingMode).
+- Styling page compound-helpers table: 2 new rows (TextShadow,
+  FontDefinition).
+- CssHelpers Reference page: 6 new helper groups.
+- Search index extended with the new property and helper names.
+
+## [0.4.12] - 2026-05-01
+
+### Doom demo — Phase 9 sector-engine release
+
+This release is a non-library update: no UITKX runtime / source-generator /
+IDE changes. Everything below is the `Samples/Components/DoomGame/` demo,
+promoted from a flat 2.5D raycaster to a full sector-portal engine with
+stacked floors, a key-chain progression, a minimap, and a polished status
+bar. Pulled in to demonstrate that UITKX can host a real interactive game
+on top of the typed-props / hoisted-style render pipeline shipped in 0.4.10
+/ 0.4.11.
+
+#### Renderer
+
+- **Sector / portal raycaster (Phase 1–3).** Tile map is converted to a
+  `MapData` of sectors + linedefs at level start; rendering walks portals
+  via a per-ray cliprange (Plan C `winTop`/`winBot` screen-Y window) instead
+  of the old single-cell DDA. Variable floor / ceiling heights, upper /
+  lower wall segments, and sky cells render correctly.
+- **ExtraFloor stacked slabs (Phase 9).** Sectors can carry any number of
+  `ExtraFloor` slabs; the column rasterizer emits front-side and back-side
+  TOP / BOTTOM / SIDE planes per slab and tightens `winTop` / `winBot` per
+  ray so taller slabs further along the ray stay visible. Fixes the
+  long-standing “staircase upper treads disappear behind the lower one”
+  bug — used by Level 6’s 7-step interior staircase.
+- **Z-aware collision (Phase 7).** `MapDef.BlocksMovementZ(footZ, headZ,
+  STEP_HEIGHT)` replaces the binary `BlocksMovement` for slab-aware step-up,
+  jump, and crouch. Player is anchored to the current sector floor unless
+  airborne.
+
+#### Gameplay
+
+- **6 hand-built levels** (`Level1`..`Level6`) in `DoomMaps.uitkx` covering
+  Hangar, Toxin Refinery, Containment Area, Outpost, Phobos Anomaly, and
+  the boss-only finale.
+- **Level 1 progression rebuild.** Hub now gates side wings behind colored
+  doors: pick up the yellow key in the hub center → east wing (red key) →
+  west wing (blue key + shotgun) → north boss room (Baron + Cacodemon).
+  Walls flank every door so they can’t be sidestepped.
+- **Boss-gated exits.** New `LevelStart.BossExitGated` flag plus
+  `GameLogic.AnyBossAlive(ref st)` blocks the level-end trigger until every
+  Baron / Cacodemon is dead, with a “Kill the boss first.” HUD message on
+  attempt.
+- **Walkable exit pads.** New `MapBuilder.ExitPad(x, y)` creates an
+  `Exit`-kind cell with no wall texture and a deep-blue floor (`F_BLUE`),
+  so the back of the boss room reads as a clear visual end-zone instead of
+  the legacy “EXIT” sign block.
+- **Blue-brick back wall** (`W_BRICK_BLUE`) paints the wall behind the
+  Level 1 exit pads to reinforce the end-zone signal.
+
+#### UI
+
+- **Status bar rewrite** (`DoomHUD.uitkx`). 8-panel `FlexGrow`-ratio layout
+  (AMMO / HEALTH / ARMS / FACE / ARMOR / KEYS / BREAKDOWN / INFO) that
+  fills the full 800×90 viewport-bottom region. Per-panel title labels
+  with consistent vertical spacing and `WhiteSpace.NoWrap`. ARMS button
+  group renders 7 weapons in 3 columns with centered justification.
+- **Live minimap** (`DoomMinimap.uitkx`). Top-right overlay, auto-scales to
+  fit the largest map dimension into 160px. Renders walls, color-keyed
+  doors, the exit pad, the player (yellow dot + heading indicator), and
+  every live mobj (red enemies, cyan pickups, key-color keys).
+- **Boss / pickup balance.** Baron HP 800 → 200, Cacodemon HP 400 → 120 so
+  the Level 1 boss can be cleared with a few shotgun blasts.
+
+## [0.4.11] - 2026-04-28
+
+### Performance
+
+- **OPT-V2-1 — JSX children fast-path.** Source generator now emits child
+  arguments directly into `params VirtualNode[]` instead of allocating a
+  transient `__C(...)` wrapper array when the children list is statically
+  simple (no spreads, no conditional fragments, no `@foreach`/`@for`/`@while`
+  collectors). Eliminates one allocation per element on the hot render path.
+- **OPT-V2-2 — Static-style hoisting.** Source generator now hoists
+  `style={new Style{...}}` literals to class-level `static readonly Style`
+  fields whenever every initializer value is a compile-time constant. Handles
+  both setter form (`Width = 5f`) and tuple form (`(StyleKeys.Width, 5f)`).
+  Whitelist covers literals, named-static dotted refs (`StyleKeys.X`,
+  `Color.red`, `Position.Absolute`), and `new T(literal-args)` for
+  `Color`/`Color32`/`Vector*`/`Length`/`TimeValue`/`Rect`/`Quaternion`. The
+  reconciler's existing `SameInstance` check makes the diff walk a no-op when
+  the same hoisted instance is supplied across renders. Falls back to the
+  existing pool-rent path for any non-literal value (state-derived, captures,
+  method calls, instance-member access on locals).
+
+## [0.4.10] - 2026-04-27
+
+### Performance
+
+- **Major reconciler & props pipeline optimization pass.** Brought UITKX from
+  ~1.7× overhead vs. native UIToolkit (28 FPS / 47 FPS at the 3000-box stress
+  benchmark) up to ~78% of native (36–38 FPS). Real apps with partial updates
+  will be much closer to native still. Notable items:
+  - **Typed Props Pipeline** — eliminated ~6,000 dictionary allocations/frame
+    on the props plumbing path (component → reconciler → element adapter).
+  - **Typed Style Pipeline** — eliminated ~21,000 boxing + dictionary
+    allocations/frame; styles now flow through a flat backing-field struct
+    instead of `Dictionary<string, object>`.
+  - **Style & BaseProps object pooling (OPT-16)** — removed ~6,000 object
+    allocations/frame; pool runs at ~99% hit rate at steady state.
+  - **`@foreach` / `@for` / `@while` IIFE closure elimination (OPT-10)** —
+    `return` inside loop bodies rewritten to `__r.Add(...); continue;` so each
+    iteration no longer allocates a delegate closure (~3,000 closures/frame
+    eliminated). Also fixes a pre-existing `break`/`continue` semantics bug in
+    `@for`/`@while` bodies.
+  - **Event handler diff fast-path (OPT-22)** — `_hasEvents` flag on `BaseProps`
+    skips ~43 `DiffEvent` calls per element when neither the previous nor next
+    props carry any handler. ~+2 FPS at 3000 boxes.
+  - **Quick-wins batch (OPT-4/5/7/11/23/24/25/26)** — small per-element wins
+    across BaseProps equality, fragment fast-paths, fiber bailout, deletion
+    tracking, and adapter dispatch.
+
+### Added
+
+- **Doom-style game demo sample** (`Samples/Components/DoomGame/`) — full
+  demo built in UITKX: types, maps, game loop, hooks, styles, and a
+  `DoomGameScreen` / `DoomHUD` / `DoomMainMenu` component split. Editor
+  window: `ReactiveUITK/Demos/Doom Game`.
+- **Pure UI Toolkit comparison harness** — `PureUIToolkitStressTestBootstrap`
+  + editor window for measuring native UIToolkit alongside the UITKX stress
+  test under identical conditions.
+- **`ScrollView` `contentContainer` typed-path styling** — `contentContainer`
+  prop now applies on both `ApplyTypedFull` and `ApplyTypedDiff` paths
+  (previously only the untyped slot path applied it).
+- **Typed Props for editor field types** — `BoundsField`, `BoundsIntField`,
+  `ColorField`, `DoubleField`, `DropdownField`, `EnumField`, `EnumFlagsField`,
+  `FloatField`, `Foldout`, `GroupBox`, `Hash128Field`, `HelpBox`, `Image`,
+  `IntegerField`, `LongField`, `MinMaxSlider`, `MultiColumnListView`,
+  `MultiColumnTreeView`, `ObjectField`, `ProgressBar`, `PropertyInspector`,
+  `RadioButton`/`RadioButtonGroup`, `RectField`/`RectIntField`,
+  `RepeatButton`, `Scroller`, `Slider`/`SliderInt`, `Tab`/`TabView`,
+  `TemplateContainer`, `TextElement`, `TextField`, `ToggleButtonGroup`,
+  `Toggle`, `Toolbar`, `TreeView`, `UnsignedIntegerField`/`UnsignedLongField`,
+  `Vector2Field`/`Vector2IntField`/`Vector3Field`/`Vector3IntField`/`Vector4Field`,
+  `IMGUIContainer`. All wired through `TypedPropsApplier` with full diff
+  support.
+
+### Changed
+
+- **Source generator diagnostic IDs unified with live analyzer.** Seven
+  diagnostics now use the analyzer's canonical IDs so the same logical issue
+  surfaces with the same code in both the Unity Console (source generator) and
+  the VS Code Problems pane (live analyzer):
+
+  | Concept | Old (source-gen) | New (aligned) |
+  |---|---|---|
+  | `@component` name ≠ filename | `UITKX0006` | `UITKX0103` |
+  | Unknown attribute on element | `UITKX0002` | `UITKX0109` |
+  | Element inside loop missing `key` | `UITKX0009` | `UITKX0106` |
+  | Duplicate sibling key | `UITKX0010` | `UITKX0104` |
+  | Multiple root elements | `UITKX0017` | `UITKX0108` |
+  | Asset path not found | `UITKX0022` | `UITKX0120` |
+  | Asset type mismatch | `UITKX0023` | `UITKX0121` |
+
+  Diagnostic text and severity are unchanged. Migrate any explicit ID
+  references (e.g. CI grep rules) to the new codes.
+- **Initial `CreateRoot` render is now synchronous.** The first render +
+  commit phase runs to completion before `CreateRoot` returns, so the host
+  container never appears empty for one frame between `Clear()` and the
+  first commit. Mirrors React 18's `createRoot().render()` behaviour:
+  initial mount is always synchronous; time-slicing is reserved for
+  subsequent state-driven updates. Passive effects are still scheduled
+  asynchronously.
+
+### Removed
+
+- **Dead `FiberNode.ContextProviderId` field.** The field had no production
+  reads — it was only assigned in `CloneForReuse` and ignored by every
+  consumer. Removing it slightly reduces the per-fiber memory footprint.
+- **`VirtualNode` object pooling fully reverted.** VNode references can
+  appear inside opaque `IProps` payloads (e.g. `Route.Element` and any
+  slot-like prop), so pool returns produced dangling pointers and
+  cross-wired component trees. VNodes are now plain GC heap objects.
+
+### Fixed
+
+- **Cross-wired Style / BaseProps "disco" bug.** A pooled `Style` or
+  `BaseProps` instance could be scheduled for return twice in the same
+  flush window — once during render-phase bailout and again from the
+  commit-phase update — causing it to be pushed into the pool twice and
+  then re-rented to two different fibers, which then mutated each other's
+  styles. Fixed by adding an idempotent `_isPendingReturn` guard on both
+  pools and by removing the render-phase pool-return entirely (the leak
+  is bounded — the unused instance is collected when the owning component
+  re-renders).
+- **`<ErrorBoundary>` stuck on its fallback after `resetKey` change.**
+  `CloneFromCurrent` was copying `ErrorBoundaryResetKey` from the previous
+  fiber, so the clone always equalled the current and the change was never
+  observed. The reset key is now refreshed from the new VNode and marked
+  consumed against the alternate inside `UpdateErrorBoundary`.
+- **`<Portal target={x}>` ignored target-prop changes.** When a portal's
+  `target` prop pointed at a new container between renders, the bailout
+  clone kept the previous `PortalTarget` / `HostElement`. Both now refresh
+  from the new VNode.
+- **Universal deletion tracking in `BeginWork`.** Function components
+  (`ReconcileSingleChild`, null-return deletion) and fragments call into
+  the reconciliation path directly, bypassing the wrapper that set
+  `_hasDeletions`. Tracking now lives at the single universal `BeginWork`
+  exit, covering every code path.
+- **Diagnostic-test IDs realigned with renumbered codes.** The
+  `UITKX0009_ForeachMissingKey` / `UITKX0010_DuplicateSiblingKey` /
+  `UITKX0010_NotFiredForUniqueKeys` source-generator tests asserted the
+  pre-renumber IDs and silently failed; now assert the canonical
+  `UITKX0106` / `UITKX0104` codes.
+- **Stray VS Code extension activation logging.** The extension previously
+  logged `chatHistory` / `globalState.keys()` on every activation — leftover
+  scaffolding from an unrelated experiment. Removed.
+- **`RS2008` build warning in the language server.** Suppressed the
+  "enable analyzer release tracking" warning, which targets analyzer NuGet
+  packages, not the LSP server EXE.
+- **Galaga sample dead code.** Removed unused `int beamH` local in
+  `GameScreen.uitkx`.
+
+## [0.4.9] - 2026-04-18
+
+### Added
+- **Galaga game demo** — full arcade-style Galaga game sample built entirely in UITKX. Features sprite-sheet rendering, entry wave formations with configurable delays, dive attacks with enemy shooting, tractor beam capture/release mechanics, dual-ship mode, multi-wave progression, and game-over/restart flow
+
 ## [0.4.8] - 2026-04-18
 
 ### Added

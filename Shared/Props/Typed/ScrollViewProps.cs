@@ -11,6 +11,23 @@ namespace ReactiveUITK.Props.Typed
         public ScrollerVisibility? HorizontalScrollerVisibility { get; set; }
         public Vector2? ScrollOffset { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ScrollViewProps o)
+                return false;
+            if (Mode != o.Mode)
+                return false;
+            if (VerticalScrollerVisibility != o.VerticalScrollerVisibility)
+                return false;
+            if (HorizontalScrollerVisibility != o.HorizontalScrollerVisibility)
+                return false;
+            if (ScrollOffset != o.ScrollOffset)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -31,6 +48,19 @@ namespace ReactiveUITK.Props.Typed
                 dict["scrollOffset"] = ScrollOffset.Value;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            Mode = null;
+            VerticalScrollerVisibility = null;
+            HorizontalScrollerVisibility = null;
+            ScrollOffset = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ScrollViewProps>.Return(this);
         }
     }
 }

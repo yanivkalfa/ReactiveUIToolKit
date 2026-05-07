@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -142,6 +143,162 @@ namespace ReactiveUITK.Elements
             DiffSlot(textFieldElement, previous, next, "input");
             DiffSlot(textFieldElement, previous, next, "textElement");
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is TextField tf && props is TextFieldProps tp)
+            {
+                if (tp.Value != null)
+                    tf.value = tp.Value;
+                if (tp.Multiline.HasValue)
+                    tf.multiline = tp.Multiline.Value;
+                if (tp.Password.HasValue)
+                    SetPasswordField(tf, tp.Password.Value);
+                if (tp.ReadOnly.HasValue)
+                    tf.isReadOnly = tp.ReadOnly.Value;
+                if (tp.MaxLength.HasValue)
+                    tf.maxLength = tp.MaxLength.Value;
+                if (tp.Placeholder != null)
+                {
+                    try
+                    {
+                        tf.textEdition.placeholder = tp.Placeholder;
+                    }
+                    catch
+                    {
+                        SetTextEditionPlaceholder(tf, tp.Placeholder);
+                    }
+                }
+                if (tp.HidePlaceholderOnFocus.HasValue)
+                {
+                    try
+                    {
+                        tf.textEdition.hidePlaceholderOnFocus = tp.HidePlaceholderOnFocus.Value;
+                    }
+                    catch
+                    {
+                        SetTextEditionHideOnFocus(tf, tp.HidePlaceholderOnFocus.Value);
+                    }
+                }
+                if (tp.OnChange != null)
+                    PropsApplier.ApplySingle(element, null, "onChange", tp.OnChange);
+                if (tp.OnChangeCapture != null)
+                    PropsApplier.ApplySingle(element, null, "onChangeCapture", tp.OnChangeCapture);
+                if (tp.Label is Dictionary<string, object> labelMap)
+                {
+                    var labelEl = ResolveSlotElement(tf, "label");
+                    if (labelEl != null)
+                        PropsApplier.Apply(labelEl, labelMap);
+                }
+                if (tp.Input is Dictionary<string, object> inputMap)
+                {
+                    var inputEl = ResolveSlotElement(tf, "input");
+                    if (inputEl != null)
+                        PropsApplier.Apply(inputEl, inputMap);
+                }
+                if (tp.TextElement is Dictionary<string, object> textElemMap)
+                {
+                    var textEl = ResolveSlotElement(tf, "textElement");
+                    if (textEl != null)
+                        PropsApplier.Apply(textEl, textElemMap);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is TextField tf && prev is TextFieldProps tp && next is TextFieldProps tn)
+            {
+                if (tp.Value != tn.Value)
+                    tf.value = tn.Value ?? string.Empty;
+                if (tp.Multiline != tn.Multiline && tn.Multiline.HasValue)
+                    tf.multiline = tn.Multiline.Value;
+                if (tp.Password != tn.Password && tn.Password.HasValue)
+                    SetPasswordField(tf, tn.Password.Value);
+                if (tp.ReadOnly != tn.ReadOnly && tn.ReadOnly.HasValue)
+                    tf.isReadOnly = tn.ReadOnly.Value;
+                if (tp.MaxLength != tn.MaxLength && tn.MaxLength.HasValue)
+                    tf.maxLength = tn.MaxLength.Value;
+                if (tp.Placeholder != tn.Placeholder)
+                {
+                    string value = tn.Placeholder ?? string.Empty;
+                    try
+                    {
+                        tf.textEdition.placeholder = value;
+                    }
+                    catch
+                    {
+                        SetTextEditionPlaceholder(tf, value);
+                    }
+                }
+                if (tp.HidePlaceholderOnFocus != tn.HidePlaceholderOnFocus)
+                {
+                    bool value = tn.HidePlaceholderOnFocus ?? false;
+                    try
+                    {
+                        tf.textEdition.hidePlaceholderOnFocus = value;
+                    }
+                    catch
+                    {
+                        SetTextEditionHideOnFocus(tf, value);
+                    }
+                }
+                if (tp.OnChange != tn.OnChange)
+                {
+                    if (tn.OnChange != null)
+                        PropsApplier.ApplySingle(element, tp.OnChange, "onChange", tn.OnChange);
+                    else if (tp.OnChange != null)
+                        PropsApplier.RemoveProp(element, "onChange", tp.OnChange);
+                }
+                if (tp.OnChangeCapture != tn.OnChangeCapture)
+                {
+                    if (tn.OnChangeCapture != null)
+                        PropsApplier.ApplySingle(
+                            element,
+                            tp.OnChangeCapture,
+                            "onChangeCapture",
+                            tn.OnChangeCapture
+                        );
+                    else if (tp.OnChangeCapture != null)
+                        PropsApplier.RemoveProp(element, "onChangeCapture", tp.OnChangeCapture);
+                }
+                if (!ReferenceEquals(tp.Label, tn.Label))
+                {
+                    var labelEl = ResolveSlotElement(tf, "label");
+                    if (labelEl != null)
+                    {
+                        if (tp.Label != null && tn.Label != null)
+                            PropsApplier.ApplyDiff(labelEl, tp.Label, tn.Label);
+                        else if (tn.Label != null)
+                            PropsApplier.Apply(labelEl, tn.Label);
+                    }
+                }
+                if (!ReferenceEquals(tp.Input, tn.Input))
+                {
+                    var inputEl = ResolveSlotElement(tf, "input");
+                    if (inputEl != null)
+                    {
+                        if (tp.Input != null && tn.Input != null)
+                            PropsApplier.ApplyDiff(inputEl, tp.Input, tn.Input);
+                        else if (tn.Input != null)
+                            PropsApplier.Apply(inputEl, tn.Input);
+                    }
+                }
+                if (!ReferenceEquals(tp.TextElement, tn.TextElement))
+                {
+                    var textEl = ResolveSlotElement(tf, "textElement");
+                    if (textEl != null)
+                    {
+                        if (tp.TextElement != null && tn.TextElement != null)
+                            PropsApplier.ApplyDiff(textEl, tp.TextElement, tn.TextElement);
+                        else if (tn.TextElement != null)
+                            PropsApplier.Apply(textEl, tn.TextElement);
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
 
         private static void ApplyPlaceholder(

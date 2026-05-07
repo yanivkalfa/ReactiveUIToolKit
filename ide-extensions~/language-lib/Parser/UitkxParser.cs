@@ -46,7 +46,7 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         private readonly int _lineOffset;
 
-        // ΓöÇΓöÇ Construction ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Construction ──────────────────────────────────────────────────────
 
         private UitkxParser(
             string source,
@@ -66,7 +66,7 @@ namespace ReactiveUITK.Language.Parser
             _lineOffset = lineOffset;
         }
 
-        // ΓöÇΓöÇ Public entry point ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Public entry point ────────────────────────────────────────────────
 
         /// <summary>
         /// Parses the markup section (everything at or after
@@ -102,10 +102,10 @@ namespace ReactiveUITK.Language.Parser
             return nodes.ToImmutableArray();
         }
 
-        // ΓöÇΓöÇ Control block body parsing ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Control block body parsing ───────────────────────────────────────
 
         /// <summary>
-        /// Parsed result of a control block body ΓÇö the entire body is kept as
+        /// Parsed result of a control block body — the entire body is kept as
         /// raw C# code, with JSX ranges identified for later splicing.
         /// </summary>
         private readonly struct ControlBlockBody
@@ -166,7 +166,7 @@ namespace ReactiveUITK.Language.Parser
             int closeBrace = ReturnFinder.FindMatchingBrace(_source, openBracePos, _source.Length);
             if (closeBrace < 0)
             {
-                // Unbalanced ΓÇö skip to best-effort end
+                // Unbalanced — skip to best-effort end
                 while (!_scanner.IsEof && _scanner.Current != '}')
                     _scanner.Advance();
                 _scanner.TryConsume('}');
@@ -324,7 +324,7 @@ namespace ReactiveUITK.Language.Parser
                     return ImmutableArray<AstNode>.Empty;
                 }
 
-                // return <Tag/> ΓÇö bare JSX return, parse from the JSX start
+                // return <Tag/> — bare JSX return, parse from the JSX start
                 int jsxStart = bodyStart + openParen + 1; // synthesized: openParen+1 == jsxStart
                 int jsxEnd = bodyStart + closeParen;      // synthesized: closeParen == jsxEnd
                 int jsxLine = ReturnFinder.LineAtPos(_source, jsxStart) + _lineOffset;
@@ -338,7 +338,7 @@ namespace ReactiveUITK.Language.Parser
                 }
             }
 
-            // No return found ΓÇö try parsing entire body as markup
+            // No return found — try parsing entire body as markup
             // (handles bare <Element/> in body without explicit return)
             if (bodyCode.IndexOf('<') >= 0)
             {
@@ -405,7 +405,7 @@ namespace ReactiveUITK.Language.Parser
             }
         }
 
-        // ΓöÇΓöÇ Content loop ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Content loop ──────────────────────────────────────────────────────
 
         /// <summary>
         /// Parses zero or more nodes until a stop condition is met.
@@ -432,11 +432,11 @@ namespace ReactiveUITK.Language.Parser
                 int positionBefore = _scanner.Pos;
                 char c = _scanner.Current;
 
-                // ΓöÇΓöÇ Stop: bare '}' ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Stop: bare '}' ──────────────────────────────────────────
                 if (stopAtBrace && c == '}')
                     break;
 
-                // ΓöÇΓöÇ Stop: @case / @default inside @switch content ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Stop: @case / @default inside @switch content ───────────
                 if (stopAtCase && c == '@')
                 {
                     string? kw = PeekDirectiveKeyword();
@@ -444,7 +444,7 @@ namespace ReactiveUITK.Language.Parser
                         break;
                 }
 
-                // ΓöÇΓöÇ Stop: matching closing tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Stop: matching closing tag ──────────────────────────────
                 if (c == '<' && PeekChar(1) == '/')
                 {
                     string closing = PeekClosingTagName();
@@ -453,17 +453,17 @@ namespace ReactiveUITK.Language.Parser
                         || string.Equals(closing, stopTag, StringComparison.Ordinal)
                     )
                         break;
-                    // Closing tag does not match expected ΓÇö emit error and skip '<'
+                    // Closing tag does not match expected — emit error and skip '<'
                     _diagnostics.Add(ErrMismatchedTag(closing, stopTag ?? "?", _scanner.Line));
                     _scanner.Advance();
                     continue;
                 }
 
-                // ΓöÇΓöÇ HTML comment <!-- ... --> ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── HTML comment <!-- ... --> ───────────────────────────────
                 if (_scanner.TrySkipHtmlComment())
                     continue;
 
-                // ΓöÇΓöÇ Line comment // ... or block comment /* ... */ ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Line comment // ... or block comment /* ... */ ───────────
                 if (c == '/')
                 {
                     int commentLine = _scanner.Line;
@@ -479,7 +479,7 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
-                // ΓöÇΓöÇ Child expression {expr} ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Child expression {expr} ─────────────────────────────────
                 if (c == '{')
                 {
                     int exprLine = _scanner.Line;
@@ -500,7 +500,7 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                // ΓöÇΓöÇ Opening element <Tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Opening element <Tag ────────────────────────────────────
                 if (c == '<' && PeekChar(1) != '/')
                 {
                     var elem = ParseElement();
@@ -509,7 +509,7 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                // ΓöÇΓöÇ Directive / control flow / inline @(expr) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Directive / control flow / inline @(expr) ───────────────
                 if (c == '@')
                 {
                     int atLine = _scanner.Line;
@@ -610,7 +610,7 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                // ΓöÇΓöÇ Text content ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                // ── Text content ────────────────────────────────────────────
                 if (c == '>')
                 {
                     _scanner.Advance(); // stray '>'
@@ -629,7 +629,7 @@ namespace ReactiveUITK.Language.Parser
             return nodes;
         }
 
-        // ΓöÇΓöÇ Element ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Element ───────────────────────────────────────────────────────────
 
         private ElementNode? ParseElement()
         {
@@ -638,7 +638,7 @@ namespace ReactiveUITK.Language.Parser
             _scanner.Advance(); // consume '<'
             _scanner.SkipInlineWhitespace();
 
-            // <></> short-hand fragment ΓÇö empty tag name maps to V.Fragment in the emitter.
+            // <></> short-hand fragment — empty tag name maps to V.Fragment in the emitter.
             if (_scanner.TryConsume('>'))
             {
                 var fragmentChildren = ParseContent(
@@ -741,7 +741,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ΓöÇΓöÇ Attributes ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Attributes ────────────────────────────────────────────────────────
 
         private ImmutableArray<AttributeNode> ParseAttributes()
         {
@@ -753,7 +753,7 @@ namespace ReactiveUITK.Language.Parser
                 if (_scanner.IsAt("/>") || _scanner.Current == '>' || _scanner.IsEof)
                     break;
 
-                // JSX block comment inside an attribute list: {/* ΓÇª */}
+                // JSX block comment inside an attribute list: {/* … */}
                 // Skip the entire comment so its contents are never interpreted as attributes.
                 if (_scanner.IsAt("{/*"))
                 {
@@ -765,7 +765,7 @@ namespace ReactiveUITK.Language.Parser
                 }
 
                 // A '@' or '<' at this level means a control-flow directive or child
-                // element ΓÇö the opening '>' was never written.  Stop here so the caller
+                // element — the opening '>' was never written.  Stop here so the caller
                 // continues parsing normally rather than consuming the rest of the file
                 // as attribute content.
                 if (_scanner.Current == '@' || _scanner.Current == '<')
@@ -863,7 +863,7 @@ namespace ReactiveUITK.Language.Parser
             return attrs.ToImmutableArray();
         }
 
-        // ΓöÇΓöÇ @if ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── @if ───────────────────────────────────────────────────────────────
 
         private IfNode? ParseIf(int startLine, int startCol)
         {
@@ -985,7 +985,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ΓöÇΓöÇ @for ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── @for ──────────────────────────────────────────────────────────────
 
         private ForNode? ParseFor(int startLine, int startCol)
         {
@@ -1024,7 +1024,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ΓöÇΓöÇ @while ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── @while ────────────────────────────────────────────────────────────
 
         private WhileNode? ParseWhile(int startLine, int startCol)
         {
@@ -1063,7 +1063,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ΓöÇΓöÇ @foreach ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── @foreach ──────────────────────────────────────────────────────────
 
         private ForeachNode? ParseForeach(int startLine, int startCol)
         {
@@ -1118,7 +1118,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ΓöÇΓöÇ @switch ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── @switch ───────────────────────────────────────────────────────────
 
         private SwitchNode? ParseSwitch(int startLine, int startCol)
         {
@@ -1186,7 +1186,7 @@ namespace ReactiveUITK.Language.Parser
                     }
                     _scanner.TryConsume(':');
 
-                    // Find the end of this case body ΓÇö the next @case/@default at depth 0
+                    // Find the end of this case body — the next @case/@default at depth 0
                     // or the switch closing brace.
                     int caseBodyStart = _scanner.Pos;
                     int caseBodyEnd = switchCloseBrace >= 0 ? switchCloseBrace : _source.Length;
@@ -1278,7 +1278,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ΓöÇΓöÇ Single element parsing (used by VDG and semantic tokens) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Single element parsing (used by VDG and semantic tokens) ──────
 
         /// <summary>
         /// Parses a single element from an arbitrary position in <paramref name="source"/>
@@ -1338,7 +1338,7 @@ namespace ReactiveUITK.Language.Parser
             return col;
         }
 
-        // ΓöÇΓöÇ Peek / advance helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── Peek / advance helpers ────────────────────────────────────────────
 
         /// <summary>
         /// Returns the character at <c>_scanner.Pos + offset</c> without advancing,
@@ -1384,7 +1384,7 @@ namespace ReactiveUITK.Language.Parser
 
         /// <summary>
         /// Returns the directive keyword immediately after a leading '@' at the
-        /// current scanner position ΓÇö without consuming anything.
+        /// current scanner position — without consuming anything.
         /// Returns <c>null</c> if the current char is not '@'.
         /// </summary>
         private string? PeekDirectiveKeyword()
@@ -1540,7 +1540,7 @@ namespace ReactiveUITK.Language.Parser
             ConsumeOptionalDirectiveTerminator();
         }
 
-        // ΓöÇΓöÇ ParseDiagnostic factory helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+        // ── ParseDiagnostic factory helpers ───────────────────────────────────
 
         private ParseDiagnostic ErrUnexpectedToken(
             string got,

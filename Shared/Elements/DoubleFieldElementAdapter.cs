@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -93,6 +94,79 @@ namespace ReactiveUITK.Elements
                 if (input != null)
                     PropsApplier.Apply(input, viMap);
             }
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is DoubleField field && props is DoubleFieldProps fp)
+            {
+                if (fp.Value.HasValue)
+                    field.value = fp.Value.Value;
+                if (fp.OnChange != null)
+                    PropsApplier.ApplySingle(element, null, "onChange", fp.OnChange);
+                if (fp.OnChangeCapture != null)
+                    PropsApplier.ApplySingle(element, null, "onChangeCapture", fp.OnChangeCapture);
+                if (fp.Label != null && field.labelElement != null)
+                    PropsApplier.Apply(field.labelElement, fp.Label);
+                if (fp.VisualInput != null)
+                {
+                    var input = field.Q<VisualElement>(className: "unity-base-field__input");
+                    if (input != null)
+                        PropsApplier.Apply(input, fp.VisualInput);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is DoubleField field
+                && prev is DoubleFieldProps fp
+                && next is DoubleFieldProps fn
+            )
+            {
+                if (fp.Value != fn.Value && fn.Value.HasValue)
+                    field.value = fn.Value.Value;
+                if (fp.OnChange != fn.OnChange)
+                {
+                    if (fn.OnChange != null)
+                        PropsApplier.ApplySingle(element, fp.OnChange, "onChange", fn.OnChange);
+                    else if (fp.OnChange != null)
+                        PropsApplier.RemoveProp(element, "onChange", fp.OnChange);
+                }
+                if (fp.OnChangeCapture != fn.OnChangeCapture)
+                {
+                    if (fn.OnChangeCapture != null)
+                        PropsApplier.ApplySingle(
+                            element,
+                            fp.OnChangeCapture,
+                            "onChangeCapture",
+                            fn.OnChangeCapture
+                        );
+                    else if (fp.OnChangeCapture != null)
+                        PropsApplier.RemoveProp(element, "onChangeCapture", fp.OnChangeCapture);
+                }
+                if (!ReferenceEquals(fp.Label, fn.Label) && field.labelElement != null)
+                {
+                    if (fp.Label != null && fn.Label != null)
+                        PropsApplier.ApplyDiff(field.labelElement, fp.Label, fn.Label);
+                    else if (fn.Label != null)
+                        PropsApplier.Apply(field.labelElement, fn.Label);
+                }
+                if (!ReferenceEquals(fp.VisualInput, fn.VisualInput))
+                {
+                    var input = field.Q<VisualElement>(className: "unity-base-field__input");
+                    if (input != null)
+                    {
+                        if (fp.VisualInput != null && fn.VisualInput != null)
+                            PropsApplier.ApplyDiff(input, fp.VisualInput, fn.VisualInput);
+                        else if (fn.VisualInput != null)
+                            PropsApplier.Apply(input, fn.VisualInput);
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

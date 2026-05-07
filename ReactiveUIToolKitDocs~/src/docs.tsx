@@ -7,6 +7,8 @@ import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
 import { UitkxAPIPage } from './pages/UITKX/API/UitkxAPIPage'
 import { UitkxComponentReferencePage } from './pages/UITKX/Components/UitkxComponentReferencePage'
 import { UitkxComponentsPage } from './pages/UITKX/Components/UitkxComponentsPage'
+import { VideoPage } from './pages/Components/Video/VideoPage'
+import { AudioPage } from './pages/Components/Audio/AudioPage'
 import { CompanionFilesPage } from './pages/UITKX/CompanionFiles/CompanionFilesPage'
 import { UitkxConceptsPage } from './pages/UITKX/Concepts/UitkxConceptsPage'
 import { UitkxConfigPage } from './pages/UITKX/Config/UitkxConfigPage'
@@ -108,8 +110,8 @@ export const sections: DocSection[] = [
         canonicalId: 'styling',
         title: 'Styling',
         path: '/styling',
-        keywords: ['style', 'css', 'typed', 'CssHelpers', 'StyleKeys', 'layout', 'colors', 'flexbox'],
-        searchContent: 'styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px StyleAuto StyleNone StyleInitial length units color helpers Hex Rgba enum shortcuts FlexDirection FlexRow FlexColumn JustifyContent JustifyCenter AlignItems AlignCenter AlignStretch JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly Position PosAbsolute PosRelative Display DisplayFlex DisplayNone Visibility VisHidden VisVisible Overflow OverflowHidden WhiteSpace WsNowrap WsNormal TextOverflow TextClip TextEllipsis TextAnchor FontStyle FontBold FontNormal StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor Color BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BgRepeatNone BgRepeatBoth BackgroundSize BgSizeCover BgSizeContain BackgroundPosition BgPosCenter TransformOrigin OriginCenter Origin Rotate Scale Translate Xlate EasingFunction Ease EaseInOut typed properties tuple syntax escape hatch StyleKeys backward compatible property reference compound struct factories',
+        keywords: ['style', 'css', 'typed', 'CssHelpers', 'StyleKeys', 'layout', 'colors', 'flexbox', '9-slice', 'TextShadow', 'FontDefinition'],
+        searchContent: 'styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px StyleAuto StyleNone StyleInitial length units color helpers Hex Rgba enum shortcuts FlexDirection FlexRow FlexColumn JustifyContent JustifyCenter AlignItems AlignCenter AlignStretch JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly Position PosAbsolute PosRelative Display DisplayFlex DisplayNone Visibility VisHidden VisVisible Overflow OverflowHidden WhiteSpace WsNowrap WsNormal TextOverflow TextClip TextEllipsis TextAnchor FontStyle FontBold FontNormal StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor Color BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BgRepeatNone BgRepeatBoth BackgroundSize BgSizeCover BgSizeContain BackgroundPosition BgPosCenter TransformOrigin OriginCenter Origin Rotate Scale Translate Xlate EasingFunction Ease EaseInOut typed properties tuple syntax escape hatch StyleKeys backward compatible property reference compound struct factories UnitySliceLeft UnitySliceRight UnitySliceTop UnitySliceBottom UnitySliceScale UnitySliceType SliceType SliceFill SliceTile sliced tiled 9-slice nine-slice UnityOverflowClipBox OverflowClipBox ClipPaddingBox ClipContentBox padding-box content-box UnityParagraphSpacing WordSpacing TextShadow Shadow drop shadow UnityFontDefinition FontDefinition FontDef TextCore UnityTextGenerator TextGeneratorType TextGenStandard TextGenAdvanced UnityEditorTextRenderingMode EditorTextRenderingMode EditorTextSDF EditorTextBitmap',
         element: () => <StylingPage />,
       },
     ],
@@ -155,11 +157,11 @@ export const sections: DocSection[] = [
       keywords: page.keywords,
       group: page.group,
       sinceUnity: page.sinceUnity,
-      element: () => (
-        <UitkxComponentReferencePage
-          title={page.title}
-        />
-      ),
+      element: () => {
+        if (page.title === 'Video') return <VideoPage />
+        if (page.title === 'Audio') return <AudioPage />
+        return <UitkxComponentReferencePage title={page.title} />
+      },
     })),
   },
   {
@@ -201,8 +203,8 @@ export const sections: DocSection[] = [
         canonicalId: 'router',
         title: 'Router',
         path: '/tooling/router',
-        keywords: ['router', 'routes', 'navigation'],
-        searchContent: 'router lightweight in-memory router inspired by react router routing authored directly in markup Router Route links routed child components Router establishes routing context subtree Route matches paths render elements RouterHooks setup code imperative navigation history IRouterHistory MemoryHistory custom history UseNavigate pushes replaces locations UseGo UseCanGo back forward UseLocationInfo UseParams UseQuery UseNavigationState UseRouteMatch UseNavigationBase expose active routed data UseBlocker intercept transitions unsaved guarded state nested routes relative paths outlets parent match declarative route composition imperative helpers RouterNavLink Link vs RouterNavLink',
+        keywords: ['router', 'routes', 'navigation', 'outlet', 'navlink', 'navigate', 'redirect', 'basename', 'index route', 'layout route'],
+        searchContent: 'router lightweight in-memory router inspired by react router v6 routing authored directly in markup Router Route Routes Outlet NavLink Navigate links routed child components Router establishes routing context subtree basename URL prefix application root strip re-attach Routes ranks child routes first-match-wins ranking algorithm staticSegmentValue dynamicSegmentValue splatPenalty indexRouteValue emptySegmentValue declaration order tie break Route matches paths render elements index route caseSensitive layout route element wrapper Outlet render slot OutletContext UseOutletContext typed context descendants NavLink active state styling activeStyle end caseSensitive RouterNavLink legacy alias Navigate declarative redirect replace state RouterHooks setup code imperative navigation history IRouterHistory MemoryHistory custom history UseNavigate pushes replaces locations NavigateOptions overload UseGo UseCanGo back forward UseLocation UseLocationInfo UseParams UseQuery UseSearchParams query setter preserves path UseNavigationState UseRouteMatch UseMatches breadcrumbs match chain debug overlays analytics UseNavigationBase UseResolvedPath pure path resolver UseOutletContext expose active routed data UseBlocker UsePrompt confirmation dialog intercept transitions unsaved guarded state nested routes relative paths outlets parent match declarative route composition imperative helpers RouteRanker rankRouteBranches computeScore RR-v6 parity RouterTagAliases InvalidOperationException nested Router hard error Link vs NavLink V.Link factory',
         element: () => <UitkxRouterPage />,
       },
       {
@@ -304,7 +306,7 @@ export const sections: DocSection[] = [
         title: 'API Reference',
         path: '/api',
         keywords: ['api', 'hooks', 'runtime', 'namespaces'],
-        searchContent: 'api reference map namespaces types core V V.Func VirtualNode Hooks UseState UseReducer UseEffect UseLayoutEffect UseMemo UseCallback UseRef UseContext ProvideContext UseDeferredValue UseImperativeHandle UseStableFunc UseStableAction UseStableCallback UseSignal StateSetterExtensions ToValueAction RootRenderer RenderScheduler EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign props typed ButtonProps LabelProps ListViewProps ScrollViewProps Style StyleKeys Router RouterHooks UseRouter UseLocation UseLocationInfo UseParams UseQuery UseNavigationState UseNavigate UseGo UseCanGo UseBlocker IRouterHistory MemoryHistory RouterLocation RouterPath RouteMatch SignalFactory Signal Subscribe Set Dispatch SignalsRuntime animation UseAnimate UseTweenFloat AnimateTrack safe area UseSafeArea SafeAreaInsets VisualElementSafe editor EditorRootRendererUtility EditorRenderScheduler elements ElementRegistry ElementRegistryProvider',
+        searchContent: 'api reference map namespaces types core V V.Func VirtualNode Hooks UseState UseReducer UseEffect UseLayoutEffect UseMemo UseCallback UseRef UseContext ProvideContext UseDeferredValue UseImperativeHandle UseStableFunc UseStableAction UseStableCallback UseSignal StateSetterExtensions ToValueAction RootRenderer RenderScheduler EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign props typed ButtonProps LabelProps ListViewProps ScrollViewProps Style StyleKeys Router Route Routes Outlet NavLink Navigate Link RouterHooks UseRouter UseLocation UseLocationInfo UseParams UseQuery UseSearchParams UseNavigationState UseNavigate NavigateOptions UseGo UseCanGo UseBlocker UsePrompt UseRouteMatch UseMatches UseNavigationBase UseResolvedPath UseOutletContext IRouterHistory MemoryHistory RouterLocation RouterPath RouteMatch RouteRanker SignalFactory Signal Subscribe Set Dispatch SignalsRuntime animation UseAnimate UseTweenFloat AnimateTrack safe area UseSafeArea SafeAreaInsets VisualElementSafe editor EditorRootRendererUtility EditorRenderScheduler elements ElementRegistry ElementRegistryProvider',
         element: () => <UitkxAPIPage />,
       },
       {
@@ -321,8 +323,8 @@ export const sections: DocSection[] = [
         canonicalId: 'csshelpers-reference',
         title: 'CssHelpers Reference',
         path: '/api/csshelpers',
-        keywords: ['CssHelpers', 'Pct', 'Px', 'Hex', 'Rgba', 'FlexRow', 'easing'],
-        searchContent: 'csshelpers reference static shortcuts Pct Px StyleAuto StyleNone StyleInitial FlexRow FlexColumn FlexRowReverse FlexColumnReverse JustifyStart JustifyEnd JustifyCenter JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly AlignStart AlignEnd AlignCenter AlignStretch WrapOn WrapOff WrapReverse PosRelative PosAbsolute DisplayFlex DisplayNone VisVisible VisHidden OverflowVisible OverflowHidden WsNormal WsNowrap WsPre WsPreWrap TextClip TextEllipsis TextUpperLeft TextMiddleCenter TextLowerRight TextOverflowStart TextOverflowMiddle TextOverflowEnd AutoSizeNone AutoSizeBestFit FontBold FontItalic FontNormal PickPosition PickIgnore SelectNone SelectSingle SelectMultiple ScrollerAuto ScrollerVisible ScrollerHidden DirInherit DirLTR DirRTL SliderHorizontal SliderVertical ColorTransparent ColorWhite ColorBlack ColorRed ColorGreen ColorBlue Hex Rgba BgRepeatNone BgRepeatBoth BgPosCenter BgSizeCover BgSizeContain Origin OriginCenter Xlate EaseDefault EaseLinear EaseIn EaseOut EaseInOut EaseInSine EaseOutSine EaseInCubic EaseOutCubic EaseInOutCubic EaseInCirc EaseOutCirc EaseInElastic EaseOutElastic EaseInBack EaseOutBack EaseInBounce EaseOutBounce EaseInOutBounce FilterBlur FilterGrayscale FilterContrast FilterHueRotate FilterInvert FilterOpacity FilterSepia FilterTint',
+        keywords: ['CssHelpers', 'Pct', 'Px', 'Hex', 'Rgba', 'FlexRow', 'easing', 'Shadow', 'FontDef', 'SliceFill'],
+        searchContent: 'csshelpers reference static shortcuts Pct Px StyleAuto StyleNone StyleInitial FlexRow FlexColumn FlexRowReverse FlexColumnReverse JustifyStart JustifyEnd JustifyCenter JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly AlignStart AlignEnd AlignCenter AlignStretch WrapOn WrapOff WrapReverse PosRelative PosAbsolute DisplayFlex DisplayNone VisVisible VisHidden OverflowVisible OverflowHidden WsNormal WsNowrap WsPre WsPreWrap TextClip TextEllipsis TextUpperLeft TextMiddleCenter TextLowerRight TextOverflowStart TextOverflowMiddle TextOverflowEnd AutoSizeNone AutoSizeBestFit FontBold FontItalic FontNormal PickPosition PickIgnore SelectNone SelectSingle SelectMultiple ScrollerAuto ScrollerVisible ScrollerHidden DirInherit DirLTR DirRTL SliderHorizontal SliderVertical ColorTransparent ColorWhite ColorBlack ColorRed ColorGreen ColorBlue Hex Rgba BgRepeatNone BgRepeatBoth BgPosCenter BgSizeCover BgSizeContain Origin OriginCenter Xlate EaseDefault EaseLinear EaseIn EaseOut EaseInOut EaseInSine EaseOutSine EaseInCubic EaseOutCubic EaseInOutCubic EaseInCirc EaseOutCirc EaseInElastic EaseOutElastic EaseInBack EaseOutBack EaseInBounce EaseOutBounce EaseInOutBounce FilterBlur FilterGrayscale FilterContrast FilterHueRotate FilterInvert FilterOpacity FilterSepia FilterTint SliceFill SliceTile SliceType ClipPaddingBox ClipContentBox OverflowClipBox TextGenStandard TextGenAdvanced TextGeneratorType EditorTextSDF EditorTextBitmap EditorTextRenderingMode Shadow TextShadow FontDef FontDefinition',
         element: () => <CssHelpersReferencePage />,
       },
       {

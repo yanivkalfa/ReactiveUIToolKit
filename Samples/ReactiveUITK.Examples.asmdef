@@ -3,7 +3,8 @@
   "references": [
     "ReactiveUITK.Editor",
     "ReactiveUITK.Shared",
-    "ReactiveUITK.Runtime"
+    "ReactiveUITK.Runtime",
+    "Unity.InputSystem"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

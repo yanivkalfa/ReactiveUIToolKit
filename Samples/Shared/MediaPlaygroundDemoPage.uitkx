@@ -1,0 +1,122 @@
+@namespace ReactiveUITK.Samples.UITKXShared
+@using UnityEngine
+@using UnityEngine.Video
+@using ReactiveUITK.Core.Media
+
+component MediaPlaygroundDemoPage {
+  var videoClip = Asset<VideoClip>("Assets/Resources/file_example_MP4_1280_10MG.mp4");
+  var musicClip = Asset<AudioClip>("Assets/Resources/alexzavesa-calm-inspiring-technology-logo-short-version-518993.mp3");
+  var sfxClip = Asset<AudioClip>("Assets/Resources/ahem_x.wav");
+
+  var (musicPlaying, setMusicPlaying) = useState(true);
+  var (videoPlaying, setVideoPlaying) = useState(true);
+  var (videoMuted, setVideoMuted) = useState(true);
+  var (musicVolume, setMusicVolume) = useState(0.6f);
+  var (sfxClickCount, setSfxClickCount) = useState(0);
+
+  var videoCtrl = useRef<VideoController>(null);
+  var audioCtrl = useRef<AudioController>(null);
+  var playSfx = useSfx();
+
+  return (
+    <Box
+      style={new Style { (FlexDirection, "column"), (Padding, 12f), (FlexGrow, 1f) }}
+    >
+      <Label
+        text="Media Playground"
+        style={new Style { (FontSize, 18f), (MarginBottom, 6f) }}
+      />
+      <Label
+        text="Demonstrates Video, Audio elements and useSfx() backed by the shared MediaHost peer pool."
+        style={new Style { (WhiteSpace, "normal"), (MarginBottom, 10f) }}
+      />
+      <Label
+        text="Video"
+        style={new Style { (FontSize, 14f), (MarginTop, 6f) }}
+      />
+      <Video
+        Clip={videoClip}
+        Loop={true}
+        Autoplay={videoPlaying}
+        Muted={videoMuted}
+        ScaleMode="scaleToFit"
+        Controller={videoCtrl}
+        style={new Style { (Width, 480f), (Height, 270f), (BackgroundColor, new UColor(0f, 0f, 0f, 1f)), (MarginTop, 6f) }}
+      />
+      <Box style={new Style { (FlexDirection, "row"), (MarginTop, 6f) }}>
+        <Button
+          text={videoPlaying ? "Pause Video" : "Play Video"}
+          onClick={_ => {
+            if (videoCtrl.Current == null) return;
+            if (videoPlaying) videoCtrl.Current.Pause();
+            else videoCtrl.Current.Play();
+            setVideoPlaying(!videoPlaying);
+          }}
+        />
+        <Button
+          text={videoMuted ? "Unmute Video" : "Mute Video"}
+          style={new Style { (MarginLeft, 6f) }}
+          onClick={_ => setVideoMuted(!videoMuted)}
+        />
+      </Box>
+      <Label
+        text="Background music"
+        style={new Style { (FontSize, 14f), (MarginTop, 14f) }}
+      />
+      <Audio
+        Clip={musicClip}
+        Loop={true}
+        Autoplay={musicPlaying}
+        Volume={musicVolume}
+        Controller={audioCtrl}
+      />
+      <Box
+        style={new Style { (FlexDirection, "row"), (AlignItems, "center"), (MarginTop, 6f) }}
+      >
+        <Button
+          text={musicPlaying ? "Pause Music" : "Play Music"}
+          onClick={_ => {
+            if (audioCtrl.Current == null) return;
+            if (musicPlaying) audioCtrl.Current.Pause();
+            else audioCtrl.Current.Play();
+            setMusicPlaying(!musicPlaying);
+          }}
+        />
+        <Button
+          text="Vol -"
+          style={new Style { (MarginLeft, 6f) }}
+          onClick={_ => setMusicVolume(Mathf.Clamp01(musicVolume - 0.1f))}
+        />
+        <Button
+          text="Vol +"
+          style={new Style { (MarginLeft, 6f) }}
+          onClick={_ => setMusicVolume(Mathf.Clamp01(musicVolume + 0.1f))}
+        />
+        <Label
+          text={$"  volume {Mathf.RoundToInt(musicVolume * 100f)}%"}
+          style={new Style { (MarginLeft, 6f) }}
+        />
+      </Box>
+      <Label
+        text="One-shot SFX (useSfx)"
+        style={new Style { (FontSize, 14f), (MarginTop, 14f) }}
+      />
+      <Box
+        style={new Style { (FlexDirection, "row"), (AlignItems, "center"), (MarginTop, 6f) }}
+      >
+        <Button
+          text={$"Play SFX ({sfxClickCount})"}
+          onClick={_ => {
+            playSfx(sfxClip, 1f);
+            setSfxClickCount(sfxClickCount + 1);
+          }}
+        />
+        <Button
+          text="Soft SFX"
+          style={new Style { (MarginLeft, 6f) }}
+          onClick={_ => playSfx(sfxClip, 0.35f)}
+        />
+      </Box>
+    </Box>
+  );
+}

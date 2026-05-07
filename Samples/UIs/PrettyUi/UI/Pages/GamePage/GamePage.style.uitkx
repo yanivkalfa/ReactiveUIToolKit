@@ -1,0 +1,37 @@
+@namespace PrettyUi.App.Pages
+@using PrettyUi.App
+@using UnityEngine
+
+module GamePage {
+  public static readonly Style Root = new Style {
+    FlexGrow = 1f,
+    AlignItems = AlignEnd,
+    JustifyContent = JustifyStart,
+    PaddingTop = 24f,
+    PaddingRight = 24f,
+  };
+
+  public static readonly Style Hud = new Style {
+    PaddingTop = 12f,
+    PaddingBottom = 12f,
+    PaddingLeft = 16f,
+    PaddingRight = 16f,
+    BackgroundColor = Theme.BgPanel,
+    BorderRadius = Theme.Radius,
+    BorderTopWidth = Theme.BorderWidth,
+    BorderBottomWidth = Theme.BorderWidth,
+    BorderLeftWidth = Theme.BorderWidth,
+    BorderRightWidth = Theme.BorderWidth,
+    BorderTopColor = Theme.BorderSoft,
+    BorderBottomColor = Theme.BorderSoft,
+    BorderLeftColor = Theme.BorderSoft,
+    BorderRightColor = Theme.BorderSoft,
+    AlignItems = AlignEnd,
+  };
+
+  public static readonly Style HudLabel = new Style {
+    Color = Theme.TextPrimary,
+    FontSize = Theme.FsBody,
+    MarginBottom = 8f,
+  };
+}

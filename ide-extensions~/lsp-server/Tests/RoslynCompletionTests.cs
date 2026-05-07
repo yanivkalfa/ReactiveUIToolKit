@@ -159,4 +159,23 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
         Assert.Contains(items, i => i.Label == "Current");
         Assert.Contains(items, i => i.Label == "Value");
     }
+
+    [Fact]
+    public async Task FunctionStyle_UseRef_ReturnTypeIsCanonicalRefT()
+    {
+        // TD-S1 regression: useRef<T>() must return global::ReactiveUITK.Core.Ref<T>
+        // (the workspace-shared canonical type), not a per-document nested stub.
+        // This guarantees that values flow without CS1503 to peer hooks
+        // declaring `Ref<T>` parameters.
+        var raw = "component Test {\n  var myRef = useRef<int>(0);\n  var t = myRef.GetType().FullName;\n  return (\n    <Label text={t}/>\n  );\n}";
+        // Force virtual doc generation by requesting completions at an arbitrary point.
+        var items = await GetCompletions(raw, raw.IndexOf("myRef.G", System.StringComparison.Ordinal) + 6, trigger: '.');
+        Assert.Contains(items, i => i.Label == "GetType"); // myRef.GetType bound → type resolved
+        // Inspect the generated virtual doc directly to lock the canonical type name.
+        var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
+        Assert.NotNull(doc);
+        var text = (await doc!.GetTextAsync()).ToString();
+        Assert.Contains("global::ReactiveUITK.Core.Ref<T> useRef<T>", text);
+        Assert.DoesNotContain("__UitkxRef__", text);
+    }
 }

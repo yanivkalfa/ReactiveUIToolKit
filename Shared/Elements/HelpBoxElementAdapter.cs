@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -73,6 +74,46 @@ namespace ReactiveUITK.Elements
                 }
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is HelpBox hb && props is HelpBoxProps hp)
+            {
+                if (hp.Text != null)
+                    hb.text = hp.Text;
+                if (hp.MessageType != null)
+                {
+                    var ms = hp.MessageType.ToLowerInvariant();
+                    hb.messageType = ms switch
+                    {
+                        "warning" => HelpBoxMessageType.Warning,
+                        "error" => HelpBoxMessageType.Error,
+                        _ => HelpBoxMessageType.Info,
+                    };
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is HelpBox hb && prev is HelpBoxProps hp && next is HelpBoxProps hn)
+            {
+                if (hp.Text != hn.Text)
+                    hb.text = hn.Text ?? string.Empty;
+                if (hp.MessageType != hn.MessageType && hn.MessageType != null)
+                {
+                    var ms = hn.MessageType.ToLowerInvariant();
+                    hb.messageType = ms switch
+                    {
+                        "warning" => HelpBoxMessageType.Warning,
+                        "error" => HelpBoxMessageType.Error,
+                        _ => HelpBoxMessageType.Info,
+                    };
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

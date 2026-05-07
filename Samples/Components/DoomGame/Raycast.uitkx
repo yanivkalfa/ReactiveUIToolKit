@@ -1,0 +1,213 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using static Samples.DoomGame.DoomTypes
+
+module Raycast {
+  public struct WallHit {
+    public float Distance; // ray parameter t at hit
+    public Vector2 Hit; // world-space (x,y)
+    public int LinedefId;
+    public int FromSector; // sector we were traversing when we hit
+    public int ToSector; // -1 if solid wall, else neighbor sector
+    public bool IsBackside; // ray hit the line from its back side
+    public float U; // 0..1 along the linedef (V1→V2)
+    public float SegLength; // |V2 − V1| in world units
+    public bool IsSky; // back sector has IsSky and ceiling above
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  //  Geometry primitives
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Returns true if the ray (origin, dir, |dir|=1) intersects segment (a,b).
+  // Out: t (ray distance, ≥ 0), u (along segment 0..1), backside (true if ray
+  // hits the segment from the right of V1→V2 direction).
+  public static bool RaySegment(
+    Vector2 origin, Vector2 dir, Vector2 a, Vector2 b,
+    out float t, out float u, out bool backside
+  ) {
+    t = 0f; u = 0f; backside = false;
+    Vector2 sd = b - a;
+    float denom = dir.x * sd.y - dir.y * sd.x;
+    if (Mathf.Abs(denom) < 1e-7f) return false; // parallel
+    Vector2 oa = origin - a;
+    // t along ray: (oa × sd) / (dir × sd)
+    float tt = (oa.x * sd.y - oa.y * sd.x) / -denom;
+    // u along segment: (oa × dir) / (dir × sd)
+    float uu = (oa.x * dir.y - oa.y * dir.x) / -denom;
+    if (tt < 0f) return false;
+    if (uu < 0f || uu > 1f) return false;
+    t = tt; u = uu;
+    // The "front" of a linedef is to the RIGHT of V1→V2 (Doom convention).
+    // Right-of(V1→V2) means cross(sd, oa) > 0. If our origin is to the left,
+    // we are hitting the back side.
+    backside = denom > 0f;
+    return true;
+  }
+
+  // Polygon containment via crossing-number using a sector's linedefs.
+  // The sector is convex in our generated maps, but this tolerates concave too.
+  public static bool PointInSector(MapData map, int sectorId, Vector2 p) {
+    if (sectorId < 0 || sectorId >= map.Sectors.Length) return false;
+    var s = map.Sectors[sectorId];
+    int crossings = 0;
+    for (int i = 0; i < s.LineIds.Count; i++) {
+      var ln = map.Lines[s.LineIds[i]];
+      Vector2 a = map.Vertices[ln.V1].P;
+      Vector2 b = map.Vertices[ln.V2].P;
+      if ((a.y > p.y) != (b.y > p.y)) {
+        float xCross = a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y);
+        if (p.x < xCross) crossings++;
+      }
+    }
+    return (crossings & 1) == 1;
+  }
+
+  // Best-effort sector lookup. Tries hint first, then any neighbor of hint
+  // through a two-sided line, then brute-forces all sectors. Returns -1 if
+  // the point is in no sector (e.g. outside the map).
+  public static int PointInSectorFromHint(MapData map, Vector2 p, int hint) {
+    if (hint >= 0 && PointInSector(map, hint, p)) return hint;
+    if (hint >= 0) {
+      var s = map.Sectors[hint];
+      for (int i = 0; i < s.LineIds.Count; i++) {
+        var ln = map.Lines[s.LineIds[i]];
+        int neighbor = (ln.FrontSector == hint) ? ln.BackSector : ln.FrontSector;
+        if (neighbor >= 0 && PointInSector(map, neighbor, p)) return neighbor;
+      }
+    }
+    for (int i = 0; i < map.Sectors.Length; i++) {
+      if (PointInSector(map, i, p)) return i;
+    }
+    return -1;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  //  Portal-walking ray cast
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Cast a ray from `origin` (inside `originSector`) in direction `dir`
+  // (must be unit length). Walks through two-sided linedefs into adjacent
+  // sectors. Stops at the first one-sided line, the first solid (Impassable
+  // flag), or after MAX_RAY_HOPS / MAX_RAY distance.
+  //
+  // Result is a list of hits in order of distance along the ray. The LAST
+  // hit is the terminal one. The renderer uses this list to draw upper/
+  // lower portal segs at each portal crossing and the final wall on close.
+  //
+  // `out hits` is a fresh List<WallHit> so callers can pool if needed.
+  public static void Cast(
+    MapData map, Vector2 origin, int originSector, Vector2 dir, out List<WallHit> hits
+  ) {
+    hits = new List<WallHit>(C.MAX_RAY_HOPS);
+    if (!map.IsValid || originSector < 0) return;
+
+    int currentSector = originSector;
+    Vector2 cursor = origin;
+    float accumulatedT = 0f;
+
+    for (int hop = 0; hop < C.MAX_RAY_HOPS; hop++) {
+      var sec = map.Sectors[currentSector];
+
+      // Find the closest linedef of the current sector that the ray hits,
+      // in front of the cursor (t > epsilon to avoid re-hitting the entry).
+      int bestLineLocal = -1;
+      float bestT = float.MaxValue;
+      float bestU = 0f;
+      bool bestBack = false;
+
+      for (int li = 0; li < sec.LineIds.Count; li++) {
+        int lineId = sec.LineIds[li];
+        var ln = map.Lines[lineId];
+        Vector2 a = map.Vertices[ln.V1].P;
+        Vector2 b = map.Vertices[ln.V2].P;
+        if (RaySegment(cursor, dir, a, b, out var t, out var u, out var bk)) {
+          if (t > 1e-4f && t < bestT) {
+            bestT = t;
+            bestLineLocal = lineId;
+            bestU = u;
+            bestBack = bk;
+          }
+        }
+      }
+
+      if (bestLineLocal < 0) break; // ray escaped (shouldn't happen on closed sector)
+      if (accumulatedT + bestT > C.MAX_RAY) break;
+
+      var hitLine = map.Lines[bestLineLocal];
+      Vector2 hitPos = cursor + dir * bestT;
+      Vector2 va = map.Vertices[hitLine.V1].P;
+      Vector2 vb = map.Vertices[hitLine.V2].P;
+      float segLen = (vb - va).magnitude;
+
+      int neighbor = -1;
+      bool isPortal = (hitLine.Flags & LinedefFlags.TwoSided) != 0
+      && (hitLine.Flags & LinedefFlags.Impassable) == 0;
+      if (isPortal) {
+        neighbor = (hitLine.FrontSector == currentSector)
+        ? hitLine.BackSector : hitLine.FrontSector;
+      }
+
+      bool isSky = false;
+      if (neighbor >= 0) {
+        isSky = map.Sectors[neighbor].IsSky;
+      }
+
+      hits.Add(new WallHit {
+        Distance = accumulatedT + bestT,
+        Hit = hitPos,
+        LinedefId = bestLineLocal,
+        FromSector = currentSector,
+        ToSector = neighbor,
+        IsBackside = bestBack,
+        U = bestU,
+        SegLength = segLen,
+        IsSky = isSky,
+      });
+
+      if (neighbor < 0) break; // solid wall — stop
+      // Step cursor slightly past the hit into the neighbor sector.
+      cursor = hitPos + dir * 1e-3f;
+      accumulatedT += bestT;
+      currentSector = neighbor;
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  //  Convenience helpers
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Distance from point P to segment AB (squared, plus the parameter u).
+  public static float DistPointToSegmentSq(Vector2 p, Vector2 a, Vector2 b, out float u) {
+    Vector2 ab = b - a;
+    float lenSq = ab.sqrMagnitude;
+    if (lenSq < 1e-9f) { u = 0f; return (p - a).sqrMagnitude; }
+    u = Vector2.Dot(p - a, ab) / lenSq;
+    u = Mathf.Clamp01(u);
+    Vector2 closest = a + ab * u;
+    return (p - closest).sqrMagnitude;
+  }
+
+  // Test whether a circle at center with radius collides with any solid
+  // linedef of `sectorId` (or any one-sided line). Used by Phase 5+ collision.
+  public static bool CircleHitsSolidLine(
+    MapData map, int sectorId, Vector2 center, float radius
+  ) {
+    if (sectorId < 0) return true;
+    var s = map.Sectors[sectorId];
+    float r2 = radius * radius;
+    for (int i = 0; i < s.LineIds.Count; i++) {
+      var ln = map.Lines[s.LineIds[i]];
+      bool isPortal = (ln.Flags & LinedefFlags.TwoSided) != 0
+      && (ln.Flags & LinedefFlags.Impassable) == 0;
+      if (isPortal) continue;
+      Vector2 a = map.Vertices[ln.V1].P;
+      Vector2 b = map.Vertices[ln.V2].P;
+      var dSq = DistPointToSegmentSq(center, a, b, out _);
+      if (dSq < r2) return true;
+    }
+    return false;
+  }
+}

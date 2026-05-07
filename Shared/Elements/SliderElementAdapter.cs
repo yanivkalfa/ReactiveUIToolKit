@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -224,6 +225,122 @@ namespace ReactiveUITK.Elements
                 default:
                     return null;
             }
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is Slider slider && props is SliderProps tp)
+            {
+                if (tp.LowValue.HasValue)
+                    slider.lowValue = tp.LowValue.Value;
+                if (tp.HighValue.HasValue)
+                    slider.highValue = tp.HighValue.Value;
+                if (tp.Value.HasValue)
+                    slider.value = tp.Value.Value;
+                if (!string.IsNullOrEmpty(tp.Direction))
+                {
+                    var ds = tp.Direction.ToLowerInvariant();
+                    slider.direction =
+                        ds == "vertical" ? SliderDirection.Vertical : SliderDirection.Horizontal;
+                }
+                if (tp.OnChange != null)
+                    PropsApplier.ApplySingle(element, null, "onChange", tp.OnChange);
+                if (tp.OnChangeCapture != null)
+                    PropsApplier.ApplySingle(element, null, "onChangeCapture", tp.OnChangeCapture);
+                if (tp.Input != null)
+                {
+                    var el = ResolveSlotElement(slider, "input");
+                    if (el != null)
+                        PropsApplier.Apply(el, tp.Input);
+                }
+                if (tp.Track != null)
+                {
+                    var el = ResolveSlotElement(slider, "track");
+                    if (el != null)
+                        PropsApplier.Apply(el, tp.Track);
+                }
+                if (tp.DragContainer != null)
+                {
+                    var el = ResolveSlotElement(slider, "dragContainer");
+                    if (el != null)
+                        PropsApplier.Apply(el, tp.DragContainer);
+                }
+                if (tp.Handle != null)
+                {
+                    var el = ResolveSlotElement(slider, "handle");
+                    if (el != null)
+                        PropsApplier.Apply(el, tp.Handle);
+                }
+                if (tp.HandleBorder != null)
+                {
+                    var el = ResolveSlotElement(slider, "handleBorder");
+                    if (el != null)
+                        PropsApplier.Apply(el, tp.HandleBorder);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is Slider slider && prev is SliderProps tp && next is SliderProps tn)
+            {
+                if (tp.LowValue != tn.LowValue && tn.LowValue.HasValue)
+                    slider.lowValue = tn.LowValue.Value;
+                if (tp.HighValue != tn.HighValue && tn.HighValue.HasValue)
+                    slider.highValue = tn.HighValue.Value;
+                if (tp.Value != tn.Value && tn.Value.HasValue)
+                    slider.value = tn.Value.Value;
+                if (tp.Direction != tn.Direction && !string.IsNullOrEmpty(tn.Direction))
+                {
+                    var ds = tn.Direction.ToLowerInvariant();
+                    slider.direction =
+                        ds == "vertical" ? SliderDirection.Vertical : SliderDirection.Horizontal;
+                }
+                if (tp.OnChange != tn.OnChange)
+                {
+                    if (tn.OnChange != null)
+                        PropsApplier.ApplySingle(element, tp.OnChange, "onChange", tn.OnChange);
+                    else if (tp.OnChange != null)
+                        PropsApplier.RemoveProp(element, "onChange", tp.OnChange);
+                }
+                if (tp.OnChangeCapture != tn.OnChangeCapture)
+                {
+                    if (tn.OnChangeCapture != null)
+                        PropsApplier.ApplySingle(
+                            element,
+                            tp.OnChangeCapture,
+                            "onChangeCapture",
+                            tn.OnChangeCapture
+                        );
+                    else if (tp.OnChangeCapture != null)
+                        PropsApplier.RemoveProp(element, "onChangeCapture", tp.OnChangeCapture);
+                }
+                ApplySlotDiff(slider, tp.Input, tn.Input, "input");
+                ApplySlotDiff(slider, tp.Track, tn.Track, "track");
+                ApplySlotDiff(slider, tp.DragContainer, tn.DragContainer, "dragContainer");
+                ApplySlotDiff(slider, tp.Handle, tn.Handle, "handle");
+                ApplySlotDiff(slider, tp.HandleBorder, tn.HandleBorder, "handleBorder");
+            }
+            base.ApplyTypedDiff(element, prev, next);
+        }
+
+        private static void ApplySlotDiff(
+            Slider slider,
+            Dictionary<string, object> prevSlot,
+            Dictionary<string, object> nextSlot,
+            string slotKey
+        )
+        {
+            if (ReferenceEquals(prevSlot, nextSlot))
+                return;
+            var el = ResolveSlotElement(slider, slotKey);
+            if (el == null)
+                return;
+            if (prevSlot != null && nextSlot != null)
+                PropsApplier.ApplyDiff(el, prevSlot, nextSlot);
+            else if (nextSlot != null)
+                PropsApplier.Apply(el, nextSlot);
         }
     }
 }

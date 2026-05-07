@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -172,6 +173,56 @@ namespace ReactiveUITK.Elements
             var gb = element as GroupBox;
             var cc = (gb != null) ? gb.contentContainer : element;
             return EnsureMount(cc);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is GroupBox gb && props is GroupBoxProps gp)
+            {
+                if (gp.Text != null)
+                    gb.text = gp.Text;
+                if (gp.Label is Dictionary<string, object> labelMap)
+                {
+                    var labelEl = ResolveSlotElement(gb, "label");
+                    if (labelEl != null)
+                        PropsApplier.Apply(labelEl, labelMap);
+                }
+                if (props.ContentContainer is Dictionary<string, object> ccMap)
+                {
+                    var ccEl = ResolveSlotElement(gb, "contentContainer");
+                    if (ccEl != null)
+                        PropsApplier.Apply(ccEl, ccMap);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is GroupBox gb && prev is GroupBoxProps gp && next is GroupBoxProps gn)
+            {
+                if (gp.Text != gn.Text)
+                    gb.text = gn.Text ?? string.Empty;
+                if (
+                    !ReferenceEquals(gp.Label, gn.Label)
+                    && gn.Label is Dictionary<string, object> labelMap
+                )
+                {
+                    var labelEl = ResolveSlotElement(gb, "label");
+                    if (labelEl != null)
+                        PropsApplier.Apply(labelEl, labelMap);
+                }
+                if (
+                    !ReferenceEquals(prev.ContentContainer, next.ContentContainer)
+                    && next.ContentContainer is Dictionary<string, object> ccMap
+                )
+                {
+                    var ccEl = ResolveSlotElement(gb, "contentContainer");
+                    if (ccEl != null)
+                        PropsApplier.Apply(ccEl, ccMap);
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

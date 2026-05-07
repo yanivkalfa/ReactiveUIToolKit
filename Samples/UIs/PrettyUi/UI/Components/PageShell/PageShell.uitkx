@@ -1,0 +1,13 @@
+@namespace PrettyUi.App.Components
+@using UnityEngine.UIElements
+
+component PageShell(VirtualNode? sidebar = null, VirtualNode? content = null) {
+  return (
+    <VisualElement style={Root}>
+      @(sidebar)
+      <VisualElement style={Content}>
+        @(content)
+      </VisualElement>
+    </VisualElement>
+  );
+}

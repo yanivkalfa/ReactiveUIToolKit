@@ -1,0 +1,37 @@
+@namespace PrettyUi.App.Components
+@using PrettyUi.App
+@using UnityEngine
+
+module AppButton {
+  public static readonly Style Base = new Style {
+    PaddingTop = 8f,
+    PaddingBottom = 8f,
+    PaddingLeft = 16f,
+    PaddingRight = 16f,
+    BorderRadius = Theme.Radius,
+    BorderTopWidth = Theme.BorderWidth,
+    BorderBottomWidth = Theme.BorderWidth,
+    BorderLeftWidth = Theme.BorderWidth,
+    BorderRightWidth = Theme.BorderWidth,
+    BorderTopColor = Theme.BorderSoft,
+    BorderBottomColor = Theme.BorderSoft,
+    BorderLeftColor = Theme.BorderSoft,
+    BorderRightColor = Theme.BorderSoft,
+    BackgroundColor = Theme.BgPanelAlt,
+    Color = Theme.TextPrimary,
+    FontSize = Theme.FsBody,
+  };
+
+  public static readonly Style Active = new Style {
+    BackgroundColor = Theme.Accent,
+    BorderTopColor = Theme.Accent,
+    BorderBottomColor = Theme.Accent,
+    BorderLeftColor = Theme.Accent,
+    BorderRightColor = Theme.Accent,
+    Color = UnityEngine.Color.black,
+  };
+
+  public static readonly Style Disabled = new Style {
+    Opacity = 0.45f,
+  };
+}

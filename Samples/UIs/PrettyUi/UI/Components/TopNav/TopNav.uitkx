@@ -1,0 +1,36 @@
+@namespace PrettyUi.App.Components
+@using System
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component TopNav {
+  var location = RouterHooks.UseLocation() ?? "/";
+  var navigate = RouterHooks.UseNavigate();
+
+  var items = new (string Label, string Path)[] {
+    ("Home", "/home"),
+    ("Settings", "/settings"),
+    ("News", "/news"),
+  };
+
+  bool IsActive(string path) {
+    if (path == "/") return location == "/";
+    return location.StartsWith(path, StringComparison.Ordinal);
+  }
+
+  return (
+    <VisualElement style={Bar}>
+      @foreach (var item in items) {
+        return (
+          <AppButton
+            key={$"nav-{item.Path}"}
+            text={item.Label}
+            active={IsActive(item.Path)}
+            onClick={() => navigate(item.Path, null)}
+            style={ItemSpacing}
+          />
+        );
+      }
+    </VisualElement>
+  );
+}

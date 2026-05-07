@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -112,6 +113,30 @@ namespace ReactiveUITK.Elements
             }
             catch { }
             return false;
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is ToggleButtonGroup g && props is ToggleButtonGroupProps tp)
+            {
+                if (tp.Value.HasValue)
+                    ScheduleSetGroupValue(g, tp.Value.Value);
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is ToggleButtonGroup g
+                && prev is ToggleButtonGroupProps tp
+                && next is ToggleButtonGroupProps tn
+            )
+            {
+                if (tp.Value != tn.Value && tn.Value.HasValue)
+                    ScheduleSetGroupValue(g, tn.Value.Value);
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

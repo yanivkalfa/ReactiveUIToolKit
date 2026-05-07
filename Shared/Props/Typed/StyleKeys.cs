@@ -81,6 +81,25 @@ namespace ReactiveUITK.Props.Typed
         public const string BackgroundSize = "backgroundSize";
         public const string TransformOrigin = "transformOrigin";
 
+        // ── 9-slice background ──────────────────────────────────────────
+        public const string UnitySliceLeft = "unitySliceLeft";
+        public const string UnitySliceRight = "unitySliceRight";
+        public const string UnitySliceTop = "unitySliceTop";
+        public const string UnitySliceBottom = "unitySliceBottom";
+        public const string UnitySliceScale = "unitySliceScale";
+        public const string UnitySliceType = "unitySliceType";
+
+        // ── Misc layout / clipping ──────────────────────────────────────
+        public const string UnityOverflowClipBox = "unityOverflowClipBox";
+
+        // ── Text spacing / shadow / advanced font ───────────────────────
+        public const string UnityParagraphSpacing = "unityParagraphSpacing";
+        public const string WordSpacing = "wordSpacing";
+        public const string TextShadow = "textShadow";
+        public const string UnityFontDefinition = "unityFontDefinition";
+        public const string UnityTextGenerator = "unityTextGenerator";
+        public const string UnityEditorTextRenderingMode = "unityEditorTextRenderingMode";
+
         // ── Unity 6.3+ ──────────────────────────────────────────────────
 #if UNITY_6000_3_OR_NEWER
         public const string AspectRatio = "aspectRatio";

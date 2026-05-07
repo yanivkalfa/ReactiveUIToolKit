@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -114,6 +115,33 @@ namespace ReactiveUITK.Elements
                 }
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is Tab tab && props is TabProps tp)
+            {
+                if (tp.Text != null)
+                    SetTabTitle(tab, tp.Text);
+                if (props.ContentContainer is Dictionary<string, object> ccMap)
+                    PropsApplier.Apply(tab.contentContainer, ccMap);
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is Tab tab && prev is TabProps tp && next is TabProps tn)
+            {
+                if (tp.Text != tn.Text && tn.Text != null)
+                    SetTabTitle(tab, tn.Text);
+                if (
+                    !ReferenceEquals(prev.ContentContainer, next.ContentContainer)
+                    && next.ContentContainer is Dictionary<string, object> ccMap
+                )
+                    PropsApplier.Apply(tab.contentContainer, ccMap);
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

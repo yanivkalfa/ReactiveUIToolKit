@@ -2,18 +2,21 @@ using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Diagnostics;
+using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    public abstract class BaseElementAdapter : IElementAdapter
+    public abstract class BaseElementAdapter : IElementAdapter, ITypedElementAdapter
     {
         protected const string MountName = "__ru_mount";
 
         protected static readonly IReadOnlyDictionary<string, object> s_emptyProps =
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(
-                new Dictionary<string, object>(0));
+                new Dictionary<string, object>(0)
+            );
 
         public abstract VisualElement Create();
 
@@ -123,6 +126,18 @@ namespace ReactiveUITK.Elements
         }
 
         private static HashSet<string> _rootWrapWarned;
+
+        // ─── ITypedElementAdapter ────────────────────────────────────────
+
+        public virtual void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            TypedPropsApplier.ApplyFull(element, props);
+        }
+
+        public virtual void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            TypedPropsApplier.ApplyDiff(element, prev, next);
+        }
 
         public static List<int> CoerceIds(object value)
         {

@@ -344,6 +344,7 @@ namespace ReactiveUITK.Core.Fiber
                 Parent = parent,
                 Index = index,
                 PendingProps = ExtractProps(vnode),
+                PendingHostProps = vnode.HostProps,
                 Children = vnode.Children,
                 EffectTag = EffectFlags.Placement,
             };
@@ -380,7 +381,9 @@ namespace ReactiveUITK.Core.Fiber
 
                 case VirtualNodeType.ErrorBoundary:
                     fiber.Tag = FiberTag.ErrorBoundary;
-                    fiber.LastRenderedVNode = vnode;
+                    fiber.ErrorBoundaryFallback = vnode.ErrorFallback;
+                    fiber.ErrorBoundaryHandler = vnode.ErrorHandler;
+                    fiber.ErrorBoundaryChildren = vnode.Children;
                     fiber.ErrorBoundaryResetKey = vnode.ErrorResetToken;
                     fiber.ErrorBoundaryActive = false;
                     fiber.ErrorBoundaryShowingFallback = false;
@@ -453,12 +456,20 @@ namespace ReactiveUITK.Core.Fiber
             }
         }
 
+        // OPT-25: Reusable dictionary for MapRemainingChildren.
+        // Cleared and repopulated on each call. No reentrancy: the work loop is
+        // iterative — a parent's keyed reconciliation completes before any child's
+        // ReconcileChildren runs, so the dict is never concurrently accessed.
+        [ThreadStatic]
+        private static Dictionary<string, FiberNode> s_childMap;
+
         /// <summary>
         /// Map remaining children by key for efficient lookup
         /// </summary>
         private static Dictionary<string, FiberNode> MapRemainingChildren(FiberNode firstChild)
         {
-            var map = new Dictionary<string, FiberNode>();
+            var map = s_childMap ??= new Dictionary<string, FiberNode>(64);
+            map.Clear();
             var child = firstChild;
             int index = 0;
 

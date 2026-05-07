@@ -1,0 +1,23 @@
+@namespace Samples.GalagaGame
+@using UnityEngine
+@using static Samples.GalagaGame.GalagaTypes.C
+@using static Samples.GalagaGame.SpriteAtlas
+
+component HUD(Texture2D spriteSheet, int score, int lives, int wave) {
+  return (
+    <VisualElement style={HudStyles.Container}>
+      <Label text={$"SCORE: {score}"} style={HudStyles.Text} />
+      <Label text={$"WAVE {wave}"} style={HudStyles.WaveText} />
+      <VisualElement style={HudStyles.LivesContainer}>
+        @for (int i = 0; i < lives; i++) {
+          return (
+            <VisualElement
+              key={$"life-{i}"}
+              style={MakeSpriteStyle(spriteSheet, LivesIcon, i * 28f, 0, 1f, 1f)}
+            />
+          );
+        }
+      </VisualElement>
+    </VisualElement>
+  );
+}

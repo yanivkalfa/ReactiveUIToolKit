@@ -30,6 +30,15 @@
     <Compile Remove="Parser\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
+    <!--
+      Single-source-of-truth alias map for router markup tags.  Linked from
+      Shared/Core/Router so the source generator and the runtime stay in sync.
+      The file is plain C# with no Unity dependencies; it compiles cleanly into
+      the analyzer DLL.
+    -->
+    <Compile Include="..\Shared\Core\Router\RouterTagAliases.cs" Link="Emitter\RouterTagAliases.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\ide-extensions~\language-lib\UitkxLanguage.csproj" />
   </ItemGroup>
   <ItemGroup>

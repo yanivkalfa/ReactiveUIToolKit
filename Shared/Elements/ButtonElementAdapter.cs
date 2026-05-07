@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -88,6 +89,27 @@ namespace ReactiveUITK.Elements
                 EnsureListViewFriendly(button);
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is Button button && props is ButtonProps bp)
+            {
+                if (bp.Text != null)
+                    button.text = bp.Text;
+                EnsureListViewFriendly(button);
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is Button button && prev is ButtonProps bp && next is ButtonProps bn)
+            {
+                if (bp.Text != bn.Text)
+                    button.text = bn.Text ?? string.Empty;
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

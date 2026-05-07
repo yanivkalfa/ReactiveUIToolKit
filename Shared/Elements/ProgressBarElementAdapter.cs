@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -95,6 +96,68 @@ namespace ReactiveUITK.Elements
                 DiffSlot(progressBarElement, previous, next, "titleElement");
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is ProgressBar pb && props is ProgressBarProps tp)
+            {
+                if (tp.Value.HasValue)
+                    pb.value = tp.Value.Value;
+                if (tp.Title != null)
+                    pb.title = tp.Title;
+                if (tp.Progress is Dictionary<string, object> progressMap)
+                {
+                    var progressEl = ResolveSlotElement(pb, "progress");
+                    if (progressEl != null)
+                        PropsApplier.Apply(progressEl, progressMap);
+                }
+                if (tp.TitleElement is Dictionary<string, object> titleMap)
+                {
+                    var titleEl = ResolveSlotElement(pb, "titleElement");
+                    if (titleEl != null)
+                        PropsApplier.Apply(titleEl, titleMap);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is ProgressBar pb
+                && prev is ProgressBarProps tp
+                && next is ProgressBarProps tn
+            )
+            {
+                if (tp.Value != tn.Value && tn.Value.HasValue)
+                    pb.value = tn.Value.Value;
+                if (tp.Title != tn.Title)
+                    pb.title = tn.Title ?? string.Empty;
+                if (!ReferenceEquals(tp.Progress, tn.Progress))
+                {
+                    var progressEl = ResolveSlotElement(pb, "progress");
+                    if (progressEl != null)
+                    {
+                        if (tp.Progress != null && tn.Progress != null)
+                            PropsApplier.ApplyDiff(progressEl, tp.Progress, tn.Progress);
+                        else if (tn.Progress != null)
+                            PropsApplier.Apply(progressEl, tn.Progress);
+                    }
+                }
+                if (!ReferenceEquals(tp.TitleElement, tn.TitleElement))
+                {
+                    var titleEl = ResolveSlotElement(pb, "titleElement");
+                    if (titleEl != null)
+                    {
+                        if (tp.TitleElement != null && tn.TitleElement != null)
+                            PropsApplier.ApplyDiff(titleEl, tp.TitleElement, tn.TitleElement);
+                        else if (tn.TitleElement != null)
+                            PropsApplier.Apply(titleEl, tn.TitleElement);
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
 
         private static void ApplySlots(

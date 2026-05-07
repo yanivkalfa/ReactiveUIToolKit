@@ -21,6 +21,7 @@ namespace ReactiveUITK.Core.Fiber
         private FiberHostConfig _hostConfig;
         private IScheduler _scheduler;
         private bool _isCommitting; // Track if we're in the commit phase
+        private bool _hasDeletions; // Set during reconciliation when any fiber records deletions
         private List<FiberNode> _pendingPassiveEffects; // Collected during CommitWork, flushed two-pass after tree swap
 
         // Queue for deferred updates during commit
@@ -113,10 +114,60 @@ namespace ReactiveUITK.Core.Fiber
 
             _root = root;
 
-            // Schedule initial render
-            ScheduleUpdateOnFiber(rootFiber, vnode);
+            // Synchronous initial render: run the work loop immediately so all
+            // elements are created and placed before CreateRoot returns.  This
+            // prevents a visible flash where the container is empty for one
+            // frame between Clear() and the first CommitRoot.
+            //
+            // Passive effects are still deferred via the scheduler (the normal
+            // async path) — only the render + commit phase is synchronous.
+            // This mirrors React 18's createRoot().render() behaviour: the
+            // initial mount is always synchronous; time-slicing is reserved
+            // for subsequent state-driven updates.
+            ScheduleUpdateOnFiber(rootFiber, vnode, scheduleWork: false);
+            WorkLoop();
 
             return root;
+        }
+
+        /// <summary>
+        /// Tear down the entire mounted tree synchronously, running every
+        /// effect cleanup (UseEffect / UseLayoutEffect) and disposing every
+        /// signal subscription on the way down.
+        ///
+        /// <para>
+        /// This is the proper inverse of <see cref="CreateRoot"/>. It must
+        /// be called when the host (e.g. an EditorWindow) is going away
+        /// and the tree will not be re-rendered. Without it, function
+        /// components that own external resources (pooled
+        /// <c>VideoPlayer</c>, <c>AudioSource</c>, file handles, native
+        /// listeners, etc.) leak their resources because their cleanup
+        /// lambdas never run \u2014 e.g. an &lt;Audio&gt; element keeps
+        /// playing forever after its owning EditorWindow is closed.
+        /// </para>
+        /// </summary>
+        public void UnmountRoot()
+        {
+            if (_root?.Current == null)
+            {
+                _root = null;
+                return;
+            }
+
+            // Walk every child of the root fiber and treat each as a
+            // deletion. CommitDeletion recurses depth-first and runs all
+            // effect cleanups + signal subscription disposals before
+            // removing host elements.
+            var child = _root.Current.Child;
+            while (child != null)
+            {
+                var next = child.Sibling;
+                CommitDeletion(child);
+                child = next;
+            }
+
+            _root.Current.Child = null;
+            _root = null;
         }
 
         /// <summary>
@@ -338,9 +389,11 @@ namespace ReactiveUITK.Core.Fiber
             {
                 float startMs = Time.realtimeSinceStartup * 1000f;
                 bool yielded = false;
+                int unitsThisSlice = 0;
                 while (_nextUnitOfWork != null)
                 {
                     _nextUnitOfWork = PerformUnitOfWork(_nextUnitOfWork);
+                    unitsThisSlice++;
 
                     float nowMs = Time.realtimeSinceStartup * 1000f;
                     if (nowMs - startMs >= TimeSliceMs)
@@ -377,6 +430,15 @@ namespace ReactiveUITK.Core.Fiber
 
             // BeginWork: reconcile this fiber's children
             var next = BeginWork(unitOfWork);
+
+            // OPT-26 fix: Track deletions recorded during BeginWork from ANY source.
+            // The ReconcileChildren wrapper only covers host/portal/error-boundary paths.
+            // Function components (ReconcileSingleChild, null-return deletion) and
+            // fragments (direct FiberChildReconciliation call) also record deletions
+            // on the fiber but bypass the wrapper. Checking here is the single
+            // universal point that covers every BeginWork code path.
+            if (unitOfWork.Deletions != null)
+                _hasDeletions = true;
 
             if (next != null)
             {
@@ -466,11 +528,10 @@ namespace ReactiveUITK.Core.Fiber
 #endif
 
                 var boundary = FindNearestErrorBoundary(fiber);
-                var boundaryVNode = boundary?.LastRenderedVNode;
 
-                if (boundary != null && boundaryVNode != null)
+                if (boundary != null)
                 {
-                    if (TryActivateErrorBoundary(boundary, boundaryVNode, ex))
+                    if (TryActivateErrorBoundary(boundary, ex))
                     {
                         // Re-run work for the boundary using its updated state.
                         return UpdateErrorBoundary(boundary);
@@ -525,10 +586,36 @@ namespace ReactiveUITK.Core.Fiber
                         fiber.HostElement = _hostConfig.CreateElement(fiber.ElementType);
                         fiber.EffectTag |= EffectFlags.Placement;
                     }
-                    else if (!AreHostPropsEqual(fiber.PendingProps, fiber.Props))
+                    else if (
+                        fiber.PendingHostProps != null
+                            ? !fiber.PendingHostProps.ShallowEquals(fiber.HostProps)
+                            : !AreHostPropsEqual(fiber.PendingProps, fiber.Props)
+                    )
                     {
                         // Props actually changed (deep comparison), mark for update
                         fiber.EffectTag |= EffectFlags.Update;
+                    }
+                    else if (
+                        fiber.PendingHostProps != null
+                        && !ReferenceEquals(fiber.PendingHostProps, fiber.HostProps)
+                    )
+                    {
+                        // Props are equal but the rented object is a different instance.
+                        // We do NOT return PendingHostProps to the pool here: this runs
+                        // in the render phase, and the source VNode (`vnode._hostProps`)
+                        // still holds a live reference to it. If the render is interrupted
+                        // and restarted (passive effect / setState during render), the same
+                        // VNode reference is re-encountered and the same BaseProps would be
+                        // re-scheduled — double-return — and worse, if it has already been
+                        // returned and re-rented elsewhere, two fibers end up sharing one
+                        // mutable BaseProps instance (the cross-wired "disco" style bug).
+                        //
+                        // The leak is bounded: when the owning function component eventually
+                        // re-renders, the VNode subtree becomes garbage and the unused
+                        // BaseProps is collected by the CLR. Pool returns only happen in the
+                        // commit phase from CommitUpdate / CommitDeletion, when the OLD
+                        // HostProps is provably no longer referenced by the new tree.
+                        fiber.PendingHostProps = fiber.HostProps;
                     }
                     break;
             }
@@ -576,9 +663,11 @@ namespace ReactiveUITK.Core.Fiber
             // CRITICAL FIX: Copy existing props to WIP so we have a baseline for ArePropsEqual comparison
             // Without this, WIP.Props is null, so comparison against PendingProps always fails
             workInProgress.Props = current.Props;
+            workInProgress.HostProps = current.HostProps;
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
+            workInProgress.PendingHostProps = vnode?.HostProps ?? current.PendingHostProps;
             // The passed vnode IS the child of the root, so we wrap it in a list
             // Fix: If vnode is null (state update), preserve existing children to avoid wiping the tree
             workInProgress.Children = vnode != null ? new[] { vnode } : current.Children;
@@ -624,8 +713,14 @@ namespace ReactiveUITK.Core.Fiber
             {
                 var finishedWork = _root.WorkInProgress;
 
-                // Process deletions first (from root down)
-                CommitDeletions(_root.WorkInProgress);
+                // Process deletions first (from root down).
+                // OPT-26: Skip the O(N) tree walk when no deletions were recorded
+                // during reconciliation (the common steady-state case).
+                if (_hasDeletions)
+                {
+                    CommitDeletions(_root.WorkInProgress);
+                    _hasDeletions = false;
+                }
 
                 // Process effect list — passive effect fibers are collected here, not run yet
                 _pendingPassiveEffects = new List<FiberNode>();
@@ -635,7 +730,6 @@ namespace ReactiveUITK.Core.Fiber
                     CommitWork(effect);
                     effect = effect.NextEffect;
                 }
-
                 // Swap current and work-in-progress
                 _root.Current = finishedWork;
 
@@ -645,6 +739,12 @@ namespace ReactiveUITK.Core.Fiber
                 // and BEFORE deferred updates so their NEW flags aren't cleared.
                 // Safe before passive effects because _isCommitting defers all state updates.
                 CommitPropsAndClearFlags(_root.Current);
+
+                // Flush pooled Style/BaseProps returns accumulated during commit.
+                // Must happen after the full tree walk so no fiber still references
+                // an object that's being returned to the pool.
+                Props.Typed.Style.__FlushReturns();
+                Props.Typed.BaseProps.__FlushReturns();
 
                 // Flush passive effects in two passes: all cleanups first, then all setups.
                 // This preserves React's invariant that no component's setup runs before all
@@ -824,7 +924,25 @@ namespace ReactiveUITK.Core.Fiber
                 if (_hostConfig.GetParent(fiber.HostElement) == null)
                 {
                     // Apply initial properties before inserting
-                    if (fiber.PendingProps != null)
+                    if (fiber.PendingHostProps != null)
+                    {
+                        if (FiberConfig.EnableFiberLogging)
+                        {
+                            UnityEngine.Debug.Log(
+                                $"[Fiber] Applying typed props to {fiber.ElementType}"
+                            );
+                        }
+
+                        _hostConfig.ApplyTypedProperties(
+                            fiber.HostElement,
+                            fiber.ElementType,
+                            null, // oldProps
+                            fiber.PendingHostProps
+                        );
+                        fiber.HostProps = fiber.PendingHostProps;
+                        fiber.Props = fiber.PendingProps;
+                    }
+                    else if (fiber.PendingProps != null)
                     {
                         if (FiberConfig.EnableFiberLogging)
                         {
@@ -863,7 +981,11 @@ namespace ReactiveUITK.Core.Fiber
                             UnityEngine.Debug.Log(
                                 $"[Fiber] InsertBefore {fiber.ElementType} before {before.name}"
                             );
-                        _hostConfig.InsertBefore(parentFiber.HostElement, fiber.HostElement, before);
+                        _hostConfig.InsertBefore(
+                            parentFiber.HostElement,
+                            fiber.HostElement,
+                            before
+                        );
                     }
                     else
                     {
@@ -906,9 +1028,11 @@ namespace ReactiveUITK.Core.Fiber
                 // stopping if we cross into a host-element's territory.
                 while (node.Sibling == null)
                 {
-                    if (node.Parent == null
+                    if (
+                        node.Parent == null
                         || node.Parent.Tag == FiberTag.HostComponent
-                        || node.Parent.Tag == FiberTag.HostPortal)
+                        || node.Parent.Tag == FiberTag.HostPortal
+                    )
                         return null; // no DOM sibling exists before the host parent boundary
                     node = node.Parent;
                 }
@@ -929,9 +1053,11 @@ namespace ReactiveUITK.Core.Fiber
                 }
 
                 // If we landed on a stable HostComponent, that is our anchor.
-                if (node.Tag == FiberTag.HostComponent
+                if (
+                    node.Tag == FiberTag.HostComponent
                     && (node.EffectTag & EffectFlags.Placement) == 0
-                    && node.HostElement != null)
+                    && node.HostElement != null
+                )
                     return node.HostElement;
 
                 // Otherwise `node` is wherever we stopped.  The next outer loop
@@ -952,7 +1078,10 @@ namespace ReactiveUITK.Core.Fiber
                 string oldText = null;
                 string newText = null;
 
-                if (
+                // Try typed path first
+                if (fiber.HostProps is Props.Typed.LabelProps oldLp)
+                    oldText = oldLp.Text;
+                else if (
                     fiber.Props != null
                     && fiber.Props.TryGetValue("text", out var ov)
                     && ov is string os
@@ -960,7 +1089,10 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     oldText = os;
                 }
-                if (
+
+                if (fiber.PendingHostProps is Props.Typed.LabelProps newLp)
+                    newText = newLp.Text;
+                else if (
                     fiber.PendingProps != null
                     && fiber.PendingProps.TryGetValue("text", out var nv)
                     && nv is string ns
@@ -975,12 +1107,35 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Apply property changes using HostConfig
-            _hostConfig.ApplyProperties(
-                fiber.HostElement,
-                fiber.ElementType,
-                fiber.Props,
-                fiber.PendingProps
-            );
+            if (fiber.PendingHostProps != null)
+            {
+                // Typed path — all built-in elements
+                var oldHostProps = fiber.HostProps;
+                _hostConfig.ApplyTypedProperties(
+                    fiber.HostElement,
+                    fiber.ElementType,
+                    fiber.HostProps,
+                    fiber.PendingHostProps
+                );
+                fiber.HostProps = fiber.PendingHostProps;
+
+                // Schedule old props/style for pool return (only if actually replaced)
+                if (oldHostProps != null && !ReferenceEquals(oldHostProps, fiber.HostProps))
+                {
+                    Props.Typed.Style.__ScheduleReturn(oldHostProps.Style);
+                    Props.Typed.BaseProps.__ScheduleReturn(oldHostProps);
+                }
+            }
+            else
+            {
+                // Dict path — only V.Host() and VisualElementSafe reach here
+                _hostConfig.ApplyProperties(
+                    fiber.HostElement,
+                    fiber.ElementType,
+                    fiber.Props,
+                    fiber.PendingProps
+                );
+            }
             fiber.Props = fiber.PendingProps;
         }
 
@@ -1079,6 +1234,13 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     _hostConfig.RemoveChild(parentFiber.HostElement, fiber.HostElement);
                 }
+
+                // Return deleted fiber's props/style to pool
+                if (fiber.HostProps != null)
+                {
+                    Props.Typed.Style.__ScheduleReturn(fiber.HostProps.Style);
+                    Props.Typed.BaseProps.__ScheduleReturn(fiber.HostProps);
+                }
             }
         }
 
@@ -1086,7 +1248,15 @@ namespace ReactiveUITK.Core.Fiber
 
         private FiberNode UpdateHostComponent(FiberNode fiber)
         {
-            ReconcileChildren(fiber, fiber.Children);
+            if (fiber.Children != null)
+            {
+                ReconcileChildren(fiber, fiber.Children);
+            }
+            else if (fiber.Alternate?.Child != null)
+            {
+                // Bailout: Children cleared after commit. Clone existing child fibers.
+                FiberFactory.CloneChildrenForBailout(fiber);
+            }
 
             return fiber.Child;
         }
@@ -1108,21 +1278,20 @@ namespace ReactiveUITK.Core.Fiber
             {
                 ReconcileChildren(fiber, fiber.Children);
             }
+            else if (fiber.Alternate?.Child != null)
+            {
+                // Bailout: Children cleared after commit.
+                FiberFactory.CloneChildrenForBailout(fiber);
+            }
 
             return fiber.Child;
         }
 
         private FiberNode UpdateErrorBoundary(FiberNode fiber)
         {
-            var boundaryNode = fiber.LastRenderedVNode;
-            if (boundaryNode == null)
-            {
-                return null;
-            }
-
             bool resetRequested = !string.Equals(
                 fiber.ErrorBoundaryResetKey,
-                boundaryNode.ErrorResetToken,
+                fiber.Alternate?.ErrorBoundaryResetKey,
                 StringComparison.Ordinal
             );
 
@@ -1131,16 +1300,25 @@ namespace ReactiveUITK.Core.Fiber
                 fiber.ErrorBoundaryActive = false;
                 fiber.ErrorBoundaryShowingFallback = false;
                 fiber.ErrorBoundaryLastException = null;
-                fiber.ErrorBoundaryResetKey = boundaryNode.ErrorResetToken;
+
+                // Mark the reset as consumed by syncing the alternate's key. If a child
+                // throws now, the catch path re-invokes UpdateErrorBoundary on this same
+                // fiber — without this sync, resetRequested would still be true on the
+                // re-entry, clearing ErrorBoundaryActive again and re-rendering the
+                // children → throw → catch → reset → infinite loop.
+                if (fiber.Alternate != null)
+                {
+                    fiber.Alternate.ErrorBoundaryResetKey = fiber.ErrorBoundaryResetKey;
+                }
             }
 
             IReadOnlyList<VirtualNode> targetChildren;
 
             if (fiber.ErrorBoundaryActive && !resetRequested)
             {
-                if (boundaryNode.ErrorFallback != null)
+                if (fiber.ErrorBoundaryFallback != null)
                 {
-                    targetChildren = new[] { boundaryNode.ErrorFallback };
+                    targetChildren = new[] { fiber.ErrorBoundaryFallback };
                 }
                 else
                 {
@@ -1151,7 +1329,7 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                targetChildren = boundaryNode.Children ?? Array.Empty<VirtualNode>();
+                targetChildren = fiber.ErrorBoundaryChildren ?? Array.Empty<VirtualNode>();
                 fiber.ErrorBoundaryShowingFallback = false;
             }
 
@@ -1185,13 +1363,9 @@ namespace ReactiveUITK.Core.Fiber
             return null;
         }
 
-        private bool TryActivateErrorBoundary(
-            FiberNode boundary,
-            VirtualNode boundaryNode,
-            Exception exception
-        )
+        private bool TryActivateErrorBoundary(FiberNode boundary, Exception exception)
         {
-            if (boundary == null || boundaryNode == null)
+            if (boundary == null)
             {
                 return false;
             }
@@ -1205,20 +1379,19 @@ namespace ReactiveUITK.Core.Fiber
             boundary.ErrorBoundaryActive = true;
             boundary.ErrorBoundaryShowingFallback = true;
             boundary.ErrorBoundaryLastException = exception;
-            boundary.ErrorBoundaryResetKey = boundaryNode.ErrorResetToken;
 
             bool handled = false;
 
-            if (boundaryNode.ErrorFallback != null)
+            if (boundary.ErrorBoundaryFallback != null)
             {
                 handled = true;
             }
 
-            if (boundaryNode.ErrorHandler != null)
+            if (boundary.ErrorBoundaryHandler != null)
             {
                 try
                 {
-                    boundaryNode.ErrorHandler(exception);
+                    boundary.ErrorBoundaryHandler(exception);
                     handled = true;
                 }
                 catch (Exception handlerEx)
@@ -1266,8 +1439,11 @@ namespace ReactiveUITK.Core.Fiber
             // Use the full reconciliation algorithm
             FiberChildReconciliation.ReconcileChildren(wipFiber, currentFirstChild, vnodes);
 
-            // Optional debug metrics (child counts, etc.) can be added here
-            // behind FiberConfig.EnableFiberLogging if needed.
+            // OPT-26: Track whether any fiber recorded deletions during reconciliation.
+            // This allows CommitRoot to skip the full O(N) CommitDeletions tree walk
+            // when no elements were removed (the common steady-state case).
+            if (wipFiber.Deletions != null)
+                _hasDeletions = true;
         }
 
         // ===== Helper methods =====
@@ -1376,6 +1552,7 @@ namespace ReactiveUITK.Core.Fiber
 
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
+            fiber.HostProps = fiber.PendingHostProps;
 
             // Commit typed props so the next render cycle's IProps equality check sees
             // the last-rendered props as the baseline (not stale pre-bailout props).

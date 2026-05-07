@@ -13,6 +13,25 @@ namespace ReactiveUITK.Props.Typed
         public TabIndexEventHandler SelectedIndexChanged { get; set; }
         public TabChangedEventHandler ActiveTabChanged { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TabViewProps o)
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (SelectedTabIndex != o.SelectedTabIndex)
+                return false;
+            if (!ReferenceEquals(Tabs, o.Tabs))
+                return false;
+            if (SelectedIndexChanged != o.SelectedIndexChanged)
+                return false;
+            if (ActiveTabChanged != o.ActiveTabChanged)
+                return false;
+            return true;
+        }
+
         public sealed class TabDef : global::ReactiveUITK.Core.IProps
         {
             public string Title { get; set; }
@@ -64,6 +83,20 @@ namespace ReactiveUITK.Props.Typed
                 d["activeTabChanged"] = ActiveTabChanged;
             }
             return d;
+        }
+
+        internal override void __ResetFields()
+        {
+            SelectedIndex = null;
+            SelectedTabIndex = null;
+            Tabs = null;
+            SelectedIndexChanged = null;
+            ActiveTabChanged = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TabViewProps>.Return(this);
         }
     }
 }

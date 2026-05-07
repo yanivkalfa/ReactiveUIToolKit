@@ -209,7 +209,7 @@ type at each child position stable across re-renders.
 
 > **Always supply a `key` attribute** on the direct children of `@foreach`.
 > The reconciler uses it to match items across list changes. Omitting it
-> triggers diagnostic `UITKX0009`.
+> triggers diagnostic `UITKX0106`.
 
 ### `@for`
 
@@ -316,7 +316,7 @@ file. A mismatch produces `CS0101: The namespace already contains a definition f
 
 ```uitkx
 @foreach (var item in list) {
-    <Box>                    ← UITKX0009 warning — missing key
+    <Box>                    ← UITKX0106 warning — missing key
         ...
     </Box>
 }

@@ -8400,6 +8400,35 @@ public sealed class FormatterSnapshotTests
     }
 
     [Fact]
+    public void FMT1_MultiLineParenContinuation_InsideNestedBlock_PreservesIndent()
+    {
+        // Multi-line `if (...)` with `&&` continuation INSIDE a nested block.
+        // The continuation line's +4sp offset from the `if` must survive the
+        // EmitSetupCodeNormalized block-interior re-anchoring; the if-body
+        // brace must still anchor to the if-statement's logical column.
+        // Regression for TD-S6 (GalagaGame GameScreen.uitkx idempotency).
+        var source = N(
+            """
+            component Foo {
+              for (int i = 0; i < n; i++) {
+                if (items[i].Id == target
+                    && items[i].Phase == 1) {
+                  beam = items[i];
+                  break;
+                }
+              }
+              return (<Box />);
+            }
+            """
+        );
+        var result = Format(source);
+        Assert.Contains("\n        && items[i].Phase == 1) {", result);
+        Assert.Contains("\n      beam = items[i];", result);
+        Assert.Contains("\n      break;", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
     public void W08_LambdaInsideMethodCall_NotStarterNorPulled()
     {
         // (from, to) => should NOT be treated as a statement starter (no ' = ').

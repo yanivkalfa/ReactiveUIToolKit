@@ -1,0 +1,10 @@
+@namespace PrettyUi.App
+@using PrettyUi.App
+@using UnityEngine
+
+module AppRoot {
+  public static readonly Style Root = new Style {
+    FlexGrow = 1f,
+    Position = PosRelative,
+  };
+}
