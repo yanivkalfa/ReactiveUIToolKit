@@ -110,6 +110,101 @@ namespace ReactiveUITK.Router
                 : new ReadOnlyDictionary<string, string>(dict);
         }
 
+        /// <summary>
+        /// Serialises a query dictionary back into a <c>k=v&amp;k2=v2</c> string
+        /// (without the leading <c>?</c>).  Returns the empty string when the
+        /// dictionary is null or empty.  Both keys and values are URL-escaped.
+        /// </summary>
+        public static string BuildQuery(IReadOnlyDictionary<string, string> query)
+        {
+            if (query == null || query.Count == 0)
+            {
+                return string.Empty;
+            }
+            var sb = new System.Text.StringBuilder();
+            bool first = true;
+            foreach (var kvp in query)
+            {
+                if (string.IsNullOrEmpty(kvp.Key))
+                {
+                    continue;
+                }
+                if (!first)
+                {
+                    sb.Append('&');
+                }
+                first = false;
+                sb.Append(Uri.EscapeDataString(kvp.Key));
+                if (kvp.Value != null)
+                {
+                    sb.Append('=').Append(Uri.EscapeDataString(kvp.Value));
+                }
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// If <paramref name="path"/> begins with the supplied
+        /// <paramref name="basename"/> (case-insensitive), returns the path
+        /// with the basename removed (always normalised to start with
+        /// <c>"/"</c>).  Otherwise returns the input unchanged.
+        /// </summary>
+        public static string StripBasename(string path, string basename)
+        {
+            if (string.IsNullOrEmpty(basename) || basename == "/")
+            {
+                return Normalize(path);
+            }
+            string normalizedBasename = Normalize(basename);
+            string normalizedPath = Normalize(path);
+            if (
+                normalizedPath.StartsWith(
+                    normalizedBasename,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                if (normalizedPath.Length == normalizedBasename.Length)
+                {
+                    return "/";
+                }
+                if (normalizedPath[normalizedBasename.Length] == '/')
+                {
+                    return Normalize(normalizedPath.Substring(normalizedBasename.Length));
+                }
+            }
+            return normalizedPath;
+        }
+
+        /// <summary>
+        /// Prefixes <paramref name="path"/> with <paramref name="basename"/>
+        /// (when non-empty and not already present).  Used when the router
+        /// dispatches navigation calls to the underlying history.
+        /// </summary>
+        public static string WithBasename(string path, string basename)
+        {
+            if (string.IsNullOrEmpty(basename) || basename == "/")
+            {
+                return Normalize(path);
+            }
+            string normalizedBasename = Normalize(basename);
+            string normalizedPath = Normalize(path);
+            if (
+                normalizedPath.StartsWith(
+                    normalizedBasename,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return normalizedPath;
+            }
+            if (normalizedPath == "/")
+            {
+                return normalizedBasename;
+            }
+            return Normalize(normalizedBasename.TrimEnd('/') + normalizedPath);
+        }
+
         private static List<string> SplitSegmentsInternal(string path)
         {
             List<string> buffer = new List<string>();

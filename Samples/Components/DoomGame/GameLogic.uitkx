@@ -1,0 +1,1944 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTextures
+
+module GameLogic {
+  // ───── Public API ─────
+
+  public static GameState NewGame(int level, Difficulty diff) {
+    var start = DoomMaps.BuildLevel(level);
+    var st = new GameState {
+      Level = level,
+      Difficulty = diff,
+      Map = start.Map,
+      Mobjs = new Mobj[C.MAX_MOBJS],
+      MobjCount = 0,
+      NextMobjId = 1,
+      Frame = new FrameData {
+        Columns = new ColumnInfo[C.VIEW_W],
+        DepthBuffer = new float[C.VIEW_W],
+      },
+      Player = new PlayerState {
+        X = start.PlayerX, Y = start.PlayerY, Angle = start.PlayerAngle,
+        Pitch = 0f,
+        Health = C.START_HEALTH,
+        Armor = 0, ArmorClass = 0,
+        Weapon = WeaponType.Pistol,
+        Ammo = new int[] { 50, 0, 0, 0 },
+        OwnedWeapons = new bool[] { true, true, false, false, false, false, false },
+        Keys = KeyCard.None,
+        Alive = true,
+        FaceState = 1,
+        FaceTimer = 0.5f,
+        MessageText = "",
+      },
+      RngSeed = 12345 + level * 17,
+      Tic = 0,
+      Tracers = new Tracer[C.MAX_TRACERS],
+      TracerCount = 0,
+      BossExitGated = start.BossExitGated,
+    };
+    // Phase 1: build the parallel sector model (no rendering use yet).
+    st.SectorMap = MapData.FromTiles(st.Map);
+    st.SectorMap.PlayerStart = new Vector2(start.PlayerX, start.PlayerY);
+    st.SectorMap.PlayerStartAngle = start.PlayerAngle;
+    st.SectorMap.PlayerStartSector = Raycast.PointInSectorFromHint(st.SectorMap, st.SectorMap.PlayerStart, -1);
+    st.Player.ViewHeight = C.PLAYER_VIEW_HEIGHT;
+    st.Player.SectorId = st.SectorMap.PlayerStartSector;
+    foreach (var m in start.Mobjs) AddMobj(ref st, m);
+    int killTotal = 0;
+    for (int i = 1; i < st.MobjCount + 1; i++) {
+      if (IsMonster(st.Mobjs[i].Kind)) killTotal++;
+    }
+    st.KillTotal = killTotal;
+    CastFrame(ref st);
+    return st;
+  }
+
+  public static void Tick(ref GameState st, float dt, InputCmd input) {
+    if (st.GameOver || st.Victory) {
+      st.TimeAccum += dt;
+      // still advance face timer for fun
+      AdvanceFace(ref st.Player, dt);
+      CastFrame(ref st);
+      return;
+    }
+    st.Tic++;
+    st.TimeAccum += dt;
+
+    UpdatePlayer(ref st, input, dt);
+    UpdateDoors(ref st, dt);
+    UpdateSectors(ref st, dt);
+
+    for (int i = 1; i <= st.MobjCount; i++) {
+      if (st.Mobjs[i].Id == 0) continue;
+      UpdateMobj(ref st, i, dt);
+    }
+
+    CompactMobjs(ref st);
+    AdvanceFace(ref st.Player, dt);
+
+    // decay flashes
+    if (st.Player.HurtFlash > 0) st.Player.HurtFlash = Mathf.Max(0, st.Player.HurtFlash - dt * 2f);
+    if (st.Player.PickupFlash > 0) st.Player.PickupFlash = Mathf.Max(0, st.Player.PickupFlash - dt * 3f);
+    if (st.Player.MuzzleFlash > 0) st.Player.MuzzleFlash = Mathf.Max(0, st.Player.MuzzleFlash - dt);
+    if (st.Player.MessageTimer > 0) st.Player.MessageTimer = Mathf.Max(0, st.Player.MessageTimer - dt);
+
+    // Phase 8: age hitscan tracers (ms units; capped at LIFE so dead slots
+    // are skipped at render time and naturally overwritten by ring index).
+    if (st.Tracers != null) {
+      float dtMs = dt * 1000f;
+      for (int i = 0; i < st.Tracers.Length; i++) {
+        if (st.Tracers[i].AgeMs < C.TRACER_LIFE_MS)
+        st.Tracers[i].AgeMs = Mathf.Min(C.TRACER_LIFE_MS, st.Tracers[i].AgeMs + dtMs);
+      }
+    }
+
+    CastFrame(ref st);
+  }
+
+  // ───── Player ─────
+
+  private static void UpdatePlayer(ref GameState st, InputCmd input, float dt) {
+    ref var p = ref st.Player;
+    if (!p.Alive) return;
+
+    // Mouse-look (ALWAYS ON)
+    p.Angle += input.YawDelta;
+    p.Pitch -= input.PitchDelta * C.MOUSE_PITCH_SENS;
+    p.Pitch = Mathf.Clamp(p.Pitch, -C.MAX_PITCH, C.MAX_PITCH);
+
+    // Keyboard turn
+    if (input.TurnLeft) p.Angle -= C.TURN_SPEED * dt;
+    if (input.TurnRight) p.Angle += C.TURN_SPEED * dt;
+
+    float speed = C.MOVE_SPEED * (input.Run ? C.RUN_MULT : 1f);
+    float strafe = C.STRAFE_SPEED * (input.Run ? C.RUN_MULT : 1f);
+    float fwdX = Mathf.Cos(p.Angle), fwdY = Mathf.Sin(p.Angle);
+    float rgtX = -fwdY, rgtY = fwdX;
+
+    float dx = 0, dy = 0;
+    if (input.Forward) { dx += fwdX * speed * dt; dy += fwdY * speed * dt; }
+    if (input.Back) { dx -= fwdX * speed * dt; dy -= fwdY * speed * dt; }
+    if (input.StrafeRight) { dx += rgtX * strafe * dt; dy += rgtY * strafe * dt; }
+    if (input.StrafeLeft) { dx -= rgtX * strafe * dt; dy -= rgtY * strafe * dt; }
+
+    MoveActor(ref st, ref p.X, ref p.Y, dx, dy, C.PLAYER_RADIUS, isPlayer: true);
+
+    // Phase 2: keep player.SectorId tracking the current sector for the
+    // sector-based renderer/collision. Cheap hint-walk; falls back to brute
+    // force if hint fails.
+    if (st.SectorMap.IsValid) {
+      p.SectorId = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(p.X, p.Y), p.SectorId);
+    }
+
+    // Phase 7: vertical movement — gravity, jump, crouch. Player feet (Z)
+    // are anchored to the current sector floor unless airborne.
+    UpdatePlayerVertical(ref st, ref p, input, dt);
+
+    if (Mathf.Abs(dx) > 0.001f || Mathf.Abs(dy) > 0.001f) {
+      p.BobT += dt * 8f;
+    }
+
+    // exit?
+    int gx = (int)p.X, gy = (int)p.Y;
+    var c = st.Map.AtSafe(gx, gy);
+    if (c.Kind == CellKind.Exit) {
+      if (st.BossExitGated && AnyBossAlive(ref st)) {
+        if ((st.Tic % 60) == 0) {
+          p.MessageText = "Kill the boss first.";
+          p.MessageTimer = 1.5f;
+        }
+      } else {
+        st.Victory = true;
+        return;
+      }
+    }
+    if (c.Kind == CellKind.Liquid) {
+      // damage 1hp/sec for nukage etc
+      if ((st.Tic % 30) == 0) Hurt(ref st, ref p, 1, 0);
+    }
+
+    // weapon switch
+    if (input.WeaponSwitch != 0) {
+      int idx = input.WeaponSwitch - 1;
+      if (idx >= 0 && idx < p.OwnedWeapons.Length && p.OwnedWeapons[idx]) {
+        p.Weapon = (WeaponType)idx;
+      }
+    }
+
+    // shooting
+    if (p.ShootCooldown > 0) p.ShootCooldown -= dt;
+    if (input.Attack && p.ShootCooldown <= 0) {
+      FireWeapon(ref st);
+    }
+
+    // use key (open doors)
+    if (input.Use) {
+      TryUse(ref st);
+    }
+  }
+
+  private static void TryUse(ref GameState st) {
+    ref var p = ref st.Player;
+    float fwdX = Mathf.Cos(p.Angle), fwdY = Mathf.Sin(p.Angle);
+    for (float d = 0.4f; d <= 1.4f; d += 0.2f) {
+      int gx = (int)(p.X + fwdX * d);
+      int gy = (int)(p.Y + fwdY * d);
+      if (gx < 0 || gx >= st.Map.Width || gy < 0 || gy >= st.Map.Height) continue;
+      ref var c = ref st.Map.Cells[gy * st.Map.Width + gx];
+      if (c.Kind == CellKind.Door) {
+        if (c.DoorState < 200) c.DoorTimer = 1;
+        return;
+      }
+      if (c.Kind == CellKind.DoorBlue) {
+        if ((p.Keys & KeyCard.Blue) != 0) { if (c.DoorState < 200) c.DoorTimer = 1; }
+        else { Message(ref p, "You need a BLUE keycard!", 2f); }
+        return;
+      }
+      if (c.Kind == CellKind.DoorYellow) {
+        if ((p.Keys & KeyCard.Yellow) != 0) { if (c.DoorState < 200) c.DoorTimer = 1; }
+        else { Message(ref p, "You need a YELLOW keycard!", 2f); }
+        return;
+      }
+      if (c.Kind == CellKind.DoorRed) {
+        if ((p.Keys & KeyCard.Red) != 0) { if (c.DoorState < 200) c.DoorTimer = 1; }
+        else { Message(ref p, "You need a RED keycard!", 2f); }
+        return;
+      }
+      if (c.Kind == CellKind.Wall) return;
+    }
+  }
+
+  private static void UpdateDoors(ref GameState st, float dt) {
+    int n = st.Map.Cells.Length;
+    int delta = (int)Mathf.Clamp(dt * 220f, 1f, 30f);
+    bool hasSectorMap = st.SectorMap.IsValid && st.SectorMap.CellToSector != null;
+    for (int i = 0; i < n; i++) {
+      ref var c = ref st.Map.Cells[i];
+      if (c.Kind != CellKind.Door && c.Kind != CellKind.DoorBlue && c.Kind != CellKind.DoorYellow && c.Kind != CellKind.DoorRed) continue;
+      // DoorTimer == 1: opening. DoorTimer == 2: open & waiting. DoorTimer == 3: closing.
+      if (c.DoorTimer == 1) {
+        int s = c.DoorState + delta;
+        if (s >= 255) {
+          c.DoorState = 255;
+          c.DoorTimer = 2;
+          // store wait countdown in the sector
+          if (hasSectorMap) {
+            int sid = st.SectorMap.CellToSector[i];
+            if (sid >= 0) st.SectorMap.Sectors[sid].DoorWaitTimer = C.DOOR_AUTO_CLOSE_DELAY;
+          }
+        }
+        else c.DoorState = (byte)s;
+      } else if (c.DoorTimer == 2) {
+        // waiting open
+        if (hasSectorMap) {
+          int sid = st.SectorMap.CellToSector[i];
+          if (sid >= 0) {
+            ref var sec = ref st.SectorMap.Sectors[sid];
+            sec.DoorWaitTimer -= dt;
+            // Don't close on top of player or monsters: check the cell.
+            int cx = i % st.Map.Width, cy = i / st.Map.Width;
+            bool blocked = ActorInCell(ref st, cx, cy);
+            if (sec.DoorWaitTimer <= 0f && !blocked) {
+              c.DoorTimer = 3;
+            } else if (blocked) {
+              sec.DoorWaitTimer = 1f; // keep checking
+            }
+          }
+        }
+      } else if (c.DoorTimer == 3) {
+        // closing
+        int s = c.DoorState - delta;
+        if (s <= 0) { c.DoorState = 0; c.DoorTimer = 0; }
+        else c.DoorState = (byte)s;
+        // Re-open immediately if blocked
+        int cx2 = i % st.Map.Width, cy2 = i / st.Map.Width;
+        if (ActorInCell(ref st, cx2, cy2)) {
+          c.DoorTimer = 1;
+        }
+      }
+      // Phase 2/3: mirror cell DoorState onto the matching sector's CeilingZ.
+      if (hasSectorMap) {
+        int secId = st.SectorMap.CellToSector[i];
+        if (secId >= 0) {
+          st.SectorMap.Sectors[secId].CeilingZ = (c.DoorState / 255f) * 1.5f;
+        }
+      }
+    }
+  }
+
+  // True if the player or any live mobj's footprint overlaps tile (cx,cy).
+  private static bool ActorInCell(ref GameState st, int cx, int cy) {
+    var p = st.Player;
+    if (p.Alive && (int)p.X == cx && (int)p.Y == cy) return true;
+    for (int j = 1; j <= st.MobjCount; j++) {
+      var m = st.Mobjs[j];
+      if (m.Id == 0 || m.Health <= 0) continue;
+      if (!IsMonster(m.Kind) && m.Kind != MobjKind.Barrel) continue;
+      if ((int)m.X == cx && (int)m.Y == cy) return true;
+    }
+    return false;
+  }
+
+  // ───── Weapons ─────
+
+  private static void FireWeapon(ref GameState st) {
+    ref var p = ref st.Player;
+    var w = p.Weapon;
+    AmmoType need = WeaponAmmoType(w);
+    int ammoIdx = (int)need;
+    if (need != AmmoType.None && p.Ammo[ammoIdx] <= 0) {
+      // try fallback to pistol/fist
+      if (p.OwnedWeapons[(int)WeaponType.Pistol] && p.Ammo[(int)AmmoType.Bullets] > 0) p.Weapon = WeaponType.Pistol;
+      else p.Weapon = WeaponType.Fist;
+      p.ShootCooldown = 0.2f;
+      return;
+    }
+    if (need != AmmoType.None) p.Ammo[ammoIdx]--;
+
+    p.MuzzleFlash = 0.1f;
+    p.ShootCooldown = WeaponCooldown(w);
+
+    switch (w) {
+      case WeaponType.Fist:
+      FireMelee(ref st, C.DMG_FIST, C.MELEE_RANGE);
+      break;
+      case WeaponType.Pistol:
+      FireHitscan(ref st, C.DMG_PISTOL, 0.04f);
+      break;
+      case WeaponType.Shotgun:
+      for (int i = 0; i < 7; i++) FireHitscan(ref st, C.DMG_PELLET, 0.18f);
+      break;
+      case WeaponType.Chaingun:
+      FireHitscan(ref st, C.DMG_CHAIN, 0.07f);
+      break;
+      case WeaponType.RocketLauncher:
+      SpawnProjectile(ref st, MobjKind.RocketProj, -1, C.DMG_ROCKET, C.SPEED_ROCKET);
+      break;
+      case WeaponType.PlasmaRifle:
+      SpawnProjectile(ref st, MobjKind.PlasmaProj, -1, C.DMG_PLASMA, C.SPEED_PLASMA);
+      break;
+      case WeaponType.BFG9000:
+      SpawnProjectile(ref st, MobjKind.BfgProj, -1, C.DMG_BFG, C.SPEED_BFG);
+      break;
+    }
+  }
+
+  private static void FireMelee(ref GameState st, int dmg, float range) {
+    ref var p = ref st.Player;
+    int hitIdx = FindMobjInCone(ref st, p.X, p.Y, p.Angle, range, 0.4f);
+    if (hitIdx > 0) {
+      DamageMobj(ref st, hitIdx, dmg, 0);
+    }
+  }
+
+  private static void FireHitscan(ref GameState st, int dmg, float spread) {
+    ref var p = ref st.Player;
+    float ang = p.Angle + (Frand(ref st) - 0.5f) * spread * 2f;
+    var hit = TraceShot(ref st, p.X, p.Y, ang);
+    if (hit.HitMobj && hit.MobjIdx > 0) {
+      DamageMobj(ref st, hit.MobjIdx, dmg, 0);
+    }
+    SpawnTracer(ref st, p, ang, hit, spread);
+  }
+
+  // Phase 8: emit a hitscan tracer streak from muzzle to impact. Endpoints
+  // are projected/clipped at render time. ColorIdx 1 = shotgun pellet (red
+  // tinted), 0 = pistol/chaingun (yellow).
+  private static void SpawnTracer(ref GameState st, PlayerState p, float ang, ShotHit hit, float spread) {
+    if (st.Tracers == null) return;
+    float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
+    float pitchSlope = p.Pitch / planeScale;
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+    float fwdX = Mathf.Cos(ang), fwdY = Mathf.Sin(ang);
+    float ax = p.X + fwdX * C.MUZZLE_FORWARD;
+    float ay = p.Y + fwdY * C.MUZZLE_FORWARD;
+    float az = viewZ - C.MUZZLE_BELOW_EYE;
+    float bx = hit.X, by = hit.Y;
+    float dist = Mathf.Sqrt((bx - p.X) * (bx - p.X) + (by - p.Y) * (by - p.Y));
+    float bz = viewZ + pitchSlope * dist;
+    int slot = st.TracerCount % C.MAX_TRACERS;
+    st.Tracers[slot] = new Tracer {
+      Ax = ax, Ay = ay, Az = az,
+      Bx = bx, By = by, Bz = bz,
+      AgeMs = 0f,
+      ColorIdx = (byte)(spread > 0.10f ? 1 : 0),
+    };
+    st.TracerCount++;
+  }
+
+  private static void SpawnProjectile(ref GameState st, MobjKind kind, int ownerId, int damage, float speed) {
+    ref var p = ref st.Player;
+    float fwdX = Mathf.Cos(p.Angle), fwdY = Mathf.Sin(p.Angle);
+    // Phase 7: vertical aim — apply pitch slope to projectile motion.
+    float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
+    float pitchSlope = p.Pitch / planeScale;
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+    var m = new Mobj {
+      Kind = kind,
+      State = AIState.Hunting,
+      X = p.X + fwdX * 0.5f, Y = p.Y + fwdY * 0.5f,
+      Z = viewZ,
+      MomX = fwdX * speed, MomY = fwdY * speed,
+      ZVel = pitchSlope * speed,
+      Angle = p.Angle,
+      Height = DoomMaps.HeightFor(kind),
+      Health = 1,
+      Damage = damage,
+      OwnerId = ownerId,
+      Radius = DoomMaps.RadiusFor(kind),
+    };
+    AddMobj(ref st, m);
+  }
+
+  private static AmmoType WeaponAmmoType(WeaponType w) {
+    switch (w) {
+      case WeaponType.Pistol:
+      case WeaponType.Chaingun: return AmmoType.Bullets;
+      case WeaponType.Shotgun: return AmmoType.Shells;
+      case WeaponType.RocketLauncher: return AmmoType.Rockets;
+      case WeaponType.PlasmaRifle:
+      case WeaponType.BFG9000: return AmmoType.Cells;
+      default: return AmmoType.None;
+    }
+  }
+
+  private static float WeaponCooldown(WeaponType w) {
+    switch (w) {
+      case WeaponType.Fist: return C.COOLDOWN_FIST;
+      case WeaponType.Pistol: return C.COOLDOWN_PISTOL;
+      case WeaponType.Shotgun: return C.COOLDOWN_SHOTGUN;
+      case WeaponType.Chaingun: return C.COOLDOWN_CHAIN;
+      case WeaponType.RocketLauncher: return C.COOLDOWN_ROCKET;
+      case WeaponType.PlasmaRifle: return C.COOLDOWN_PLASMA;
+      case WeaponType.BFG9000: return C.COOLDOWN_BFG;
+      default: return 0.3f;
+    }
+  }
+
+  // ───── Mobj update ─────
+
+  private static void UpdateMobj(ref GameState st, int idx, float dt) {
+    ref var m = ref st.Mobjs[idx];
+    m.StateTimer += dt;
+    if (m.AttackCooldown > 0) m.AttackCooldown -= dt;
+
+    // animation frame tick
+    if (m.StateTimer > 0.15f) { m.AnimFrame++; m.StateTimer = 0; }
+
+    if (IsProjectile(m.Kind)) { UpdateProjectile(ref st, idx, dt); return; }
+    if (IsMonster(m.Kind)) { UpdateMonster(ref st, idx, dt); return; }
+    if (IsPickup(m.Kind)) { UpdatePickup(ref st, idx); return; }
+
+    if (m.Kind == MobjKind.Explosion) {
+      if (m.StateTimer > 0.4f || m.AnimFrame > 4) m.Id = 0;
+      return;
+    }
+    // barrels just sit there
+  }
+
+  private static void UpdateProjectile(ref GameState st, int idx, float dt) {
+    ref var m = ref st.Mobjs[idx];
+    float nx = m.X + m.MomX * dt;
+    float ny = m.Y + m.MomY * dt;
+    float nz = m.Z + m.ZVel * dt;
+
+    // Phase 9: Z-aware wall + slab collision. The old `BlocksMovement` was
+    // a 2D-only check that let fireballs pass through stair risers, raised
+    // floors, low ceilings, and ExtraFloor slabs. Treat the projectile as
+    // an infinitesimal point: if any solid surface sits between (m.X,m.Y,m.Z)
+    // and (nx,ny,nz), it explodes.
+    int gx = (int)nx, gy = (int)ny;
+    var cell = st.Map.AtSafe(gx, gy);
+    if (cell.Kind == CellKind.Wall) {
+      OnProjectileHit(ref st, idx, m.X, m.Y, hitMobjIdx: 0);
+      return;
+    }
+    if ((cell.Kind == CellKind.Door || cell.Kind == CellKind.DoorBlue
+         || cell.Kind == CellKind.DoorYellow || cell.Kind == CellKind.DoorRed)
+        && cell.DoorState < 200) {
+      OnProjectileHit(ref st, idx, m.X, m.Y, hitMobjIdx: 0);
+      return;
+    }
+    float cellFloor = cell.FloorZ;
+    float cellCeil = cell.IsSky ? 1e9f : (cell.CeilingZ <= 0f ? 1.5f : cell.CeilingZ);
+    if (nz < cellFloor || nz > cellCeil) {
+      OnProjectileHit(ref st, idx, nx, ny, hitMobjIdx: 0);
+      return;
+    }
+    if (cell.ExtraFloors != null) {
+      for (int k = 0; k < cell.ExtraFloors.Count; k++) {
+        var ef = cell.ExtraFloors[k];
+        if (!ef.Solid) continue;
+        if (nz >= ef.BottomZ - 0.001f && nz <= ef.TopZ + 0.001f) {
+          OnProjectileHit(ref st, idx, nx, ny, hitMobjIdx: 0);
+          return;
+        }
+      }
+    }
+
+    // mobj hit? (not owner, not other projectiles)
+    int hitMobj = 0;
+    for (int j = 1; j <= st.MobjCount; j++) {
+      if (j == idx) continue;
+      ref var t = ref st.Mobjs[j];
+      if (t.Id == 0 || t.Id == m.OwnerId) continue;
+      if (IsProjectile(t.Kind) || t.Kind == MobjKind.Explosion) continue;
+      if (IsPickup(t.Kind)) continue;
+      if (t.Health <= 0 && t.Kind != MobjKind.Barrel) continue;
+      float dx = t.X - nx, dy = t.Y - ny;
+      float r = m.Radius + t.Radius;
+      if (dx * dx + dy * dy >= r * r) continue;
+      // Vertical: projectile Z must overlap target [Z, Z+Height].
+      float tBot = t.Z - 0.05f;
+      float tTop = t.Z + (t.Height > 0f ? t.Height : 0.7f) + 0.05f;
+      if (nz < tBot || nz > tTop) continue;
+      hitMobj = j;
+      break;
+    }
+    // player hit (only enemy projectiles)
+    if (m.OwnerId != -1 && hitMobj == 0) {
+      float dx = st.Player.X - nx, dy = st.Player.Y - ny;
+      float r = m.Radius + C.PLAYER_RADIUS;
+      if (dx * dx + dy * dy < r * r) {
+        float pBot = st.Player.Z - 0.05f;
+        float pTop = st.Player.Z + (st.Player.ViewHeight <= 0f ? 0.6f : st.Player.ViewHeight) + 0.4f;
+        if (nz >= pBot && nz <= pTop) {
+          Hurt(ref st, ref st.Player, m.Damage, 0);
+          OnProjectileHit(ref st, idx, nx, ny, 0);
+          return;
+        }
+      }
+    }
+    if (hitMobj != 0) {
+      OnProjectileHit(ref st, idx, nx, ny, hitMobj);
+      return;
+    }
+
+    m.X = nx; m.Y = ny; m.Z = nz;
+    if ((m.X < 0 || m.X >= st.Map.Width || m.Y < 0 || m.Y >= st.Map.Height)) m.Id = 0;
+  }
+
+  private static void OnProjectileHit(ref GameState st, int idx, float x, float y, int hitMobjIdx) {
+    ref var m = ref st.Mobjs[idx];
+    if (hitMobjIdx > 0) {
+      DamageMobj(ref st, hitMobjIdx, m.Damage, m.OwnerId);
+    }
+    if (m.Kind == MobjKind.RocketProj || m.Kind == MobjKind.BfgProj) {
+      // splash
+      float splashRadius = m.Kind == MobjKind.BfgProj ? 4f : 2.5f;
+      int splashDmg = m.Kind == MobjKind.BfgProj ? 200 : 60;
+      Splash(ref st, x, y, splashRadius, splashDmg, m.OwnerId);
+      // explosion sprite
+      var ex = new Mobj {
+        Kind = MobjKind.Explosion, X = x, Y = y, Radius = 0.5f, Health = 1,
+      };
+      AddMobj(ref st, ex);
+    }
+    m.Id = 0;
+  }
+
+  private static void Splash(ref GameState st, float x, float y, float radius, int maxDmg, int ownerId) {
+    for (int j = 1; j <= st.MobjCount; j++) {
+      ref var t = ref st.Mobjs[j];
+      if (t.Id == 0 || IsProjectile(t.Kind) || IsPickup(t.Kind) || t.Kind == MobjKind.Explosion) continue;
+      float dx = t.X - x, dy = t.Y - y;
+      float d = Mathf.Sqrt(dx * dx + dy * dy);
+      if (d < radius) {
+        int dmg = (int)(maxDmg * (1f - d / radius));
+        DamageMobj(ref st, j, dmg, ownerId);
+      }
+    }
+    float pdx = st.Player.X - x, pdy = st.Player.Y - y;
+    float pd = Mathf.Sqrt(pdx * pdx + pdy * pdy);
+    if (pd < radius) {
+      int dmg = (int)(maxDmg * (1f - pd / radius) * 0.6f);
+      Hurt(ref st, ref st.Player, dmg, 0);
+    }
+  }
+
+  private static void UpdateMonster(ref GameState st, int idx, float dt) {
+    ref var m = ref st.Mobjs[idx];
+    if (m.State == AIState.Dead) return;
+    if (m.State == AIState.Dying) {
+      if (m.StateTimer > 1.0f || m.AnimFrame > 3) {
+        m.State = AIState.Dead;
+        m.Kind = MobjKind.Corpse;
+      }
+      return;
+    }
+
+    float dx = st.Player.X - m.X, dy = st.Player.Y - m.Y;
+    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+    m.Angle = Mathf.Atan2(dy, dx);
+
+    // Phase 8: 3D LOS so risers, low ceilings, and second-story plateaus
+    // actually block the monster's view (was tile-grid only before).
+    float monEyeZ = m.Z + (m.Height > 0f ? m.Height * 0.65f : 0.5f);
+    float plyEyeZ = st.Player.Z + (st.Player.ViewHeight <= 0f ? 0.6f : st.Player.ViewHeight);
+    bool sees = HasLineOfSight3D(ref st, m.X, m.Y, monEyeZ, st.Player.X, st.Player.Y, plyEyeZ, m.SectorId);
+
+    if (m.State == AIState.Idle) {
+      if (dist < C.SIGHT_RANGE && sees) {
+        m.State = AIState.Hunting;
+      } else return;
+    }
+    if (m.State == AIState.Pain) {
+      if (m.StateTimer > 0.3f) m.State = AIState.Hunting;
+      return;
+    }
+
+    // Hunting / Attacking
+    float speed = MonsterSpeed(m.Kind);
+    float meleeRange = (m.Kind == MobjKind.Demon || m.Kind == MobjKind.LostSoul) ? 1.6f : 1.2f;
+    bool canMelee = dist < meleeRange;
+    bool canRanged = dist < 12f && sees;
+    bool ranged = m.Kind == MobjKind.Imp || m.Kind == MobjKind.Baron || m.Kind == MobjKind.Cacodemon || m.Kind == MobjKind.Shotgunner || m.Kind == MobjKind.Zombieman;
+
+    if (m.AttackCooldown <= 0 && (canMelee || (ranged && canRanged))) {
+      DoAttack(ref st, idx, dist, canMelee);
+    } else {
+      // chase
+      float mx = Mathf.Cos(m.Angle) * speed * dt;
+      float my = Mathf.Sin(m.Angle) * speed * dt;
+      MoveActor(ref st, ref m.X, ref m.Y, mx, my, m.Radius, isPlayer: false, selfIdx: idx);
+      // Phase 8: keep mob's sector + floor anchor in sync after movement
+      // so 3D LOS and sprite occlusion stay correct on stairs/plateaus.
+      if (st.SectorMap.IsValid) {
+        int sec = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(m.X, m.Y), m.SectorId);
+        if (sec >= 0) {
+          m.SectorId = sec;
+          float fz = StandingFloorIn(st.SectorMap.Sectors[sec], m.Z, C.STEP_HEIGHT);
+          // Snap to floor unless mob is intentionally floating.
+          if (m.Kind != MobjKind.Cacodemon && m.Kind != MobjKind.LostSoul) {
+            m.Z = fz;
+          }
+        }
+      }
+    }
+  }
+
+  private static void DoAttack(ref GameState st, int idx, float dist, bool melee) {
+    ref var m = ref st.Mobjs[idx];
+    m.AttackCooldown = 1.4f + Frand(ref st) * 1.0f;
+
+    switch (m.Kind) {
+      case MobjKind.Imp:
+      if (melee) Hurt(ref st, ref st.Player, C.DMG_IMP_MELEE, 0);
+      else SpawnEnemyProjectile(ref st, idx, MobjKind.ImpFireball, C.DMG_IMP_BALL, C.SPEED_IMPBALL);
+      break;
+      case MobjKind.Demon:
+      if (melee) Hurt(ref st, ref st.Player, C.DMG_DEMON_BITE, 0);
+      else m.AttackCooldown = 0.2f; // chase faster
+      break;
+      case MobjKind.Baron:
+      if (melee) Hurt(ref st, ref st.Player, C.DMG_BARON_CLAW, 0);
+      else SpawnEnemyProjectile(ref st, idx, MobjKind.BaronBall, C.DMG_BARON_BALL, C.SPEED_BARONBALL);
+      break;
+      case MobjKind.Cacodemon:
+      SpawnEnemyProjectile(ref st, idx, MobjKind.CacoBall, C.DMG_CACO_BALL, C.SPEED_CACOBALL);
+      break;
+      case MobjKind.LostSoul:
+      if (melee) Hurt(ref st, ref st.Player, C.DMG_LOST_RAM, 0);
+      else m.AttackCooldown = 0.2f;
+      break;
+      case MobjKind.Zombieman:
+      Hurt(ref st, ref st.Player, C.DMG_ZOMBIE, 0);
+      break;
+      case MobjKind.Shotgunner:
+      for (int i = 0; i < 3; i++) {
+        if (Frand(ref st) < 0.6f) Hurt(ref st, ref st.Player, C.DMG_SHOTG, 0);
+      }
+      break;
+    }
+  }
+
+  private static void SpawnEnemyProjectile(ref GameState st, int srcIdx, MobjKind kind, int damage, float speed) {
+    ref var src = ref st.Mobjs[srcIdx];
+    float ang = src.Angle;
+    // Phase 7: enemy aims at the player's torso. Compute Z slope from src eye
+    // (3/4 of mob height) toward player center (Z + ViewHeight ≈ feet+0.6).
+    float srcEyeZ = src.Z + (src.Height > 0f ? src.Height * 0.75f : 0.6f);
+    float plyCenterZ = st.Player.Z + (st.Player.ViewHeight <= 0f ? 0.6f : st.Player.ViewHeight) - 0.1f;
+    float dx = st.Player.X - src.X, dy = st.Player.Y - src.Y;
+    float horiz = Mathf.Sqrt(dx * dx + dy * dy);
+    float zSlope = horiz > 0.01f ? (plyCenterZ - srcEyeZ) / horiz : 0f;
+    var m = new Mobj {
+      Kind = kind,
+      X = src.X + Mathf.Cos(ang) * 0.5f, Y = src.Y + Mathf.Sin(ang) * 0.5f,
+      Z = srcEyeZ,
+      MomX = Mathf.Cos(ang) * speed, MomY = Mathf.Sin(ang) * speed,
+      ZVel = zSlope * speed,
+      Angle = ang, Health = 1,
+      Height = DoomMaps.HeightFor(kind),
+      Damage = damage,
+      OwnerId = src.Id, // monster id, not -1
+      Radius = DoomMaps.RadiusFor(kind),
+    };
+    AddMobj(ref st, m);
+  }
+
+  private static float MonsterSpeed(MobjKind k) {
+    switch (k) {
+      case MobjKind.Imp: return C.SPEED_IMP;
+      case MobjKind.Demon: return C.SPEED_DEMON;
+      case MobjKind.Baron: return C.SPEED_BARON;
+      case MobjKind.Cacodemon: return C.SPEED_CACO;
+      case MobjKind.LostSoul: return C.SPEED_LOST;
+      case MobjKind.Zombieman: return C.SPEED_ZOMBIE;
+      case MobjKind.Shotgunner: return C.SPEED_SHOTG;
+      default: return 1.0f;
+    }
+  }
+
+  private static void UpdatePickup(ref GameState st, int idx) {
+    ref var m = ref st.Mobjs[idx];
+    if (m.Collected) { m.Id = 0; return; }
+    float dx = st.Player.X - m.X, dy = st.Player.Y - m.Y;
+    if (dx * dx + dy * dy > 0.5f * 0.5f) return;
+    if (TryGivePickup(ref st, m.Kind)) {
+      m.Collected = true;
+      st.Player.PickupFlash = 0.6f;
+    }
+  }
+
+  private static bool TryGivePickup(ref GameState st, MobjKind k) {
+    ref var p = ref st.Player;
+    switch (k) {
+      case MobjKind.PickupHealth:
+      if (p.Health >= 100) return false;
+      p.Health = Mathf.Min(100, p.Health + 25);
+      Message(ref p, "Picked up a stimpack.", 1.5f);
+      return true;
+      case MobjKind.PickupArmor:
+      p.Armor = Mathf.Max(p.Armor, 100); p.ArmorClass = (byte)Mathf.Max(p.ArmorClass, 1);
+      Message(ref p, "Picked up green armor.", 1.5f);
+      return true;
+      case MobjKind.PickupArmorBlue:
+      p.Armor = Mathf.Max(p.Armor, 200); p.ArmorClass = 2;
+      Message(ref p, "Picked up MEGA ARMOR!", 2f);
+      return true;
+      case MobjKind.PickupBullets:
+      if (p.Ammo[0] >= C.MAX_BULLETS) return false;
+      p.Ammo[0] = Mathf.Min(C.MAX_BULLETS, p.Ammo[0] + 20);
+      Message(ref p, "Picked up a clip.", 1.5f); return true;
+      case MobjKind.PickupShells:
+      if (p.Ammo[1] >= C.MAX_SHELLS) return false;
+      p.Ammo[1] = Mathf.Min(C.MAX_SHELLS, p.Ammo[1] + 8);
+      Message(ref p, "Picked up shotgun shells.", 1.5f); return true;
+      case MobjKind.PickupRockets:
+      if (p.Ammo[2] >= C.MAX_ROCKETS) return false;
+      p.Ammo[2] = Mathf.Min(C.MAX_ROCKETS, p.Ammo[2] + 5);
+      Message(ref p, "Picked up rockets.", 1.5f); return true;
+      case MobjKind.PickupCells:
+      if (p.Ammo[3] >= C.MAX_CELLS) return false;
+      p.Ammo[3] = Mathf.Min(C.MAX_CELLS, p.Ammo[3] + 40);
+      Message(ref p, "Picked up an energy cell.", 1.5f); return true;
+      case MobjKind.PickupShotgun:
+      bool hadShotgun = p.OwnedWeapons[(int)WeaponType.Shotgun];
+      p.OwnedWeapons[(int)WeaponType.Shotgun] = true;
+      p.Ammo[1] = Mathf.Min(C.MAX_SHELLS, p.Ammo[1] + 8);
+      if (!hadShotgun) p.Weapon = WeaponType.Shotgun;
+      Message(ref p, "You got the SHOTGUN!", 2f); return true;
+      case MobjKind.PickupChaingun:
+      bool hadChain = p.OwnedWeapons[(int)WeaponType.Chaingun];
+      p.OwnedWeapons[(int)WeaponType.Chaingun] = true;
+      p.Ammo[0] = Mathf.Min(C.MAX_BULLETS, p.Ammo[0] + 20);
+      if (!hadChain) p.Weapon = WeaponType.Chaingun;
+      Message(ref p, "You got the CHAINGUN!", 2f); return true;
+      case MobjKind.PickupRocketLauncher:
+      bool hadRL = p.OwnedWeapons[(int)WeaponType.RocketLauncher];
+      p.OwnedWeapons[(int)WeaponType.RocketLauncher] = true;
+      p.Ammo[2] = Mathf.Min(C.MAX_ROCKETS, p.Ammo[2] + 5);
+      if (!hadRL) p.Weapon = WeaponType.RocketLauncher;
+      Message(ref p, "You got the ROCKET LAUNCHER!", 2f); return true;
+      case MobjKind.PickupPlasma:
+      bool hadPL = p.OwnedWeapons[(int)WeaponType.PlasmaRifle];
+      p.OwnedWeapons[(int)WeaponType.PlasmaRifle] = true;
+      p.Ammo[3] = Mathf.Min(C.MAX_CELLS, p.Ammo[3] + 40);
+      if (!hadPL) p.Weapon = WeaponType.PlasmaRifle;
+      Message(ref p, "You got the PLASMA RIFLE!", 2f); return true;
+      case MobjKind.PickupBFG:
+      bool hadBFG = p.OwnedWeapons[(int)WeaponType.BFG9000];
+      p.OwnedWeapons[(int)WeaponType.BFG9000] = true;
+      p.Ammo[3] = Mathf.Min(C.MAX_CELLS, p.Ammo[3] + 40);
+      if (!hadBFG) p.Weapon = WeaponType.BFG9000;
+      Message(ref p, "YOU GOT THE BFG9000!  OH YES!", 3f); return true;
+      case MobjKind.KeyBlue: p.Keys |= KeyCard.Blue; Message(ref p, "Picked up a BLUE keycard.", 2f); return true;
+      case MobjKind.KeyYellow: p.Keys |= KeyCard.Yellow; Message(ref p, "Picked up a YELLOW keycard.", 2f); return true;
+      case MobjKind.KeyRed: p.Keys |= KeyCard.Red; Message(ref p, "Picked up a RED keycard.", 2f); return true;
+    }
+    return false;
+  }
+
+  // ───── Damage ─────
+
+  public static void DamageMobj(ref GameState st, int idx, int dmg, int sourceId) {
+    ref var m = ref st.Mobjs[idx];
+    if (m.Health <= 0) return;
+    m.Health -= dmg;
+    if (m.Kind == MobjKind.Barrel && m.Health <= 0) {
+      // explode
+      Splash(ref st, m.X, m.Y, 2.2f, C.DMG_BARREL, m.OwnerId);
+      var ex = new Mobj { Kind = MobjKind.Explosion, X = m.X, Y = m.Y, Radius = 0.5f, Health = 1 };
+      AddMobj(ref st, ex);
+      m.Id = 0;
+      st.Score += C.SCORE_BARREL;
+      return;
+    }
+    if (IsMonster(m.Kind)) {
+      if (m.Health <= 0) {
+        m.State = AIState.Dying;
+        m.StateTimer = 0;
+        m.AnimFrame = 0;
+        st.KillCount++;
+        st.Score += KillScore(m.Kind);
+        if (st.KillCount >= st.KillTotal && st.KillTotal > 0) {
+          // optional: flag clearance, but no-op
+        }
+      } else {
+        if (Frand(ref st) < 0.3f) {
+          m.State = AIState.Pain;
+          m.StateTimer = 0;
+        }
+        m.State = m.State == AIState.Pain ? AIState.Pain : AIState.Hunting;
+      }
+    }
+  }
+
+  private static int KillScore(MobjKind k) {
+    switch (k) {
+      case MobjKind.Imp: return C.SCORE_IMP;
+      case MobjKind.Demon: return C.SCORE_DEMON;
+      case MobjKind.Baron: return C.SCORE_BARON;
+      case MobjKind.Cacodemon: return C.SCORE_CACO;
+      case MobjKind.LostSoul: return C.SCORE_LOST;
+      case MobjKind.Zombieman: return C.SCORE_ZOMBIE;
+      case MobjKind.Shotgunner: return C.SCORE_SHOTG;
+      default: return 0;
+    }
+  }
+
+  private static void Hurt(ref GameState st, ref PlayerState p, int dmg, byte dirHint) {
+    if (!p.Alive) return;
+    int diff = (int)st.Difficulty;
+    if (diff == 0) dmg = (int)(dmg * 0.6f);
+    else if (diff == 2) dmg = (int)(dmg * 1.5f);
+    if (dmg < 1) dmg = 1;
+
+    if (p.ArmorClass > 0 && p.Armor > 0) {
+      float frac = p.ArmorClass == 2 ? 0.5f : 0.33f;
+      int absorb = Mathf.Min(p.Armor, (int)(dmg * frac));
+      p.Armor -= absorb;
+      dmg -= absorb;
+      if (p.Armor <= 0) p.ArmorClass = 0;
+    }
+    p.Health -= dmg;
+    p.HurtFlash = Mathf.Min(1f, p.HurtFlash + dmg / 60f);
+    p.LastDamageDir = dirHint;
+    p.FaceState = 6; p.FaceTimer = 0.5f; // hurt face
+    if (p.Health <= 0) {
+      p.Health = 0;
+      p.Alive = false;
+      p.FaceState = 7;
+      st.GameOver = true;
+    }
+  }
+
+  // Phase 9: highest standable surface within `stepUp` of the actor's feet,
+  // considering the sector floor and any solid ExtraFloor.TopZ. The actor
+  // can stand on whichever is highest yet still reachable by a single step.
+  private static float StandingFloorIn(Sector sec, float footZ, float stepUp) {
+    float best = sec.FloorZ;
+    if (sec.ExtraFloors != null) {
+      for (int i = 0; i < sec.ExtraFloors.Count; i++) {
+        var ef = sec.ExtraFloors[i];
+        if (!ef.Solid) continue;
+        if (ef.TopZ <= footZ + stepUp + 0.001f && ef.TopZ > best) best = ef.TopZ;
+      }
+    }
+    return best;
+  }
+
+  // Phase 9: lowest blocking surface above the actor's head. Sector ceiling
+  // by default, or the bottom of any ExtraFloor that sits above the head
+  // (so a basement-dweller hits the courtyard slab as a low ceiling).
+  private static float CeilingAboveIn(Sector sec, float footZ, float actorHeight) {
+    float headZ = footZ + actorHeight;
+    float ceil = sec.IsSky ? 1e9f : sec.CeilingZ;
+    if (sec.ExtraFloors != null) {
+      for (int i = 0; i < sec.ExtraFloors.Count; i++) {
+        var ef = sec.ExtraFloors[i];
+        if (!ef.Solid) continue;
+        if (ef.BottomZ >= headZ - 0.001f && ef.BottomZ < ceil) ceil = ef.BottomZ;
+      }
+    }
+    return ceil;
+  }
+
+  // Phase 7: vertical physics for the player. Tracks Z (feet height) against
+  // the floor of the player's current sector. Jump applies upward velocity
+  // when on the ground; crouch lowers the view height temporarily.
+  private static void UpdatePlayerVertical(ref GameState st, ref PlayerState p, InputCmd input, float dt) {
+    float floorZ = 0f;
+    float ceilZ = 1f;
+    if (st.SectorMap.IsValid && p.SectorId >= 0) {
+      var sec = st.SectorMap.Sectors[p.SectorId];
+      floorZ = StandingFloorIn(sec, p.Z, C.STEP_HEIGHT);
+      ceilZ = CeilingAboveIn(sec, p.Z, C.PLAYER_HEIGHT);
+    }
+    bool onGround = p.Z <= floorZ + 0.001f && p.ZVel <= 0f;
+    // Edge-detect: only jump on the rising edge of the Jump key, not while held.
+    bool jumpEdge = input.Jump && !p.JumpHeldPrev;
+    p.JumpHeldPrev = input.Jump;
+    if (onGround && jumpEdge) {
+      p.ZVel = C.JUMP_VELOCITY;
+      onGround = false;
+    }
+    if (!onGround) {
+      p.ZVel -= C.GRAVITY * dt;
+      p.Z += p.ZVel * dt;
+      if (p.Z <= floorZ) { p.Z = floorZ; p.ZVel = 0f; }
+      // Bonk into ceiling
+      if (p.Z + C.PLAYER_HEIGHT > ceilZ) { p.Z = ceilZ - C.PLAYER_HEIGHT; if (p.ZVel > 0) p.ZVel = 0; }
+    } else {
+      p.Z = floorZ;
+    }
+    // Crouch lowers view height (smooth)
+    float targetView = input.Crouch ? C.CROUCH_HEIGHT : C.PLAYER_VIEW_HEIGHT;
+    p.ViewHeight = Mathf.Lerp(p.ViewHeight, targetView, Mathf.Min(1f, dt * 8f));
+  }
+
+  // Phase 4: animate sector light levels per SectorSpecial. Each sector keeps
+  // its base Light from FromTiles; we modulate it into a runtime override
+  // stored back in Sector.Light so the renderer picks it up automatically.
+  // Base light is preserved in TargetCeilingZ-adjacent fields? No — to avoid
+  // expanding the struct, we recompute every frame from a deterministic phase
+  // tied to Tic + sector index.
+  private static void UpdateSectors(ref GameState st, float dt) {
+    if (!st.SectorMap.IsValid) return;
+    var sectors = st.SectorMap.Sectors;
+    int tic = st.Tic;
+    for (int i = 0; i < sectors.Length; i++) {
+      var sp = sectors[i].Special;
+      if (sp == SectorSpecial.None) continue;
+      byte baseLight = sectors[i].Light;
+      // Reconstruct base from runtime value: store every 32 tics by sampling
+      // from the linedef-MidTex? Simpler: clamp to a known base via integer
+      // derived from sector index (we lose true per-sector base, but our
+      // FromTiles maps light=200 by default).
+      byte baseL = 200;
+      switch (sp) {
+        case SectorSpecial.LightFlicker: {
+          int seed = (tic + i * 7) & 31;
+          // 7/32 frames dim; rest bright
+          sectors[i].Light = seed < 7 ? (byte)(baseL / 3) : baseL;
+          break;
+        }
+        case SectorSpecial.LightBlink: {
+          int phase = (tic + i * 11) & 63;
+          sectors[i].Light = phase < 8 ? (byte)(baseL / 3) : baseL;
+          break;
+        }
+        case SectorSpecial.LightGlow: {
+          // smooth sin wave 0.5..1.0 of base
+          float t = (tic + i * 13) * 0.05f;
+          float w = 0.5f + 0.5f * Mathf.Sin(t);
+          sectors[i].Light = (byte)Mathf.Clamp(baseL * (0.5f + 0.5f * w), 30f, 255f);
+          break;
+        }
+        default: break;
+      }
+    }
+  }
+
+
+  // Phase 2: when true, CastFrame uses Raycast.Cast (portal walker on the
+  // sector graph). When false, falls back to the original DDA grid walker.
+  // Toggle off if a regression appears — the engine should still play.
+  public const bool USE_SECTOR_RAYCAST = true;
+
+  public static void CastFrame(ref GameState st) {
+    var p = st.Player;
+    var cols = st.Frame.Columns;
+    var depth = st.Frame.DepthBuffer;
+    bool useSector = USE_SECTOR_RAYCAST && st.SectorMap.IsValid && p.SectorId >= 0;
+    // Phase 7: real eye height. Walls reproject against this so jump/crouch
+    // actually CHANGES geometry (walls get shorter, you see more floor) rather
+    // than simply tilting the horizon. Sky/floor bands stay anchored to the
+    // pitch-only horizon.
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+    float horizon = C.VIEWPORT_H * 0.5f + p.Pitch;
+    st.Player.ViewShiftPx = 0f;
+
+    for (int i = 0; i < C.VIEW_W; i++) {
+      float cameraX = 2f * i / (float)C.VIEW_W - 1f; // -1..1
+      float rayAng = p.Angle + Mathf.Atan(cameraX * Mathf.Tan(C.HALF_FOV));
+      float rdx = Mathf.Cos(rayAng), rdy = Mathf.Sin(rayAng);
+      float angCos = Mathf.Cos(rayAng - p.Angle);
+
+      if (useSector) {
+        cols[i] = BuildColumnSector(ref st, p.X, p.Y, rdx, rdy, angCos, viewZ, horizon, out var perpOut);
+        depth[i] = perpOut;
+      } else {
+        var hit = CastRay(ref st, p.X, p.Y, rdx, rdy);
+        float perp = hit.Distance * angCos;
+        if (perp < 0.001f) perp = 0.001f;
+        depth[i] = perp;
+        float wallH = (C.VIEWPORT_H / perp);
+        float top = horizon - wallH * 0.5f;
+        float bot = horizon + wallH * 0.5f;
+        byte light = LightFromDist(perp, hit.Light);
+        cols[i] = new ColumnInfo {
+          Main = new WallSeg {
+            TopPx = top, BotPx = bot,
+            Distance = perp,
+            WallTexIdx = hit.WallTexIdx,
+            TexU = hit.TexU,
+            LightLevel = light,
+            HitVertical = hit.HitVertical,
+            IsSky = hit.IsSky,
+          },
+        };
+      }
+    }
+  }
+
+  // Phase 3 + Plan C: portal-walking column build with Doom-style vertical
+  // occlusion clipping. Maintains a per-ray (winTop, winBot) screen-Y window
+  // tightened by every front floor / front ceiling / portal wall surface
+  // crossed. All emitted geometry is pre-clipped to that window — so within
+  // a single column nothing ever overlaps in Y, and the renderer's paint
+  // order becomes correctness-irrelevant.
+  //
+  // Why this beats clamp-and-sort hacks:
+  //  - Stairs DOWN: the lower step's floor band is naturally clipped to the
+  //    upper step's silhouette (winBot = upperFloor.yFar). No phantom
+  //    cliff wall has to be invented — the cliff face is geometrically
+  //    occluded by the upper floor surface from the player's POV, so we
+  //    don't emit it.
+  //  - Step UP: emits a real lower wall (riser) clipped to the window, then
+  //    pushes winBot up. Subsequent floor bands beyond the riser only paint
+  //    in the still-visible top portion.
+  //  - Sky / open ceilings: don't push winTop; sky shows through.
+  //  - Closed door / terminal solid wall: emits Main clipped, ray ends.
+  //  - Window collapses → ray bails early (perf win).
+  private static ColumnInfo BuildColumnSector(
+    ref GameState st, float ox, float oy, float rdx, float rdy,
+    float angCos, float viewZ, float horizon, out float depthOut
+  ) {
+    Raycast.Cast(st.SectorMap, new Vector2(ox, oy), st.Player.SectorId, new Vector2(rdx, rdy), out var hits);
+    List<WallSeg> extras = null;
+    List<FloorBand> bands = null;
+    List<CeilingBand> ceilBands = null;
+    depthOut = C.MAX_RAY;
+    // Phase 8: first step-up riser captured for sprite occlusion.
+    float floorOccDist = float.PositiveInfinity;
+    float floorOccZ = float.NegativeInfinity;
+    // Phase 9: closest ceiling-slab underside encountered along the ray.
+    // Sprites past this distance whose anchor sits at-or-above this Z are
+    // hidden by the slab.
+    float ceilOccDist = float.PositiveInfinity;
+    float ceilOccZ = float.PositiveInfinity;
+
+    // Vertical occlusion window. Stuff farther than the current hit can
+    // only paint inside [winTop, winBot]. Tightens monotonically as we
+    // walk the ray, never widens.
+    float winTop = 0f;
+    float winBot = C.VIEWPORT_H;
+    float prevPerp = 0.001f;
+
+    for (int i = 0; i < hits.Count; i++) {
+      var h = hits[i];
+      bool terminal = h.ToSector < 0;
+      Sector front = st.SectorMap.Sectors[h.FromSector];
+      Sector back = default;
+      if (h.ToSector >= 0) {
+        back = st.SectorMap.Sectors[h.ToSector];
+        // Closed door: treat as terminal full-height wall.
+        if (back.CeilingZ <= back.FloorZ + 0.001f) terminal = true;
+      }
+      var line = st.SectorMap.Lines[h.LinedefId];
+
+      float perp = h.Distance * angCos;
+      if (perp < 0.001f) perp = 0.001f;
+      float scale = C.VIEWPORT_H / perp;
+      float scaleNear = C.VIEWPORT_H / Mathf.Max(prevPerp, 0.05f);
+      byte light = LightFromDist(perp, front.Light);
+
+      float fz = front.FloorZ;
+      float cz = front.CeilingZ;
+      // Floor projection at this hit (far edge of the band) and at the
+      // previous hit (near edge of the band).
+      float yFloorFar = horizon + (viewZ - fz) * scale;
+      float yFloorNear = horizon + (viewZ - fz) * scaleNear;
+      // Ceiling projection (only meaningful when cz > viewZ).
+      float yCeilFar = horizon - (cz - viewZ) * scale;
+
+      // ── 1. Emit floor band for the segment we just crossed, clipped to
+      //    the current visibility window. Skip floors at/above the eye —
+      //    those don't render as a floor surface (they look like ceiling).
+      if (fz < viewZ - 0.001f) {
+        float bTop = yFloorFar;
+        float bBot = yFloorNear;
+        if (bTop < winTop) bTop = winTop;
+        if (bBot > winBot) bBot = winBot;
+        if (bBot > bTop + 0.5f) {
+          if (bands == null) bands = new List<FloorBand>(4);
+          // Rim chalk-line is drawn at the far edge of the upper-step's
+          // band when we're about to step down to a lower sector. Drawn
+          // for any meaningful drop (≥ 0.15u so 0.2u stair treads each
+          // get their own line) and only when the band's top edge is the
+          // true unclipped silhouette (not chopped by a higher occluder).
+          bool rimAtFar = h.ToSector >= 0
+          && !terminal
+          && (fz - back.FloorZ) >= 0.15f
+          && bTop <= yFloorFar + 0.5f;
+          bands.Add(new FloorBand {
+            TopPx = bTop, BotPx = bBot, FloorZ = fz,
+            Light = light,
+            FloorTex = front.FloorTex,
+            BehindFloorZ = float.NegativeInfinity,
+            RimAtFar = rimAtFar,
+          });
+        }
+      }
+
+      // ── 2. Tighten window from the front-sector's own occluders.
+      //    Floor below eye occludes anything beyond at screenY > yFloorFar
+      //    (since farther floor pixels project closer to horizon = smaller
+      //    screenY). So winBot = min(winBot, yFloorFar).
+      //    Ceiling above eye (non-sky) occludes anything beyond above
+      //    yCeilFar. Sky doesn't occlude — it shows through.
+      if (fz < viewZ - 0.001f) {
+        if (yFloorFar < winBot) winBot = yFloorFar;
+      }
+      // Phase 8: emit ceiling band for the segment we just crossed,
+      // mirroring the floor-band logic. Only for non-sky sectors with a
+      // ceiling above the eye — sky leaves the backdrop showing through and
+      // ceilings at/below eye look like floors (handled elsewhere).
+      if (!front.IsSky && cz > viewZ + 0.001f) {
+        float cTopBand = winTop;
+        float cBotBand = yCeilFar;
+        if (cBotBand > winBot) cBotBand = winBot;
+        if (cBotBand > cTopBand + 0.5f) {
+          if (ceilBands == null) ceilBands = new List<CeilingBand>(4);
+          ceilBands.Add(new CeilingBand {
+            TopPx = cTopBand, BotPx = cBotBand,
+            CeilingZ = cz,
+            Light = light,
+            CeilingTex = front.CeilingTex,
+          });
+        }
+      }
+      if (!front.IsSky && cz > viewZ + 0.001f) {
+        if (yCeilFar > winTop) winTop = yCeilFar;
+      }
+
+      // ── 2b. Phase 9: per-ExtraFloor slab emission. Each slab contributes
+      //    up to three surfaces in the front sector: TOP plane (visible if
+      //    viewer is above it, acts like a raised floor), BOTTOM plane
+      //    (visible if viewer is below it, acts like a low ceiling), and a
+      //    SIDE wall on the boundary where the back sector lacks the same
+      //    slab. Iterating in BottomZ-ascending order keeps the cliprange
+      //    window tightening monotonic.
+      bool slabTerminated = false;
+      WallSeg terminatorWall = default;
+      if (front.ExtraFloors != null) {
+        for (int k = 0; k < front.ExtraFloors.Count; k++) {
+          var ef = front.ExtraFloors[k];
+          bool sharedWithBack = false;
+          if (h.ToSector >= 0 && back.ExtraFloors != null) {
+            for (int j = 0; j < back.ExtraFloors.Count; j++) {
+              var bef = back.ExtraFloors[j];
+              if (Mathf.Abs(bef.BottomZ - ef.BottomZ) < 0.01f
+                  && Mathf.Abs(bef.TopZ - ef.TopZ) < 0.01f) {
+                sharedWithBack = true; break;
+              }
+            }
+          }
+          bool aboveSlab = viewZ > ef.TopZ + 0.001f;
+          bool belowSlab = viewZ < ef.BottomZ - 0.001f;
+          byte slabLight = LightFromDist(perp, ef.Light == 0 ? front.Light : ef.Light);
+
+          // Slab TOP — visible when viewer above, acts like a raised floor.
+          if (aboveSlab) {
+            float yTopFar = horizon + (viewZ - ef.TopZ) * scale;
+            float yTopNear = horizon + (viewZ - ef.TopZ) * scaleNear;
+            float bTop = yTopFar < winTop ? winTop : yTopFar;
+            float bBot = yTopNear > winBot ? winBot : yTopNear;
+            if (bBot > bTop + 0.5f) {
+              if (bands == null) bands = new List<FloorBand>(4);
+              bands.Add(new FloorBand {
+                TopPx = bTop, BotPx = bBot, FloorZ = ef.TopZ,
+                Light = slabLight,
+                FloorTex = ef.TopTex,
+                BehindFloorZ = float.NegativeInfinity,
+                RimAtFar = !sharedWithBack,
+              });
+            }
+            if (yTopFar < winBot) winBot = yTopFar;
+            // Sprite occluder hint — closest slab top wins.
+            if (floorOccDist > perp) { floorOccDist = perp; floorOccZ = ef.TopZ; }
+          }
+
+          // Slab BOTTOM — visible when viewer below, acts like a low ceiling.
+          if (belowSlab) {
+            float yBotFar = horizon - (ef.BottomZ - viewZ) * scale;
+            float cTopBand = winTop;
+            float cBotBand = yBotFar > winBot ? winBot : yBotFar;
+            if (cBotBand > cTopBand + 0.5f) {
+              if (ceilBands == null) ceilBands = new List<CeilingBand>(4);
+              ceilBands.Add(new CeilingBand {
+                TopPx = cTopBand, BotPx = cBotBand,
+                CeilingZ = ef.BottomZ,
+                Light = slabLight,
+                CeilingTex = ef.BottomTex,
+              });
+            }
+            if (yBotFar > winTop) winTop = yBotFar;
+            // Sprite occluder hint — closest slab bottom wins.
+            if (ceilOccDist > perp) { ceilOccDist = perp; ceilOccZ = ef.BottomZ; }
+          }
+
+          // Slab SIDE — exposed when back sector lacks the same slab. If
+          // the viewer is INSIDE the slab body and the side is exposed,
+          // the slab is opaque and we terminate the column at this hit.
+          if (!sharedWithBack && ef.Solid) {
+            float wTop = horizon - (ef.TopZ - viewZ) * scale;
+            float wBot = horizon - (ef.BottomZ - viewZ) * scale;
+            float cTop = wTop < winTop ? winTop : wTop;
+            float cBot = wBot > winBot ? winBot : wBot;
+            if (cBot > cTop + 0.5f) {
+              var seg = new WallSeg {
+                TopPx = cTop, BotPx = cBot,
+                Distance = perp,
+                WallTexIdx = ef.SideTex,
+                TexU = h.U,
+                LightLevel = slabLight,
+                HitVertical = false, IsSky = false,
+                TexOffsetPx = wTop - cTop,
+              };
+              if (!aboveSlab && !belowSlab) {
+                // Inside slab body → opaque terminal.
+                slabTerminated = true;
+                terminatorWall = seg;
+              } else {
+                if (extras == null) extras = new List<WallSeg>(2);
+                extras.Add(seg);
+              }
+            }
+          }
+        }
+      }
+      // Phase 9: ALSO emit BACK-only ExtraFloor slabs (those not present in
+      // the front sector) — same surfaces + cliprange tightening as the
+      // front loop:
+      //   • SIDE wall at the portal (otherwise the slab pillar is see-through
+      //     from cells without ExtraFloors of their own).
+      //   • TOP plane as a FloorBand when viewer is above the slab — without
+      //     this the next stair tread shows no visible top, the staircase
+      //     looks like a smooth wall going up instead of discrete treads.
+      //   • BOTTOM plane as a CeilingBand when viewer is below the slab.
+      //   • Tighten (winTop, winBot) by the slab's screen-Y body so things
+      //     past the staircase don't bleed THROUGH the slab side. Without
+      //     this the inside floor leaks through the staircase column from
+      //     the side view.
+      //   • Terminate if viewer is INSIDE the slab body (ray hits opaque
+      //     side wall edge-on, fully occluded past this hit).
+      if (h.ToSector >= 0 && back.ExtraFloors != null) {
+        for (int k = 0; k < back.ExtraFloors.Count; k++) {
+          var ef = back.ExtraFloors[k];
+          if (!ef.Solid) continue;
+          bool inFront = false;
+          if (front.ExtraFloors != null) {
+            for (int j = 0; j < front.ExtraFloors.Count; j++) {
+              var fef = front.ExtraFloors[j];
+              if (Mathf.Abs(fef.BottomZ - ef.BottomZ) < 0.01f
+                  && Mathf.Abs(fef.TopZ - ef.TopZ) < 0.01f) {
+                inFront = true; break;
+              }
+            }
+          }
+          if (inFront) continue;
+          byte slabLight = LightFromDist(perp, ef.Light == 0 ? back.Light : ef.Light);
+          bool aboveSlab = viewZ > ef.TopZ + 0.001f;
+          bool belowSlab = viewZ < ef.BottomZ - 0.001f;
+
+          // Slab side endpoints in screen Y (positive = down).
+          float yTopFar = horizon - (ef.TopZ - viewZ) * scale;
+          float yBotFar = horizon - (ef.BottomZ - viewZ) * scale;
+
+          // SIDE wall, clipped to current window. Never a terminator:
+          // back-only slabs only occlude the screen-Y band [yTopFar..yBotFar];
+          // above and below that band the column stays open so taller slabs
+          // further along the ray (e.g. higher stair treads) can still emit.
+          float cTop = yTopFar < winTop ? winTop : yTopFar;
+          float cBot = yBotFar > winBot ? winBot : yBotFar;
+          if (cBot > cTop + 0.5f) {
+            if (extras == null) extras = new List<WallSeg>(2);
+            extras.Add(new WallSeg {
+              TopPx = cTop, BotPx = cBot,
+              Distance = perp,
+              WallTexIdx = ef.SideTex,
+              TexU = h.U,
+              LightLevel = slabLight,
+              HitVertical = false, IsSky = false,
+              TexOffsetPx = yTopFar - cTop,
+            });
+          }
+
+          // TOP plane — FloorBand visible above the slab.
+          if (aboveSlab) {
+            float yTopNear = horizon + (viewZ - ef.TopZ) * scaleNear;
+            float yTopFarFlip = horizon + (viewZ - ef.TopZ) * scale;
+            float bTop = yTopFarFlip < winTop ? winTop : yTopFarFlip;
+            float bBot = yTopNear > winBot ? winBot : yTopNear;
+            if (bBot > bTop + 0.5f) {
+              if (bands == null) bands = new List<FloorBand>(4);
+              bands.Add(new FloorBand {
+                TopPx = bTop, BotPx = bBot, FloorZ = ef.TopZ,
+                Light = slabLight,
+                FloorTex = ef.TopTex,
+                BehindFloorZ = float.NegativeInfinity,
+                RimAtFar = true,
+              });
+            }
+          }
+
+          // BOTTOM plane — CeilingBand visible below the slab.
+          if (belowSlab) {
+            float cTopBand = winTop;
+            float cBotBand = yBotFar > winBot ? winBot : yBotFar;
+            if (cBotBand > cTopBand + 0.5f) {
+              if (ceilBands == null) ceilBands = new List<CeilingBand>(4);
+              ceilBands.Add(new CeilingBand {
+                TopPx = cTopBand, BotPx = cBotBand,
+                CeilingZ = ef.BottomZ,
+                Light = slabLight,
+                CeilingTex = ef.BottomTex,
+              });
+            }
+          }
+
+          // Cliprange occlusion. We can only tighten one boundary cleanly
+          // (single-window cliprange), so:
+          //   • viewer above slab → occlude below slab top (winBot = yTopFar).
+          //     This is the stair-walking case: keeps the upper window open
+          //     so taller slabs further along still emit their tops.
+          //   • viewer below slab → occlude above slab bottom (winTop = yBotFar).
+          //   • viewer inside slab body → same as above (winBot = yTopFar).
+          //     Sacrifices visibility of stuff below the slab bottom past
+          //     this hit (usually floor anyway), but keeps stuff ABOVE the
+          //     slab top visible — critical for stair treads going up.
+          if (!belowSlab) {
+            if (yTopFar < winBot) winBot = yTopFar;
+          } else {
+            if (yBotFar > winTop) winTop = yBotFar;
+          }
+        }
+      }
+      if (slabTerminated) {
+        depthOut = perp;
+        return new ColumnInfo {
+          Main = terminatorWall,
+          Extras = extras?.ToArray(),
+          FrontFloorZ = fz,
+          FloorBands = bands?.ToArray(),
+          CeilingBands = ceilBands?.ToArray(),
+          FloorOccluderDist = floorOccDist,
+          FloorOccluderZ = floorOccZ,
+          CeilingOccluderDist = ceilOccDist,
+          CeilingOccluderZ = ceilOccZ,
+        };
+      }
+
+      // ── 3a. TERMINAL hit (solid wall or closed door). Emit Main clipped
+      //    to current window.
+      if (terminal) {
+        float ceilForWall = front.IsSky
+        ? Mathf.Min(cz, fz + 2.5f)
+        : cz;
+        float wTop = horizon - (ceilForWall - viewZ) * scale;
+        float wBot = horizon - (fz - viewZ) * scale;
+        float unclippedTop = wTop;
+        if (wTop < winTop) wTop = winTop;
+        if (wBot > winBot) wBot = winBot;
+        depthOut = perp;
+        return new ColumnInfo {
+          Main = new WallSeg {
+            TopPx = wTop, BotPx = wBot,
+            Distance = perp,
+            WallTexIdx = line.MidTex,
+            TexU = h.U,
+            LightLevel = light,
+            HitVertical = false,
+            IsSky = h.ToSector >= 0 && back.IsSky,
+            TexOffsetPx = unclippedTop - wTop,
+          },
+          Extras = extras?.ToArray(),
+          FrontFloorZ = fz,
+          FloorBands = bands?.ToArray(),
+          CeilingBands = ceilBands?.ToArray(),
+          FloorOccluderDist = floorOccDist,
+          FloorOccluderZ = floorOccZ,
+          CeilingOccluderDist = ceilOccDist,
+          CeilingOccluderZ = ceilOccZ,
+        };
+      }
+
+      // ── 3b. PORTAL UPPER: back ceiling LOWER than front ceiling. Emit
+      //    upper wall clipped, then push winTop down. Skip for sky-back
+      //    (sky portals show sky above, not a wall).
+      if (back.CeilingZ < front.CeilingZ - 0.001f && !back.IsSky) {
+        float wTop = horizon - (front.CeilingZ - viewZ) * scale;
+        float wBot = horizon - (back.CeilingZ - viewZ) * scale;
+        float cTop = wTop, cBot = wBot;
+        if (cTop < winTop) cTop = winTop;
+        if (cBot > winBot) cBot = winBot;
+        if (cBot > cTop + 0.5f) {
+          if (extras == null) extras = new List<WallSeg>(2);
+          extras.Add(new WallSeg {
+            TopPx = cTop, BotPx = cBot,
+            Distance = perp,
+            WallTexIdx = line.UpperTex,
+            TexU = h.U,
+            LightLevel = light,
+            HitVertical = false,
+            IsSky = false,
+            TexOffsetPx = wTop - cTop,
+          });
+        }
+        if (wBot > winTop) winTop = wBot;
+      }
+
+      // ── 3c. PORTAL LOWER (step-up): back floor HIGHER than front floor.
+      //    Emit lower wall clipped, then push winBot up.
+      if (back.FloorZ > front.FloorZ + 0.001f) {
+        // Sprite occlusion: first step-up wins (closest occluder along ray).
+        if (floorOccDist > perp) {
+          floorOccDist = perp;
+          floorOccZ = back.FloorZ;
+        }
+        float wTop = horizon - (back.FloorZ - viewZ) * scale;
+        float wBot = horizon - (front.FloorZ - viewZ) * scale;
+        float cTop = wTop, cBot = wBot;
+        if (cTop < winTop) cTop = winTop;
+        if (cBot > winBot) cBot = winBot;
+        if (cBot > cTop + 0.5f) {
+          if (extras == null) extras = new List<WallSeg>(2);
+          // Riser flag → chalk-line rim, only for tall steps.
+          bool tallStep = (back.FloorZ - front.FloorZ) >= 0.5f;
+          extras.Add(new WallSeg {
+            TopPx = cTop, BotPx = cBot,
+            Distance = perp,
+            WallTexIdx = line.LowerTex,
+            TexU = h.U,
+            LightLevel = light,
+            HitVertical = false,
+            IsSky = false,
+            IsRiser = tallStep,
+            TexOffsetPx = wTop - cTop,
+          });
+        }
+        if (wTop < winBot) winBot = wTop;
+      }
+
+      // ── 3d. PORTAL STEP-DOWN (back floor LOWER than front floor):
+      //    INTENTIONALLY no wall emitted. The cliff face from above is
+      //    geometrically occluded by the upper floor surface — emitting it
+      //    produces "phantom brick stripes" on stairs. The visual "rim" is
+      //    the silhouette = upper band's far edge, already drawn above.
+      //    Beyond this hit, the lower floor's band paints clipped to the
+      //    already-tightened winBot=yFloorFar.
+
+      prevPerp = perp;
+
+      // Window collapsed → nothing past this hit can be visible.
+      if (winBot - winTop < 1f) {
+        depthOut = perp;
+        return new ColumnInfo {
+          Main = new WallSeg {
+            TopPx = 0, BotPx = 0,
+            Distance = perp,
+            WallTexIdx = 0, TexU = 0, LightLevel = light,
+            HitVertical = false, IsSky = false,
+          },
+          Extras = extras?.ToArray(),
+          FrontFloorZ = fz,
+          FloorBands = bands?.ToArray(),
+          CeilingBands = ceilBands?.ToArray(),
+          FloorOccluderDist = floorOccDist,
+          FloorOccluderZ = floorOccZ,
+          CeilingOccluderDist = ceilOccDist,
+          CeilingOccluderZ = ceilOccZ,
+        };
+      }
+    }
+
+    // Ray escaped — sky column.
+    return new ColumnInfo {
+      Main = new WallSeg {
+        TopPx = 0, BotPx = 0,
+        Distance = C.MAX_RAY,
+        WallTexIdx = 0, TexU = 0, LightLevel = 200,
+        HitVertical = false, IsSky = true,
+      },
+      Extras = extras?.ToArray(),
+      FrontFloorZ = 0f,
+      FloorBands = bands?.ToArray(),
+      CeilingBands = ceilBands?.ToArray(),
+      FloorOccluderDist = floorOccDist,
+      FloorOccluderZ = floorOccZ,
+      CeilingOccluderDist = ceilOccDist,
+      CeilingOccluderZ = ceilOccZ,
+    };
+  }
+  private struct RayHit {
+    public float Distance;
+    public byte WallTexIdx;
+    public float TexU;
+    public byte Light;
+    public bool HitVertical;
+    public bool IsSky;
+  }
+
+  private static RayHit CastRay(ref GameState st, float ox, float oy, float dx, float dy) {
+    int mapX = (int)ox, mapY = (int)oy;
+    float deltaX = dx == 0 ? 1e30f : Mathf.Abs(1f / dx);
+    float deltaY = dy == 0 ? 1e30f : Mathf.Abs(1f / dy);
+    int stepX, stepY;
+    float sideX, sideY;
+    if (dx < 0) { stepX = -1; sideX = (ox - mapX) * deltaX; }
+    else { stepX = 1; sideX = (mapX + 1f - ox) * deltaX; }
+    if (dy < 0) { stepY = -1; sideY = (oy - mapY) * deltaY; }
+    else { stepY = 1; sideY = (mapY + 1f - oy) * deltaY; }
+
+    bool vertical = false;
+    int safety = 0;
+    while (safety++ < 96) {
+      if (sideX < sideY) { sideX += deltaX; mapX += stepX; vertical = true; }
+      else { sideY += deltaY; mapY += stepY; vertical = false; }
+      if (mapX < 0 || mapX >= st.Map.Width || mapY < 0 || mapY >= st.Map.Height) {
+        return new RayHit { Distance = C.MAX_RAY, IsSky = true, Light = 200 };
+      }
+      var c = st.Map.AtSafe(mapX, mapY);
+      if (c.Kind == CellKind.Wall || (c.Kind >= CellKind.Door && c.Kind <= CellKind.DoorRed && c.DoorState < 250)) {
+        float dist;
+        float u;
+        if (vertical) {
+          dist = sideX - deltaX;
+          float hitY = oy + dist * dy;
+          u = hitY - Mathf.Floor(hitY);
+          if (dx > 0) u = 1f - u;
+        } else {
+          dist = sideY - deltaY;
+          float hitX = ox + dist * dx;
+          u = hitX - Mathf.Floor(hitX);
+          if (dy < 0) u = 1f - u;
+        }
+        // for doors with partial open, account by shifting the texture vertically — just clip distance min
+        if (dist < 0.05f) dist = 0.05f;
+        return new RayHit {
+          Distance = dist, WallTexIdx = c.WallTexIdx, TexU = u,
+          Light = c.LightLevel, HitVertical = vertical, IsSky = false,
+        };
+      }
+      if (c.Kind == CellKind.Exit && c.WallTexIdx != 0) {
+        float dist;
+        float u;
+        if (vertical) { dist = sideX - deltaX; float hitY = oy + dist * dy; u = hitY - Mathf.Floor(hitY); if (dx > 0) u = 1f - u; }
+        else { dist = sideY - deltaY; float hitX = ox + dist * dx; u = hitX - Mathf.Floor(hitX); if (dy < 0) u = 1f - u; }
+        return new RayHit { Distance = dist, WallTexIdx = (byte)W_EXIT, TexU = u, Light = 240, HitVertical = vertical };
+      }
+    }
+    return new RayHit { Distance = C.MAX_RAY, IsSky = true, Light = 200 };
+  }
+
+  private static byte LightFromDist(float dist, byte cellLight) {
+    float fade = Mathf.Clamp01(1f - dist / 14f);
+    int v = (int)(cellLight * (0.35f + 0.65f * fade));
+    if (v < 30) v = 30; if (v > 255) v = 255;
+    return (byte)v;
+  }
+
+  // ───── Helpers ─────
+
+  private static bool HasLineOfSight(ref GameState st, float ax, float ay, float bx, float by) {
+    float dx = bx - ax, dy = by - ay;
+    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+    if (dist < 0.01f) return true;
+    int steps = (int)(dist * 6f);
+    if (steps < 1) steps = 1;
+    for (int i = 1; i < steps; i++) {
+      float t = i / (float)steps;
+      int gx = (int)(ax + dx * t);
+      int gy = (int)(ay + dy * t);
+      if (st.Map.BlocksRays(gx, gy)) return false;
+    }
+    return true;
+  }
+
+  // Phase 8: 3D line-of-sight using the sector graph. Walks portals from the
+  // source sector, checking that the bullet/eye Z stays inside every
+  // traversed sector's [FloorZ, CeilingZ] (sky ignores ceiling). Stops
+  // monsters from shooting through risers, low ceilings, or solid walls
+  // that the tile-only check missed (a step-up cell is CellKind.Empty so
+  // the old grid check let shots pass).
+  private static bool HasLineOfSight3D(ref GameState st, float ax, float ay, float az, float bx, float by, float bz, int srcSector) {
+    if (!st.SectorMap.IsValid || srcSector < 0) {
+      return HasLineOfSight(ref st, ax, ay, bx, by);
+    }
+    float dx = bx - ax, dy = by - ay;
+    float D = Mathf.Sqrt(dx * dx + dy * dy);
+    if (D < 0.01f) return true;
+    Raycast.Cast(st.SectorMap, new Vector2(ax, ay), srcSector, new Vector2(dx / D, dy / D), out var hits);
+    // Phase 9: same-sector case. If the ray never crosses a portal
+    // (target inside source sector) the loop below runs 0 times and we'd
+    // return true unconditionally, even when a slab in srcSector sits
+    // between the two endpoints (e.g. monster on slab top shoots at
+    // player on slab bottom in the same cell).
+    if (hits.Count == 0) {
+      var s = st.SectorMap.Sectors[srcSector];
+      float segMin0 = Mathf.Min(az, bz);
+      float segMax0 = Mathf.Max(az, bz);
+      if (segMin0 <= s.FloorZ + 0.001f) return false;
+      if (!s.IsSky && segMax0 >= s.CeilingZ - 0.001f) return false;
+      if (s.ExtraFloors != null) {
+        for (int k = 0; k < s.ExtraFloors.Count; k++) {
+          var ef = s.ExtraFloors[k];
+          if (!ef.Solid) continue;
+          if (segMax0 >= ef.BottomZ + 0.001f && segMin0 <= ef.TopZ - 0.001f) return false;
+        }
+      }
+      return true;
+    }
+    float prevT = 0f;
+    for (int i = 0; i < hits.Count; i++) {
+      var h = hits[i];
+      var front = st.SectorMap.Sectors[h.FromSector];
+      // Clip the hit distance against the actual segment end.
+      bool reachedTarget = h.Distance >= D;
+      float endT = reachedTarget ? D : h.Distance;
+      float zStart = az + (bz - az) * (prevT / D);
+      float zEnd = az + (bz - az) * (endT / D);
+      float segMin = Mathf.Min(zStart, zEnd);
+      float segMax = Mathf.Max(zStart, zEnd);
+      if (segMin <= front.FloorZ + 0.001f) return false;
+      if (!front.IsSky && segMax >= front.CeilingZ - 0.001f) return false;
+      // Phase 9: also clip against ExtraFloor slabs in this sector. The ray
+      // segment from prevT..endT (Z from zStart..zEnd) is blocked if it
+      // passes through the body of any solid slab.
+      if (front.ExtraFloors != null) {
+        for (int k = 0; k < front.ExtraFloors.Count; k++) {
+          var ef = front.ExtraFloors[k];
+          if (!ef.Solid) continue;
+          // Block if Z range overlaps slab body. Lateral overlap is implied
+          // because the ray IS in this sector for the segment we're checking.
+          if (segMax >= ef.BottomZ + 0.001f && segMin <= ef.TopZ - 0.001f) return false;
+        }
+      }
+      if (reachedTarget) return true;
+      if (h.ToSector < 0) return false; // solid wall blocks
+      var back = st.SectorMap.Sectors[h.ToSector];
+      // Sliver at the portal must pass through the back sector's window too.
+      if (zEnd <= back.FloorZ + 0.001f) return false;
+      if (!back.IsSky && zEnd >= back.CeilingZ - 0.001f) return false;
+      prevT = h.Distance;
+    }
+    return true;
+  }
+
+  private static int FindMobjInCone(ref GameState st, float ox, float oy, float ang, float range, float halfAngle) {
+    int best = -1;
+    float bestDist = range;
+    for (int i = 1; i <= st.MobjCount; i++) {
+      ref var m = ref st.Mobjs[i];
+      if (m.Id == 0 || !IsMonster(m.Kind) || m.Health <= 0) continue;
+      float dx = m.X - ox, dy = m.Y - oy;
+      float d = Mathf.Sqrt(dx * dx + dy * dy);
+      if (d > bestDist) continue;
+      float ma = Mathf.Atan2(dy, dx);
+      float diff = Mathf.DeltaAngle(ma * Mathf.Rad2Deg, ang * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+      if (Mathf.Abs(diff) > halfAngle) continue;
+      if (!HasLineOfSight(ref st, ox, oy, m.X, m.Y)) continue;
+      best = i; bestDist = d;
+    }
+    return best;
+  }
+
+  private struct ShotHit {
+    public bool HitMobj;
+    public int MobjIdx;
+    public float X, Y;
+  }
+
+  private static ShotHit TraceShot(ref GameState st, float ox, float oy, float ang) {
+    float rdx = Mathf.Cos(ang), rdy = Mathf.Sin(ang);
+    var rh = CastRay(ref st, ox, oy, rdx, rdy);
+    float wallDist = rh.Distance;
+
+    // Phase 7: vertical aim. Pitch is in pixels of Y-shear; convert to a
+    // vertical slope (dz / horizontal-distance) by dividing by the projection
+    // plane scale used in CastFrame.
+    var p = st.Player;
+    float planeScale = (C.VIEWPORT_H * 0.5f) / Mathf.Tan(C.HALF_FOV);
+    // The camera's forward axis projects to screen center (VIEWPORT_H/2).
+    // Horizon visually shifts by p.Pitch px; that same px / planeScale is the
+    // tangent of the pitch angle, which is the bullet's vertical slope.
+    float pitchSlope = p.Pitch / planeScale; // looking up (Pitch>0) -> bullet rises
+    float viewZ = p.Z + (p.ViewHeight <= 0f ? 0.6f : p.ViewHeight);
+
+    // any mobj closer along the ray? Must also satisfy vertical hit window.
+    int bestIdx = -1;
+    float bestT = wallDist;
+    for (int i = 1; i <= st.MobjCount; i++) {
+      ref var m = ref st.Mobjs[i];
+      if (m.Id == 0 || !IsMonster(m.Kind) || m.Health <= 0) continue;
+      float dx = m.X - ox, dy = m.Y - oy;
+      float t = dx * rdx + dy * rdy; // projection along ray
+      if (t <= 0 || t > bestT) continue;
+      float perpX = dx - rdx * t, perpY = dy - rdy * t;
+      float perp2 = perpX * perpX + perpY * perpY;
+      if (perp2 > m.Radius * m.Radius) continue;
+      // Vertical: bullet Z at distance t. Slight padding so close encounters
+      // and tall mobjs are forgiving when looking at their belly/feet.
+      float bulletZ = viewZ + pitchSlope * t;
+      float mobjBot = m.Z - 0.05f;
+      float mobjTop = m.Z + (m.Height > 0f ? m.Height : 0.7f) + 0.05f;
+      if (bulletZ < mobjBot || bulletZ > mobjTop) continue;
+      bestIdx = i; bestT = t;
+    }
+    if (bestIdx > 0) {
+      return new ShotHit { HitMobj = true, MobjIdx = bestIdx, X = ox + rdx * bestT, Y = oy + rdy * bestT };
+    }
+    return new ShotHit { HitMobj = false, X = ox + rdx * wallDist, Y = oy + rdy * wallDist };
+  }
+
+  private static void MoveActor(ref GameState st, ref float x, ref float y, float dx, float dy, float radius, bool isPlayer, int selfIdx = -1) {
+    float nx = x + dx, ny = y + dy;
+    // X axis
+    if (!CollidesAt(ref st, nx, y, radius, isPlayer, selfIdx)) x = nx;
+    if (!CollidesAt(ref st, x, ny, radius, isPlayer, selfIdx)) y = ny;
+
+    // Phase 7: step-up. After horizontal motion, snap player Z up to the
+    // tallest cell footprint they're standing on (within STEP_HEIGHT).
+    // Phase 9: step-up uses the actor's CURRENT footZ as the lower bound,
+    // not 0. Otherwise dropping into a pit at Z<0 trampolines the player
+    // back to Z=0 because every neighbor cell's floor (Z=0) is greater
+    // than the trivially-initialized bestFloor.
+    if (isPlayer) {
+      float footZ = st.Player.Z;
+      int gx0 = (int)(x - radius), gx1 = (int)(x + radius);
+      int gy0 = (int)(y - radius), gy1 = (int)(y + radius);
+      float bestFloor = footZ;
+      for (int gy = gy0; gy <= gy1; gy++) {
+        for (int gx = gx0; gx <= gx1; gx++) {
+          float fz = st.Map.FloorAt(gx, gy, footZ, C.STEP_HEIGHT);
+          if (fz > bestFloor && fz - footZ <= C.STEP_HEIGHT + 0.001f) bestFloor = fz;
+        }
+      }
+      // Only auto-snap up while on or near the ground; jumping/falling is
+      // handled by gravity in UpdatePlayerVertical.
+      if (bestFloor > footZ && Mathf.Abs(st.Player.ZVel) < 0.01f) {
+        st.Player.Z = bestFloor;
+        st.Player.ZVel = 0f;
+      }
+    }
+  }
+
+  private static bool CollidesAt(ref GameState st, float x, float y, float r, bool isPlayer, int selfIdx) {
+    // wall collision with circle vs cell. For the player we use Z-aware
+    // blocking so they can step over short ledges and crouch under low
+    // ceilings; monsters retain the old 2D blocker semantics.
+    int gx0 = (int)(x - r), gx1 = (int)(x + r);
+    int gy0 = (int)(y - r), gy1 = (int)(y + r);
+    float footZ = isPlayer ? st.Player.Z : 0f;
+    float headZ = isPlayer
+    ? st.Player.Z + (st.Player.ViewHeight < C.PLAYER_VIEW_HEIGHT ? C.CROUCH_HEIGHT + 0.15f : C.PLAYER_HEIGHT)
+    : 0.7f;
+    for (int gy = gy0; gy <= gy1; gy++) {
+      for (int gx = gx0; gx <= gx1; gx++) {
+        bool blocks = isPlayer
+        ? st.Map.BlocksMovementZ(gx, gy, footZ, headZ, C.STEP_HEIGHT)
+        : st.Map.BlocksMovement(gx, gy);
+        if (blocks) {
+          float cx = Mathf.Clamp(x, gx, gx + 1);
+          float cy = Mathf.Clamp(y, gy, gy + 1);
+          float ddx = x - cx, ddy = y - cy;
+          if (ddx * ddx + ddy * ddy < r * r) return true;
+        }
+      }
+    }
+    // mobj-vs-mobj (only for monsters)
+    if (!isPlayer && selfIdx > 0) {
+      // don't push other monsters too aggressively, but block on big ones
+      for (int j = 1; j <= st.MobjCount; j++) {
+        if (j == selfIdx) continue;
+        ref var m = ref st.Mobjs[j];
+        if (m.Id == 0 || (!IsMonster(m.Kind) && m.Kind != MobjKind.Barrel)) continue;
+        if (m.Health <= 0) continue;
+        float dx = x - m.X, dy = y - m.Y;
+        float r2 = r + m.Radius;
+        if (dx * dx + dy * dy < r2 * r2 * 0.7f) return true;
+      }
+      // collide with player
+      float pdx = x - st.Player.X, pdy = y - st.Player.Y;
+      float pr = r + C.PLAYER_RADIUS;
+      if (pdx * pdx + pdy * pdy < pr * pr) return true;
+    }
+    return false;
+  }
+
+  // ───── Mobj pool ─────
+
+  public static void AddMobj(ref GameState st, Mobj m) {
+    if (m.Id == 0) m.Id = st.NextMobjId++;
+    // Phase 8: anchor newly-spawned mobj to the actual sector floor at its
+    // spawn (X,Y). Without this, monsters spawned on a raised floor (e.g.
+    // second-story plateau) sit at Z=0 — sprites render through the floor
+    // and 3D LOS uses the wrong height. Projectiles already set their own Z.
+    if (st.SectorMap.IsValid && !IsProjectile(m.Kind) && m.Z == 0f) {
+      int sec = Raycast.PointInSectorFromHint(st.SectorMap, new Vector2(m.X, m.Y), -1);
+      if (sec >= 0) {
+        m.SectorId = sec;
+        // Phase 9: pick the highest reachable surface so monsters spawned
+        // inside an ExtraFloor footprint land on the slab top, not the
+        // basement floor below it.
+        m.Z = StandingFloorIn(st.SectorMap.Sectors[sec], 1e6f, 1e6f);
+      }
+    }
+    // Phase 7: floating mobjs hover above the floor.
+    if ((m.Kind == MobjKind.Cacodemon || m.Kind == MobjKind.LostSoul)) {
+      m.Z += 0.4f;
+    }
+    if (st.MobjCount + 1 < st.Mobjs.Length) {
+      st.MobjCount++;
+      st.Mobjs[st.MobjCount] = m;
+    } else {
+      // find a free slot
+      for (int i = 1; i < st.Mobjs.Length; i++) {
+        if (st.Mobjs[i].Id == 0) { st.Mobjs[i] = m; return; }
+      }
+    }
+  }
+
+  private static void CompactMobjs(ref GameState st) {
+    // periodic compaction: shrink MobjCount by trailing empties
+    while (st.MobjCount > 0 && st.Mobjs[st.MobjCount].Id == 0) st.MobjCount--;
+  }
+
+  // ───── Face animation ─────
+
+  private static void AdvanceFace(ref PlayerState p, float dt) {
+    p.FaceTimer -= dt;
+    if (p.FaceTimer > 0) return;
+    if (!p.Alive) { p.FaceState = 7; p.FaceTimer = 1f; return; }
+    if (p.HurtFlash > 0.3f) { p.FaceState = 6; p.FaceTimer = 0.4f; return; }
+    int hp = p.Health;
+    int bucket;
+    if (hp >= 80) bucket = 1;
+    else if (hp >= 60) bucket = 2;
+    else if (hp >= 40) bucket = 3;
+    else if (hp >= 20) bucket = 4;
+    else bucket = 5;
+    p.FaceState = bucket;
+    p.FaceTimer = 0.45f + UnityEngine.Random.value * 0.4f;
+  }
+
+  // ───── Misc ─────
+
+  public static bool IsMonster(MobjKind k) {
+    return k == MobjKind.Imp || k == MobjKind.Demon || k == MobjKind.Baron
+    || k == MobjKind.Cacodemon || k == MobjKind.LostSoul
+    || k == MobjKind.Zombieman || k == MobjKind.Shotgunner;
+  }
+
+  public static bool IsBoss(MobjKind k) {
+    return k == MobjKind.Baron || k == MobjKind.Cacodemon;
+  }
+
+  // True while any boss-tier monster (Baron / Cacodemon) is still alive on
+  // the map. Used to gate level-exit cells when LevelStart.BossExitGated is
+  // set.
+  public static bool AnyBossAlive(ref GameState st) {
+    for (int i = 1; i <= st.MobjCount; i++) {
+      ref var m = ref st.Mobjs[i];
+      if (!IsBoss(m.Kind)) continue;
+      if (m.State == AIState.Dead) continue;
+      return true;
+    }
+    return false;
+  }
+
+  public static bool IsProjectile(MobjKind k) {
+    return k == MobjKind.ImpFireball || k == MobjKind.BaronBall || k == MobjKind.CacoBall
+    || k == MobjKind.RocketProj || k == MobjKind.PlasmaProj || k == MobjKind.BfgProj;
+  }
+
+  public static bool IsPickup(MobjKind k) {
+    return k >= MobjKind.PickupHealth && k <= MobjKind.KeyRed;
+  }
+
+  public static int SpriteIndexForMobj(MobjKind k) {
+    switch (k) {
+      case MobjKind.Imp: return S_IMP;
+      case MobjKind.Demon: return S_DEMON;
+      case MobjKind.Baron: return S_BARON;
+      case MobjKind.Cacodemon: return S_CACO;
+      case MobjKind.LostSoul: return S_LOSTSOUL;
+      case MobjKind.Zombieman: return S_IMP; // reuse
+      case MobjKind.Shotgunner: return S_BARON; // reuse with tint
+      case MobjKind.Corpse: return S_CORPSE;
+      case MobjKind.ImpFireball: return S_FIREBALL;
+      case MobjKind.BaronBall: return S_FIREBALL;
+      case MobjKind.CacoBall: return S_PLASMA;
+      case MobjKind.RocketProj: return S_ROCKET_PROJ;
+      case MobjKind.PlasmaProj: return S_PLASMA;
+      case MobjKind.BfgProj: return S_BFG_PROJ;
+      case MobjKind.Explosion: return S_EXPLOSION;
+      case MobjKind.PickupHealth: return S_HEALTH;
+      case MobjKind.PickupArmor: return S_ARMOR;
+      case MobjKind.PickupArmorBlue: return S_ARMOR;
+      case MobjKind.PickupBullets: return S_AMMO_BULLETS;
+      case MobjKind.PickupShells: return S_AMMO_SHELLS;
+      case MobjKind.PickupRockets: return S_AMMO_ROCKETS;
+      case MobjKind.PickupCells: return S_AMMO_CELLS;
+      case MobjKind.PickupShotgun: return S_PICKUP_SHOTGUN;
+      case MobjKind.PickupChaingun: return S_PICKUP_CHAIN;
+      case MobjKind.PickupRocketLauncher: return S_PICKUP_ROCKET;
+      case MobjKind.PickupPlasma: return S_PICKUP_PLASMA;
+      case MobjKind.PickupBFG: return S_PICKUP_BFG;
+      case MobjKind.KeyBlue: return S_KEY_BLUE;
+      case MobjKind.KeyYellow: return S_KEY_YELLOW;
+      case MobjKind.KeyRed: return S_KEY_RED;
+      case MobjKind.Barrel: return S_BARREL;
+      case MobjKind.Light: return S_LIGHT;
+      default: return S_IMP;
+    }
+  }
+
+  public static Color32 TintForMobj(MobjKind k, AIState s) {
+    if (s == AIState.Pain) return new Color32(255, 200, 200, 255);
+    switch (k) {
+      case MobjKind.Shotgunner: return new Color32(150, 220, 150, 255);
+      case MobjKind.Zombieman: return new Color32(180, 180, 200, 255);
+      default: return new Color32(255, 255, 255, 255);
+    }
+  }
+
+  private static void Message(ref PlayerState p, string text, float dur) {
+    p.MessageText = text;
+    p.MessageTimer = dur;
+  }
+
+  // tiny LCG random — deterministic per game
+  private static float Frand(ref GameState st) {
+    st.RngSeed = unchecked(st.RngSeed * 1103515245 + 12345);
+    return ((st.RngSeed >> 16) & 0x7fff) / (float)0x7fff;
+  }
+}

@@ -41,6 +41,13 @@ namespace ReactiveUITK.EditorSupport.HMR
         private bool _compilationQueued;
         private string _queuedPath;
 
+        // Set the first time the compiler reports an infrastructure failure
+        // (reflection signature mismatch, missing type/method, bad image, etc.).
+        // HMR self-disables and refuses to spam the console with retries until
+        // the user fixes the underlying language-library mismatch and restarts
+        // HMR (or Unity).
+        private bool _loggedInfrastructureFailure;
+
         // ── Pending retry state (auto-cascade for new-file dependencies) ────
         private readonly Dictionary<string, string> _pendingRetryPaths = new(
             StringComparer.OrdinalIgnoreCase
@@ -63,6 +70,17 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             get => EditorPrefs.GetBool("UITKX_HMR_ShowNotify", true);
             set => EditorPrefs.SetBool("UITKX_HMR_ShowNotify", value);
+        }
+        /// <summary>
+        /// When true, a detected CLR rude edit on a module type (newly-added
+        /// <c>static readonly</c> field) automatically triggers a domain
+        /// reload via <c>EditorUtility.RequestScriptReload</c> on the next
+        /// editor frame. Default false — a warning is logged either way.
+        /// </summary>
+        public bool AutoReloadOnRudeEdit
+        {
+            get => EditorPrefs.GetBool("UITKX_HMR_AutoReloadOnRudeEdit", false);
+            set => EditorPrefs.SetBool("UITKX_HMR_AutoReloadOnRudeEdit", value);
         }
 
         // ── Memory tracking ─────────────────────────────────────────────────
@@ -182,6 +200,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             _errorCount = 0;
             _recentErrors.Clear();
             _pendingRetryPaths.Clear();
+            _loggedInfrastructureFailure = false;
             _sessionBaselineMemory = CurrentMemoryBytes;
 
             s_instance = this;
@@ -327,6 +346,43 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Update USS dependency map for this file
                 RegisterUssDependencies(uitkxPath);
 
+                // Re-bind `static readonly` module fields BEFORE delegate swap
+                // so the new render delegate sees the new field values on its
+                // first execution. Pre-fix, edits to a `module` declaration's
+                // field initializers (e.g. removing a Style entry) had no
+                // effect until the user exited Play mode and forced a full
+                // assembly reload. See UitkxHmrModuleStaticSwapper for design.
+                ModuleStaticSwapResult moduleStaticResult = ModuleStaticSwapResult.Empty;
+                try
+                {
+                    moduleStaticResult = UitkxHmrModuleStaticSwapper
+                        .SwapModuleStatics(result.LoadedAssembly);
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[HMR] Module-static re-init failed: {ex.Message}"
+                    );
+                }
+                int reInitedFields = moduleStaticResult.Copied;
+                int addedFieldsDetected = moduleStaticResult.AddedFieldsDetected;
+
+                // Re-bind module static-method __hmr_* delegate fields. Mirrors
+                // the per-fiber render-delegate swap and the hook delegate swap,
+                // but operates type-wide on every module type in the HMR assembly.
+                int reInitedMethods = 0;
+                try
+                {
+                    reInitedMethods = UitkxHmrModuleMethodSwapper
+                        .SwapModuleMethods(result.LoadedAssembly);
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[HMR] Module-method re-init failed: {ex.Message}"
+                    );
+                }
+
                 // Swap delegates (timed)
                 var swapSw = Stopwatch.StartNew();
                 int swapped;
@@ -370,7 +426,39 @@ namespace ReactiveUITK.EditorSupport.HMR
                     Debug.Log(
                         $"[HMR] {result.ComponentName} updated ({result.TotalMs:F0}ms, "
                             + $"{swapped} instance(s)) — {result.TimingBreakdown}"
+                            + (reInitedFields > 0
+                                ? $" | Module statics re-init: {reInitedFields}"
+                                : string.Empty)
+                            + (reInitedMethods > 0
+                                ? $" | Module methods re-init: {reInitedMethods}"
+                                : string.Empty)
                     );
+
+                // Rude-edit handling: a newly-added `static readonly` field on
+                // a module type cannot be added to the project-loaded type
+                // (CLR seals type metadata). The swapper has already logged a
+                // once-per-session warning. If the user opted in, schedule a
+                // domain reload on the next editor frame to materialise the
+                // new field everywhere. We delay the reload so the current
+                // HMR cycle completes cleanly first (logs flush, etc.).
+                if (addedFieldsDetected > 0 && AutoReloadOnRudeEdit)
+                {
+                    Debug.Log(
+                        "[HMR] AutoReloadOnRudeEdit enabled — scheduling domain "
+                            + $"reload to materialise {addedFieldsDetected} newly-added "
+                            + "module field(s) on the project-loaded type(s)."
+                    );
+                    EditorApplication.delayCall += () =>
+                    {
+                        try { UnityEditor.EditorUtility.RequestScriptReload(); }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning(
+                                $"[HMR] AutoReloadOnRudeEdit: RequestScriptReload failed: {ex.Message}"
+                            );
+                        }
+                    };
+                }
 
                 // Remove from pending retries if this was a re-attempt
                 _pendingRetryPaths.Remove(uitkxPath);
@@ -382,6 +470,29 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
             else
             {
+                // Infrastructure failures (reflection signature mismatch, missing
+                // type/method, etc.) mean HMR plumbing itself is broken — retrying
+                // would fail forever. Log once with actionable text and self-disable.
+                if (result.IsInfrastructureError)
+                {
+                    if (!_loggedInfrastructureFailure)
+                    {
+                        _loggedInfrastructureFailure = true;
+                        _errorCount++;
+                        _recentErrors.Add(result.Error);
+                        if (_recentErrors.Count > 10)
+                            _recentErrors.RemoveAt(0);
+                        Debug.LogError(
+                            "[HMR] Infrastructure failure — the loaded language " +
+                            "library is incompatible with this HMR build. HMR has " +
+                            "been disabled for this session. Restart Unity (or click " +
+                            "Start in the HMR window) after rebuilding the language " +
+                            "library.\n\nDetails: " + result.Error);
+                    }
+                    Stop();
+                    return;
+                }
+
                 // Try to auto-discover and compile missing dependencies.
                 // CS0103 means an unresolved name — may be a .uitkx component
                 // the FileWatcher missed.

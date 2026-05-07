@@ -20,6 +20,33 @@ namespace ReactiveUITK.Props.Typed
 
         public Dictionary<string, object> ScrollView { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ListViewProps o)
+                return false;
+            if (!ReferenceEquals(Items, o.Items))
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (FixedItemHeight != o.FixedItemHeight)
+                return false;
+            if (MakeItem != o.MakeItem)
+                return false;
+            if (BindItem != o.BindItem)
+                return false;
+            if (UnbindItem != o.UnbindItem)
+                return false;
+            if (Row != o.Row)
+                return false;
+            if (Selection != o.Selection)
+                return false;
+            if (!ReferenceEquals(ScrollView, o.ScrollView))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -60,6 +87,24 @@ namespace ReactiveUITK.Props.Typed
                 dict["scrollView"] = ScrollView;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            Items = null;
+            SelectedIndex = null;
+            FixedItemHeight = null;
+            MakeItem = null;
+            BindItem = null;
+            UnbindItem = null;
+            Row = null;
+            Selection = null;
+            ScrollView = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ListViewProps>.Return(this);
         }
     }
 }

@@ -87,7 +87,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             foreach (var hook in directives.HookDeclarations)
             {
-                EmitSingleHook(sb, hook, linePath);
+                EmitSingleHook(sb, hook, linePath, diagnostics);
             }
 
             sb.AppendLine("    }"); // close class
@@ -96,7 +96,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return sb.ToString();
         }
 
-        private static void EmitSingleHook(StringBuilder sb, HookDeclaration hook, string linePath)
+        private static void EmitSingleHook(StringBuilder sb, HookDeclaration hook, string linePath, IList<Diagnostic> diagnostics)
         {
             bool isGeneric = !string.IsNullOrEmpty(hook.GenericParams);
             bool isVoid = string.IsNullOrEmpty(hook.ReturnType);
@@ -107,8 +107,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             string hmrFieldName = $"__hmr_{hook.Name}";
             string returnType = isVoid ? "void" : hook.ReturnType!;
 
-            // Apply hook aliases to body
+            // Apply hook aliases and resolve relative asset paths to absolute
+            // Unity registry keys (parity with component setup code so that
+            // Asset<T>("./x.png") works inside hook bodies just like inside
+            // component setup code).
             string transformedBody = EmitContext.ApplyHookAliases(hook.Body);
+            transformedBody = EmitContext.ResolveAssetPaths(transformedBody, linePath, diagnostics);
 
             // Extract hook signature for [HookSignature] attribute
             string hookSig = EmitContext.ExtractHookSignature(hook.Body);

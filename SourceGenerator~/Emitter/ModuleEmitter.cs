@@ -77,14 +77,50 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             foreach (var module in directives.ModuleDeclarations)
             {
+                // Resolve relative Asset<T>("./x") / Ast<T>("../x") paths to absolute
+                // Unity registry keys. Without this, runtime UitkxAssetRegistry.Get<T>
+                // misses because the registry indexes by resolved path while the
+                // emitted literal would still be the original relative string.
+                string transformedBody = EmitContext.ResolveAssetPaths(
+                    module.Body, filePath, diagnostics);
+
+                // Roslyn-rewrite each top-level static method into the
+                // HMR-swappable trampoline + delegate field + body method
+                // pattern. Non-method members (consts, fields, nested types)
+                // emit verbatim. On parse failure we fall back to verbatim
+                // emit and surface UITKX0150 (Info severity — non-blocking).
+                var rewriteResult = ModuleBodyRewriter.Rewrite(
+                    transformedBody,
+                    module.Name,
+                    module.BodyStartLine,
+                    linePath);
+
+                if (rewriteResult.ParseFailed)
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        UitkxDiagnostics.ModuleBodyParseFailed,
+                        Location.None,
+                        module.Name,
+                        rewriteResult.FailureReason ?? "unknown parse failure"));
+                }
                 // Don't emit [UitkxSource] — the module may extend a component
                 // class that already has it, and the attribute isn't allowed
                 // to appear twice on the same type.
                 sb.AppendLine($"    public partial class {module.Name}");
                 sb.AppendLine("    {");
-                sb.AppendLine($"#line {module.BodyStartLine} \"{linePath}\"");
-                sb.AppendLine($"        {module.Body}");
-                sb.AppendLine("#line hidden");
+                if (rewriteResult.ParseFailed)
+                {
+                    // Verbatim fallback path — preserve historical emit shape.
+                    sb.AppendLine($"#line {module.BodyStartLine} \"{linePath}\"");
+                    sb.AppendLine($"        {rewriteResult.OriginalBody}");
+                    sb.AppendLine("#line hidden");
+                }
+                else
+                {
+                    // Rewritten body already contains its own #line directives
+                    // for each emitted member.
+                    sb.Append(rewriteResult.TransformedBody);
+                }
                 sb.AppendLine("    }");
                 sb.AppendLine();
             }

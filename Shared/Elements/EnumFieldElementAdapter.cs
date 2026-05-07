@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -113,6 +114,80 @@ namespace ReactiveUITK.Elements
                 if (input != null)
                     PropsApplier.Apply(input, viMap);
             }
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is EnumField field && props is EnumFieldProps fp)
+            {
+                if (fp.Value != null)
+                    field.value = fp.Value;
+                if (!string.IsNullOrEmpty(fp.EnumType))
+                {
+                    var t = Type.GetType(fp.EnumType);
+                    if (t != null && t.IsEnum)
+                    {
+                        try
+                        {
+                            field.Init((Enum)Enum.ToObject(t, 0));
+                        }
+                        catch { }
+                    }
+                }
+                if (fp.Label != null && field.labelElement != null)
+                    PropsApplier.Apply(field.labelElement, fp.Label);
+                if (fp.VisualInput != null)
+                {
+                    var input = field.Q<VisualElement>(className: "unity-base-field__input");
+                    if (input != null)
+                        PropsApplier.Apply(input, fp.VisualInput);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is EnumField field
+                && prev is EnumFieldProps fp
+                && next is EnumFieldProps fn
+            )
+            {
+                if (!object.Equals(fp.Value, fn.Value) && fn.Value != null)
+                    field.value = fn.Value;
+                if (fp.EnumType != fn.EnumType && !string.IsNullOrEmpty(fn.EnumType))
+                {
+                    var t = Type.GetType(fn.EnumType);
+                    if (t != null && t.IsEnum)
+                    {
+                        try
+                        {
+                            field.Init((Enum)Enum.ToObject(t, 0));
+                        }
+                        catch { }
+                    }
+                }
+                if (!ReferenceEquals(fp.Label, fn.Label) && field.labelElement != null)
+                {
+                    if (fp.Label != null && fn.Label != null)
+                        PropsApplier.ApplyDiff(field.labelElement, fp.Label, fn.Label);
+                    else if (fn.Label != null)
+                        PropsApplier.Apply(field.labelElement, fn.Label);
+                }
+                if (!ReferenceEquals(fp.VisualInput, fn.VisualInput))
+                {
+                    var input = field.Q<VisualElement>(className: "unity-base-field__input");
+                    if (input != null)
+                    {
+                        if (fp.VisualInput != null && fn.VisualInput != null)
+                            PropsApplier.ApplyDiff(input, fp.VisualInput, fn.VisualInput);
+                        else if (fn.VisualInput != null)
+                            PropsApplier.Apply(input, fn.VisualInput);
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

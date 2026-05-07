@@ -8,23 +8,36 @@ hook useStressTestLoop(
   Ref<VisualElement?> areaRef,
   Vector2 areaSize,
   int boxCount,
+  float duration,
+  bool running,
   int version
 ) -> (
   List<(string id, float x, float y, float size, float vx, float vy, Color color)> boxes,
-  float fps,
-  float elapsed
+  float avgFps,
+  float elapsed,
+  int totalFrames,
+  bool finished
 ) {
   var emptyBoxes = new List<(string id, float x, float y, float size, float vx, float vy, Color color)>();
   var (boxes, setBoxes) = useState(emptyBoxes);
 
-  var (fps, setFps) = useState(0f);
+  var (avgFps, setAvgFps) = useState(0f);
   var (elapsed, setElapsed) = useState(0f);
-  var frameCount = useRef(0);
-  var fpsTimer = useRef(0f);
+  var (totalFrames, setTotalFrames) = useState(0);
+  var (finished, setFinished) = useState(false);
+
   var lastTime = useRef(-1f);
+  var totalTimeRef = useRef(0f);
+  var totalFramesRef = useRef(0);
   var boxCountRef = useRef(boxCount);
   var versionRef = useRef(version);
+  var runningRef = useRef(running);
+  var durationRef = useRef(duration);
   var needsRegen = useRef(true);
+  var elapsedRef = useRef(0f);
+
+  runningRef.Current = running;
+  durationRef.Current = duration;
 
   if (boxCountRef.Current != boxCount || versionRef.Current != version) {
     boxCountRef.Current = boxCount;
@@ -42,11 +55,14 @@ hook useStressTestLoop(
     float w = areaSize.x;
     float h = areaSize.y;
     lastTime.Current = -1f;
-    frameCount.Current = 0;
-    fpsTimer.Current = 0f;
+    totalTimeRef.Current = 0f;
+    totalFramesRef.Current = 0;
+    elapsedRef.Current = 0f;
     needsRegen.Current = true;
 
     IVisualElementScheduledItem ticker = el.schedule.Execute(() => {
+      if (!runningRef.Current) return;
+
       // Regenerate boxes if needed
       if (needsRegen.Current) {
         needsRegen.Current = false;
@@ -62,10 +78,13 @@ hook useStressTestLoop(
         boxesRef.Current = fresh;
         setBoxes(fresh);
         setElapsed(0f);
-        setFps(0f);
+        setAvgFps(0f);
+        setTotalFrames(0);
+        setFinished(false);
         lastTime.Current = -1f;
-        frameCount.Current = 0;
-        fpsTimer.Current = 0f;
+        totalTimeRef.Current = 0f;
+        totalFramesRef.Current = 0;
+        elapsedRef.Current = 0f;
         return;
       }
 
@@ -74,14 +93,24 @@ hook useStressTestLoop(
       float dt = now - lastTime.Current;
       lastTime.Current = now;
 
-      frameCount.Current++;
-      fpsTimer.Current += dt;
-      if (fpsTimer.Current >= 0.5f) {
-        setFps(frameCount.Current / fpsTimer.Current);
-        frameCount.Current = 0;
-        fpsTimer.Current = 0f;
+      totalFramesRef.Current++;
+      totalTimeRef.Current += dt;
+      elapsedRef.Current += dt;
+
+      float curAvgFps = totalTimeRef.Current > 0 ? totalFramesRef.Current / totalTimeRef.Current : 0f;
+
+      // Check duration
+      if (elapsedRef.Current >= durationRef.Current) {
+        setAvgFps(curAvgFps);
+        setElapsed(elapsedRef.Current);
+        setTotalFrames(totalFramesRef.Current);
+        setFinished(true);
+        return;
       }
-      setElapsed(e => e + dt);
+
+      setAvgFps(curAvgFps);
+      setElapsed(elapsedRef.Current);
+      setTotalFrames(totalFramesRef.Current);
 
       var current = boxesRef.Current;
       var next = new List<(string id, float x, float y, float size, float vx, float vy, Color color)>(current.Count);
@@ -106,5 +135,5 @@ hook useStressTestLoop(
     return () => ticker.Pause();
   }, new object[] { areaRef?.Current, areaSize });
 
-  return (boxes, fps, elapsed);
+  return (boxes, avgFps, elapsed, totalFrames, finished);
 }

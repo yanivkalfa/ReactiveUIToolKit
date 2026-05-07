@@ -1,0 +1,26 @@
+@namespace PrettyUi.App
+@using UnityEngine
+
+module Theme {
+  public static readonly Color BgDeep = new Color(0.06f, 0.07f, 0.09f, 1f);
+  public static readonly Color BgPanel = new Color(0.10f, 0.12f, 0.15f, 0.92f);
+  public static readonly Color BgPanelAlt = new Color(0.13f, 0.15f, 0.18f, 0.92f);
+  public static readonly Color BorderSoft = new Color(0.20f, 0.24f, 0.28f, 1f);
+  public static readonly Color Accent = new Color(0.95f, 0.55f, 0.05f, 1f);
+  public static readonly Color AccentMuted = new Color(0.65f, 0.40f, 0.10f, 0.55f);
+  public static readonly Color TextPrimary = new Color(0.95f, 0.96f, 0.97f, 1f);
+  public static readonly Color TextDim = new Color(0.65f, 0.68f, 0.71f, 1f);
+
+  public const float NavHeight = 56f;
+  public const float SidebarWidth = 240f;
+  public const float ContentMaxWidth = 900f;
+
+  public const float Radius = 6f;
+  public const float BorderWidth = 1f;
+
+  public const float FsTitle = 28f;
+  public const float FsHeading = 20f;
+  public const float FsBody = 14f;
+  public const float FsLabel = 13f;
+  public const float FsSmall = 11f;
+}

@@ -1,6 +1,97 @@
 {
   "entries": [
     {
+      "date": "2026-05-06",
+      "versions": {
+        "vscode": "1.1.12",
+        "vs2022": "1.1.12"
+      },
+      "shared": [
+        "Feature: New <Video> and <Audio> elements plus useSfx() hook for one-shot SFX. <Video> wraps a pooled VideoPlayer + RenderTexture under a shared MediaHost peer (HideAndDontSave GameObject), drives an Image sink via VideoPlayer.frameReady, and exposes a VideoController ref for imperative Play/Pause/Seek. <Audio> renders no visible content and rents an AudioSource from the same pool with declarative Clip/Loop/Volume/Autoplay props plus an AudioController ref. useSfx() returns a stable Action<AudioClip,float> that plays one-shots on MediaHost.Instance.SfxSource without per-render allocations. New MediaPlayground demo (editor window + runtime bootstrap) exercises every surface end-to-end. IDE virtual-document generator now scaffolds useSfx() in both function-style component and hook-document templates so Roslyn no longer reports CS0103 in the editor.",
+        "Fix: FiberRenderer.Clear() now runs effect cleanups before dropping the tree. The previous implementation cleared the container and nulled the root in one shot, never invoking the depth-first CommitDeletion path that fires UseEffect cleanup callbacks and disposes signals. Any UseEffect-owned resource (audio sources, timers, signal subscriptions, RenderTextures, etc.) leaked across editor-window close/reopen cycles. New FiberReconciler.UnmountRoot() walks _root.Current.Child and runs CommitDeletion on each, then nulls the root; FiberRenderer.Clear() calls it before the container clear. The leak only became visible with the new <Audio> element (background music kept playing forever after closing the demo window) but the root cause affected every Func-Component using UseEffect cleanup."
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "versions": {
+        "vscode": "1.1.11",
+        "vs2022": "1.1.11"
+      },
+      "shared": [
+        "Fix: HMR no longer fails compilation with CS0426: The type name 'RouterFuncProps' does not exist in the type 'RouterFunc' (or any function-component whose Props class is declared as a sibling at namespace scope rather than nested). HMR's FindPropsType previously only walked nested types and shipped {Type}.{Type}Props unconditionally — diverging from the source generator's PropsResolver.TryGetFuncComponentPropsTypeName which already handled all three resolution paths. The HMR resolver now mirrors source-gen: (1) sibling top-level {Type}Props in the same namespace (the RouterFunc/RouterFuncProps shape), (2) nested {Type}.{Type}Props, (3) any nested IProps (legacy ValuesBarFunc.Props), with a final convention fallback. Locked down by 6 new regression tests (1 SG parity + 5 in-memory Roslyn contract tests mirroring the HMR algorithm). 1070/1070 SG passing."
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "versions": {
+        "vscode": "1.1.10",
+        "vs2022": "1.1.10"
+      },
+      "shared": [
+        "Fix: HMR no longer fails with `ArgumentException: 'List<ParseDiagnostic>' cannot be converted to 'System.String'` on every `.uitkx` save. The compiler's reflective `InvokeWithDefaults` had two competing `params object[]` overloads; C# overload resolution silently bound `string` arguments into the receiver slot of the wrong overload, shifting every subsequent argument by one position and dropping a `List<ParseDiagnostic>` into `Parse(...)`'s `filePath` slot. The two overloads were collapsed into a single canonical `(MethodInfo method, object target, params object[] args)` signature so the bug class is structurally impossible to recur. Hot reload of components, hooks, and module/style files works again.",
+        "Fix: `Asset<T>(\"./x.png\")` and `Asset<T>(\"../x.png\")` now resolve correctly inside `module { ... }` and `hook { ... }` bodies (e.g. `AppRoot.style.uitkx`). Both the source generator's `ModuleEmitter`/`HookEmitter` and HMR's `HmrHookEmitter` previously emitted module/hook bodies verbatim, leaving relative path literals unrewritten — the runtime `UitkxAssetRegistry.Get<T>` then missed because the registry indexes by resolved Unity asset paths (e.g. `Assets/Resources/background-01.png`). The path-rewrite pipeline that already covered component setup code, JSX attributes, and directive bodies now also runs on module/hook bodies in both source-gen and HMR. Backed by 4 new regression tests in `EmitterTests` (1064/1064 SG passing)."
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "versions": {
+        "vscode": "1.1.9",
+        "vs2022": "1.1.9"
+      },
+      "shared": [
+        "Fix: `Asset<T>(...)` and `Ast<T>(...)` no longer report CS0103 (`The name Asset does not exist in the current context`) inside component setup blocks, hook bodies, and module/style initializers (e.g. `AppRoot.style.uitkx`). The IDE virtual document now injects `using static ReactiveUITK.AssetHelpers;` so Roslyn binds the helpers exactly the way the runtime emitter does."
+      ]
+    },
+    {
+      "date": "2026-05-03",
+      "versions": {
+        "vscode": "1.1.8",
+        "vs2022": "1.1.8"
+      },
+      "shared": [
+        "Feature: schema entries for the new router primitives — <Outlet/>, <Routes>, <NavLink>, <Navigate> — with full attribute metadata. Autocomplete and inline docs work in VS Code, Rider, and Visual Studio without per-IDE changes (single uitkx-schema.json source).",
+        "Feature: <Router> schema gained 'basename' attribute; <Route> schema gained 'index' and 'caseSensitive' attributes. Layout-route description on <Route> now mentions Element + child Routes co-existence."
+      ]
+    },
+    {
+      "date": "2026-05-01",
+      "versions": {
+        "vscode": "1.1.7",
+        "vs2022": "1.1.7"
+      },
+      "shared": [
+        "Feature: autocomplete for IStyle 9-slice + clip-box + text-generator + editor-text-rendering enums (unitySliceType, unityOverflowClipBox, unityTextGenerator, unityEditorTextRenderingMode)"
+      ]
+    },
+    {
+      "date": "2026-04-28",
+      "versions": {
+        "vscode": "1.1.6",
+        "vs2022": "1.1.6"
+      },
+      "shared": [
+        "Perf: source generator now hoists `style={new Style{...}}` literals to class-level static fields, eliminating per-render Style allocations and diff-walks for static styles. Handles both setter form (`Width = 5f`) and tuple form (`(StyleKeys.Width, 5f)`). Whitelist-based; falls back to existing pool-rent path for any non-literal value (state/captures/method calls).",
+        "Perf: source generator emits child arguments directly into `params VirtualNode[]` instead of allocating a transient `__C(...)` array when the JSX children list is statically simple (no spreads, no conditional fragments). Cuts per-frame allocations on the children path."
+      ]
+    },
+    {
+      "date": "2026-04-27",
+      "versions": {
+        "vscode": "1.1.5",
+        "vs2022": "1.1.5"
+      },
+      "shared": [
+        "Fix: cross-document Ref<T> unification — useRef<T>() now returns canonical global::ReactiveUITK.Core.Ref<T> in virtual docs, eliminating false CS1503 when passing refs to peer hooks (e.g. useGalagaGame(boardRef))",
+        "Fix: polyfill stubs (Ref<T>, ReactiveEvent, etc.) now load correctly in workspaces where Unity has not yet compiled — detection scoped to runtime assembly names (ReactiveUITK.Shared/Runtime/Core), no longer suppressed by the LSP-internal ReactiveUITK.Language.dll",
+        "Fix: formatter idempotency for multi-line paren-continuation (e.g. && / || chains) inside nested blocks — no more indent drift on save in files like the Galaga GameScreen sample",
+        "Fix: source-generator diagnostic IDs unified with live analyzer (UITKX0006/0002/0009/0010/0017/0022/0023 → UITKX0103/0109/0106/0104/0108/0120/0121) so the same logical issue surfaces with the same code in both Unity Console and VS Code Problems pane",
+        "Fix: RS2008 'analyzer release tracking' build warning suppressed in the LSP server csproj (warning targets analyzer NuGet packages, not the server EXE)"
+      ],
+      "vscode": [
+        "Fix: removed stray chatHistory / globalState.keys() activation logging — leftover scaffolding from an unrelated experiment"
+      ]
+    },
+    {
       "date": "2026-04-18",
       "versions": {
         "vscode": "1.1.4",

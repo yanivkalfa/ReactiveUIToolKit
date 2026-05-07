@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using ReactiveUITK.Props.Typed;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -24,6 +25,7 @@ namespace ReactiveUITK.Core.Fiber
                 Parent = parent,
                 Index = index,
                 PendingProps = ExtractProps(vnode),
+                PendingHostProps = vnode.HostProps,
                 Children = vnode.Children,
                 EffectTag = EffectFlags.Placement, // New fiber needs to be placed
 
@@ -68,7 +70,9 @@ namespace ReactiveUITK.Core.Fiber
 
                 case VirtualNodeType.ErrorBoundary:
                     fiber.Tag = FiberTag.ErrorBoundary;
-                    fiber.LastRenderedVNode = vnode;
+                    fiber.ErrorBoundaryFallback = vnode.ErrorFallback;
+                    fiber.ErrorBoundaryHandler = vnode.ErrorHandler;
+                    fiber.ErrorBoundaryChildren = vnode.Children;
                     fiber.ErrorBoundaryResetKey = vnode.ErrorResetToken;
                     fiber.ErrorBoundaryActive = false;
                     fiber.ErrorBoundaryShowingFallback = false;
@@ -85,6 +89,8 @@ namespace ReactiveUITK.Core.Fiber
                     UnityEngine.Debug.LogError($"Unknown VirtualNodeType: {vnode.NodeType}");
                     break;
             }
+
+            // All fields extracted — VNode data lives on the fiber now.
             return fiber;
         }
 
@@ -106,41 +112,84 @@ namespace ReactiveUITK.Core.Fiber
             clone.Tag = current.Tag;
             clone.ElementType = current.ElementType;
             clone.Key = current.Key;
-            clone.TypedRender = current.TypedRender;
-#if UNITY_EDITOR
-            clone.HmrPreviousRender = current.HmrPreviousRender;
-#endif
 
-            // === Props ===
-            clone.TypedProps = current.TypedProps;
-            clone.TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps;
+            // === Props (common to all fiber types) ===
             clone.Props = current.Props;
             clone.PendingProps = newVNode != null ? ExtractProps(newVNode) : current.PendingProps;
+            clone.HostProps = current.HostProps;
+            clone.PendingHostProps = newVNode?.HostProps ?? current.PendingHostProps;
             clone.Children = newVNode != null ? newVNode.Children : current.Children;
 
             // === Host/DOM ===
             clone.HostElement = current.HostElement;
-            clone.PortalTarget = current.PortalTarget;
 
             // === State ===
-            clone.ComponentState = current.ComponentState; // CRITICAL: Share, don't clone!
             clone.Index = current.Index;
-
-            // === Context ===
-            clone.ContextFrame = current.ContextFrame;
-            clone.ContextProviderId = current.ContextProviderId;
-            clone.ProvidedContext = current.ProvidedContext;
-
-            // === Error boundary ===
-            clone.ErrorBoundaryActive = current.ErrorBoundaryActive;
-            clone.ErrorBoundaryShowingFallback = current.ErrorBoundaryShowingFallback;
-            clone.ErrorBoundaryLastException = current.ErrorBoundaryLastException;
-            clone.ErrorBoundaryResetKey = current.ErrorBoundaryResetKey;
 
             // === Flags (automatic propagation) ===
             clone.HasPendingStateUpdate = current.HasPendingStateUpdate;
             clone.SubtreeHasUpdates = current.SubtreeHasUpdates;
-            clone.ReadsContext = current.ReadsContext;
+
+            // === OPT-24: Skip fields that are always null/0/false for HostComponent ===
+            // HostComponent fibers never use TypedRender, TypedProps, ComponentState,
+            // Context, ErrorBoundary, Portal, or HMR fields. Skipping them for the
+            // ~3,000 host elements in the stress test eliminates ~45,000 field writes/frame.
+            // The alternate is always the same Tag (CanReuseFiber enforces type match),
+            // so stale values from a previous fiber type are impossible.
+            if (current.Tag != FiberTag.HostComponent)
+            {
+                clone.TypedRender = current.TypedRender;
+#if UNITY_EDITOR
+                clone.HmrPreviousRender = current.HmrPreviousRender;
+#endif
+                clone.TypedProps = current.TypedProps;
+                clone.TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps;
+                clone.ComponentState = current.ComponentState; // CRITICAL: Share, don't clone!
+                // Refresh PortalTarget from the new VNode so a `<Portal target={x}>` whose
+                // target prop changes between renders points at the new container instead
+                // of the stale committed one. Mirror the change into HostElement (they
+                // alias for portals — see FiberFactory.CreateNew / FiberChildReconciliation.CreateFiber).
+                if (
+                    current.Tag == FiberTag.HostPortal
+                    && newVNode != null
+                    && newVNode.NodeType == VirtualNodeType.Portal
+                )
+                {
+                    clone.PortalTarget = newVNode.PortalTarget;
+                    clone.HostElement = newVNode.PortalTarget;
+                }
+                else
+                {
+                    clone.PortalTarget = current.PortalTarget;
+                }
+                clone.ReadsContext = current.ReadsContext;
+
+                // === Context ===
+                clone.ContextFrame = current.ContextFrame;
+                clone.ProvidedContext = current.ProvidedContext;
+
+                // === Error boundary ===
+                clone.ErrorBoundaryActive = current.ErrorBoundaryActive;
+                clone.ErrorBoundaryShowingFallback = current.ErrorBoundaryShowingFallback;
+                clone.ErrorBoundaryLastException = current.ErrorBoundaryLastException;
+                // Refresh resetKey from the new VNode so UpdateErrorBoundary can detect
+                // a change vs. the previous fiber (clone.Alternate == current). If we
+                // copy from current here, the clone always equals current and the
+                // reset is never observed, leaving the boundary stuck on its fallback.
+                clone.ErrorBoundaryResetKey =
+                    newVNode != null ? newVNode.ErrorResetToken : current.ErrorBoundaryResetKey;
+                clone.ErrorBoundaryFallback =
+                    newVNode?.ErrorFallback ?? current.ErrorBoundaryFallback;
+                clone.ErrorBoundaryHandler = newVNode?.ErrorHandler ?? current.ErrorBoundaryHandler;
+                clone.ErrorBoundaryChildren = newVNode?.Children ?? current.ErrorBoundaryChildren;
+
+                // Fix: Suspense VNodes always have TypedProps=null because SuspenseProps is
+                // internal infrastructure, not exposed as IProps on the VirtualNode.
+                if (newVNode?.NodeType == VirtualNodeType.Suspense)
+                    clone.TypedPendingProps = FiberIntrinsicComponents.CreateSuspenseProps(
+                        newVNode
+                    );
+            }
 
             // === Reset tree structure (rebuilt during reconciliation) ===
             clone.Child = null;
@@ -154,17 +203,9 @@ namespace ReactiveUITK.Core.Fiber
             clone.LayoutEffects = null;
             clone.PassiveEffects = null;
 
-            // === Rendered output ===
-            clone.LastRenderedVNode = newVNode ?? current.LastRenderedVNode;
-
             // === Alternate chain ===
             clone.Alternate = current;
             current.Alternate = clone;
-
-            // Fix: Suspense VNodes always have TypedProps=null because SuspenseProps is
-            // internal infrastructure, not exposed as IProps on the VirtualNode.
-            if (newVNode?.NodeType == VirtualNodeType.Suspense)
-                clone.TypedPendingProps = FiberIntrinsicComponents.CreateSuspenseProps(newVNode);
 
             return clone;
         }

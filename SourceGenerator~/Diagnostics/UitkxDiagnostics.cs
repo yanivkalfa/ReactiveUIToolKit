@@ -6,22 +6,30 @@ namespace ReactiveUITK.SourceGenerator
     /// Central registry of all <see cref="DiagnosticDescriptor"/> instances used
     /// by the UITKX source generator.
     ///
+    /// IDs in this file are aligned with the live analyzer's canonical codes
+    /// (see <c>ide-extensions~/language-lib/Diagnostics/DiagnosticCodes.cs</c>)
+    /// so that the same logical issue is reported with the same code regardless
+    /// of whether it surfaces in the Unity Console (source generator) or in the
+    /// VS Code Problems pane (live analyzer).
+    ///
     /// ID ranges:
-    ///   UITKX0001       Unknown built-in element (Phase 3)
-    ///   UITKX0002       Unknown attribute on element (Phase 5)
-    ///   UITKX0005–0006  Directive validation
-    ///   UITKX0008       Unknown function component (Phase 3)
-    ///   UITKX0009–0010  Foreach / sibling key warnings (Phase 5)
-    ///   UITKX0012       Directive ordering (Phase 5)
-    ///   UITKX0013–0015  Rules-of-Hooks violations (Phase 5)
-    ///   UITKX0016       Hook in attribute/event-handler (Phase 5)
-    ///   UITKX0017       Multiple root elements (Phase 5)
-    ///   UITKX0018       UseEffect missing dependency array (Phase 5)
-    ///   UITKX0019       Loop index used as element key (Phase 5)
+    ///   UITKX0001       Unknown built-in element                       (Phase 3, source-gen-only)
+    ///   UITKX0005       Missing required @namespace / @component        (Phase 5, source-gen-only)
+    ///   UITKX0008       Unknown function component                      (Phase 3, source-gen-only)
+    ///   UITKX0012       Directive ordering                              (Phase 5, source-gen-only)
+    ///   UITKX0013–0015  Rules-of-Hooks violations                       (Phase 5, shared with analyzer)
+    ///   UITKX0016       Hook in attribute / event handler               (Phase 5, shared with analyzer)
+    ///   UITKX0018       UseEffect missing dependency array              (Phase 5, source-gen-only)
+    ///   UITKX0019       Loop index used as element key                  (Phase 5, source-gen-only)
     ///   UITKX0020       ref={} on user component with no Ref<T> param
     ///   UITKX0021       ref={} on user component with multiple Ref<T> params (ambiguous)
-    ///   UITKX0022       Asset/Ast path references a file that does not exist
-    ///   UITKX0023       Asset/Ast type parameter incompatible with file extension
+    ///   UITKX0103       @component name ≠ filename                       (aligns with analyzer)
+    ///   UITKX0104       Duplicate sibling key                           (aligns with analyzer)
+    ///   UITKX0106       Element inside loop missing key                 (aligns with analyzer)
+    ///   UITKX0108       Multiple root elements                          (aligns with analyzer)
+    ///   UITKX0109       Unknown attribute on element                    (aligns with analyzer)
+    ///   UITKX0120       Asset path references a non-existent file       (aligns with analyzer)
+    ///   UITKX0121       Asset type parameter incompatible with extension (aligns with analyzer)
     ///   UITKX0300–0305  Parse errors
     /// </summary>
     internal static class UitkxDiagnostics
@@ -68,10 +76,10 @@ namespace ReactiveUITK.SourceGenerator
                 description: "Directive-header files must declare @namespace and @component. Function-style files use 'component Name { ... }' and infer namespace from the companion partial class when available."
             );
 
-        /// <summary>UITKX0006 — @component value does not match the file name.</summary>
+        /// <summary>UITKX0103 — @component value does not match the file name. Aligned with analyzer's <c>DiagnosticCodes.FilenameMismatch</c>.</summary>
         public static readonly DiagnosticDescriptor ComponentNameMismatch =
             new DiagnosticDescriptor(
-                id: "UITKX0006",
+                id: "UITKX0103",
                 title: "@component name does not match file name",
                 messageFormat: "@component '{0}' does not match the file name '{1}'. "
                     + "The generated class will use '{0}'.",
@@ -145,9 +153,9 @@ namespace ReactiveUITK.SourceGenerator
 
         // ── Phase 5 — semantic diagnostics ────────────────────────────────────
 
-        /// <summary>UITKX0002 — An attribute name is not a known property on the resolved Props type.</summary>
+        /// <summary>UITKX0109 — An attribute name is not a known property on the resolved Props type. Aligned with analyzer's <c>DiagnosticCodes.UnknownAttribute</c>.</summary>
         public static readonly DiagnosticDescriptor UnknownAttribute = new DiagnosticDescriptor(
-            id: "UITKX0002",
+            id: "UITKX0109",
             title: "Unknown attribute on element",
             messageFormat: "Unknown attribute '{0}' on <{1}>{2}",
             category: Category,
@@ -156,9 +164,9 @@ namespace ReactiveUITK.SourceGenerator
             description: "The attribute does not match any public settable property on the Props type."
         );
 
-        /// <summary>UITKX0009 — A direct element child of a loop (@foreach/@for/@while) lacks a key attribute.</summary>
+        /// <summary>UITKX0106 — A direct element child of a loop (@foreach/@for/@while) lacks a key attribute. Aligned with analyzer's <c>DiagnosticCodes.MissingKey</c>.</summary>
         public static readonly DiagnosticDescriptor ForeachMissingKey = new DiagnosticDescriptor(
-            id: "UITKX0009",
+            id: "UITKX0106",
             title: "Element inside loop missing key",
             messageFormat: "Element <{0}> inside a loop at line {1} in '{2}' should have a 'key' attribute for stable reconciliation",
             category: Category,
@@ -167,9 +175,9 @@ namespace ReactiveUITK.SourceGenerator
             description: "Add a 'key' attribute whose value is unique within the collection to avoid reconciler instability."
         );
 
-        /// <summary>UITKX0010 — Two or more sibling elements share the same static key literal.</summary>
+        /// <summary>UITKX0104 — Two or more sibling elements share the same static key literal. Aligned with analyzer's <c>DiagnosticCodes.DuplicateKey</c>.</summary>
         public static readonly DiagnosticDescriptor DuplicateSiblingKey = new DiagnosticDescriptor(
-            id: "UITKX0010",
+            id: "UITKX0104",
             title: "Duplicate key among sibling elements",
             messageFormat: "Duplicate key '{0}' found among sibling elements in '{1}'",
             category: Category,
@@ -203,9 +211,9 @@ namespace ReactiveUITK.SourceGenerator
             description: "Move the hook call into the @code block at the top of the file."
         );
 
-        /// <summary>UITKX0017 — Component has more than one root element node.</summary>
+        /// <summary>UITKX0108 — Component has more than one root element node. Aligned with analyzer's <c>DiagnosticCodes.MultipleRenderRoots</c>.</summary>
         public static readonly DiagnosticDescriptor MultipleRootElements = new DiagnosticDescriptor(
-            id: "UITKX0017",
+            id: "UITKX0108",
             title: "Multiple root elements",
             messageFormat: "Component in '{0}' has more than one root element. Wrap them in a single container.",
             category: Category,
@@ -321,12 +329,13 @@ namespace ReactiveUITK.SourceGenerator
             );
 
         /// <summary>
-        /// UITKX0022 — An <c>Asset&lt;T&gt;("path")</c> or <c>Ast&lt;T&gt;("path")</c>
+        /// UITKX0120 — An <c>Asset&lt;T&gt;("path")</c> or <c>Ast&lt;T&gt;("path")</c>
         /// expression references a file that does not exist on disk at compile time.
+        /// Aligned with analyzer's <c>DiagnosticCodes.AssetNotFound</c>.
         /// </summary>
         public static readonly DiagnosticDescriptor AssetFileNotFound =
             new DiagnosticDescriptor(
-                id: "UITKX0022",
+                id: "UITKX0120",
                 title: "Asset file not found",
                 messageFormat: "Asset file not found: \"{0}\"",
                 category: Category,
@@ -336,18 +345,40 @@ namespace ReactiveUITK.SourceGenerator
             );
 
         /// <summary>
-        /// UITKX0023 — The requested <c>Asset&lt;T&gt;</c> type is not compatible
+        /// UITKX0121 — The requested <c>Asset&lt;T&gt;</c> type is not compatible
         /// with the file extension of the referenced asset.
+        /// Aligned with analyzer's <c>DiagnosticCodes.AssetTypeMismatch</c>.
         /// </summary>
         public static readonly DiagnosticDescriptor AssetTypeMismatch =
             new DiagnosticDescriptor(
-                id: "UITKX0023",
+                id: "UITKX0121",
                 title: "Asset type mismatch",
                 messageFormat: "Type '{0}' is not compatible with '{1}' files. Valid types: {2}",
                 category: Category,
                 defaultSeverity: DiagnosticSeverity.Error,
                 isEnabledByDefault: true,
                 description: "The generic type argument does not match the file extension. For example, a .png should be loaded as Texture2D or Sprite, not AudioClip."
+            );
+
+        // ── Module HMR rewrite ───────────────────────────────────────────────
+
+        /// <summary>
+        /// UITKX0150 — The Roslyn parse of a module body failed, so the module
+        /// emitter fell back to verbatim emission. The module still compiles;
+        /// only per-method HMR for that module is unavailable until the parse
+        /// error is resolved. Severity is Info — verbatim emit is a graceful
+        /// fallback, not a build break.
+        /// </summary>
+        public static readonly DiagnosticDescriptor ModuleBodyParseFailed =
+            new DiagnosticDescriptor(
+                id: "UITKX0150",
+                title: "Module body could not be parsed for HMR rewrite",
+                messageFormat:
+                    "Module '{0}' body could not be parsed for HMR method-trampoline rewrite ({1}). Falling back to verbatim emission — the module still compiles, but per-method HMR for this module is unavailable until the parse error is fixed.",
+                category: Category,
+                defaultSeverity: DiagnosticSeverity.Info,
+                isEnabledByDefault: true,
+                description: "The source generator wraps each module body in a synthetic class and parses it with Roslyn so it can rewrite each top-level static method into a trampoline + delegate field + body method (the pattern that enables HMR). If parsing fails — usually because of a syntactic issue with the user code — the emitter falls back to writing the body verbatim, which is what the pre-HMR emitter always did."
             );
     }
 }

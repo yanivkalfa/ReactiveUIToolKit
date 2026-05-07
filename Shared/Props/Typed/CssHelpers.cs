@@ -269,5 +269,36 @@ namespace ReactiveUITK.Props.Typed
         public static FilterFunction FilterTint(Color color) =>
             MakeFilter(FilterFunctionType.Tint, color);
 #endif
+
+        // ── 9-slice ─────────────────────────────────────────────────────
+        public static SliceType SliceFill => SliceType.Sliced;
+        public static SliceType SliceTile => SliceType.Tiled;
+
+        // ── Overflow clip box ───────────────────────────────────────────
+        public static OverflowClipBox ClipPaddingBox => OverflowClipBox.PaddingBox;
+        public static OverflowClipBox ClipContentBox => OverflowClipBox.ContentBox;
+
+        // ── Text generator / editor text rendering ──────────────────────
+        public static UnityEngine.TextGeneratorType TextGenStandard =>
+            UnityEngine.TextGeneratorType.Standard;
+        public static UnityEngine.TextGeneratorType TextGenAdvanced =>
+            UnityEngine.TextGeneratorType.Advanced;
+
+        public static EditorTextRenderingMode EditorTextSDF => EditorTextRenderingMode.SDF;
+        public static EditorTextRenderingMode EditorTextBitmap => EditorTextRenderingMode.Bitmap;
+
+        // ── Text shadow ─────────────────────────────────────────────────
+        /// <summary>Construct a <see cref="TextShadow"/> from offset (px), blur (px), and color.</summary>
+        public static TextShadow Shadow(float offsetX, float offsetY, float blur, Color color) =>
+            new TextShadow
+            {
+                offset = new Vector2(offsetX, offsetY),
+                blurRadius = blur,
+                color = color,
+            };
+
+        // ── Font definition ─────────────────────────────────────────────
+        /// <summary>Wrap a legacy <see cref="Font"/> into a <see cref="FontDefinition"/>.</summary>
+        public static FontDefinition FontDef(Font font) => FontDefinition.FromFont(font);
     }
 }

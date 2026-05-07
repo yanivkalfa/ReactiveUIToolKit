@@ -1,0 +1,37 @@
+@namespace PrettyUi.App.Pages
+@using PrettyUi.App.Components
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component HomePage {
+  var navigate = RouterHooks.UseNavigate(replace: true);
+  var location = RouterHooks.UseLocation() ?? "/";
+
+  useEffect(() => {
+    if (location == "/home" || location == "/home/") {
+      navigate("/home/welcome", null);
+    }
+    return null;
+  }, new object[] { location });
+
+  var content = (
+    <VisualElement style={ContentRoot}>
+      <Route
+        path="welcome"
+        element={<ContentPanel title="Welcome" body="This is the Home / Welcome screen. Replace this body with whatever your real landing copy needs to be." />}
+      />
+      <Route
+        path="recap"
+        element={<ContentPanel title="Recap" body="A short narrative recap of the player's journey so far." />}
+      />
+      <Route
+        path="credits"
+        element={<ContentPanel title="Credits" body="Cast and crew credits go here." />}
+      />
+    </VisualElement>
+  );
+
+  return (
+    <PageShell sidebar={<HomePageSidebar />} content={content} />
+  );
+}

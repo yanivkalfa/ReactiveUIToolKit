@@ -1,0 +1,801 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTextures
+
+module DoomMaps {
+  public struct LevelStart {
+    public MapDef Map;
+    public float PlayerX, PlayerY, PlayerAngle;
+    public List<Mobj> Mobjs;
+    // When true, this level's Exit cells will only fire victory once every
+    // boss-tier monster (Baron, Cacodemon) is dead.
+    public bool BossExitGated;
+  }
+
+  // ───── Builder ─────
+
+  public class MapBuilder {
+    public int W, H;
+    public Cell[] Cells;
+    public string Name;
+    public List<Mobj> Mobjs = new List<Mobj>();
+    public float PX, PY, PAng;
+
+    public MapBuilder(int w, int h, string name) {
+      W = w; H = h; Name = name;
+      Cells = new Cell[w * h];
+      for (int i = 0; i < Cells.Length; i++) {
+        Cells[i] = new Cell {
+          Kind = CellKind.Empty,
+          WallTexIdx = (byte)W_BRICK_GREY,
+          FloorTexIdx = (byte)F_CONCRETE,
+          CeilingTexIdx = (byte)F_CONCRETE,
+          LightLevel = 200,
+        };
+      }
+    }
+
+    public ref Cell At(int x, int y) {
+      return ref Cells[y * W + x];
+    }
+
+    public MapBuilder Border(byte wallTex) {
+      for (int x = 0; x < W; x++) {
+        ref var top = ref At(x, 0); top.Kind = CellKind.Wall; top.WallTexIdx = wallTex;
+        ref var bot = ref At(x, H-1); bot.Kind = CellKind.Wall; bot.WallTexIdx = wallTex;
+      }
+      for (int y = 0; y < H; y++) {
+        ref var l = ref At(0, y); l.Kind = CellKind.Wall; l.WallTexIdx = wallTex;
+        ref var r = ref At(W-1, y); r.Kind = CellKind.Wall; r.WallTexIdx = wallTex;
+      }
+      return this;
+    }
+
+    public MapBuilder Fill(int x0, int y0, int x1, int y1, byte floorTex, byte ceilTex, byte light) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.Kind = CellKind.Empty;
+          c.FloorTexIdx = floorTex;
+          c.CeilingTexIdx = ceilTex;
+          c.LightLevel = light;
+          c.IsSky = false; // explicit fill = not outdoors
+        }
+      }
+      return this;
+    }
+
+    public MapBuilder Box(int x0, int y0, int x1, int y1, byte wallTex) {
+      for (int x = x0; x <= x1; x++) {
+        if (x >= 0 && x < W) {
+          if (y0 >= 0 && y0 < H) { ref var c = ref At(x, y0); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+          if (y1 >= 0 && y1 < H) { ref var c = ref At(x, y1); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+        }
+      }
+      for (int y = y0; y <= y1; y++) {
+        if (y >= 0 && y < H) {
+          if (x0 >= 0 && x0 < W) { ref var c = ref At(x0, y); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+          if (x1 >= 0 && x1 < W) { ref var c = ref At(x1, y); c.Kind = CellKind.Wall; c.WallTexIdx = wallTex; }
+        }
+      }
+      return this;
+    }
+
+    public MapBuilder Wall(int x, int y, byte wallTex) {
+      if (x < 0 || x >= W || y < 0 || y >= H) return this;
+      ref var c = ref At(x, y);
+      c.Kind = CellKind.Wall; c.WallTexIdx = wallTex;
+      return this;
+    }
+
+    public MapBuilder Door(int x, int y, CellKind kind = CellKind.Door) {
+      if (x < 0 || x >= W || y < 0 || y >= H) return this;
+      ref var c = ref At(x, y);
+      c.Kind = kind;
+      c.WallTexIdx = kind == CellKind.DoorBlue ? (byte)W_DOOR_BLUE
+      : kind == CellKind.DoorYellow ? (byte)W_DOOR_YELLOW
+      : kind == CellKind.DoorRed ? (byte)W_DOOR_RED
+      : (byte)W_DOOR;
+      c.DoorState = 0;
+      c.DoorTimer = 0;
+      return this;
+    }
+
+    public MapBuilder Exit(int x, int y) {
+      if (x < 0 || x >= W || y < 0 || y >= H) return this;
+      ref var c = ref At(x, y);
+      c.Kind = CellKind.Exit;
+      c.WallTexIdx = (byte)W_EXIT;
+      return this;
+    }
+
+    // Walkable exit pad — same trigger semantics as Exit() but the cell
+    // renders as plain floor (no EXIT-sign wall block). The blue floor
+    // texture is the visual cue.
+    public MapBuilder ExitPad(int x, int y) {
+      if (x < 0 || x >= W || y < 0 || y >= H) return this;
+      ref var c = ref At(x, y);
+      c.Kind = CellKind.Exit;
+      c.WallTexIdx = 0;
+      c.FloorTexIdx = (byte)F_BLUE;
+      return this;
+    }
+
+    public MapBuilder Liquid(int x0, int y0, int x1, int y1, byte tex) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.Kind = CellKind.Liquid;
+          c.FloorTexIdx = tex;
+        }
+      }
+      return this;
+    }
+
+    // Phase 7: raised platform / step. Sets per-cell FloorZ on an existing
+    // walkable cell. Use STEP_HEIGHT (0.4) units for a single step.
+    public MapBuilder Step(int x0, int y0, int x1, int y1, float floorZ) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.FloorZ = floorZ;
+        }
+      }
+      return this;
+    }
+
+    // Phase 7: low ceiling / overhang. Sets per-cell CeilingZ. Implicitly
+    // clears the sky flag because a bounded ceiling is the opposite of sky.
+    public MapBuilder LowCeiling(int x0, int y0, int x1, int y1, float ceilZ) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.CeilingZ = ceilZ;
+          c.IsSky = false;
+        }
+      }
+      return this;
+    }
+
+    // Phase 7: open-air ceiling. Player can jump as high as they like and
+    // looks up into sky.
+    public MapBuilder Sky(int x0, int y0, int x1, int y1) {
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          c.IsSky = true;
+        }
+      }
+      return this;
+    }
+
+    public MapBuilder PlayerStart(float x, float y, float angle) {
+      PX = x; PY = y; PAng = angle; return this;
+    }
+
+    // Phase 9: stack a 3D floor slab into the rectangle [x0..x1, y0..y1].
+    // The slab spans world-Z [bottomZ, topZ]; the player walks on `topZ`
+    // and the underside is visible as a "ceiling" below `bottomZ`. Multiple
+    // calls in the same footprint stack: a basement under a courtyard is
+    // sector floor + slab whose top is the courtyard surface; a balcony
+    // over a hall is the hall + slab whose bottom is the hall ceiling.
+    public MapBuilder Floor3D(int x0, int y0, int x1, int y1, float bottomZ, float topZ,
+                              byte sideTex, byte topTex, byte bottomTex = 0, byte light = 200, bool solid = true) {
+      if (bottomTex == 0) bottomTex = topTex;
+      var ef = new ExtraFloor {
+        BottomZ = bottomZ, TopZ = topZ,
+        SideTex = sideTex, TopTex = topTex, BottomTex = bottomTex,
+        Light = light, Solid = solid,
+      };
+      for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+          if (x < 0 || x >= W || y < 0 || y >= H) continue;
+          ref var c = ref At(x, y);
+          if (c.Kind == CellKind.Wall) continue;
+          if (c.ExtraFloors == null) c.ExtraFloors = new List<ExtraFloor>(2);
+          // Insert keeping ExtraFloors sorted by BottomZ ascending; renderer
+          // and Z-resolver both rely on this invariant.
+          int ins = 0;
+          while (ins < c.ExtraFloors.Count && c.ExtraFloors[ins].BottomZ <= bottomZ) ins++;
+          c.ExtraFloors.Insert(ins, ef);
+        }
+      }
+      return this;
+    }
+
+    public MapBuilder Spawn(MobjKind kind, float x, float y, float angle = 0f) {
+      var m = new Mobj {
+        Id = 0, // assigned later
+        Kind = kind,
+        State = (kind >= MobjKind.PickupHealth) ? AIState.Idle : AIState.Idle,
+        X = x, Y = y, Angle = angle,
+        Health = HealthFor(kind),
+        Radius = RadiusFor(kind),
+        Height = HeightFor(kind),
+        AnimFrame = 0,
+      };
+      Mobjs.Add(m);
+      return this;
+    }
+
+    public bool BossExitGated;
+
+    public LevelStart Build() {
+      return new LevelStart {
+        Map = new MapDef { Width = W, Height = H, Cells = Cells, Name = Name },
+        PlayerX = PX, PlayerY = PY, PlayerAngle = PAng,
+        Mobjs = Mobjs,
+        BossExitGated = BossExitGated,
+      };
+    }
+  }
+
+  public static int HealthFor(MobjKind k) {
+    switch (k) {
+      case MobjKind.Imp: return C.HP_IMP;
+      case MobjKind.Demon: return C.HP_DEMON;
+      case MobjKind.Baron: return C.HP_BARON;
+      case MobjKind.Cacodemon: return C.HP_CACO;
+      case MobjKind.LostSoul: return C.HP_LOST;
+      case MobjKind.Zombieman: return C.HP_ZOMBIE;
+      case MobjKind.Shotgunner: return C.HP_SHOTG;
+      case MobjKind.Barrel: return C.HP_BARREL;
+      default: return 1;
+    }
+  }
+
+  public static float RadiusFor(MobjKind k) {
+    switch (k) {
+      case MobjKind.Cacodemon:
+      case MobjKind.Baron: return 0.42f;
+      case MobjKind.Demon: return 0.36f;
+      case MobjKind.Barrel: return 0.25f;
+      case MobjKind.ImpFireball:
+      case MobjKind.BaronBall:
+      case MobjKind.CacoBall:
+      case MobjKind.PlasmaProj:
+      case MobjKind.RocketProj:
+      case MobjKind.BfgProj: return 0.12f;
+      default: return 0.3f;
+    }
+  }
+
+  public static float HeightFor(MobjKind k) {
+    switch (k) {
+      case MobjKind.Baron: return 1.1f;
+      case MobjKind.Cacodemon: return 0.9f;
+      case MobjKind.Imp:
+      case MobjKind.Zombieman:
+      case MobjKind.Shotgunner: return 0.85f;
+      case MobjKind.Demon: return 0.7f;
+      case MobjKind.LostSoul: return 0.5f;
+      case MobjKind.Barrel: return 0.55f;
+      case MobjKind.PickupHealth: case MobjKind.PickupArmor: case MobjKind.PickupArmorBlue:
+      case MobjKind.PickupBullets: case MobjKind.PickupShells: case MobjKind.PickupRockets: case MobjKind.PickupCells:
+      case MobjKind.PickupShotgun: case MobjKind.PickupChaingun: case MobjKind.PickupRocketLauncher:
+      case MobjKind.PickupPlasma: case MobjKind.PickupBFG:
+      case MobjKind.KeyBlue: case MobjKind.KeyYellow: case MobjKind.KeyRed: return 0.35f;
+      default: return 0.7f;
+    }
+  }
+
+  // ───── Levels ─────
+
+  public static LevelStart BuildLevel(int level) {
+    switch (level) {
+      case 1: return Level1();
+      case 2: return Level2();
+      case 3: return Level3();
+      case 4: return Level4();
+      case 5: return Level5();
+      case 6: return Level6();
+      default: return Level1();
+    }
+  }
+
+  // E1M1 — "Hangar" — key-chain progression:
+  //   entrance corridor → hub (yellow key here)
+  //   yellow door east → red key
+  //   red door west → blue key
+  //   blue door north → boss room → walk onto blue exit pad to finish
+  // Boss-gated: Victory only fires once Baron + Cacodemon are dead.
+  public static LevelStart Level1() {
+    var b = new MapBuilder(48, 48, "E1M1: Hangar");
+    // outer arena
+    b.Fill(1, 1, 46, 46, (byte)F_CONCRETE, (byte)F_CONCRETE, 200);
+    b.Border((byte)W_TECH_PANEL);
+
+    // starting corridor (bottom)
+    b.Fill(20, 38, 28, 46, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.Box(19, 37, 29, 47, (byte)W_TECH_PANEL);
+    b.Fill(20, 38, 28, 46, (byte)F_TILE, (byte)F_CONCRETE, 220);
+
+    // hub (center)
+    b.Fill(10, 18, 38, 36, (byte)F_TILE, (byte)F_CONCRETE, 200);
+    b.Box(9, 17, 39, 37, (byte)W_TECH_PANEL);
+    b.Fill(10, 18, 38, 36, (byte)F_TILE, (byte)F_CONCRETE, 200);
+
+    // door from corridor → hub
+    b.Door(24, 37);
+
+    // pillars in hub
+    b.Wall(16, 24, (byte)W_BRICK_RED);
+    b.Wall(16, 30, (byte)W_BRICK_RED);
+    b.Wall(32, 24, (byte)W_BRICK_RED);
+    b.Wall(32, 30, (byte)W_BRICK_RED);
+
+    // west wing (left from player view) — locked behind RED door, holds blue key
+    b.Fill(2, 20, 8, 34, (byte)F_TILE, (byte)F_CONCRETE, 180);
+    b.Box(1, 19, 9, 35, (byte)W_BRICK_GREY);
+    b.Fill(2, 20, 8, 34, (byte)F_TILE, (byte)F_CONCRETE, 180);
+    b.Door(9, 27, CellKind.DoorRed);
+
+    // east wing (right from player view) — locked behind YELLOW door, holds red key
+    b.Fill(40, 20, 45, 34, (byte)F_TILE, (byte)F_CONCRETE, 160);
+    b.Box(39, 19, 46, 35, (byte)W_HELL_STONE);
+    b.Fill(40, 20, 45, 34, (byte)F_TILE, (byte)F_CONCRETE, 160);
+    b.Door(39, 27, CellKind.DoorYellow);
+
+    // north wing — BOSS ROOM, locked behind BLUE door.
+    // Back wall (y=4..5) is paved with blue exit-pad tiles; stepping onto
+    // any of them ends the level once the boss + helper are dead.
+    b.Fill(18, 4, 30, 16, (byte)F_TILE, (byte)F_CONCRETE, 230);
+    b.Box(17, 3, 31, 17, (byte)W_BRICK_RED);
+    b.Fill(18, 4, 30, 16, (byte)F_TILE, (byte)F_CONCRETE, 230);
+    b.Door(24, 17, CellKind.DoorBlue);
+    for (int ex = 20; ex <= 28; ex++) {
+      b.ExitPad(ex, 4);
+      b.ExitPad(ex, 5);
+    }
+    // Mark the back wall behind the exit pads in blue brick so the player
+    // knows where the level ends.
+    for (int wx = 19; wx <= 29; wx++) {
+      b.Wall(wx, 3, (byte)W_BRICK_BLUE);
+    }
+
+    // player start (corridor, facing north toward the hub door)
+    b.PlayerStart(24.5f, 44.5f, -Mathf.PI / 2f);
+
+    // ── Pickups & keys ──
+    // Hub welcome stash + the YELLOW key sits openly in the middle so the
+    // player picks it up the moment they enter.
+    b.Spawn(MobjKind.PickupBullets, 24.5f, 41.5f);
+    b.Spawn(MobjKind.PickupHealth, 21.5f, 41.5f);
+    b.Spawn(MobjKind.PickupHealth, 27.5f, 41.5f);
+    b.Spawn(MobjKind.PickupArmor, 24.5f, 33.5f);
+    b.Spawn(MobjKind.KeyYellow, 24.5f, 27.5f);
+
+    // East wing — RED key + ammo for the next leg.
+    b.Spawn(MobjKind.KeyRed, 43.5f, 27.5f);
+    b.Spawn(MobjKind.PickupBullets, 42.5f, 24.5f);
+    b.Spawn(MobjKind.PickupShells, 42.5f, 30.5f);
+
+    // West wing — BLUE key + the shotgun (you'll want it for the boss).
+    b.Spawn(MobjKind.KeyBlue, 5.5f, 27.5f);
+    b.Spawn(MobjKind.PickupShotgun, 5.5f, 24.5f);
+    b.Spawn(MobjKind.PickupShells, 6.5f, 30.5f);
+
+    // Hub barrels for fun chain explosions.
+    b.Spawn(MobjKind.Barrel, 20.5f, 26.5f);
+    b.Spawn(MobjKind.Barrel, 28.5f, 26.5f);
+    b.Spawn(MobjKind.Barrel, 24.5f, 22.5f);
+
+    // ── Monsters ──
+    // Hub patrol.
+    b.Spawn(MobjKind.Zombieman, 14.5f, 24.5f, 0f);
+    b.Spawn(MobjKind.Zombieman, 34.5f, 30.5f, Mathf.PI);
+    b.Spawn(MobjKind.Zombieman, 24.5f, 22.5f, Mathf.PI / 2f);
+    // Wing dwellers.
+    b.Spawn(MobjKind.Imp, 4.5f, 24.5f, 0f);
+    b.Spawn(MobjKind.Imp, 4.5f, 31.5f, 0f);
+    b.Spawn(MobjKind.Imp, 43.5f, 22.5f, Mathf.PI);
+    b.Spawn(MobjKind.Imp, 43.5f, 32.5f, Mathf.PI);
+    // Boss room — Baron (boss) + Cacodemon (helper). Both must die before
+    // the exit pad becomes active. Two health pickups inside as a bonus.
+    b.Spawn(MobjKind.Baron, 24.5f, 10.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Cacodemon, 20.5f, 8.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.PickupHealth, 19.5f, 14.5f);
+    b.Spawn(MobjKind.PickupArmor, 28.5f, 14.5f);
+
+    b.BossExitGated = true;
+    return b.Build();
+  }
+
+  // E1M2 — "Toxin Refinery" — bigger maze with nukage and demons
+  public static LevelStart Level2() {
+    var b = new MapBuilder(48, 48, "E1M2: Toxin Refinery");
+    b.Fill(1, 1, 46, 46, (byte)F_TILE, (byte)F_CONCRETE, 180);
+    b.Border((byte)W_TECH_PANEL);
+
+    // central courtyard
+    b.Fill(16, 16, 32, 32, (byte)F_TILE, (byte)F_CONCRETE, 200);
+
+    // nukage moat surrounding center
+    b.Liquid(14, 22, 15, 26, (byte)F_NUKAGE);
+    b.Liquid(33, 22, 34, 26, (byte)F_NUKAGE);
+    b.Liquid(22, 14, 26, 15, (byte)F_NUKAGE);
+    b.Liquid(22, 33, 26, 34, (byte)F_NUKAGE);
+
+    // 4 corner rooms connected via doors
+    b.Box(2, 2, 14, 14, (byte)W_BRICK_GREY);
+    b.Fill(3, 3, 13, 13, (byte)F_TILE, (byte)F_CONCRETE, 170);
+    b.At(14, 8).Kind = CellKind.Empty;
+    b.Door(14, 8);
+
+    b.Box(34, 2, 46, 14, (byte)W_HELL_STONE);
+    b.Fill(35, 3, 45, 13, (byte)F_TILE, (byte)F_CONCRETE, 150);
+    b.At(34, 8).Kind = CellKind.Empty;
+    b.Door(34, 8, CellKind.DoorRed);
+
+    b.Box(2, 34, 14, 46, (byte)W_WOOD);
+    b.Fill(3, 35, 13, 45, (byte)F_TILE, (byte)F_CONCRETE, 200);
+    b.At(14, 40).Kind = CellKind.Empty;
+    b.Door(14, 40);
+
+    b.Box(34, 34, 46, 46, (byte)W_MARBLE);
+    b.Fill(35, 35, 45, 45, (byte)F_TILE, (byte)F_CONCRETE, 230);
+    b.At(34, 40).Kind = CellKind.Empty;
+    b.Door(34, 40, CellKind.DoorYellow);
+    b.Exit(45, 40);
+
+    // player start
+    b.PlayerStart(24.5f, 24.5f, 0f);
+
+    // weapons
+    b.Spawn(MobjKind.PickupChaingun, 24.5f, 18.5f);
+    b.Spawn(MobjKind.PickupShotgun, 24.5f, 30.5f);
+
+    // keys
+    b.Spawn(MobjKind.KeyRed, 8.5f, 8.5f); // SW corner
+    b.Spawn(MobjKind.KeyYellow, 8.5f, 40.5f); // NW corner — wait actually y axis: top=0
+    // ammo + health
+    b.Spawn(MobjKind.PickupBullets, 24.5f, 22.5f);
+    b.Spawn(MobjKind.PickupShells, 22.5f, 24.5f);
+    b.Spawn(MobjKind.PickupShells, 26.5f, 24.5f);
+    b.Spawn(MobjKind.PickupHealth, 20.5f, 28.5f);
+    b.Spawn(MobjKind.PickupHealth, 28.5f, 28.5f);
+    b.Spawn(MobjKind.PickupArmorBlue, 40.5f, 40.5f);
+
+    // monsters
+    b.Spawn(MobjKind.Imp, 18.5f, 18.5f, 0f);
+    b.Spawn(MobjKind.Imp, 30.5f, 18.5f, Mathf.PI);
+    b.Spawn(MobjKind.Imp, 18.5f, 30.5f, 0f);
+    b.Spawn(MobjKind.Imp, 30.5f, 30.5f, Mathf.PI);
+    b.Spawn(MobjKind.Demon, 7.5f, 7.5f);
+    b.Spawn(MobjKind.Demon, 7.5f, 11.5f);
+    b.Spawn(MobjKind.Shotgunner, 41.5f, 7.5f, Mathf.PI);
+    b.Spawn(MobjKind.Shotgunner, 41.5f, 11.5f, Mathf.PI);
+    b.Spawn(MobjKind.Imp, 7.5f, 41.5f, 0f);
+    b.Spawn(MobjKind.Demon, 41.5f, 41.5f, Mathf.PI);
+    b.Spawn(MobjKind.Cacodemon, 37.5f, 37.5f);
+    b.Spawn(MobjKind.Zombieman, 24.5f, 5.5f);
+    b.Spawn(MobjKind.Zombieman, 24.5f, 43.5f);
+    b.Spawn(MobjKind.Zombieman, 5.5f, 24.5f);
+    b.Spawn(MobjKind.Zombieman, 43.5f, 24.5f);
+    b.Spawn(MobjKind.Barrel, 22.5f, 22.5f);
+    b.Spawn(MobjKind.Barrel, 26.5f, 22.5f);
+    b.Spawn(MobjKind.Barrel, 22.5f, 26.5f);
+    b.Spawn(MobjKind.Barrel, 26.5f, 26.5f);
+
+    return b.Build();
+  }
+
+  // E1M3 — "Phobos Lab" — open arena with high-tier weapons + Baron
+  public static LevelStart Level3() {
+    var b = new MapBuilder(56, 56, "E1M3: Phobos Lab");
+    b.Fill(1, 1, 54, 54, (byte)F_TILE, (byte)F_CONCRETE, 200);
+    b.Border((byte)W_HELL_STONE);
+
+    // center pit of blood
+    b.Liquid(24, 24, 32, 32, (byte)F_BLOOD);
+
+    // 4 pillars of fire
+    b.Wall(20, 20, (byte)W_HELL_STONE);
+    b.Wall(36, 20, (byte)W_HELL_STONE);
+    b.Wall(20, 36, (byte)W_HELL_STONE);
+    b.Wall(36, 36, (byte)W_HELL_STONE);
+
+    // weapon bunkers in 4 corners
+    b.Box(4, 4, 12, 12, (byte)W_TECH_PANEL); b.Fill(5, 5, 11, 11, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(12, 8).Kind = CellKind.Empty;
+    b.Box(44, 4, 52, 12, (byte)W_TECH_PANEL); b.Fill(45, 5, 51, 11, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(44, 8).Kind = CellKind.Empty;
+    b.Box(4, 44, 12, 52, (byte)W_TECH_PANEL); b.Fill(5, 45, 11, 51, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(12, 48).Kind = CellKind.Empty;
+    b.Box(44, 44, 52, 52, (byte)W_TECH_PANEL); b.Fill(45, 45, 51, 51, (byte)F_TILE, (byte)F_CONCRETE, 220);
+    b.At(44, 48).Kind = CellKind.Empty;
+
+    // exit teleporter pad
+    b.Exit(28, 4);
+
+    b.PlayerStart(28.5f, 50.5f, -Mathf.PI / 2f);
+
+    // weapons
+    b.Spawn(MobjKind.PickupShotgun, 8.5f, 8.5f);
+    b.Spawn(MobjKind.PickupChaingun, 48.5f, 8.5f);
+    b.Spawn(MobjKind.PickupRocketLauncher, 8.5f, 48.5f);
+    b.Spawn(MobjKind.PickupPlasma, 48.5f, 48.5f);
+    b.Spawn(MobjKind.PickupBFG, 28.5f, 28.5f);
+
+    // ammo galore
+    b.Spawn(MobjKind.PickupShells, 9.5f, 7.5f);
+    b.Spawn(MobjKind.PickupShells, 9.5f, 9.5f);
+    b.Spawn(MobjKind.PickupBullets, 47.5f, 7.5f);
+    b.Spawn(MobjKind.PickupBullets, 47.5f, 9.5f);
+    b.Spawn(MobjKind.PickupRockets, 9.5f, 47.5f);
+    b.Spawn(MobjKind.PickupRockets, 9.5f, 49.5f);
+    b.Spawn(MobjKind.PickupCells, 47.5f, 47.5f);
+    b.Spawn(MobjKind.PickupCells, 47.5f, 49.5f);
+
+    b.Spawn(MobjKind.PickupArmorBlue, 28.5f, 36.5f);
+    b.Spawn(MobjKind.PickupHealth, 26.5f, 50.5f);
+    b.Spawn(MobjKind.PickupHealth, 30.5f, 50.5f);
+
+    // demonic horde
+    b.Spawn(MobjKind.Imp, 14.5f, 14.5f);
+    b.Spawn(MobjKind.Imp, 42.5f, 14.5f);
+    b.Spawn(MobjKind.Imp, 14.5f, 42.5f);
+    b.Spawn(MobjKind.Imp, 42.5f, 42.5f);
+    b.Spawn(MobjKind.Demon, 22.5f, 16.5f);
+    b.Spawn(MobjKind.Demon, 34.5f, 16.5f);
+    b.Spawn(MobjKind.Demon, 22.5f, 40.5f);
+    b.Spawn(MobjKind.Demon, 34.5f, 40.5f);
+    b.Spawn(MobjKind.Cacodemon, 16.5f, 28.5f);
+    b.Spawn(MobjKind.Cacodemon, 40.5f, 28.5f);
+    b.Spawn(MobjKind.LostSoul, 28.5f, 14.5f);
+    b.Spawn(MobjKind.LostSoul, 28.5f, 42.5f);
+    b.Spawn(MobjKind.Shotgunner, 18.5f, 18.5f);
+    b.Spawn(MobjKind.Shotgunner, 38.5f, 18.5f);
+    b.Spawn(MobjKind.Baron, 28.5f, 8.5f, Mathf.PI / 2f);
+
+    return b.Build();
+  }
+
+  // E1M4 — "Outpost" — Phase 7 showcase: open courtyard with sky, stair
+  // staircase, raised platform you must jump or climb onto, and a low tunnel
+  // you must crouch through.
+  public static LevelStart Level4() {
+    var b = new MapBuilder(40, 40, "E1M4: Outpost");
+
+    // Outdoor courtyard floor (grass under sky)
+    b.Fill(2, 2, 37, 37, (byte)F_GRASS, (byte)F_GRASS, 230);
+    b.Border((byte)W_BRICK_GREY);
+    b.Sky(2, 2, 37, 37);
+
+    // Player starts in the south, looking north.
+    b.PlayerStart(8.5f, 32.5f, -Mathf.PI / 2f);
+
+    // Stairs going up north toward a raised plateau (smaller rises so you can
+    // walk up without jumping; total ~1.0 over 5 steps).
+    b.Step(6, 24, 14, 24, 0.0f);
+    b.Step(6, 23, 14, 23, 0.2f);
+    b.Step(6, 22, 14, 22, 0.4f);
+    b.Step(6, 21, 14, 21, 0.6f);
+    b.Step(6, 20, 14, 20, 0.8f);
+    // Plateau on top
+    b.Step(4, 14, 16, 19, 1.0f);
+
+    // Raised pillar of brick to the east (must jump to climb)
+    b.Step(22, 30, 26, 32, 0.7f);
+
+    // Low tunnel west (height 0.7, must crouch). Opens into a small room.
+    b.Box(20, 16, 28, 22, (byte)W_BRICK_GREY);
+    b.Fill(21, 17, 27, 21, (byte)F_TILE, (byte)F_CONCRETE, 160);
+    // Tunnel mouth (open the south wall)
+    b.At(24, 22).Kind = CellKind.Empty;
+    b.At(24, 22).FloorTexIdx = (byte)F_TILE;
+    b.LowCeiling(24, 22, 24, 22, 0.7f);
+    b.LowCeiling(21, 17, 27, 21, 1.4f);
+
+    // A taller "lookout tower" in the NE — sky room with high parapet.
+    b.Box(28, 4, 36, 12, (byte)W_BRICK_RED);
+    b.Fill(29, 5, 35, 11, (byte)F_TILE, (byte)F_TILE, 220);
+    b.Sky(29, 5, 35, 11);
+    // Doorway in
+    b.At(32, 12).Kind = CellKind.Empty; b.At(32, 12).FloorTexIdx = (byte)F_TILE;
+
+    // Exit on the plateau
+    b.Exit(10, 16);
+
+    // Some enemies and pickups
+    // (enemies disabled for Phase 7 traversal testing)
+    // b.Spawn(MobjKind.Imp, 10.5f, 18.5f);
+    // b.Spawn(MobjKind.Demon, 24.5f, 31.5f);
+    // b.Spawn(MobjKind.Cacodemon, 32.5f, 8.5f);
+    // b.Spawn(MobjKind.Zombieman, 24.5f, 19.5f);
+    // b.Spawn(MobjKind.Shotgunner, 6.5f, 26.5f);
+
+    b.Spawn(MobjKind.PickupHealth, 8.5f, 28.5f);
+    b.Spawn(MobjKind.PickupShells, 12.5f, 16.5f);
+    b.Spawn(MobjKind.PickupShotgun, 24.5f, 31.5f);
+    b.Spawn(MobjKind.PickupArmor, 32.5f, 8.5f);
+    b.Spawn(MobjKind.PickupBullets, 24.5f, 19.5f);
+
+    return b.Build();
+  }
+
+  // E1M5 — "Watchtower" — Phase 8 showcase: small ground-floor courtyard,
+  // staircase up to a second-story balcony, and a guard room on top with a
+  // small squad. Tight 28×28 layout so the action stays close.
+  public static LevelStart Level5() {
+    var b = new MapBuilder(28, 28, "E1M5: Watchtower");
+
+    // Ground level: outdoor courtyard with sky.
+    b.Fill(2, 2, 25, 25, (byte)F_GRASS, (byte)F_GRASS, 220);
+    b.Border((byte)W_BRICK_GREY);
+    b.Sky(2, 2, 25, 25);
+
+    // Player starts in the south, looking north toward the tower.
+    b.PlayerStart(14.5f, 22.5f, -Mathf.PI / 2f);
+
+    // Guard room (second story): 8×5 cells at Z=2.0, real ceiling at Z=3.6.
+    b.Fill(4, 3, 11, 7, (byte)F_TILE, (byte)F_TILE, 200);
+    b.Step(4, 3, 11, 7, 2.0f);
+    b.LowCeiling(4, 3, 11, 7, 3.6f);
+    b.Box(3, 2, 12, 8, (byte)W_BRICK_RED);
+
+    // Open-sky balcony connecting stairs to the guard room.
+    b.Fill(9, 8, 12, 11, (byte)F_TILE, (byte)F_TILE, 220);
+    b.Step(9, 8, 12, 11, 2.0f);
+    b.Sky(9, 8, 12, 11);
+
+    // Doorway from balcony into guard room.
+    b.At(10, 8).Kind = CellKind.Empty;
+    b.At(10, 8).FloorTexIdx = (byte)F_TILE;
+    b.At(11, 8).Kind = CellKind.Empty;
+    b.At(11, 8).FloorTexIdx = (byte)F_TILE;
+    b.Step(10, 8, 11, 8, 2.0f);
+    b.LowCeiling(10, 8, 11, 8, 3.6f);
+
+    // Staircase: 10 steps of 0.2u rising from south to north along x=10..12.
+    b.Step(10, 21, 12, 21, 0.2f);
+    b.Step(10, 20, 12, 20, 0.4f);
+    b.Step(10, 19, 12, 19, 0.6f);
+    b.Step(10, 18, 12, 18, 0.8f);
+    b.Step(10, 17, 12, 17, 1.0f);
+    b.Step(10, 16, 12, 16, 1.2f);
+    b.Step(10, 15, 12, 15, 1.4f);
+    b.Step(10, 14, 12, 14, 1.6f);
+    b.Step(10, 13, 12, 13, 1.8f);
+    b.Step(10, 12, 12, 12, 2.0f);
+
+    // Cover pillar in the courtyard.
+    b.Wall(20, 18, (byte)W_BRICK_RED);
+
+    // Exit pad inside the guard room.
+    b.Exit(6, 4);
+
+    // Pickups along the route.
+    b.Spawn(MobjKind.PickupShotgun, 14.5f, 17.5f);
+    b.Spawn(MobjKind.PickupShells, 11.5f, 14.5f);
+    b.Spawn(MobjKind.PickupHealth, 18.5f, 20.5f);
+    b.Spawn(MobjKind.PickupArmor, 8.5f, 5.5f);
+
+    // Enemies — small, focused encounter.
+    // Courtyard: 1 sniper.
+    b.Spawn(MobjKind.Zombieman, 22.5f, 12.5f, Mathf.PI);
+    // Guard room squad: 1 shotgunner, 2 imps.
+    b.Spawn(MobjKind.Shotgunner, 6.5f, 5.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Imp, 9.5f, 4.5f, Mathf.PI / 2f);
+    b.Spawn(MobjKind.Imp, 5.5f, 6.5f, Mathf.PI / 2f);
+
+    return b.Build();
+  }
+
+  // E1M6 — "Skybridge" — Phase 9 showcase: a TRUE three-story building with
+  // walkable floors stacked at the same XY footprint. Each story has the
+  // same plan — back of the building hosts the upper slabs, front opens
+  // through an atrium so the player can look up/down between floors.
+  //   Story 1 (Z=0)        : ground hall, accessed via south doorway
+  //   Story 2 (Z=3.2..3.5) : slab covering the back ⅔ of the footprint
+  //   Story 3 (Z=6.4..6.7) : smaller slab covering the back ⅓
+  // Access:
+  //   Ground → 2nd  : exterior staircase on the EAST side (per-cell Step)
+  //   2nd   → 3rd  : INTERNAL staircase made of stacked ExtraFloor slabs
+  //                  rising from slab#1 top up to slab#2 top
+  //   Plus: a basement pit at Z=-1.5 in the courtyard (no way out — death pit).
+  // No exit trigger — this is the final level, fight your way through.
+  public static LevelStart Level6() {
+    var b = new MapBuilder(32, 32, "E1M6: Skybridge");
+
+    // Outdoor courtyard with sky.
+    b.Fill(1, 1, 30, 30, (byte)F_GRASS, (byte)F_GRASS, 220);
+    b.Border((byte)W_BRICK_GREY);
+    b.Sky(1, 1, 30, 30);
+
+    // Player starts in the south courtyard, looking north.
+    b.PlayerStart(16.5f, 26.5f, -Mathf.PI / 2f);
+
+    // ── Building 12×12 at (10..21, 6..17) ─────────────────────────────────
+    b.Fill(10, 6, 21, 17, (byte)F_TILE, (byte)F_TILE, 200);
+    // Tall sector ceiling — the visible "ceilings" inside are the slab
+    // bottoms at Z=3.2 (between floors 1 & 2) and Z=6.4 (between 2 & 3).
+    b.LowCeiling(10, 6, 21, 17, 10.0f);
+    b.Box(9, 5, 22, 18, (byte)W_BRICK_RED);
+
+    // South doorway into the ground hall.
+    b.At(15, 18).Kind = CellKind.Empty;
+    b.At(15, 18).FloorTexIdx = (byte)F_TILE;
+    b.At(16, 18).Kind = CellKind.Empty;
+    b.At(16, 18).FloorTexIdx = (byte)F_TILE;
+
+    // 2nd-floor slab — back ⅔ of the footprint (y=6..14). Atrium open
+    // above the south strip (y=15..17) so you can look up/down.
+    b.Floor3D(10, 6, 21, 14, 3.2f, 3.5f,
+              sideTex: (byte)W_BRICK_RED, topTex: (byte)F_TILE,
+              bottomTex: (byte)F_TILE, light: 200);
+
+    // 3rd-floor slab — WEST HALF only (x=10..13). The internal staircase
+    // climbs through cells x=14..15, which must be CLEAR of slab#2 —
+    // otherwise the slab body (Z=6.4..6.7) overlaps the player's head as
+    // they climb past Z=5.5, and collision blocks them out.
+    b.Floor3D(10, 6, 13, 10, 6.4f, 6.7f,
+              sideTex: (byte)W_BRICK_RED, topTex: (byte)F_TILE,
+              bottomTex: (byte)F_TILE, light: 200);
+
+    // ── Exterior EAST staircase: ground → 2nd floor ───────────────────────
+    // 2-cell-wide (x=23..24) so player has room to walk straight up. 8
+    // treads at 0.4u (= STEP_HEIGHT) so player walks up without jumping.
+    b.Step(23, 14, 24, 14, 0.4f);
+    b.Step(23, 13, 24, 13, 0.8f);
+    b.Step(23, 12, 24, 12, 1.2f);
+    b.Step(23, 11, 24, 11, 1.6f);
+    b.Step(23, 10, 24, 10, 2.0f);
+    b.Step(23, 9, 24, 9, 2.4f);
+    b.Step(23, 8, 24, 8, 2.8f);
+    b.Step(23, 7, 24, 7, 3.2f);
+
+    // East-wall opening at (22, 7) acts as a landing onto slab#1.
+    // Cell sits at Z=3.2 — slab#1 top is Z=3.5, a 0.3u step westward.
+    b.At(22, 7).Kind = CellKind.Empty;
+    b.At(22, 7).FloorTexIdx = (byte)F_TILE;
+    b.At(22, 7).FloorZ = 3.2f;
+    b.At(22, 7).CeilingZ = 10.0f;
+
+    // ── Internal staircase: 2nd → 3rd floor ──────────────────────────────
+    // 2-cell-wide stacked ExtraFloor slabs at columns x=14..15, going north
+    // (y=13 → y=7). Each slab sits on top of slab#1 (BottomZ=3.5) with
+    // rising TopZ in 0.4u increments. Tread 7 (top Z=6.3) lets the player
+    // make a final 0.4u climb west onto slab#2 (top Z=6.7).
+    b.Floor3D(14, 13, 15, 13, 3.5f, 3.9f, (byte)W_BRICK_RED, (byte)F_TILE);
+    b.Floor3D(14, 12, 15, 12, 3.5f, 4.3f, (byte)W_BRICK_RED, (byte)F_TILE);
+    b.Floor3D(14, 11, 15, 11, 3.5f, 4.7f, (byte)W_BRICK_RED, (byte)F_TILE);
+    b.Floor3D(14, 10, 15, 10, 3.5f, 5.1f, (byte)W_BRICK_RED, (byte)F_TILE);
+    b.Floor3D(14, 9, 15, 9, 3.5f, 5.5f, (byte)W_BRICK_RED, (byte)F_TILE);
+    b.Floor3D(14, 8, 15, 8, 3.5f, 5.9f, (byte)W_BRICK_RED, (byte)F_TILE);
+    b.Floor3D(14, 7, 15, 7, 3.5f, 6.3f, (byte)W_BRICK_RED, (byte)F_TILE);
+
+    // ── Basement pit in the courtyard (death pit — no way out) ────────────
+    b.Fill(3, 13, 6, 16, (byte)F_LAVA, (byte)F_LAVA, 160);
+    b.Step(3, 13, 6, 16, -1.5f);
+
+    // ── Pickups ───────────────────────────────────────────────────────────
+    b.Spawn(MobjKind.PickupShotgun, 16.5f, 21.5f); // courtyard
+    b.Spawn(MobjKind.PickupArmor, 16.5f, 11.5f); // ground hall
+    b.Spawn(MobjKind.PickupHealth, 12.5f, 10.5f); // 2nd floor
+    b.Spawn(MobjKind.PickupShells, 18.5f, 12.5f); // 2nd floor
+    b.Spawn(MobjKind.PickupRockets, 11.5f, 7.5f); // 3rd floor (west)
+    b.Spawn(MobjKind.PickupCells, 12.5f, 8.5f); // 3rd floor (west)
+
+    // ── Enemies, distributed across all three stories ─────────────────────
+    b.Spawn(MobjKind.Zombieman, 27.5f, 15.5f, Mathf.PI);
+    b.Spawn(MobjKind.Imp, 12.5f, 13.5f, -Mathf.PI / 2f);
+    b.Spawn(MobjKind.Imp, 19.5f, 13.5f, -Mathf.PI / 2f);
+    b.Spawn(MobjKind.Shotgunner, 16.5f, 16.5f, -Mathf.PI / 2f);
+    b.Spawn(MobjKind.Imp, 12.5f, 9.5f);
+    b.Spawn(MobjKind.Shotgunner, 19.5f, 9.5f);
+    b.Spawn(MobjKind.Imp, 11.5f, 8.5f);
+
+    // No exit trigger — final level.
+
+    return b.Build();
+  }
+}

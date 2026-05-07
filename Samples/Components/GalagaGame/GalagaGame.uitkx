@@ -1,0 +1,33 @@
+@namespace Samples.GalagaGame
+@using System
+
+component GalagaGame {
+  var (screen, setScreen) = useState(Screen.MainMenu);
+  var (restartVersion, setRestartVersion) = useState(0);
+
+  Action handleNewGame = () => {
+    setRestartVersion(v => v + 1);
+    setScreen(Screen.Game);
+  };
+
+  Action handleReturnToMenu = () => {
+    setScreen(Screen.MainMenu);
+  };
+
+  return (
+    <VisualElement style={Styles.Root}>
+      @if (screen == Screen.MainMenu) {
+        return (
+          <MainMenu onNewGame={handleNewGame} />
+        );
+      } @else {
+        return (
+          <GameScreen
+            restartVersion={restartVersion}
+            onQuit={handleReturnToMenu}
+          />
+        );
+      }
+    </VisualElement>
+  );
+}

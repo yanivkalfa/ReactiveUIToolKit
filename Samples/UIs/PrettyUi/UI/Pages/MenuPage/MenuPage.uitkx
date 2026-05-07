@@ -1,0 +1,18 @@
+@namespace PrettyUi.App.Pages
+@using PrettyUi.App.Components
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+
+component MenuPage {
+  return (
+    <VisualElement style={Root}>
+      <VisualElement style={MenuPageWrap}>
+        <TopNav />
+        <VisualElement style={Content}>
+          <Outlet />
+        </VisualElement>
+        <NewGameButton />
+      </VisualElement>
+    </VisualElement>
+  );
+}

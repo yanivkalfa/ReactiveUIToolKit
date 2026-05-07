@@ -1,0 +1,173 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+
+component DoomMinimap(GameState state) {
+  const int MAP_PX = 160;
+
+  var bgClr = new Color(0.05f, 0.05f, 0.05f, 0.78f);
+  var borderClr = new Color(0.85f, 0.55f, 0.20f, 1f);
+  var wallClr = new Color(0.55f, 0.40f, 0.20f, 1f);
+  var doorClr = new Color(0.85f, 0.65f, 0.10f, 1f);
+  var doorBlueClr = new Color(0.30f, 0.55f, 1.00f, 1f);
+  var doorYellowClr = new Color(0.95f, 0.85f, 0.20f, 1f);
+  var doorRedClr = new Color(0.95f, 0.20f, 0.20f, 1f);
+  var exitClr = new Color(0.40f, 0.95f, 0.40f, 1f);
+  var playerClr = new Color(0.95f, 0.95f, 0.50f, 1f);
+  var enemyClr = new Color(0.95f, 0.20f, 0.15f, 1f);
+  var pickupClr = new Color(0.30f, 0.85f, 0.85f, 1f);
+
+  var map = state.Map;
+  int mw = map.Width, mh = map.Height;
+  float scale = (float)MAP_PX / Mathf.Max(mw, mh);
+  int innerW = Mathf.RoundToInt(mw * scale);
+  int innerH = Mathf.RoundToInt(mh * scale);
+  int cellPx = Mathf.Max(1, Mathf.RoundToInt(scale));
+
+  var cells = new List<Vector4>(64); // x, y, packedRGBA via index trick — instead store separate lists
+  var cellClrs = new List<Color>(64);
+  for (int cy = 0; cy < mh; cy++) {
+    for (int cx = 0; cx < mw; cx++) {
+      var cell = map.Cells[cy * mw + cx];
+      Color col;
+      if (cell.Kind == CellKind.Wall) col = wallClr;
+      else if (cell.Kind == CellKind.Exit) col = exitClr;
+      else if (cell.Kind == CellKind.DoorBlue) col = doorBlueClr;
+      else if (cell.Kind == CellKind.DoorYellow) col = doorYellowClr;
+      else if (cell.Kind == CellKind.DoorRed) col = doorRedClr;
+      else if (cell.Kind == CellKind.Door) col = doorClr;
+      else continue;
+      cells.Add(new Vector4(cx, cy, 0f, 0f));
+      cellClrs.Add(col);
+    }
+  }
+
+  var dots = new List<Vector2>(state.Mobjs.Length);
+  var dotClrs = new List<Color>(state.Mobjs.Length);
+  for (int i = 0; i < state.Mobjs.Length; i++) {
+    var m = state.Mobjs[i];
+    if (m.Collected) continue;
+    if (m.State == AIState.Dead) continue;
+    Color dc;
+    switch (m.Kind) {
+      case MobjKind.Imp:
+      case MobjKind.Demon:
+      case MobjKind.Baron:
+      case MobjKind.Cacodemon:
+      case MobjKind.LostSoul:
+      case MobjKind.Zombieman:
+      case MobjKind.Shotgunner:
+      dc = enemyClr; break;
+      case MobjKind.KeyBlue: dc = doorBlueClr; break;
+      case MobjKind.KeyYellow: dc = doorYellowClr; break;
+      case MobjKind.KeyRed: dc = doorRedClr; break;
+      case MobjKind.PickupHealth:
+      case MobjKind.PickupArmor:
+      case MobjKind.PickupArmorBlue:
+      case MobjKind.PickupBullets:
+      case MobjKind.PickupShells:
+      case MobjKind.PickupRockets:
+      case MobjKind.PickupCells:
+      case MobjKind.PickupShotgun:
+      case MobjKind.PickupChaingun:
+      case MobjKind.PickupRocketLauncher:
+      case MobjKind.PickupPlasma:
+      case MobjKind.PickupBFG:
+      dc = pickupClr; break;
+      default: continue;
+    }
+    dots.Add(new Vector2(m.X, m.Y));
+    dotClrs.Add(dc);
+  }
+
+  float pxX = state.Player.X * scale;
+  float pxY = (mh - state.Player.Y) * scale;
+
+  return (
+    <VisualElement
+      pickingMode={PickingMode.Ignore}
+      style={new Style{
+        Position = UnityEngine.UIElements.Position.Absolute,
+        Top = 8, Right = 8,
+        Width = innerW + 6, Height = innerH + 6,
+        BackgroundColor = bgClr,
+        BorderTopWidth = 1, BorderRightWidth = 1, BorderBottomWidth = 1, BorderLeftWidth = 1,
+        BorderTopColor = borderClr, BorderRightColor = borderClr, BorderBottomColor = borderClr, BorderLeftColor = borderClr,
+        BorderTopLeftRadius = 2, BorderTopRightRadius = 2, BorderBottomLeftRadius = 2, BorderBottomRightRadius = 2,
+        PaddingLeft = 3, PaddingTop = 3, PaddingRight = 3, PaddingBottom = 3,
+      }}
+    >
+      <VisualElement
+        style={new Style{
+          Width = innerW, Height = innerH,
+          Position = UnityEngine.UIElements.Position.Relative,
+        }}
+      >
+        @foreach (var i in System.Linq.Enumerable.Range(0, cells.Count)) {
+          var c = cells[i];
+          var col = cellClrs[i];
+
+          return (
+            <VisualElement
+              key={"c" + i.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = c.x * scale,
+                Top = (mh - 1 - c.y) * scale,
+                Width = cellPx, Height = cellPx,
+                BackgroundColor = col,
+              }}
+            />
+          );
+        }
+        @foreach (var i in System.Linq.Enumerable.Range(0, dots.Count)) {
+          var d = dots[i];
+          var dc = dotClrs[i];
+          float dx = d.x * scale - 2f;
+          float dy = (mh - d.y) * scale - 2f;
+
+          return (
+            <VisualElement
+              key={"m" + i.ToString()}
+              pickingMode={PickingMode.Ignore}
+              style={new Style{
+                Position = UnityEngine.UIElements.Position.Absolute,
+                Left = dx, Top = dy,
+                Width = 4, Height = 4,
+                BackgroundColor = dc,
+                BorderTopLeftRadius = 2, BorderTopRightRadius = 2, BorderBottomLeftRadius = 2, BorderBottomRightRadius = 2,
+              }}
+            />
+          );
+        }
+        // Player marker.
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = pxX - 3f, Top = pxY - 3f,
+            Width = 6, Height = 6,
+            BackgroundColor = playerClr,
+            BorderTopLeftRadius = 3, BorderTopRightRadius = 3, BorderBottomLeftRadius = 3, BorderBottomRightRadius = 3,
+          }}
+        />
+        // Heading indicator.
+        <VisualElement
+          pickingMode={PickingMode.Ignore}
+          style={new Style{
+            Position = UnityEngine.UIElements.Position.Absolute,
+            Left = pxX + Mathf.Cos(state.Player.Angle) * 4f - 1f,
+            Top = pxY - Mathf.Sin(state.Player.Angle) * 4f - 1f,
+            Width = 2, Height = 2,
+            BackgroundColor = playerClr,
+          }}
+        />
+      </VisualElement>
+    </VisualElement>
+  );
+}

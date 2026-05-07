@@ -436,3 +436,103 @@ the delegate's invoke signature (`void PointerEventHandler(PointerEventBase evt)
 
 **Files:**
 - `ide-extensions~/lsp-server/HoverHandler.cs` — `TryGetRoslynHover()`
+
+---
+
+## 14. Synthetic event dispatcher for cross-panel portal bubbling
+
+**Status:** Open — DESIGN / FUTURE
+
+**Context:** `V.Portal(target, ...)` already supports cross-panel targets
+end-to-end. One `Render(...)` call can fan out into N Unity panels living
+on N GameObjects (e.g. World Space HUD on the player rig + World Space
+popup on a bottle), all sharing one fiber tree, hooks, state, context,
+error boundaries, and suspense.
+
+**Gap vs. React DOM:** React DOM portals propagate events through the
+**React component tree** via a synthetic event system (single root-level
+listener, custom dispatch walking React parents — including jumping out
+of a portal back up to the portal's parent component).
+
+This library registers handlers via `element.RegisterCallback<T>(...)`
+directly with Unity's per-panel `BaseVisualElementPanel` dispatcher
+(`Shared/Props/PropsApplier.cs` ~L2095). So bubbling is panel-local:
+a click on `<Button>` inside `<Portal target={panelB}>` does **not**
+surface to a `<VisualElement onClickCapture={...}>` ancestor in panel A.
+
+**Userland workaround (works today, recommended for now):** pass callback
+props or use a context-provided event bus. Strictly more flexible than
+DOM bubbling — any descendant can subscribe, not just lineal ancestors.
+State setters already propagate cross-panel because they're plain
+delegates closing over fiber state.
+
+**Proposed implementation (Level 2/3 from the design discussion):**
+
+1. **Per-panel root listener.** When a portal mounts children into a
+   foreign panel, install one capture listener on that panel's root for
+   each event type the fiber tree subscribes to. Reference-count by
+   event type so unmounting the last subscriber releases the listener.
+
+2. **Fiber-walk dispatch.** When the root listener fires, locate the
+   target VE's owning fiber (back-pointer from `VisualElement.userData`
+   → `NodeMetadata` → `FiberNode`), then walk **up the fiber tree**
+   (not the VE tree). Invoke registered handlers in capture order on
+   the way down, bubble order on the way up. Honor a synthetic
+   `stopPropagation` flag distinct from Unity's native one.
+
+3. **Registration change in `PropsApplier`.** Stop calling
+   `element.RegisterCallback` for fibered handlers; store them in
+   `NodeMetadata.EventHandlers` only and let the synthetic dispatcher
+   route. Keep the native path as an opt-out for handlers that need raw
+   Unity dispatch (FocusEvent, IMGUI integration, perf-critical paths).
+
+4. **Recommended ship vehicle: Level 3 (hybrid, opt-in per portal).**
+   Add a `synthetic` attribute on `<Portal>`:
+   ```jsx
+   <Portal target={popupSlot} synthetic>   {/* React-style bubbling */}
+     <Button onClick={...} />
+   </Portal>
+   ```
+   Default stays Unity-native (zero overhead, predictable). Synthetic
+   flag opts the subtree into the new dispatcher. Cheapest way to give
+   users React parity *when they ask for it* without forcing the cost
+   on everyone.
+
+**Files to touch:**
+- `Shared/Props/PropsApplier.cs` — split native vs. synthetic
+  registration paths (`RegisterEvent<T>`, `ApplyEvent`, `RemoveEvent`)
+- `Shared/Core/Fiber/FiberHostConfig.cs` — after `AppendChild` to a
+  portal target, ensure the target's panel has a `SyntheticDispatcher`
+  attached
+- `Shared/Core/Fiber/FiberNode.cs` — add `Fiber` back-pointer field on
+  `NodeMetadata` (or equivalent VE → fiber lookup)
+- `Shared/Core/V.cs` + `Shared/Core/VNode.cs` — add `synthetic` flag
+  to `V.Portal(...)` factory
+- New: `Shared/Core/SyntheticDispatcher.cs` — per-panel root listener,
+  per-event-type fiber-walk, capture/bubble ordering, synthetic
+  `stopPropagation`
+- `SourceGenerator~/Emitter/CSharpEmitter.cs` + `Editor/HMR/HmrCSharpEmitter.cs`
+  — emit the `synthetic` attribute through `EmitPortal`
+- `ide-extensions~/grammar/uitkx-schema.json` — add `synthetic` to
+  Portal's known attributes for autocomplete
+- New tests under `SourceGenerator~/Tests/` and a runtime fiber test
+  validating cross-panel bubble + capture ordering and `stopPropagation`
+
+**Effort:** Medium-large — ~600–1000 lines, careful test coverage,
+real perf consideration (event delegation pattern à la React; aggressive
+event-args pooling).
+
+**Priority:** Low for now. Userland callback-prop / event-bus pattern
+is documented and sufficient for current use cases (HUD + World Space
+popups + connector lines). Re-evaluate once we have real game code
+hitting this — if missing bubbling becomes a daily papercut rather
+than a once-a-year curiosity, ship Level 3.
+
+**Related:**
+- `Shared/Core/PortalContextKeys.cs` — named-slot pattern that already
+  enables the multi-panel architecture
+- `Samples/Components/PortalEventScopeDemoFunc/PortalEventScopeDemoFunc.uitkx`
+  — sample explicitly verifying current panel-local event scoping
+  (would need updating once synthetic dispatch lands)
+- `Editor/EditorRootRendererUtility.cs` + `Runtime/Core/RootRenderer.cs`
+  — `HostContext.Environment` seeding entry points
