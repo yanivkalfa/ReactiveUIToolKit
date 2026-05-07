@@ -579,6 +579,67 @@ public sealed class FormatterSnapshotTests
     }
 
     // ════════════════════════════════════════════════════════════════════════════
+    //  B.4-bis  @if / @else with bare-C# body (no JSX) — idempotency regression
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Regression for v0.5.2: an `@else` (or any directive) branch whose body
+    /// contains only a C# statement (e.g. `return varName;`) — no JSX — fell
+    /// through to the no-parsed-body fallback in
+    /// <c>AstFormatter.FormatDirectiveBody</c>, which passed the raw bodyCode
+    /// straight to <c>EmitSetupCodeNormalized</c>. That bodyCode always starts
+    /// with the `\n` that immediately follows the opener `{`, and
+    /// <c>EmitSetupCodeNormalized</c> emitted it as a blank line ON TOP of the
+    /// `\n` already written by FormatIf at the end of `} @else {` — adding one
+    /// extra blank line per format pass (non-idempotent: format-on-save grew
+    /// the file forever).
+    ///
+    /// The parsed-body path (with JSX) routes through
+    /// <c>EmitDirectiveBodySetupCode</c> which already does
+    /// <c>setupCode.TrimStart('\n', '\r')</c> — comment in that method already
+    /// noted the same bug class. Fix is the symmetric trim in the no-parsed-body
+    /// fallback.
+    /// </summary>
+    [Fact]
+    public void Idempotency_ElseBranch_BareCSharpBody_NoBlankLineGrowth()
+    {
+        var source = N(
+            """
+            @namespace P
+            component MenuPage {
+              var chrome = (<Box />);
+
+              return (
+                <VisualElement>
+                  @if (true) {
+                    return (
+                      <Portal>
+                        @(chrome)
+                      </Portal>
+                    );
+                  } @else {
+                    return chrome;
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var p1 = Format(source);
+        var p2 = Format(p1);
+        var p3 = Format(p2);
+
+        // Two passes must agree (idempotent). Three for extra confidence.
+        Assert.Equal(p1, p2);
+        Assert.Equal(p2, p3);
+
+        // No phantom blank line between `} @else {` and `return chrome;`.
+        Assert.Contains("} @else {\n        return chrome;", p1);
+        Assert.DoesNotContain("} @else {\n\n", p1);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
     //  B.5  @foreach
     // ════════════════════════════════════════════════════════════════════════════
 
