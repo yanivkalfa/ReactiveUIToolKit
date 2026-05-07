@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-07",
+      "versions": {
+        "vscode": "1.1.13",
+        "vs2022": "1.1.13"
+      },
+      "shared": [
+        "Fix: format-on-save no longer adds a phantom blank line on every pass between '} @else {' (or any directive opener) and a bare-C# body line. AstFormatter.FormatDirectiveBody fallback path passed the raw body code starting with a newline to EmitSetupCodeNormalized, which emitted it as a blank line on top of the newline already written by the directive opener. The parsed-body path already trimmed leading newlines for the same reason; the fallback (no-JSX body) is now symmetric. New regression test asserts three consecutive format passes produce identical output and that no blank line appears between the opener brace and the first body line."
+      ]
+    },
+    {
       "date": "2026-05-06",
       "versions": {
         "vscode": "1.1.12",
