@@ -405,7 +405,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             );
         }
 
-        // GetPublicPropertyNames — used by CSharpEmitter for UITKX0002 attribute validation
+        // GetPublicPropertyNames — used by CSharpEmitter for UITKX0109 attribute validation
 
         private static readonly string[] s_propsNamespaces = { "ReactiveUITK.Props.Typed" };
 
@@ -444,6 +444,60 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (type != null)
                     return CollectPropertyNames(type);
             }
+            return new HashSet<string>();
+        }
+
+        /// <summary>
+        /// Like <see cref="GetPublicPropertyNames"/> but accepts a fully-qualified
+        /// type name (e.g. <c>global::PrettyUi.App.Components.AppButtonProps</c>
+        /// or <c>global::PrettyUi.App.Components.AppButton.AppButtonProps</c>) as
+        /// produced by <see cref="TryGetFuncComponentPropsTypeName"/> for user
+        /// components. Used by <c>EmitFuncComponent</c> to validate attribute
+        /// names against the declared user-component prop set (UITKX0109).
+        /// Returns an empty set when the type cannot be resolved.
+        /// </summary>
+        public HashSet<string> GetPublicPropertyNamesByQualifiedName(string qualifiedTypeName)
+        {
+            if (string.IsNullOrWhiteSpace(qualifiedTypeName))
+                return new HashSet<string>();
+
+            string normalized = NormalizeMetadataTypeName(qualifiedTypeName);
+
+            // Try as-is (e.g. "Ns.AppButtonProps").
+            var type = _compilation.GetTypeByMetadataName(normalized);
+            if (type != null)
+                return CollectPropertyNames(type);
+
+            // Try nested-class form (e.g. "Ns.AppButton.AppButtonProps" → "Ns.AppButton+AppButtonProps").
+            type = _compilation.GetTypeByMetadataName(ToSingleNestedMetadataTypeName(normalized));
+            if (type != null)
+                return CollectPropertyNames(type);
+
+            // Same-pass peer fallback: the *Props class for a UITKX peer
+            // component is generated in this same compilation pass and is NOT
+            // yet present as an INamedTypeSymbol the first time the parent is
+            // processed.  Match the qualified props-type name against any peer
+            // whose SourceQualifiedPropsTypeName equals it and use its declared
+            // FunctionParams as the authoritative property surface.
+            // Without this, UITKX0109 would silently miss every cross-file
+            // user-component reference on a clean build.
+            string sourceQualified = qualifiedTypeName.StartsWith("global::", StringComparison.Ordinal)
+                ? qualifiedTypeName
+                : "global::" + qualifiedTypeName;
+            foreach (var peer in _peerComponentsByMetadataName.Values)
+            {
+                if (peer.SourceQualifiedPropsTypeName == sourceQualified)
+                {
+                    var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (!peer.FunctionParams.IsDefaultOrEmpty)
+                    {
+                        foreach (var p in peer.FunctionParams)
+                            result.Add(ToPropName(p.Name));
+                    }
+                    return result;
+                }
+            }
+
             return new HashSet<string>();
         }
 

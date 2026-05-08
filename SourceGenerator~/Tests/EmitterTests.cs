@@ -1769,4 +1769,158 @@ public class EmitterTests
     // by the FormatterSnapshotTests against real .uitkx samples
     // (Samples/Components/RouterDemoFunc/RouterOutletDemo.uitkx now uses these
     // attributes in production-shaped markup).
+
+    // ── UITKX0109 — User-component strict attribute validation ──────────────
+    //
+    // Pretty-UI bug regression: <UserComp style={x}/> when the user component
+    // didn't declare a `style` parameter used to silently allow it (since
+    // `style` was lumped under `universalAttributes`), then explode at C#
+    // compile time as CS0117 against the generated *Props class.
+    //
+    // After the SG-side fix in EmitFuncComponent:
+    //   1. Unknown attributes on user components emit UITKX0109 with an
+    //      actionable hint (did-you-mean or "Available: …").
+    //   2. The unknown attribute assignment is SKIPPED in the generated C#
+    //      so we don't pile a follow-on CS0117/CS0246 on top of the warning.
+    //   3. `key` and `ref` are exempt — structural-universal at the JSX
+    //      surface (key lives on VirtualNode; ref is routed to MutableRef<T>).
+
+    [Fact]
+    public void UITKX0109_UserComponent_StyleNotForwarded_EmitsDiagnostic_AndSkipsAssignment()
+    {
+        // ChildComp declares `text` only — `style` is not a parameter.
+        const string childSrc = """
+            component ChildComp(string? text = null) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        // Parent passes `style={...}`, which is intrinsic-only and must NOT
+        // be silently allowed on a user component.
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" style={SomeStyle} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        // (1) UITKX0109 must fire.
+        Assert.True(
+            result.HasDiagnostic("UITKX0109"),
+            $"Expected UITKX0109 for unknown 'style' attr on <ChildComp>. "
+                + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id + ':' + d.GetMessage()))}"
+        );
+
+        // (2) The bad `Style = SomeStyle` assignment must NOT be in the emitted source —
+        // otherwise the C# compiler produces CS0117 against ChildCompProps.
+        Assert.False(
+            result.SourceContains("Style = SomeStyle"),
+            "Generated source must NOT contain the bad 'Style = SomeStyle' assignment "
+                + "for an unknown attribute (would cascade to CS0117).\n"
+                + result.GeneratedSource
+        );
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_KeyAndRef_AlwaysExempt()
+    {
+        // ChildComp has a MutableRef param so `ref` routes cleanly.
+        const string childSrc = """
+            component ChildComp(
+                string? text = null,
+                Hooks.MutableRef<object>? inputRef = null
+            ) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" key="k1" ref={myRef} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        // key/ref must NEVER produce UITKX0109.
+        Assert.False(
+            result.HasDiagnostic("UITKX0109"),
+            "key= and ref= must be structural-universal — never UITKX0109.\n"
+                + string.Join("\n", result.Diagnostics.Select(d => d.Id + ':' + d.GetMessage()))
+        );
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_DeclaredAttribute_NoDiagnostic()
+    {
+        const string childSrc = """
+            component ChildComp(string? text = null) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.False(
+            result.HasDiagnostic("UITKX0109"),
+            "Declared attribute 'text' must not raise UITKX0109."
+        );
+
+        // Sanity: the declared attribute IS emitted.
+        Assert.True(
+            result.SourceContains("Text = "),
+            $"Expected 'Text = ' assignment in generated source.\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_NoParams_AnyAttrIsUnknown()
+    {
+        // Edge case: component declares zero parameters at all.
+        const string childSrc = """
+            component ChildComp {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.True(
+            result.HasDiagnostic("UITKX0109"),
+            "A no-params user component must reject any non-structural attribute."
+        );
+    }
 }

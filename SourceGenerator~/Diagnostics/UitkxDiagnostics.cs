@@ -159,9 +159,11 @@ namespace ReactiveUITK.SourceGenerator
             title: "Unknown attribute on element",
             messageFormat: "Unknown attribute '{0}' on <{1}>{2}",
             category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
+            defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true,
-            description: "The attribute does not match any public settable property on the Props type."
+            description: "The attribute does not match any public settable property on the Props type. "
+                + "On built-in elements this is checked against the element's *Props class. "
+                + "On user components this is checked against the declared parameters — user components do not inherit BaseProps, so style/onClick/etc. must be explicitly declared as parameters to be accepted (key and ref are always allowed)."
         );
 
         /// <summary>UITKX0106 — A direct element child of a loop (@foreach/@for/@while) lacks a key attribute. Aligned with analyzer's <c>DiagnosticCodes.MissingKey</c>.</summary>

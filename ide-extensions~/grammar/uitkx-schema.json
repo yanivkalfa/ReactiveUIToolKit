@@ -1,12 +1,19 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "description": "UITKX element and directive schema for IDE tooling",
-  "universalAttributes": [
+  "structuralAttributes": [
     {
       "name": "key",
       "type": "string",
       "description": "Unique reconciler key. Stabilises element identity across re-renders."
     },
+    {
+      "name": "ref",
+      "type": "object",
+      "description": "Forwarded ref. On built-in elements receives the underlying VisualElement; user components must declare a Ref<T> parameter to accept it."
+    }
+  ],
+  "intrinsicElementAttributes": [
     {
       "name": "name",
       "type": "string",
@@ -21,11 +28,6 @@
       "name": "style",
       "type": "Style",
       "description": "Inline style overrides."
-    },
-    {
-      "name": "ref",
-      "type": "object",
-      "description": "Ref to the underlying VisualElement."
     },
     {
       "name": "contentContainer",

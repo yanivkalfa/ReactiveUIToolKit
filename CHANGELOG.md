@@ -6,6 +6,68 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.4] - 2026-05-08
+
+### Changed
+
+- **Breaking: User components now reject any attribute that isn't a declared
+  parameter (or `key`/`ref`).** Previously the schema treated all 60 BaseProps
+  members — `style`, `name`, `className`, `onClick`, `extraProps`,
+  `enabledInHierarchy`, etc. — as universal across every tag, so a typo or
+  stale attribute on a user component (`<AppButton style={x}/>` when
+  `AppButton` doesn't declare a `style` parameter) silently produced
+  `Style = x` against the generated `AppButtonProps` class and exploded at C#
+  compile time as **CS0117** with no useful pointer back to the `.uitkx`
+  source. The schema is now split into two semantic groups:
+
+  - **`structuralAttributes`** — just `key` and `ref`. These apply everywhere
+    because `key` is a VirtualNode reconciliation slot (lives on the node, not
+    on Props) and `ref` is routed to the unique `Hooks.MutableRef<T>`
+    parameter on the target component via `forwardRef`-style semantics.
+  - **`intrinsicElementAttributes`** — the 58 BaseProps members. These only
+    apply to built-in `V.*` tags that actually back a `VisualElement`. User
+    components do **not** inherit them.
+
+  Unknown attributes on user components now raise **UITKX0109** at **Error**
+  severity (was Warning) with an actionable hint — `did you mean 'X'?` for
+  close matches, otherwise
+  `Available on '<Comp>': a, b, c. Add a parameter to the component or remove
+  the attribute.` The bad attribute is also **skipped in the generated C#**
+  so a single UITKX0109 doesn't cascade into CS0117/CS0246 against the
+  synthesized props class.
+
+  **Migration:** if you were forwarding `style`/`name`/`className`/etc.
+  through a user component, declare them as explicit parameters and forward
+  them yourself in the body — e.g.
+  `component AppButton(IStyle? style = null) { return (<Button style={style}/>); }`.
+  Built-ins are unchanged: `<Button style={...} extraProps={...}/>` still
+  works exactly as before.
+
+### Fixed
+
+- **Editor and build-time diagnostics paths now share the same
+  element-class-aware attribute map.** The LSP analyzer
+  (`DiagnosticsPublisher.BuildKnownAttributes`) and the source generator
+  (`CSharpEmitter.EmitFuncComponent`) previously diverged: the LSP raised
+  UITKX0109 (Error) for the user-component path while the source generator
+  raised nothing, leaving the IDE red but the build only yellow (or worse,
+  silent until the C# compiler exploded with CS0117). Both now query the
+  same split schema and produce identical diagnostics.
+- **`PropsResolver.GetPublicPropertyNamesByQualifiedName` gained a same-pass
+  peer fallback** so cross-file user-component attribute validation works on
+  a clean build — before the generated `*Props` symbol exists as compiled
+  metadata, the resolver now consults `PeerComponentInfo.FunctionParams`
+  collected during the same generator pass.
+
+### Tests
+
+- 9 new regression tests (5 analyzer-level in `DiagnosticsAnalyzerTests`,
+  4 source-generator end-to-end in `EmitterTests`) covering: style rejected
+  on user component, `key`/`ref` always exempt, `extraProps` rejected on
+  user component, declared attributes pass through cleanly, no-params
+  components reject every non-structural attribute, and built-ins remain
+  unaffected. **1187 / 1187 SG tests passing.**
+
 ## [0.5.3] - 2026-05-08
 
 ### Changed
