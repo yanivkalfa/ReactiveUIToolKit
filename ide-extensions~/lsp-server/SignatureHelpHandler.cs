@@ -21,7 +21,7 @@ namespace UitkxLanguageServer;
 /// LSP <c>textDocument/signatureHelp</c> handler for .uitkx files.
 ///
 /// <para>When the user types <c>(</c> or <c>,</c> inside a method call within a
-/// C# expression region (setup code, <c>@(expr)</c>, or <c>attr={expr}</c>),
+/// C# expression region (setup code, child <c>{expr}</c>, or <c>attr={expr}</c>),
 /// this handler resolves the method's overloads via Roslyn's
 /// <see cref="SemanticModel"/> and returns <see cref="SignatureHelp"/> so the
 /// IDE can display parameter hints.</para>

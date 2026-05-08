@@ -471,7 +471,7 @@ public sealed class FormatterSnapshotTests
             """
             component Foo {
               return (
-                @(count.ToString())
+                {count.ToString()}
                 <Box />
               );
             }
@@ -480,7 +480,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("@(count.ToString())", result);
+        Assert.Contains("{count.ToString()}", result);
     }
 
     [Fact]
@@ -614,7 +614,7 @@ public sealed class FormatterSnapshotTests
                   @if (true) {
                     return (
                       <Portal>
-                        @(chrome)
+                        {chrome}
                       </Portal>
                     );
                   } @else {
@@ -1088,7 +1088,7 @@ public sealed class FormatterSnapshotTests
                   @if (show) {
                     <Label text="content" />
                   } @else {
-                    @(fallback)
+                    {fallback}
                   }
                 </Box>
               );
@@ -3747,7 +3747,7 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(result, Format(result));
     }
 
-    // ── C.26  @(expr) inline expression rendering ─────────────────────────────
+    // ── C.26  {expr} inline expression rendering ─────────────────────────────
 
     [Fact]
     public void C26a_InlineExprRender_SimpleVar_FormattedCorrectly()
@@ -3758,7 +3758,7 @@ public sealed class FormatterSnapshotTests
               var node = (<Label text="hi" />);
               return (
                 <Box>
-                  @(node)
+                  {node}
                 </Box>
               );
             }
@@ -3767,7 +3767,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("@(node)", result);
+        Assert.Contains("{node}", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3780,7 +3780,7 @@ public sealed class FormatterSnapshotTests
               var portalNode = target != null ? V.Label(new LabelProps { Text = "x" }) : null;
               return (
                 <Box>
-                  @(portalNode)
+                  {portalNode}
                 </Box>
               );
             }
@@ -3789,7 +3789,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("@(portalNode)", result);
+        Assert.Contains("{portalNode}", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -4160,7 +4160,7 @@ public sealed class FormatterSnapshotTests
     {
         // Representative slice covering: @switch (multi-child case), @if chain
         // with @for in @else, @foreach with key, inline style (single/multi
-        // entry), style var-ref, extraProps, Suspense, @(expr), ToggleButtonGroup,
+        // entry), style var-ref, extraProps, Suspense, {expr}, ToggleButtonGroup,
         // Toolbar/ToolbarMenu, TabView.
         var source = N(
             """
@@ -4262,7 +4262,7 @@ public sealed class FormatterSnapshotTests
                   >
                     <Label text="Content" />
                   </Suspense>
-                  @(inlineNode)
+                  {inlineNode}
                 </ScrollView>
               );
             }
@@ -4293,7 +4293,7 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("<TabView", first);
         Assert.Contains("extraProps={new Dictionary<string, object>", first);
         Assert.Contains("<Suspense", first);
-        Assert.Contains("@(inlineNode)", first);
+        Assert.Contains("{inlineNode}", first);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -5578,14 +5578,14 @@ public sealed class FormatterSnapshotTests
             """
             component Foo {
               return (
-            	@(myNode)
+            	{myNode}
                 <Box />
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("@(myNode)", result);
+        Assert.Contains("{myNode}", result);
         Assert.DoesNotContain("\t", result);
         Assert.Equal(result, Format(result));
     }
@@ -8599,7 +8599,7 @@ public sealed class FormatterSnapshotTests
 
     // ════════════════════════════════════════════════════════════════════════════
     //  X) DEEP NESTING — local functions with JSX, 4-level directives,
-    //     setup-code JSX variables, @() expression splicing
+    //     setup-code JSX variables, {} expression splicing
     //
     //  These tests cover the deep nesting patterns added to
     //  UitkxTestFileDoNotTouch.uitkx: local functions returning JSX with
@@ -8654,7 +8654,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(PillBar(items, "a"))
+                  {PillBar(items, "a")}
                 </VisualElement>
               );
             }
@@ -8700,7 +8700,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(statusNode)
+                  {statusNode}
                 </VisualElement>
               );
             }
@@ -8759,7 +8759,7 @@ public sealed class FormatterSnapshotTests
                           (StyleKeys.MarginBottom, 4f),
                         }}
                       >
-                        @(catBadge)
+                        {catBadge}
                         @for (int d = 0; d < count; d++) {
                           var depthBg = new Color(0.12f, 0.12f, 0.2f);
 
@@ -8831,7 +8831,7 @@ public sealed class FormatterSnapshotTests
     public void DeepNest_SetupCodeJsxVar_TernaryAssign_Idempotent()
     {
         // Ternary JSX variable in setup code: var node = cond ? (<JSX>) : null;
-        // Plus @() expression splicing in the return JSX.
+        // Plus {} expression splicing in the return JSX.
         var source = N(
             """
             component C {
@@ -8847,7 +8847,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(controlsNode)
+                  {controlsNode}
                   <Label text="footer" />
                 </VisualElement>
               );
@@ -8879,7 +8879,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(headerNode)
+                  {headerNode}
                 </VisualElement>
               );
             }
@@ -8917,7 +8917,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(badge)
+                  {badge}
                   @foreach (var item in items) {
                     return (
                       <VisualElement key={item}>
@@ -8930,7 +8930,7 @@ public sealed class FormatterSnapshotTests
                       </VisualElement>
                     );
                   }
-                  @(footer)
+                  {footer}
                 </VisualElement>
               );
             }
@@ -8966,7 +8966,7 @@ public sealed class FormatterSnapshotTests
 
                 return (
                     <VisualElement>
-                        @(node)
+                        {node}
                     </VisualElement>
                 );
             }
@@ -9009,7 +9009,7 @@ public sealed class FormatterSnapshotTests
 
                     return (
                       <VisualElement key={cat}>
-                        @(badge)
+                        {badge}
                       </VisualElement>
                     );
                   }
@@ -9450,7 +9450,7 @@ component Comp {
     }
 
     // ════════════════════════════════════════════════════════════════════════════
-    //  B.14  Multiple top-level returns with @(...) in markup
+    //  B.14  Multiple top-level returns with {...} in markup
     //  Regression: UITKX0306 from misidentified setup code must not prevent
     //  formatting when UITKX2103 triggers re-parse with useLastReturn.
     // ════════════════════════════════════════════════════════════════════════════
@@ -9558,7 +9558,7 @@ component Comp {
               var safeItems = Array.Empty<int>();
             var someVara = (
                 <Box>
-                  @(safeItems)
+                  {safeItems}
                 </Box>
               );
               RowRenderer BuildRowRenderer() =>
@@ -9572,7 +9572,7 @@ component Comp {
 
                 return (
                   <VisualElement key={$"lv-wrap-{index}"}>
-                    @(row)
+                    {row}
                   </VisualElement>
                 );
               };
@@ -9590,7 +9590,7 @@ component Comp {
               var safeItems = Array.Empty<int>();
               var someVara = (
                 <Box>
-                  @(safeItems)
+                  {safeItems}
                 </Box>
               );
               RowRenderer BuildRowRenderer() =>
@@ -9604,7 +9604,7 @@ component Comp {
 
                 return (
                   <VisualElement key={$"lv-wrap-{index}"}>
-                    @(row)
+                    {row}
                   </VisualElement>
                 );
               };

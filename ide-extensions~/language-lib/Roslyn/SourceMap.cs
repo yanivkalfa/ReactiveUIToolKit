@@ -12,7 +12,7 @@ namespace ReactiveUITK.Language.Roslyn
     /// </summary>
     public enum SourceRegionKind
     {
-        /// <summary>An inline <c>@(expr)</c> expression in markup.</summary>
+        /// <summary>An inline <c>{expr}</c> expression in markup.</summary>
         InlineExpression,
 
         /// <summary>A <c>attr={expr}</c> C# attribute-value expression.</summary>
