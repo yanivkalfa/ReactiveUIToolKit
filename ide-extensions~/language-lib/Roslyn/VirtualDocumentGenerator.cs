@@ -618,6 +618,94 @@ namespace ReactiveUITK.Language.Roslyn
         // ── Expression wrappers / statements ─────────────────────────────────
 
         /// <summary>
+        /// Phase 1 — emit expression text into the virtual document, replacing
+        /// any embedded JSX literals with a <c>(VirtualNode)null!</c> stub so
+        /// Roslyn can parse and type-check the surrounding C# without seeing
+        /// JSX literals it does not understand.
+        ///
+        /// <para>Mirrors <c>CSharpEmitter.SpliceExpressionMarkup</c> at the
+        /// IDE/Roslyn layer. Where the source generator emits real
+        /// <c>V.Tag(...)</c> calls, the virtual document emits typed-null
+        /// stubs — sufficient for Roslyn parsing. Source-mapped regions
+        /// surrounding the stub still produce column-precise diagnostics
+        /// for the user's C# code outside the JSX.</para>
+        ///
+        /// <para>For the common case (no JSX), the helper falls through to a
+        /// single <see cref="VirtualDocBuilder.Mapped"/> call — same shape as
+        /// before Phase 1.</para>
+        /// </summary>
+        private static void EmitMappedExpressionStrippingJsx(
+            VirtualDocBuilder b,
+            string text,
+            int uitkxOffset,
+            SourceRegionKind kind,
+            int uitkxLine
+        )
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                b.Mapped(text, uitkxOffset, kind, uitkxLine);
+                return;
+            }
+
+            var markupRanges = DirectiveParser.FindJsxBlockRanges(text, 0, text.Length);
+            var bareRanges = DirectiveParser.FindBareJsxRanges(text, 0, text.Length);
+
+            if (markupRanges.IsDefaultOrEmpty && bareRanges.IsDefaultOrEmpty)
+            {
+                b.Mapped(text, uitkxOffset, kind, uitkxLine);
+                return;
+            }
+
+            var allRanges = new List<(int Start, int End, int Line)>(
+                markupRanges.Length + bareRanges.Length
+            );
+            foreach (var r in markupRanges)
+                allRanges.Add(r);
+            foreach (var r in bareRanges)
+                allRanges.Add(r);
+            allRanges.Sort((a, c) => a.Start.CompareTo(c.Start));
+
+            int prev = 0;
+            foreach (var (start, end, _) in allRanges)
+            {
+                int s = start;
+                int e = end;
+                if (s < 0)
+                    s = 0;
+                if (e < 0)
+                    e = 0;
+                if (s > text.Length)
+                    s = text.Length;
+                if (e > text.Length)
+                    e = text.Length;
+                if (e <= s)
+                    continue;
+                if (s < prev)
+                    continue;
+
+                if (s > prev)
+                {
+                    string seg = text.Substring(prev, s - prev);
+                    b.Mapped(seg, uitkxOffset + prev, kind, uitkxLine);
+                }
+
+                // Stub: typed-null lets the surrounding expression compile
+                // and flow into both VirtualNode-typed and object-typed
+                // contexts. Same pattern as EmitDirectiveBodyCode line 1244.
+                b.Scaffold("((global::ReactiveUITK.Core.VirtualNode)null!)");
+
+                prev = e;
+            }
+
+            if (prev < text.Length)
+            {
+                string tail = text.Substring(prev);
+                b.Mapped(tail, uitkxOffset + prev, kind, uitkxLine);
+            }
+        }
+
+        /// <summary>
         /// Emits a block-statement expression check.
         /// Used inside a render method (function-style context).
         /// </summary>
@@ -662,7 +750,7 @@ namespace ReactiveUITK.Language.Roslyn
                         ? "global::System.Action"
                         : "global::System.Action<dynamic>";
                     b.Scaffold($"{indent}{{ (({castType})(");
-                    b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+                    EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
                     b.Scaffold(")); }\n");
                 }
             }
@@ -675,7 +763,7 @@ namespace ReactiveUITK.Language.Roslyn
                 // Attribute expressions also use object since their type varies.
                 string checkType = "object";
                 b.Scaffold($"{indent}{{ {checkType} __uitkx_{expr.Label} = (");
-                b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+                EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
                 b.Scaffold("); }\n");
             }
 
@@ -723,8 +811,11 @@ namespace ReactiveUITK.Language.Roslyn
             // For reference types under #nullable-enable, the extra ? is just an annotation.
             b.Scaffold($"{indent}{{ {propType}? __uitkx_check = (");
 
-            // Mapped region: the expression text itself (source-map preserved)
-            b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+            // Mapped region: the expression text itself (source-map preserved).
+            // Phase 1: any embedded JSX literals are replaced with stub
+            // (VirtualNode)null! so Roslyn parses the surrounding C#
+            // without seeing JSX it can't understand.
+            EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
 
             // Scaffold: close assignment + block
             b.Scaffold("); }\n");
@@ -2556,7 +2647,7 @@ namespace ReactiveUITK.Language.Roslyn
                 {
                     string seg = bodyText.Substring(segStart, m.Index - segStart);
                     b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
-                    b.Mapped(seg, bodyUitkxOffset + segStart, kind, currentLine);
+                    EmitMappedExpressionStrippingJsx(b, seg, bodyUitkxOffset + segStart, kind, currentLine);
                     b.Scaffold("\n#line hidden\n");
                     currentLine += CountNewlines(seg);
                 }
@@ -2574,7 +2665,7 @@ namespace ReactiveUITK.Language.Roslyn
             {
                 string seg = bodyText.Substring(segStart);
                 b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
-                b.Mapped(seg, bodyUitkxOffset + segStart, kind, currentLine);
+                EmitMappedExpressionStrippingJsx(b, seg, bodyUitkxOffset + segStart, kind, currentLine);
                 b.Scaffold("\n#line hidden\n");
             }
         }

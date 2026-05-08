@@ -30,6 +30,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         private MethodInfo _directiveParse;
         private MethodInfo _uitkxParse;
         private MethodInfo _canonicalLower;
+        private MethodInfo _findJsxBlockRanges;
+        private MethodInfo _findBareJsxRanges;
         private Type _parseDiagnosticType;
 
         // ── Reference cache (built once per session) ──────────────────────────
@@ -230,7 +232,30 @@ namespace ReactiveUITK.EditorSupport.HMR
                     return GetItems(nodes);
                 };
 
-                string csharp = HmrCSharpEmitter.Emit(directives, lowered, uitkxPath, parseMarkup);
+                // Phase 1: scanner delegates so the emitter can detect JSX
+                // literals embedded inside arbitrary C# expressions
+                // (ternaries, lambdas, attribute values, etc.). When the
+                // language-lib build pre-dates Phase 1 these resolve to null
+                // and the emitter falls back to non-splicing behavior.
+                HmrCSharpEmitter.FindJsxRangesFunc findJsxBlockRanges =
+                    _findJsxBlockRanges == null
+                        ? null
+                        : (src, s, e) => (System.Collections.IEnumerable)
+                            _findJsxBlockRanges.Invoke(null, new object[] { src, s, e });
+                HmrCSharpEmitter.FindJsxRangesFunc findBareJsxRanges =
+                    _findBareJsxRanges == null
+                        ? null
+                        : (src, s, e) => (System.Collections.IEnumerable)
+                            _findBareJsxRanges.Invoke(null, new object[] { src, s, e });
+
+                string csharp = HmrCSharpEmitter.Emit(
+                    directives,
+                    lowered,
+                    uitkxPath,
+                    parseMarkup,
+                    findJsxBlockRanges,
+                    findBareJsxRanges
+                );
                 stepSw.Stop();
                 result.EmitMs = stepSw.Elapsed.TotalMilliseconds;
 
@@ -522,6 +547,19 @@ namespace ReactiveUITK.EditorSupport.HMR
             _directiveParse = dpType.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static);
             if (_directiveParse == null)
                 throw new MissingMethodException("DirectiveParser.Parse not found");
+
+            // Phase 1 scanner methods (used to detect JSX literals embedded in
+            // arbitrary C# expressions at HMR time, mirroring the SG path).
+            // Optional — older Language.dll builds may lack these; HMR falls
+            // back to pre-Phase-1 behavior (no expression splice) when missing.
+            _findJsxBlockRanges = dpType.GetMethod(
+                "FindJsxBlockRanges",
+                BindingFlags.Public | BindingFlags.Static
+            );
+            _findBareJsxRanges = dpType.GetMethod(
+                "FindBareJsxRanges",
+                BindingFlags.Public | BindingFlags.Static
+            );
 
             // ParseDiagnostic type (for creating List<ParseDiagnostic>)
             _parseDiagnosticType = _languageAsm.GetType("ReactiveUITK.Language.ParseDiagnostic");

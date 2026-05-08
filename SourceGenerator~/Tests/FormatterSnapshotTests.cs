@@ -579,6 +579,110 @@ public sealed class FormatterSnapshotTests
     }
 
     // ════════════════════════════════════════════════════════════════════════════
+    //  B.4-bis  @if / @else with bare-C# body (no JSX) — idempotency regression
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Regression for v0.5.2: an `@else` (or any directive) branch whose body
+    /// contains only a C# statement (e.g. `return varName;`) — no JSX — fell
+    /// through to the no-parsed-body fallback in
+    /// <c>AstFormatter.FormatDirectiveBody</c>, which passed the raw bodyCode
+    /// straight to <c>EmitSetupCodeNormalized</c>. That bodyCode always starts
+    /// with the `\n` that immediately follows the opener `{`, and
+    /// <c>EmitSetupCodeNormalized</c> emitted it as a blank line ON TOP of the
+    /// `\n` already written by FormatIf at the end of `} @else {` — adding one
+    /// extra blank line per format pass (non-idempotent: format-on-save grew
+    /// the file forever).
+    ///
+    /// The parsed-body path (with JSX) routes through
+    /// <c>EmitDirectiveBodySetupCode</c> which already does
+    /// <c>setupCode.TrimStart('\n', '\r')</c> — comment in that method already
+    /// noted the same bug class. Fix is the symmetric trim in the no-parsed-body
+    /// fallback.
+    /// </summary>
+    [Fact]
+    public void Idempotency_ElseBranch_BareCSharpBody_NoBlankLineGrowth()
+    {
+        var source = N(
+            """
+            @namespace P
+            component MenuPage {
+              var chrome = (<Box />);
+
+              return (
+                <VisualElement>
+                  @if (true) {
+                    return (
+                      <Portal>
+                        @(chrome)
+                      </Portal>
+                    );
+                  } @else {
+                    return chrome;
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var p1 = Format(source);
+        var p2 = Format(p1);
+        var p3 = Format(p2);
+
+        // Two passes must agree (idempotent). Three for extra confidence.
+        Assert.Equal(p1, p2);
+        Assert.Equal(p2, p3);
+
+        // No phantom blank line between `} @else {` and `return chrome;`.
+        Assert.Contains("} @else {\n        return chrome;", p1);
+        Assert.DoesNotContain("} @else {\n\n", p1);
+    }
+
+    /// <summary>
+    /// Regression: a function-style component parameter declared with whitespace
+    /// before the nullable marker (e.g. <c>Texture2D ? icon = null</c>) used to
+    /// be silently dropped on save. The parser's <c>TryReadTypeName</c> only
+    /// consumed the <c>?</c> when it was the very next character after the
+    /// identifier; with a space between, the marker was abandoned, the next
+    /// <c>TryReadIdentifier</c> hit <c>?</c> and failed, and the parameter was
+    /// skipped to the next comma. The formatter then re-emitted the param list
+    /// from the AST — so the parameter (including its name and default) was
+    /// permanently deleted on every format-on-save. Roslyn accepts the spacing,
+    /// so we must too. Canonical re-emit collapses the space and produces
+    /// <c>Texture2D? icon = null</c>.
+    /// </summary>
+    [Fact]
+    public void ComponentParam_NullableType_WhitespaceBeforeQuestionMark_Preserved()
+    {
+        var source = N(
+            """
+            component AppButton(
+              string text = "",
+              Action ? onClick = null,
+              Texture2D ? iconName = null,
+              List<int>  ?  items = null
+            ) {
+              return (<Box />);
+            }
+            """
+        );
+
+        var p1 = Format(source);
+        var p2 = Format(p1);
+
+        // Idempotent.
+        Assert.Equal(p1, p2);
+
+        // None of the params was dropped, and the nullable marker survives
+        // (canonical form: no space before '?').
+        Assert.Contains("string text", p1);
+        Assert.Contains("Action? onClick = null", p1);
+        Assert.Contains("Texture2D? iconName = null", p1);
+        Assert.Contains("List<int>? items = null", p1);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
     //  B.5  @foreach
     // ════════════════════════════════════════════════════════════════════════════
 

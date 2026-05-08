@@ -1952,7 +1952,19 @@ namespace ReactiveUITK.Language.Formatter
 
             // No parsed body → pure C# code
             if (!string.IsNullOrEmpty(bodyCode))
-                EmitSetupCodeNormalized(bodyCode, tabExp);
+            {
+                // Strip leading newlines that come from the `{\n` at the
+                // directive opener — same reason as EmitDirectiveBodySetupCode
+                // (the setup-code path above): keeping them produces a phantom
+                // blank line between the opener `{` and the first body line
+                // that grows by one on every format pass (non-idempotent).
+                // This branch fires when the body contains only C# (e.g.
+                // `} @else { return value; }` with no JSX) so the parsed-body
+                // path is skipped and we land here directly.
+                string trimmed = bodyCode!.TrimStart('\n', '\r');
+                if (!string.IsNullOrEmpty(trimmed))
+                    EmitSetupCodeNormalized(trimmed, tabExp);
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════════

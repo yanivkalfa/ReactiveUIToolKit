@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "date": "2026-05-08",
+      "versions": {
+        "vscode": "1.1.14",
+        "vs2022": "1.1.14"
+      },
+      "shared": [
+        "Feature: JSX literals are now allowed in any C# expression position — matching React/Babel semantics. Patterns that previously emitted raw JSX and tripped Roslyn now splice cleanly to V.Tag(...) factory calls: ternary branches ({cond ? <A/> : <B/>}), null-coalescing ({fallback ?? <Default/>}), JSX in attribute expressions (icon={active ? <Check/> : <X/>}), JSX inside lambda bodies (items.Select(x => <Item key={x.Id}/>)), and the same patterns through @(...) child syntax. The scanner driving this (DirectiveParser.FindBareJsxRanges + FindJsxBlockRanges) was already proven on component preamble and directive bodies; it is now wired into the two remaining emit sites in CSharpEmitter (EmitExpressionNode and the CSharpExpressionValue branch of AttrVal) plus mirrored in HmrCSharpEmitter for hot reload and in VirtualDocumentGenerator so the IDE no longer shows phantom Roslyn errors on files that compile cleanly. Embedded JSX is replaced with a typed-null stub in the virtual document while surrounding C# stays source-mapped for completions and squiggles. Zero runtime impact (same V.Tag/__Rent shape); compile-time cost is a single O(n) scanner pass per expression and returns unchanged when no JSX is present. Backed by 14 new tests across SG, HMR parity, and VDG layers — 1178/1178 passing.",
+        "Fix: nullable component-parameter types written with whitespace before the question mark (e.g. 'Texture2D ? iconName = null', 'Action ? onClick = null') no longer have the '?' silently dropped on save. DirectiveParser.TryReadTypeName required the '?' to immediately follow the type name with no whitespace; with whitespace, the trailing '?' was left unconsumed and the formatter re-emitted the parameter as non-nullable. Same root pathology as the recent @else blank-line bug — formatter re-emit-from-AST is lossy when the parser drops tokens. Fix peeks past whitespace, consumes the '?', and canonicalises the captured type as '<base>?' so the formatter re-emits a clean 'Texture2D? name' regardless of input spacing. Locked down by a new FormatterSnapshotTests case covering Action, Texture2D, and List<int> nullable params with varied whitespace, asserting both idempotency across three format passes and canonical re-emit."
+      ]
+    },
+    {
+      "date": "2026-05-07",
+      "versions": {
+        "vscode": "1.1.13",
+        "vs2022": "1.1.13"
+      },
+      "shared": [
+        "Fix: format-on-save no longer adds a phantom blank line on every pass between '} @else {' (or any directive opener) and a bare-C# body line. AstFormatter.FormatDirectiveBody fallback path passed the raw body code starting with a newline to EmitSetupCodeNormalized, which emitted it as a blank line on top of the newline already written by the directive opener. The parsed-body path already trimmed leading newlines for the same reason; the fallback (no-JSX body) is now symmetric. New regression test asserts three consecutive format passes produce identical output and that no blank line appears between the opener brace and the first body line."
+      ]
+    },
+    {
       "date": "2026-05-06",
       "versions": {
         "vscode": "1.1.12",
