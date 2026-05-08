@@ -899,7 +899,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             bool injectUssKeys = false
         )
         {
-            // UITKX0002 — validate attribute names against known Props properties
+            // UITKX0109 — validate attribute names against known Props properties.
             if (res.PropsTypeName != null)
             {
                 var knownProps = _resolver.GetPublicPropertyNames(res.PropsTypeName);
@@ -1143,6 +1143,67 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
             }
 
+            // ── UITKX0109 — validate attribute names against the user-component
+            // prop surface (declared parameters only — user components do NOT
+            // inherit BaseProps, so style/onClick/etc. are NOT auto-allowed).
+            // key/ref are exempt: they are structural-universal (key lives on
+            // VirtualNode; ref is routed via MutableRef<T> — handled below).
+            //
+            // Unknown attributes are collected into `unknownAttrs` so the
+            // subsequent emit loops skip them, preventing a follow-on
+            // CS0117 / CS0246 against the generated *Props class.
+            HashSet<string>? unknownAttrs = null;
+            string displayName = SimpleNameForDiagnostic(typeName);
+            if (res.FuncPropsTypeName != null)
+            {
+                var knownProps = _resolver.GetPublicPropertyNamesByQualifiedName(res.FuncPropsTypeName);
+                if (knownProps.Count > 0)
+                {
+                    foreach (var attr in attrs)
+                    {
+                        if (IsKey(attr.Name) || IsRefAttr(attr.Name))
+                            continue;
+                        string mapped = ToPropName(attr.Name);
+                        if (!knownProps.Contains(mapped))
+                        {
+                            (unknownAttrs ??= new HashSet<string>(StringComparer.Ordinal)).Add(attr.Name);
+                            string hint = BuildUnknownAttrHintForUserComponent(mapped, displayName, knownProps);
+                            var loc = MakeLoc(_filePath, attr.SourceLine);
+                            _diagnostics.Add(
+                                Diagnostic.Create(
+                                    UitkxDiagnostics.UnknownAttribute,
+                                    loc,
+                                    attr.Name,
+                                    displayName,
+                                    hint
+                                )
+                            );
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // No-props user component: any non-structural attribute is unknown.
+                foreach (var attr in attrs)
+                {
+                    if (IsKey(attr.Name) || IsRefAttr(attr.Name))
+                        continue;
+                    (unknownAttrs ??= new HashSet<string>(StringComparer.Ordinal)).Add(attr.Name);
+                    string hint = $". Component '{displayName}' declares no parameters; add one to the component or remove the attribute.";
+                    var loc = MakeLoc(_filePath, attr.SourceLine);
+                    _diagnostics.Add(
+                        Diagnostic.Create(
+                            UitkxDiagnostics.UnknownAttribute,
+                            loc,
+                            attr.Name,
+                            displayName,
+                            hint
+                        )
+                    );
+                }
+            }
+
             if (res.FuncPropsTypeName != null)
             {
                 // ── Typed path: V.Func<PropsType>(TypeName.Render, new PropsType { ... }) ──
@@ -1154,6 +1215,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 {
                     if (IsKey(attr.Name) || IsRefAttr(attr.Name))
                         continue;
+                    if (unknownAttrs != null && unknownAttrs.Contains(attr.Name))
+                        continue; // skip unknown — UITKX0109 already emitted; would otherwise produce CS0117
                     if (!first)
                         _sb.Append(", ");
                     first = false;
@@ -1682,6 +1745,53 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
             }
             return best;
+        }
+
+        // ── User-component diagnostic helpers ────────────────────────
+
+        /// <summary>
+        /// Strips <c>global::</c> prefix and any namespace qualifier from a
+        /// resolved component type name, returning the simple PascalCase name
+        /// suitable for diagnostic messages (matches what the user typed in
+        /// the JSX tag).
+        /// </summary>
+        private static string SimpleNameForDiagnostic(string typeName)
+        {
+            if (string.IsNullOrEmpty(typeName))
+                return typeName;
+            string s = typeName.StartsWith("global::", StringComparison.Ordinal)
+                ? typeName.Substring("global::".Length)
+                : typeName;
+            int lastDot = s.LastIndexOf('.');
+            return lastDot < 0 ? s : s.Substring(lastDot + 1);
+        }
+
+        /// <summary>
+        /// Builds the actionable hint suffix for a UITKX0109 message on a user
+        /// component. Format: <c>". Did you mean 'Foo'?"</c> when a close match
+        /// exists, otherwise <c>". Available: a, b, c. Add a parameter to
+        /// '&lt;Comp&gt;' or remove the attribute."</c>.
+        /// </summary>
+        private static string BuildUnknownAttrHintForUserComponent(
+            string mappedAttrName,
+            string componentDisplayName,
+            HashSet<string> knownProps
+        )
+        {
+            string? suggestion = FindClosestMatch(mappedAttrName, knownProps);
+            if (suggestion != null)
+                return $". Did you mean '{suggestion}'?";
+
+            // No close match — list the available props verbatim with an
+            // actionable instruction. Cap at the first 8 names to keep the
+            // message readable.
+            if (knownProps.Count == 0)
+                return $". Component '{componentDisplayName}' declares no parameters; add one or remove the attribute.";
+            var ordered = knownProps.OrderBy(s => s, StringComparer.Ordinal).ToList();
+            string available = ordered.Count <= 8
+                ? string.Join(", ", ordered)
+                : string.Join(", ", ordered.Take(8)) + ", …";
+            return $". Available on '{componentDisplayName}': {available}. Add a parameter to the component or remove the attribute.";
         }
 
         private static int LevenshteinDistance(string a, string b)

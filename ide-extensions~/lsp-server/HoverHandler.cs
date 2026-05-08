@@ -162,7 +162,12 @@ public sealed class HoverHandler : IHoverHandler
         if (element is not null)
         {
             var elementAttrs = element.Attributes;
-            var universalAttrs = _schema.Root.UniversalAttributes;
+            // Built-in elements show intrinsic + structural under "Common attributes".
+            // (User components don't reach this branch — they go through the
+            // workspace-prop path above.)
+            var commonAttrs = _schema.Root.IntrinsicElementAttributes
+                .Concat(_schema.Root.StructuralAttributes)
+                .ToList();
             var attrList =
                 elementAttrs.Count == 0
                     ? "_None_"
@@ -174,12 +179,12 @@ public sealed class HoverHandler : IHoverHandler
                                 : $"- `{a.Name}`: `{a.Type}` — {a.Description}"
                         )
                     );
-            if (universalAttrs.Count > 0)
+            if (commonAttrs.Count > 0)
                 attrList +=
                     "\n\n**Common attributes**\n"
                     + string.Join(
                         "\n",
-                        universalAttrs.Select(a =>
+                        commonAttrs.Select(a =>
                             string.IsNullOrEmpty(a.Description)
                                 ? $"- `{a.Name}`: `{a.Type}`"
                                 : $"- `{a.Name}`: `{a.Type}` — {a.Description}"
