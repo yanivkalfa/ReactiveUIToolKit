@@ -230,7 +230,15 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX0109" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Unknown attribute on element</TableCell>
-            <TableCell>Check the attribute name against the element's props type.</TableCell>
+            <TableCell>
+              For built-in tags: check the attribute against the element's props type. For
+              <strong> user components</strong>: only declared parameters and the universal
+              <code>key</code> / <code>ref</code> attributes are accepted — intrinsic
+              attributes like <code>style</code>, <code>className</code>, <code>onClick</code>,
+              <code>extraProps</code> are <em>not</em> auto-forwarded. Either declare the
+              attribute as a parameter on the component (and forward it in the body) or
+              remove it.
+            </TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0111" size="small" color="error" variant="outlined" /></TableCell>
