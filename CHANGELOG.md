@@ -6,6 +6,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.3] - 2026-05-08
+
+### Changed
+
+- **Breaking: `@(expr)` markup-embed syntax has been removed.** The canonical
+  and only embed form for arbitrary C# expressions inside markup is now
+  `{expr}` — matching JSX/Babel and React. The `@` prefix continues to mark
+  directives only: `@if`, `@else`, `@for`, `@foreach`, `@while`, `@switch`,
+  `@case`, `@default`, `@using`, `@namespace`, `@component`, `@props`, `@key`,
+  `@inject`, `@uss`. Files containing legacy `@(expr)` in markup now raise a
+  hard parse error **UITKX0306** (`@(expr) is no longer supported — use
+  {expr}`). Migration is mechanical: every `@(` becomes `{` and the matching
+  `)` becomes `}`. The unification removes one of two competing embed forms
+  end-to-end across the parser, formatter, analyzer, IntelliSense cursor
+  context, virtual-document generator, HMR emitter, source generator,
+  TextMate grammar, all 12 shipped sample files, and the test suite (every
+  fixture inverted; 3 new UITKX0306 diagnostic tests added).
+
+### Fixed
+
+- **Source generator: pool-rent declarations no longer end up inside line
+  comments.** The naive backward-scan that picked the splice point for
+  `var __p_N = __Rent<TProps>();` statements stopped at the first `;` or `}`
+  it encountered — including `}` characters living inside `// see {catBadge}`
+  line comments. The compiler then read the rent statements as part of the
+  comment text, leaving `__p_N` references downstream tripping CS0103
+  (`The name '__p_12' does not exist in the current context`). Replaced all
+  four sites (two in `CSharpEmitter`, two in `HmrCSharpEmitter` for HMR
+  parity) with a shared `FindLastTopLevelStatementBoundary` lexer-aware
+  forward scanner. The scanner correctly skips `//` line comments,
+  `/* */` block comments, regular `"..."`, interpolated `$"..."` (with
+  `{{`/`}}` escape and brace-depth tracking inside interpolation holes),
+  verbatim `@"..."`, dollar-verbatim `$@"..."`, and `'...'` char literals —
+  only `;` or `}` outside any of these counts as a statement boundary.
+  Pre-Phase-2 the bug was masked because the comment text contained
+  `@(catBadge)` (no `}` to trip on); the Phase 2 unification of `@(...)` →
+  `{...}` exposed the latent flaw.
+- **Function-style component discriminator now accepts a bare `{` opener.**
+  `LooksLikeMarkupRoot` (used to distinguish setup code from a return-value
+  markup expression) recognised `(` and `<` only, missing the new `{`-opened
+  embed form introduced by Phase 2. Files using a top-level `{expr}` return
+  were misclassified as setup code, producing CS-cascade errors. Acceptance
+  set expanded to `(`, `<`, and `{`.
+- **`AstCursorContext` block-2a recognises `{` as a markup-embed opener.**
+  IntelliSense post-`{` cursor classification was anchored on the legacy
+  `@(` opener; with Phase 2 the cursor inside `<Tag attr={cursor}/>` and
+  `<Box>{cursor}</Box>` now resolves under the correct C#-expression scope
+  rather than as an unrelated brace context.
+
+### Tests
+
+- 1178/1178 source-generator tests passing after the Phase 2 cut and the
+  splice-helper rewrite.
+- All 12 sample `.uitkx` files converted in-place with byte-safe UTF-8
+  preservation (no encoding regressions).
+- HMR↔SG parity contract tests still green (verifying both emitters share
+  the same splice semantics).
+
 ## [0.5.2] - 2026-05-08
 
 ### Added

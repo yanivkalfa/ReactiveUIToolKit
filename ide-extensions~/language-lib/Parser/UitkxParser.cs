@@ -509,23 +509,30 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                // ── Directive / control flow / inline @(expr) ───────────────
+                // ── Directive / control flow ────────────────────────────────
                 if (c == '@')
                 {
                     int atLine = _scanner.Line;
                     int atCol = ColAtPos(_scanner.Pos); // 0-based column of '@'
                     _scanner.Advance(); // consume '@'
 
+                    // ── Removed syntax: @(expr) inline expression ──────────
+                    // The canonical form is {expr}. Emit UITKX0306 and recover by
+                    // consuming the parenthesised payload so the rest of the file
+                    // still parses cleanly.
                     if (!_scanner.IsEof && _scanner.Current == '(')
                     {
-                        var (inlineExpr, exprOffset) = _scanner.ReadParenExpressionWithOffset();
-                        nodes.Add(
-                            new ExpressionNode(inlineExpr, atLine, _filePath)
+                        _ = _scanner.ReadParenExpressionWithOffset();
+                        _diagnostics.Add(
+                            new ParseDiagnostic
                             {
-                                ExpressionOffset = exprOffset,
-                                ExpressionLength = inlineExpr.Length,
+                                Code = Diagnostics.DiagnosticCodes.AtExprNotSupported,
+                                Severity = ParseSeverity.Error,
+                                SourceLine = atLine,
                                 SourceColumn = atCol,
-                                EndColumn = atCol + 1, // '@' itself
+                                EndColumn = atCol + 2,
+                                Message = "'@(expr)' syntax is not supported. " +
+                                          "Use '{expr}' instead.",
                             }
                         );
                         continue;

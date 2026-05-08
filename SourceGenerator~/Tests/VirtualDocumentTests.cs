@@ -75,7 +75,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void InlineExpression_MappedInVirtualDoc()
     {
-        var source = "component C {\n  return (\n    <Box>\n      @(someExpr)\n    </Box>\n  );\n}";
+        var source = "component C {\n  return (\n    <Box>\n      {someExpr}\n    </Box>\n  );\n}";
         var doc = Generate(source);
         Assert.Contains("someExpr", doc.Text);
     }

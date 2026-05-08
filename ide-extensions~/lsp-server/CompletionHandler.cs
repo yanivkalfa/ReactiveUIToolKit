@@ -151,7 +151,7 @@ public sealed class CompletionHandler : ICompletionHandler
 
         // ── Roslyn C# completions ─────────────────────────────────────────────
         // Route to Roslyn when:
-        //   - Cursor is in an inline @(expr) expression
+        //   - Cursor is in an inline {expr} expression
         //   - Cursor is in an attr={expr} attribute value (C# expression)
         //   - Source map confirms the offset is inside a C# region (replaces the
         //     old inCodeBlockLine / CSharpCodeBlock line-number heuristic which

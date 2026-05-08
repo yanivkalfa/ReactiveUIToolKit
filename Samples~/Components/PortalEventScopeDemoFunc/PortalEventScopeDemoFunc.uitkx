@@ -55,7 +55,7 @@ component PortalEventScopeDemoFunc {
         text={log}
         style={new Style { (StyleKeys.WhiteSpace, "normal"), (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 0.9f)), (StyleKeys.Padding, 6f), (StyleKeys.BorderRadius, 4f), (StyleKeys.MarginTop, 8f) }}
       />
-      @(portalNode)
+      {portalNode}
     </VisualElement>
   );
 }

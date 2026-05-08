@@ -143,8 +143,8 @@ public sealed class CursorContextTests
     [Fact]
     public void CSharpExpression_InlineAtExpr()
     {
-        // @(expr) in markup body — an inline C# expression
-        var ctx = FindAtPipe("component C {\n  return (\n    <Box>\n      @(my|Var)\n    </Box>\n  );\n}");
+        // {expr} in markup body — an inline C# expression
+        var ctx = FindAtPipe("component C {\n  return (\n    <Box>\n      {my|Var}\n    </Box>\n  );\n}");
         Assert.Equal(CursorKind.CSharpExpression, ctx.Kind);
     }
 
