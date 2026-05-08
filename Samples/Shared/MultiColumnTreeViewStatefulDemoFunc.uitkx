@@ -116,7 +116,7 @@ component MultiColumnTreeViewStatefulDemoFunc(
 
           return (
             <VisualElement key={$"mctv-name-wrap-{id}"}>
-              @(childNode)
+              {childNode}
             </VisualElement>
           );
         },

@@ -26,7 +26,7 @@ public class DiagnosticTests
         var src = Wrap("""
             @if (true) {
                 return (
-                    @(Hooks.UseState(0))
+                    {Hooks.UseState(0)}
                 );
             }
             <box/>
@@ -44,7 +44,7 @@ public class DiagnosticTests
         var src = Wrap("""
             @foreach (var i in items) {
                 return (
-                    @(Hooks.UseState(i))
+                    {Hooks.UseState(i)}
                 );
             }
             <box/>
@@ -61,7 +61,7 @@ public class DiagnosticTests
     {
         var src = Wrap("""
             @switch (mode) {
-                @case 0: return (@(Hooks.UseState(42)));
+                @case 0: return ({Hooks.UseState(42)});
             }
             <box/>
             """);
@@ -398,7 +398,7 @@ public class DiagnosticTests
         );
     }
 
-    // ── UITKX0306: @(expr) in setup code ─────────────────────────────────────
+    // ── UITKX0306: @(expr) is not supported ───────────────────────────────────────
 
     [Fact]
     public void UITKX0306_AtExprInRawSetupCode_Fires()
@@ -418,14 +418,34 @@ public class DiagnosticTests
     }
 
     [Fact]
-    public void UITKX0306_AtExprInsideJsxInSetupCode_DoesNotFire()
+    public void UITKX0306_AtExprInMarkup_Fires()
     {
+        // Phase 2: @(expr) in markup is no longer supported — must use {expr}.
+        var src = """
+            @namespace Test.NS
+            component C {
+              var childNode = 42;
+              return (
+                <box>@(childNode)</box>
+              );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(result.HasDiagnostic("UITKX0306"),
+            "Expected UITKX0306 for @(expr) in markup — use {expr} instead");
+    }
+
+    [Fact]
+    public void UITKX0306_BraceExprInsideJsxInSetupCode_DoesNotFire()
+    {
+        // Regression: the setup-code @( scanner must skip embedded-JSX ranges so
+        // legal {expr} inside JSX in setup code does not produce a spurious UITKX0306.
         var src = """
             @namespace Test.NS
             component C {
               var childNode = 42;
               var el = (
-                <box>@(childNode)</box>
+                <box>{childNode}</box>
               );
               return (
                 <box />
@@ -434,17 +454,17 @@ public class DiagnosticTests
             """;
         var result = GeneratorTestHelper.Run(src);
         Assert.False(result.HasDiagnostic("UITKX0306"),
-            "Should NOT fire UITKX0306 for @(expr) inside embedded JSX in setup code");
+            "Should NOT fire UITKX0306 for {expr} inside embedded JSX in setup code");
     }
 
     [Fact]
-    public void UITKX0306_AtExprInsideBareJsxReturn_DoesNotFire()
+    public void UITKX0306_BraceExprInsideBareJsxReturn_DoesNotFire()
     {
         var src = """
             @namespace Test.NS
             component C {
               var childNode = 42;
-              var el = () => <box>@(childNode)</box>;
+              var el = () => <box>{childNode}</box>;
               return (
                 <box />
               );
@@ -452,6 +472,6 @@ public class DiagnosticTests
             """;
         var result = GeneratorTestHelper.Run(src);
         Assert.False(result.HasDiagnostic("UITKX0306"),
-            "Should NOT fire UITKX0306 for @(expr) inside bare arrow JSX in setup code");
+            "Should NOT fire UITKX0306 for {expr} inside bare arrow JSX in setup code");
     }
 }

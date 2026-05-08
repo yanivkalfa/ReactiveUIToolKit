@@ -33,7 +33,7 @@ namespace ReactiveUITK.Language.Nodes
         : AstNode(SourceLine, SourceFile);
 
     /// <summary>
-    /// Inline C# expression rendered as a child virtual node: <c>@(expr)</c>.
+    /// Inline C# expression rendered as a child virtual node: <c>{expr}</c>.
     /// The expression is embedded verbatim in the generated C#.
     /// </summary>
     public sealed record ExpressionNode(string Expression, int SourceLine, string SourceFile)
@@ -41,8 +41,8 @@ namespace ReactiveUITK.Language.Nodes
     {
         /// <summary>
         /// Absolute character offset in the .uitkx source where the trimmed
-        /// expression content begins (i.e. after the <c>@(</c> and any leading
-        /// whitespace). 0 when not tracked.
+        /// expression content begins (i.e. after the opening <c>{</c> and any
+        /// leading whitespace). 0 when not tracked.
         /// </summary>
         public int ExpressionOffset { get; init; } = 0;
 

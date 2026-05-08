@@ -46,9 +46,6 @@
       "include": "#control-flow-keyword"
     },
     {
-      "include": "#inline-expression"
-    },
-    {
       "include": "#switch-arm-label"
     },
     {
@@ -255,21 +252,6 @@
         }
       }
     },
-    "inline-expression": {
-      "comment": "Handles @(expr) inline C# expressions",
-      "begin": "@(?=\\()",
-      "end": "(?<=\\))",
-      "beginCaptures": {
-        "0": {
-          "name": "punctuation.definition.expression.uitkx"
-        }
-      },
-      "patterns": [
-        {
-          "include": "#cs-paren-expression"
-        }
-      ]
-    },
     "cs-paren-expression": {
       "begin": "\\(",
       "end": "\\)",
@@ -282,9 +264,6 @@
         },
         {
           "include": "#control-flow-keyword"
-        },
-        {
-          "include": "#inline-expression"
         },
         {
           "include": "#tag-self-closing"
@@ -341,9 +320,6 @@
           "include": "#control-flow-keyword"
         },
         {
-          "include": "#inline-expression"
-        },
-        {
           "include": "#tag-self-closing"
         },
         {
@@ -395,9 +371,6 @@
         },
         {
           "include": "#control-flow-keyword"
-        },
-        {
-          "include": "#inline-expression"
         },
         {
           "include": "#tag-self-closing"
@@ -670,9 +643,6 @@
         },
         {
           "include": "#tag-open"
-        },
-        {
-          "include": "#inline-expression"
         },
         {
           "include": "#markup-brace"

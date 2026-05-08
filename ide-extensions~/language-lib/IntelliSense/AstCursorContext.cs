@@ -32,7 +32,7 @@ namespace ReactiveUITK.Language.IntelliSense
         AttributeValue,
 
         /// <summary>
-        /// Cursor is inside an inline <c>@(expr)</c> expression — C# IntelliSense applies.
+        /// Cursor is inside an inline <c>{expr}</c> expression — C# IntelliSense applies.
         /// The <see cref="CursorContext.Prefix"/> and <see cref="CursorContext.Word"/>
         /// fields hold the partial identifier under the cursor.
         /// </summary>
@@ -130,26 +130,40 @@ namespace ReactiveUITK.Language.IntelliSense
                     Prefix = prefix,
                     Word = word,
                 };
-            // ―― 2a. Inline expression @(word) ―――――――――――――――――――――――――――――――
-            // When the cursor is inside @(expr), return a context with the word so
-            // go-to-definition can scan for its declaration in the surrounding @code block.
+            // ―― 2a. Inline expression {word} ―――――――――――――――――――――――――――――
+            // When the cursor is inside a child- or attribute-position {expr},
+            // return a context with the word so go-to-definition and completion
+            // can scan for its declaration in the surrounding scope.
             if (!string.IsNullOrEmpty(word))
             {
                 int searchStart = System.Math.Max(0, prefixStart - 1);
-                int atParen = lineText.LastIndexOf("@(", searchStart, StringComparison.Ordinal);
-                if (atParen < 0 && prefixStart >= 2)
-                    atParen = lineText.LastIndexOf("@(", prefixStart - 1, StringComparison.Ordinal);
-                if (atParen >= 0)
+                int braceOpen = lineText.LastIndexOf('{', searchStart);
+                if (braceOpen < 0 && prefixStart >= 1)
+                    braceOpen = lineText.LastIndexOf('{', prefixStart - 1);
+                if (braceOpen >= 0)
                 {
-                    // Verify cursor is between the '(' and matching ')'
-                    int inner = atParen + 2;
-                    int depth = 1,
-                        j = inner;
+                    // Distinguish child-expression `{expr}` from attribute-value
+                    // `attr={expr}`: if the last non-whitespace char before '{'
+                    // is '=', this is an attribute value — leave classification
+                    // to ClassifyTagPosition (block 4) which returns AttributeValue.
+                    int prev = braceOpen - 1;
+                    while (prev >= 0 && (lineText[prev] == ' ' || lineText[prev] == '\t'))
+                        prev--;
+                    if (prev >= 0 && lineText[prev] == '=')
+                    {
+                        // Skip this short-circuit; fall through to AST/position scan.
+                    }
+                    else
+                    {
+                    // Verify cursor is between '{' and the matching '}'
+                    int inner = braceOpen + 1;
+                    int depth = 1;
+                    int j = inner;
                     while (j < lineText.Length && depth > 0)
                     {
-                        if (lineText[j] == '(')
+                        if (lineText[j] == '{')
                             depth++;
-                        else if (lineText[j] == ')')
+                        else if (lineText[j] == '}')
                         {
                             depth--;
                             if (depth == 0)
@@ -164,6 +178,7 @@ namespace ReactiveUITK.Language.IntelliSense
                             Prefix = prefix,
                             Word   = word,
                         };
+                    }
                 }
             }
             // ── 3. AST walk: find the element / attribute that owns this line ──

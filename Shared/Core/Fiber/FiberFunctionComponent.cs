@@ -62,7 +62,7 @@ namespace ReactiveUITK.Core.Fiber
             bool propsEqual = cp != null && (ReferenceEquals(tp, cp) || tp.Equals(cp));
             bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
 
-            // Children equality check: if the parent passed different children (e.g. @(__children)
+            // Children equality check: if the parent passed different children (e.g. {__children}
             // slot pattern), we must re-render even if props are equal. Compare by reference —
             // every render produces a new __C(...) array, so a changed count or different reference
             // means the parent re-evaluated its children and we must too.

@@ -22,7 +22,7 @@ namespace ReactiveUITK.SourceGenerator.Tests;
 //       <HomePage/>
 //     </MenuPage>
 //
-// where MenuPage has zero parameters (no-props branch) and renders @(__children).
+// where MenuPage has zero parameters (no-props branch) and renders {__children}.
 //
 // The buggy emit was:   V.Func(MenuPage.Render, key: "k", HomePage_call())
 // `V.Func`'s signature is  Func(render, IProps props=null, string key=null,
@@ -135,7 +135,7 @@ public sealed class NoPropsFuncWithChildrenRegressionTest
             component Inner {
                 return (
                     <VisualElement>
-                        @(__children)
+                        {__children}
                     </VisualElement>
                 );
             }

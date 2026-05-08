@@ -32,7 +32,7 @@ component ListViewStatefulDemoFunc(
 
       return (
         <VisualElement key={$"lv-wrap-{id}"}>
-          @(childNode)
+          {childNode}
         </VisualElement>
       );
   };
