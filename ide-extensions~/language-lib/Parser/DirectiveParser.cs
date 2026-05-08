@@ -982,9 +982,21 @@ namespace ReactiveUITK.Language.Parser
                     i++; // consume ']'
             }
 
-            // Nullable marker
-            if (i < source.Length && source[i] == '?')
-                i++;
+            // Nullable marker (allow optional whitespace before '?', e.g.
+            // `Texture2D ? iconName` — Roslyn accepts the spacing, so we must
+            // too. Canonicalize the captured typeName by appending '?' with no
+            // intervening whitespace so the formatter re-emits a clean
+            // `Texture2D? iconName`.
+            int beforeNullable = i;
+            int peek = i;
+            while (peek < source.Length && (source[peek] == ' ' || source[peek] == '\t'))
+                peek++;
+            if (peek < source.Length && source[peek] == '?')
+            {
+                i = peek + 1;
+                typeName = source.Substring(start, beforeNullable - start) + "?";
+                return true;
+            }
 
             typeName = source.Substring(start, i - start);
             return typeName.Length > 0;
@@ -2135,7 +2147,7 @@ namespace ReactiveUITK.Language.Parser
         /// <c>Line</c>  = 1-based source line of <c>Start</c>.
         /// </para>
         /// </summary>
-        internal static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
+        public static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
             string source, int rangeStart, int rangeEnd)
         {
             var result = ImmutableArray.CreateBuilder<(int, int, int)>();
@@ -2280,7 +2292,7 @@ namespace ReactiveUITK.Language.Parser
         /// stored separately to avoid breaking the formatter's block-index
         /// alignment.
         /// </summary>
-        internal static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
+        public static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
             string source, int rangeStart, int rangeEnd)
         {
             var result = ImmutableArray.CreateBuilder<(int, int, int)>();

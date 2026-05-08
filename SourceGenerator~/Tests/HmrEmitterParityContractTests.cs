@@ -151,6 +151,46 @@ public class HmrEmitterParityContractTests
         Assert.DoesNotContain("Header = null", output.GeneratedSource);
     }
 
+    // ── Phase 1 — JSX literals in arbitrary expression positions ────────────────
+
+    /// <summary>
+    /// Phase 1: SG splices JSX literals embedded inside C# expressions
+    /// (ternaries, lambdas, attribute values, child <c>{...}</c> /
+    /// <c>@(...)</c>) at emit time via <c>SpliceExpressionMarkup</c>. HMR
+    /// mirrors this in <c>HmrCSharpEmitter.SpliceExpressionMarkup</c>, wired
+    /// into <c>EmitExpression</c> and the <c>CSharpExpressionValue</c> case
+    /// of <c>AttrToExpr</c>. Both paths share the same scanner output
+    /// (<c>DirectiveParser.FindBareJsxRanges</c> and
+    /// <c>FindJsxBlockRanges</c>) — HMR reaches them via reflection
+    /// delegates piped through <c>UitkxHmrCompiler</c>.
+    /// <para>If SG ever stops splicing or changes the splice contract
+    /// (e.g. how rent statements flow), HMR must follow.</para>
+    /// </summary>
+    [Fact]
+    public void Sg_JsxInChildTernary_SplicedToVCalls_HmrMustMirror()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component Conditional {
+                bool flag = true;
+                return (
+                    <box>{flag ? <label text="A" /> : <label text="B" />}</box>
+                );
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Both ternary branches must be spliced to V.Label calls.
+        Assert.Contains("V.Box(", output.GeneratedSource);
+        Assert.Contains("V.Label(", output.GeneratedSource);
+        // Raw JSX must NOT leak through — would cause a Roslyn parse error
+        // in the generated file.
+        Assert.DoesNotContain("<label text=\"A\"", output.GeneratedSource);
+    }
+
     // ── Issue 10 — UITKX0104 duplicate-key warning is emitted by SG ─────────────
 
     /// <summary>

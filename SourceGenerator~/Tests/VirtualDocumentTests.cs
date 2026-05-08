@@ -205,4 +205,71 @@ public sealed class VirtualDocumentTests
         Assert.True(doc.Map.IsInCSharpRegion(source.IndexOf("aaa")));
         Assert.True(doc.Map.IsInCSharpRegion(source.IndexOf("bbb")));
     }
+
+    // ── Phase 1 — JSX literals embedded in expressions ────────────────────
+
+    /// <summary>
+    /// Phase 1: when JSX literals appear inside an arbitrary C# expression
+    /// (ternary branches, attribute expressions, lambda bodies), the virtual
+    /// document must replace them with a <c>(VirtualNode)null!</c> stub so
+    /// Roslyn can parse and type-check the surrounding C# without emitting
+    /// phantom errors on the JSX. The user's surrounding code stays
+    /// source-mapped so completions and squiggles still work outside the JSX.
+    /// </summary>
+    [Fact]
+    public void JsxInChildTernary_StubbedInVirtualDoc()
+    {
+        var source =
+            "component C {\n"
+            + "  bool flag = true;\n"
+            + "  return (\n"
+            + "    <Box>{flag ? <Label/> : null}</Box>\n"
+            + "  );\n"
+            + "}";
+        var doc = Generate(source);
+
+        // Surrounding C# is preserved.
+        Assert.Contains("flag", doc.Text);
+        // Raw JSX must not leak — Roslyn would reject it.
+        Assert.DoesNotContain("<Label/>", doc.Text);
+        // Stub must appear so Roslyn parses cleanly.
+        Assert.Contains("(global::ReactiveUITK.Core.VirtualNode)null!", doc.Text);
+    }
+
+    [Fact]
+    public void JsxInAttributeTernary_StubbedInVirtualDoc()
+    {
+        var source =
+            "component C {\n"
+            + "  bool flag = true;\n"
+            + "  return (\n"
+            + "    <Label text={flag ? \"on\" : \"off\"}/>\n"
+            + "  );\n"
+            + "}";
+        var doc = Generate(source);
+
+        // No JSX in this attribute — scanner returns empty, single Mapped
+        // segment as before Phase 1.
+        Assert.Contains("\"on\"", doc.Text);
+        Assert.Contains("\"off\"", doc.Text);
+    }
+
+    [Fact]
+    public void NoJsxInExpression_VirtualDocUnchanged()
+    {
+        // Phase 1 must not regress the no-JSX path: scanner runs, finds
+        // nothing, single Mapped segment is emitted (same as pre-Phase-1).
+        var source =
+            "component C {\n"
+            + "  int n = 42;\n"
+            + "  return (\n"
+            + "    <Label text={n.ToString()}/>\n"
+            + "  );\n"
+            + "}";
+        var doc = Generate(source);
+
+        Assert.Contains("n.ToString()", doc.Text);
+        // The stub must NOT appear when there's no JSX.
+        Assert.DoesNotContain("(global::ReactiveUITK.Core.VirtualNode)null!", doc.Text);
+    }
 }

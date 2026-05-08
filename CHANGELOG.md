@@ -6,6 +6,87 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.2] - 2026-05-08
+
+### Added
+
+- **JSX literals are now allowed in any C# expression position** — matching
+  React/Babel semantics. Previously the source generator only recognised JSX
+  in three places: top-level markup, component preamble (`var x = <Tag/>;`
+  before `return`), and directive bodies (inside `@if`/`@foreach`/etc.). JSX
+  inside an inline expression — ternary branches, lambda bodies, attribute
+  expressions, `?? <Tag/>`, child `{...}` or `@(...)` — was emitted verbatim
+  and rejected by Roslyn. The existing scanner
+  (`DirectiveParser.FindBareJsxRanges` + `FindJsxBlockRanges`) is now wired
+  into the two remaining emit sites (`EmitExpressionNode` and the
+  `CSharpExpressionValue` branch of attribute emission), so all six positions
+  splice JSX uniformly. New `SpliceExpressionMarkup` helper in
+  `CSharpEmitter.cs` mirrors `SpliceBodyCodeMarkup` 1:1; pool-rent statements
+  flow into the shared `_rentBuffer` so the parent emit context hoists them
+  above the surrounding expression. Patterns now supported:
+  - `<Box>{cond ? <A/> : <B/>}</Box>` — ternary with JSX branches
+  - `<Box>{fallback ?? <Default/>}</Box>` — null-coalescing with JSX
+  - `<Box icon={active ? <Check/> : <X/>}/>` — JSX in attribute ternary
+  - `attr={items.Select(x => <Item key={x.Id}/>)}` — JSX in lambda body
+  - `var renderItem = i => <Label text={i}/>;` in preamble (already worked,
+    now also works through attribute lambda flows)
+
+  No runtime change — the emitter still produces the same `V.Tag(...)` factory
+  calls and pooled `__Rent<TProps>()` shape; the splice runs purely at emit
+  time. Compile-time cost is one O(n) scanner pass per expression; for
+  expressions without embedded JSX (the common case) the helper returns the
+  input unchanged.
+
+### Fixed
+
+- **`Texture2D ? iconName = null` (whitespace before `?`) is no longer
+  silently dropped on save.** The `DirectiveParser.TryReadTypeName` tokenizer
+  required `?` to immediately follow the type name with no intervening
+  whitespace; with whitespace, the trailing `?` was left unconsumed and the
+  formatter re-emitted the type without nullability — turning a nullable
+  parameter into a non-nullable one across format-on-save cycles. Same
+  pathology as the 0.5.x `@else` blank-line bug — formatter re-emit-from-AST
+  is lossy when the parser drops tokens. Fix: `TryReadTypeName` now peeks
+  past whitespace, consumes a trailing `?`, and canonicalises the captured
+  type name as `<base>?` so the formatter re-emits a clean `Texture2D? name`
+  regardless of the user's spacing. New regression test
+  `ComponentParam_NullableType_WhitespaceBeforeQuestionMark_Preserved` in
+  `FormatterSnapshotTests` covers `Action ? onClick`, `Texture2D ? iconName`,
+  and `List<int>  ?  items`, asserting both idempotency across three format
+  passes and canonical re-emit.
+
+### IDE / HMR parity
+
+- **HMR `HmrCSharpEmitter` mirrors `SpliceExpressionMarkup`** end-to-end.
+  Reflection delegates for the two scanner methods are piped through
+  `UitkxHmrCompiler` (graceful fallback if an older `Language.dll` lacks the
+  newly-public APIs). Hot-reload of components using JSX-in-expression now
+  produces identical C# to the source generator.
+- **Virtual document generator (IDE Roslyn analysis)** now strips embedded
+  JSX literals to typed-`(VirtualNode)null!` stubs when wrapping expressions
+  for type-checking. Without this update, files using the new patterns would
+  compile cleanly under the source generator but show phantom Roslyn errors
+  in the editor on the JSX literals. Surrounding C# stays source-mapped so
+  completions and squiggles still work outside the JSX.
+
+### Tests
+
+- 14 new tests, 1178/1178 passing (1164 baseline + 10 SG `JsxInExpressionTests`
+  + 1 HMR parity tripwire + 3 VDG `VirtualDocumentTests`). Coverage matrix
+  includes ternary-with-jsx (both branches, single branch, `@(...)` form),
+  attribute-with-jsx, lambda-with-jsx, generic-LT-not-confused-with-jsx,
+  string-with-tag-like-text-not-spliced, null-coalesce-with-jsx,
+  no-op-fast-path, and `JsxExpressionValue` non-regression.
+
+### Notes
+
+- `DirectiveParser.FindBareJsxRanges` and `FindJsxBlockRanges` widened from
+  `internal` to `public` so SG, HMR, and VDG share the single proven scanner
+  implementation. Binary-additive change; no breaking impact on consumers.
+- Phase 2 (soft-deprecate `@(expr)` in JSX child position in favour of
+  `{expr}` to match React semantics) is planned as a separate follow-up;
+  both syntaxes continue to work and emit identical AST in this release.
+
 ## [0.5.1] - 2026-05-07
 
 ### Fixed

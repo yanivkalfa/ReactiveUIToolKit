@@ -51,6 +51,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         internal delegate IList MarkupParseFunc(string jsxText, string filePath, int startLine);
 
         /// <summary>
+        /// Reflective access to <c>DirectiveParser.FindJsxBlockRanges</c> and
+        /// <c>DirectiveParser.FindBareJsxRanges</c>. Each call returns an
+        /// <c>IEnumerable</c> of <c>ValueTuple&lt;int, int, int&gt;</c>
+        /// (Start, End, Line). Used by Phase 1's expression splice to detect
+        /// JSX literals embedded inside arbitrary C# expressions at HMR time.
+        /// </summary>
+        internal delegate IEnumerable FindJsxRangesFunc(string source, int rangeStart, int rangeEnd);
+
+        /// <summary>
         /// Emit C# from the AST and directives produced by the Language parser.
         /// All parameters are opaque objects from the dynamically loaded Language.dll.
         /// </summary>
@@ -58,10 +67,18 @@ namespace ReactiveUITK.EditorSupport.HMR
             object directives,
             object rootNodes,
             string filePath,
-            MarkupParseFunc parseMarkup = null
+            MarkupParseFunc parseMarkup = null,
+            FindJsxRangesFunc findJsxBlockRanges = null,
+            FindJsxRangesFunc findBareJsxRanges = null
         )
         {
-            var ctx = new EmitCtx(directives, filePath, parseMarkup);
+            var ctx = new EmitCtx(
+                directives,
+                filePath,
+                parseMarkup,
+                findJsxBlockRanges,
+                findBareJsxRanges
+            );
             ctx.EmitFile(rootNodes);
             return ctx.ToString();
         }
@@ -94,13 +111,23 @@ namespace ReactiveUITK.EditorSupport.HMR
             private readonly IList _functionParams;
             private readonly IList _injects;
             private readonly MarkupParseFunc _parseMarkup;
+            private readonly FindJsxRangesFunc _findJsxBlockRanges;
+            private readonly FindJsxRangesFunc _findBareJsxRanges;
             private bool _isRootElement = true;
 
-            public EmitCtx(object directives, string filePath, MarkupParseFunc parseMarkup)
+            public EmitCtx(
+                object directives,
+                string filePath,
+                MarkupParseFunc parseMarkup,
+                FindJsxRangesFunc findJsxBlockRanges = null,
+                FindJsxRangesFunc findBareJsxRanges = null
+            )
             {
                 _directives = directives;
                 _filePath = filePath;
                 _parseMarkup = parseMarkup;
+                _findJsxBlockRanges = findJsxBlockRanges;
+                _findBareJsxRanges = findBareJsxRanges;
                 _displayName = Path.GetFileName(filePath);
                 _linePath = filePath.Replace("\\", "/");
                 _ns = GP<string>(directives, "Namespace") ?? "UITKX.Generated";
@@ -594,6 +621,140 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return spliced.ToString();
             }
 
+            // ── Inline-expression JSX splice (Phase 1) ────────────────────
+
+            /// <summary>
+            /// HMR mirror of <c>CSharpEmitter.SpliceExpressionMarkup</c>.
+            /// Splices JSX literals embedded inside an arbitrary C# expression
+            /// (used for <c>{ expr }</c> child positions and <c>attr={ expr }</c>
+            /// attribute values). Each detected JSX literal is replaced by its
+            /// emitted <c>V.Tag(...)</c> equivalent; pool-rent statements flow
+            /// into the shared <see cref="_rentBuffer"/> so the surrounding
+            /// emit context hoists them above the parent expression.
+            ///
+            /// <para>Returns <paramref name="expr"/> unchanged when no JSX is
+            /// detected (the common case — scanner cost is O(n) on the
+            /// expression text and runs only when the expression actually
+            /// contains JSX).</para>
+            ///
+            /// <para>Falls back to a no-op if the scanner reflection delegates
+            /// were not provided (older HMR plumbing). The expression is then
+            /// emitted as-is, matching pre-Phase-1 behavior.</para>
+            /// </summary>
+            private string SpliceExpressionMarkup(string expr, int sourceLine)
+            {
+                if (string.IsNullOrEmpty(expr))
+                    return expr;
+                if (_findJsxBlockRanges == null || _findBareJsxRanges == null || _parseMarkup == null)
+                    return expr;
+
+                var markupRanges = TuplesFromEnumerable(_findJsxBlockRanges(expr, 0, expr.Length));
+                var bareRanges = TuplesFromEnumerable(_findBareJsxRanges(expr, 0, expr.Length));
+
+                if (markupRanges.Count == 0 && bareRanges.Count == 0)
+                    return expr;
+
+                var allRanges = new List<(int Start, int End, int Line)>(
+                    markupRanges.Count + bareRanges.Count
+                );
+                allRanges.AddRange(markupRanges);
+                allRanges.AddRange(bareRanges);
+                allRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+                var spliced = new StringBuilder(expr.Length);
+                int prev = 0;
+
+                foreach (var (start, end, line) in allRanges)
+                {
+                    int s = start;
+                    int e = end;
+                    if (s < 0)
+                        s = 0;
+                    if (e < 0)
+                        e = 0;
+                    if (s > expr.Length)
+                        s = expr.Length;
+                    if (e > expr.Length)
+                        e = expr.Length;
+                    if (e <= s)
+                        continue;
+                    if (s < prev)
+                        continue;
+
+                    if (s > prev)
+                        spliced.Append(expr, prev, s - prev);
+
+                    string jsxText = expr.Substring(s, e - s);
+                    int absLine = sourceLine + (line - 1);
+
+                    IList nodes = _parseMarkup(jsxText, _filePath, absLine);
+
+                    if (nodes != null && nodes.Count > 0)
+                    {
+                        // Rent flows to the SHARED _rentBuffer so the parent emit
+                        // context hoists it above the surrounding expression.
+                        int savedLen = _sb.Length;
+                        if (nodes.Count == 1)
+                        {
+                            string nodeType = nodes[0].GetType().Name;
+                            if (
+                                nodeType == "ForeachNode"
+                                || nodeType == "ForNode"
+                                || nodeType == "WhileNode"
+                            )
+                                _sb.Append(
+                                    "#error UITKX: @foreach/@for/@while produces a list and cannot appear directly in an expression position. Wrap it in a container element."
+                                );
+                            else
+                                EmitNode(nodes[0]);
+                        }
+                        else
+                        {
+                            _sb.Append(
+                                "#error UITKX0025: Inline JSX expression must have a single root element."
+                            );
+                        }
+                        string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
+                        _sb.Length = savedLen;
+
+                        spliced.Append(emittedCs.Trim());
+                    }
+                    else
+                    {
+                        spliced.Append(jsxText);
+                    }
+
+                    prev = e;
+                }
+
+                if (prev < expr.Length)
+                    spliced.Append(expr, prev, expr.Length - prev);
+
+                return spliced.ToString();
+            }
+
+            /// <summary>
+            /// Converts an enumerable of <c>ValueTuple&lt;int,int,int&gt;</c>
+            /// (returned by the language-lib scanners via reflection) into a
+            /// concrete tuple list that <see cref="SpliceExpressionMarkup"/>
+            /// can consume directly.
+            /// </summary>
+            private static List<(int Start, int End, int Line)> TuplesFromEnumerable(IEnumerable raw)
+            {
+                var result = new List<(int, int, int)>();
+                if (raw == null)
+                    return result;
+                foreach (object tuple in raw)
+                {
+                    var t = tuple.GetType();
+                    int s = (int)(t.GetField("Item1")?.GetValue(tuple) ?? 0);
+                    int e = (int)(t.GetField("Item2")?.GetValue(tuple) ?? 0);
+                    int l = (int)(t.GetField("Item3")?.GetValue(tuple) ?? 0);
+                    result.Add((s, e, l));
+                }
+                return result;
+            }
+
             /// <summary>
             /// Processes directive body code through the full transformation pipeline:
             /// splice JSX → hook aliases → asset paths.
@@ -730,9 +891,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             private void EmitExpression(object node)
             {
                 string expr = GP<string>(node, "Expression") ?? "";
-                // @(expr) — passed as-is into __C which handles VirtualNode,
+                int sourceLine = GP<int>(node, "SourceLine");
+                // @(expr) / {expr} — passed as-is into __C which handles VirtualNode,
                 // VirtualNode[], and IEnumerable<VirtualNode> (e.g. @(__children)).
-                _sb.Append($"({expr})");
+                //
+                // Phase 1: any JSX literals embedded inside the expression
+                // (e.g. {cond ? <A/> : <B/>}) are spliced to V.Tag(...) calls.
+                string spliced = SpliceExpressionMarkup(expr, sourceLine);
+                _sb.Append($"({spliced})");
             }
 
             // ── Element emission variants ──────────────────────────────────
@@ -2044,6 +2210,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                     case "CSharpExpressionValue":
                         // Apply setter-lambda sugar (matches real emitter's AttrVal)
                         string expr = GP<string>(val, "Expression") ?? "null";
+                        // Phase 1: splice JSX literals embedded inside the expression
+                        // (e.g. attr={cond ? <A/> : <B/>} or attr={x => <Item/>}).
+                        // For the common case (no JSX) the helper returns the input
+                        // unchanged after a single O(n) scan.
+                        int attrLine = GP<int>(attr, "SourceLine");
+                        expr = SpliceExpressionMarkup(expr, attrLine);
                         expr = s_setterLambdaRe.Replace(expr, "$1.Set(");
                         // Resolve relative asset paths
                         if (expr.Contains("Asset<") || expr.Contains("Ast<"))
