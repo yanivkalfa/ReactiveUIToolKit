@@ -431,7 +431,7 @@ public class EmitterTests
                     </box>
                 );
                 return (
-                    <box>@(component)</box>
+                    <box>{component}</box>
                 );
             }
             """;

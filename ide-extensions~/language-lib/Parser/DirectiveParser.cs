@@ -397,8 +397,9 @@ namespace ReactiveUITK.Language.Parser
                     bodyStart,       returnStart,
                     returnStmtEndExclusive, bodyEndExclusive);
 
-            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence,
-            // but skip @( inside embedded JSX markup where it is valid syntax.
+            // Scan setup code ranges for @( tokens — emit UITKX0306 per occurrence,
+            // but skip @( inside embedded JSX markup where it is re-parsed by UitkxParser
+            // (which emits its own UITKX0306 from the markup-context branch).
             ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
             ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
 
@@ -1077,9 +1078,10 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                return source[i] == '<' || source[i] == '@'
-                    || (source[i] == '{' && i + 2 < endExclusive
-                        && source[i + 1] == '/' && source[i + 2] == '*');
+                // Accept '<' (element), '@' (directive / control flow), or '{' which
+                // is either a brace expression `{expr}` (canonical inline expression
+                // syntax) or a block comment `{/* ... */}` opener.
+                return source[i] == '<' || source[i] == '@' || source[i] == '{';
             }
 
             return false;
@@ -1908,13 +1910,13 @@ namespace ReactiveUITK.Language.Parser
             return start;
         }
 
-        // ── @(expr) scanner ──────────────────────────────────────────────────
+        // ── @( scanner ───────────────────────────────────────────────────────
 
         /// <summary>
         /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
         /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings,
         /// comments, and embedded JSX markup ranges, emitting
-        /// <see cref="DiagnosticCodes.AtExprInSetupCode"/> for each occurrence.
+        /// <see cref="DiagnosticCodes.AtExprNotSupported"/> for each occurrence.
         /// </summary>
         private static void ScanAtExprInSetupCode(
             string source,
@@ -1990,12 +1992,14 @@ namespace ReactiveUITK.Language.Parser
                 // Detect @(
                 if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '(')
                 {
-                    // @(expr) is valid inside embedded JSX markup — skip those.
+                    // @( inside embedded JSX markup is re-parsed by UitkxParser,
+                    // which emits UITKX0306 from its markup-context branch — skip
+                    // here to avoid double-firing.
                     if (!IsInsideJsxRange(i, jsxRanges) && !IsInsideJsxRange(i, bareJsxRanges))
                     {
                         diagnosticBag.Add(new ParseDiagnostic
                         {
-                            Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
+                            Code = Diagnostics.DiagnosticCodes.AtExprNotSupported,
                             Severity = ParseSeverity.Error,
                             SourceLine = LineAtPos(source, i),
                             SourceColumn = ColAtPos(source, i),

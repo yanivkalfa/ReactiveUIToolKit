@@ -73,7 +73,7 @@ component DeepNestedSection {
   }
 
   // Variable that holds the JSX produced by StatusBadge (itself contains @if).
-  // Used inside nested children via @(statusNode).
+  // Used inside nested children via {statusNode}.
   var statusNode = StatusBadge();
 
   return (
@@ -101,13 +101,13 @@ component DeepNestedSection {
         />
       </VisualElement>
       // PillBar rendered via @() — the function itself contains @foreach + @if
-      @(PillBar(pills, activeTag))
+      {PillBar(pills, activeTag)}
       <SectionBox>
         <SectionNote
           label="@foreach → @for → @if → @foreach  (level-4 skips 'z' at d=0 via return null)"
         />
         // statusNode variable (holds JSX with @if) rendered via @() inside the nested tree
-        @(statusNode)
+        {statusNode}
         // Level 1 ── @foreach over categories
         @foreach (var cat in categories) {
           var catColor =
@@ -115,7 +115,7 @@ component DeepNestedSection {
             cat == "B" ? Color.yellow :
           new Color(1f, 0.5f, 0.8f);
 
-          // Variable holding a JSX node with a nested @if inside — used below via @(catBadge)
+          // Variable holding a JSX node with a nested @if inside — used below via {catBadge}
           // bare = <JSX> assignment (no parens)
           var catBadge = (
             <VisualElement
@@ -149,7 +149,7 @@ component DeepNestedSection {
               }}
             >
               // catBadge: variable defined in directive setup code (holds JSX with nested @if)
-              @(catBadge)
+              {catBadge}
               // Level 2 ── @for over depth
               @for (int d = 0; d < depth; d++) {
                 var key = d.ToString();

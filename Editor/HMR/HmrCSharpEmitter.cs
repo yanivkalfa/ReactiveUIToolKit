@@ -429,21 +429,15 @@ namespace ReactiveUITK.EditorSupport.HMR
                         string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                         _sb.Length = savedLen;
 
-                        // Insert rent statements at the last statement boundary
+                        // Insert rent statements at the last statement boundary.
+                        // Use the lexer-aware scanner so we never land inside a
+                        // string/char literal or comment (e.g. `// see {x}` contains
+                        // a literal `}` that is NOT a statement boundary).
                         string inlineRent = _rentBuffer.ToString();
                         _rentBuffer = savedRent;
                         if (inlineRent.Length > 0)
                         {
-                            int insertPos = 0;
-                            for (int si = spliced.Length - 1; si >= 0; si--)
-                            {
-                                char ch = spliced[si];
-                                if (ch == ';' || ch == '}')
-                                {
-                                    insertPos = si + 1;
-                                    break;
-                                }
-                            }
+                            int insertPos = FindLastTopLevelStatementBoundary(spliced);
                             spliced.Insert(insertPos, inlineRent);
                         }
                         spliced.Append(emittedCs.Trim());
@@ -460,6 +454,103 @@ namespace ReactiveUITK.EditorSupport.HMR
                     spliced.Append(setupCode, prev, setupCode.Length - prev);
 
                 return spliced.ToString();
+            }
+
+            /// <summary>
+            /// Finds the position immediately after the last top-level statement
+            /// boundary (<c>;</c> or <c>}</c>) in <paramref name="text"/>, ignoring
+            /// occurrences inside string literals, char literals, line comments,
+            /// or block comments. Returns 0 if no boundary is found.
+            /// Used to determine where to insert pool-rent declarations such that
+            /// they appear as standalone statements outside of any comment/string.
+            /// MIRROR of CSharpEmitter.FindLastTopLevelStatementBoundary — keep in sync.
+            /// </summary>
+            private static int FindLastTopLevelStatementBoundary(StringBuilder text)
+            {
+                int len = text.Length;
+                int lastBoundary = 0;
+                int i = 0;
+                while (i < len)
+                {
+                    char c = text[i];
+
+                    // ── Line comment // ... <newline>
+                    if (c == '/' && i + 1 < len && text[i + 1] == '/')
+                    {
+                        i += 2;
+                        while (i < len && text[i] != '\n')
+                            i++;
+                        continue;
+                    }
+                    // ── Block comment /* ... */
+                    if (c == '/' && i + 1 < len && text[i + 1] == '*')
+                    {
+                        i += 2;
+                        while (i + 1 < len && !(text[i] == '*' && text[i + 1] == '/'))
+                            i++;
+                        if (i + 1 < len) i += 2;
+                        else i = len;
+                        continue;
+                    }
+                    // ── Verbatim / interpolated-verbatim string @"..."  /  $@"..."
+                    bool isVerbatim = c == '@' && i + 1 < len && text[i + 1] == '"';
+                    bool isDollarVerbatim = c == '$' && i + 1 < len && text[i + 1] == '@' && i + 2 < len && text[i + 2] == '"';
+                    if (isVerbatim || isDollarVerbatim)
+                    {
+                        i += isDollarVerbatim ? 3 : 2;
+                        while (i < len)
+                        {
+                            if (text[i] == '"')
+                            {
+                                if (i + 1 < len && text[i + 1] == '"') { i += 2; continue; }
+                                i++;
+                                break;
+                            }
+                            i++;
+                        }
+                        continue;
+                    }
+                    // ── Regular / interpolated string "..."  /  $"..."
+                    if (c == '"' || (c == '$' && i + 1 < len && text[i + 1] == '"'))
+                    {
+                        if (c == '$') i++;
+                        i++; // past opening "
+                        int braceDepth = 0;
+                        while (i < len)
+                        {
+                            char ci = text[i];
+                            if (ci == '\\' && i + 1 < len)
+                            {
+                                i += 2;
+                                continue;
+                            }
+                            if (ci == '{' && i + 1 < len && text[i + 1] == '{') { i += 2; continue; }
+                            if (ci == '}' && i + 1 < len && text[i + 1] == '}') { i += 2; continue; }
+                            if (ci == '{') { braceDepth++; i++; continue; }
+                            if (ci == '}' && braceDepth > 0) { braceDepth--; i++; continue; }
+                            if (ci == '"' && braceDepth == 0) { i++; break; }
+                            i++;
+                        }
+                        continue;
+                    }
+                    // ── Char literal '...'
+                    if (c == '\'')
+                    {
+                        i++;
+                        while (i < len)
+                        {
+                            if (text[i] == '\\' && i + 1 < len) { i += 2; continue; }
+                            if (text[i] == '\'') { i++; break; }
+                            i++;
+                        }
+                        continue;
+                    }
+                    // ── Statement boundary in real code
+                    if (c == ';' || c == '}')
+                        lastBoundary = i + 1;
+                    i++;
+                }
+                return lastBoundary;
             }
 
             private static int AbsToSetupOffset(
@@ -584,25 +675,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                         string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                         _sb.Length = savedLen;
 
-                        // Inline rent statements before the expression at the splice point
+                        // Inline rent statements before the expression at the splice point.
+                        // Use the lexer-aware scanner so we never land inside a
+                        // string/char literal or comment (e.g. `// see {x}` contains
+                        // a literal `}` that is NOT a statement boundary).
+                        // Rent statements must appear as standalone statements, not
+                        // after 'return' or 'yield return'.
                         string inlineRent = _rentBuffer.ToString();
                         _rentBuffer = savedRent;
                         if (inlineRent.Length > 0)
                         {
-                            // Find the last statement boundary in the accumulated text.
-                            // Rent statements must appear as standalone statements, not
-                            // after 'return' or 'yield return'. Insert right after the
-                            // last ';' or '}', or at position 0 if none found.
-                            int insertPos = 0;
-                            for (int si = spliced.Length - 1; si >= 0; si--)
-                            {
-                                char ch = spliced[si];
-                                if (ch == ';' || ch == '}')
-                                {
-                                    insertPos = si + 1;
-                                    break;
-                                }
-                            }
+                            int insertPos = FindLastTopLevelStatementBoundary(spliced);
                             spliced.Insert(insertPos, inlineRent);
                         }
                         spliced.Append(emittedCs.Trim());
@@ -892,8 +975,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 string expr = GP<string>(node, "Expression") ?? "";
                 int sourceLine = GP<int>(node, "SourceLine");
-                // @(expr) / {expr} — passed as-is into __C which handles VirtualNode,
-                // VirtualNode[], and IEnumerable<VirtualNode> (e.g. @(__children)).
+                // {expr} — passed as-is into __C which handles VirtualNode,
+                // VirtualNode[], and IEnumerable<VirtualNode> (e.g. {__children}).
                 //
                 // Phase 1: any JSX literals embedded inside the expression
                 // (e.g. {cond ? <A/> : <B/>}) are spliced to V.Tag(...) calls.
@@ -1648,7 +1731,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 //   * skips null VNodes (from @if without @else)
                 //   * fast path for VirtualNode[] (the common case after Phase A)
                 //   * fast path for IReadOnlyList<VirtualNode> (slot pass-through:
-                //     @(__children) where __children has compile-time type
+                //     {__children} where __children has compile-time type
                 //     IReadOnlyList<VirtualNode>)
                 //   * fallback to non-generic IEnumerable for anything else
                 L($"        private static {QVNode}[] __C(params object[] items)");

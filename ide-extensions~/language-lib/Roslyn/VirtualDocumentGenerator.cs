@@ -542,7 +542,7 @@ namespace ReactiveUITK.Language.Roslyn
 
             // __children is always available in every component's render scope
             // (the SG emits it as a parameter: IReadOnlyList<VirtualNode> __children).
-            // Declare it here so @(__children) expressions don't produce CS0103.
+            // Declare it here so {__children} expressions don't produce CS0103.
             // Uses dynamic so member access (.Count etc.) compiles without the
             // ReactiveUITK assembly and without false-positive CS1061.
             b.Scaffold("            dynamic __children = null!;\n");
@@ -756,10 +756,10 @@ namespace ReactiveUITK.Language.Roslyn
             }
             else
             {
-                // Inline expressions (@(expr) in markup) are passed into __C(params object[])
+                // Inline expressions ({expr} in markup) are passed into __C(params object[])
                 // which handles both VirtualNode and IEnumerable<VirtualNode> at runtime.
                 // No VirtualNode cast is emitted by the SG, so we use object here to allow
-                // both VirtualNode and IReadOnlyList<VirtualNode> (e.g. @(__children)).
+                // both VirtualNode and IReadOnlyList<VirtualNode> (e.g. {__children}).
                 // Attribute expressions also use object since their type varies.
                 string checkType = "object";
                 b.Scaffold($"{indent}{{ {checkType} __uitkx_{expr.Label} = (");
@@ -829,7 +829,7 @@ namespace ReactiveUITK.Language.Roslyn
         /// Walks the entire AST and collects every C# expression that needs a
         /// type-checking wrapper in the virtual document:
         /// <list type="bullet">
-        ///   <item><c>@(expr)</c> — <see cref="ExpressionNode"/></item>
+        ///   <item><c>{expr}</c> — <see cref="ExpressionNode"/></item>
         ///   <item><c>attr={expr}</c> — <see cref="AttributeNode"/> with <see cref="CSharpExpressionValue"/></item>
         /// </list>
         /// Numbers each expression to produce unique method/variable names.

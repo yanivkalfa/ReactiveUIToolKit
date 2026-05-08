@@ -252,7 +252,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 ForNode          => "@for",
                 WhileNode        => "@while",
                 SwitchNode       => "@switch",
-                ExpressionNode en => $"@({en.Expression})",
+                ExpressionNode en => $"{{{en.Expression}}}",
                 TextNode tn      => $"text \"{ tn.Content.Trim() }\"",
                 _                => node.GetType().Name,
             };

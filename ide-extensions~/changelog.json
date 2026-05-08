@@ -3,6 +3,20 @@
     {
       "date": "2026-05-08",
       "versions": {
+        "vscode": "1.1.15",
+        "vs2022": "1.1.15"
+      },
+      "shared": [
+        "Breaking: the `@(expr)` markup-embed syntax has been removed. The canonical and only embed form for arbitrary C# expressions inside markup is now `{expr}` (matching JSX/Babel). The `@` prefix survives only as the directive marker (`@if`, `@else`, `@for`, `@foreach`, `@while`, `@switch`, `@case`, `@default`, `@using`, `@namespace`, `@component`, `@props`, `@key`, `@inject`, `@uss`). Authors who still have legacy `@(expr)` in markup will see a hard parser error UITKX0306 (`@(expr) is no longer supported — use {expr}`). Migration is mechanical: replace every `@(` with `{` and every matching `)` with `}`. The unification removes one of two competing embed forms across the parser, formatter, analyzer, IntelliSense, virtual-document generator, HMR emitter, source generator, TextMate grammar, and all 12 shipped sample files. xmldoc and inline comments updated end-to-end.",
+        "Fix: TextMate grammar failed to load entirely because the JSON file had a UTF-8 BOM (`EF BB BF`) prepended during the Phase 2 edit pass. `vscode-textmate`'s `parseRawGrammar()` rejects the BOM with `Unexpected token \"\", \"{ \"$sc...\" is not valid JSON`, killing the grammar and forcing every TextMate-scoped token to fall back to plain text. Symptoms: keywords (`public`, `static`, `readonly`, `var`), property names (`FlexGrow`, `BackgroundImage`, `Width`), operators (`=`, `,`, `;`), and braces appeared white inside module/hook bodies and component setup blocks. LSP semantic tokens (markup tags, AST-classified types) still rendered, masking the breadth of the regression. Both grammar copies (`ide-extensions~/grammar/uitkx.tmLanguage.json` and the deployed `ide-extensions~/vscode/syntaxes/uitkx.tmLanguage.json`) are now BOM-free UTF-8 and parse cleanly (37 repository rules loaded). Mojibake'd em dashes in comment fields restored to `—`.",
+        "Fix: source generator and HMR emitter no longer hide pool-rent declarations inside line comments. The naive backward-scan that picked the insertion point for `var __p_N = __Rent<TProps>();` statements stopped at the first `;` or `}` it saw — including `}` characters that lived inside `// see {catBadge}`-style line comments. The result was C# emitted as `// ... {catBadge}var __p_12 = __Rent<...>();` (compiler reads it as part of the comment), then `__p_12` referenced below tripped CS0103 (`The name '__p_12' does not exist in the current context`). Replaced all four sites (two in `CSharpEmitter`, two in `HmrCSharpEmitter`) with a single shared `FindLastTopLevelStatementBoundary` lexer-aware forward scanner that correctly skips line comments, block comments, regular and verbatim and interpolated strings (with `{{`/`}}` escape handling and brace-depth tracking inside interpolation holes), and char literals. Pre-Phase-2 the bug was masked by `@(catBadge)` in the comment text (no `}` to trip on); Phase 2 unification of `@(...)` → `{...}` exposed the latent flaw. 1178/1178 SG tests still pass.",
+        "Fix: `LooksLikeMarkupRoot` (function-style component setup-vs-return discriminator) now accepts a bare `{` opener. With Phase 2, the leading character of an inline markup expression in a return position is `{` (formerly `(` for `@(...)`); the discriminator continued to recognise only the legacy openers and misclassified the entire return body as setup code, producing CS-level cascade errors. Expanded acceptance set covers `(`, `<`, and `{`.",
+        "Fix: `AstCursorContext` IntelliSense block-2a (post-`{` cursor classification) now correctly recognises `{` as the opening of a markup-embed expression rather than as an unrelated brace, so completions inside `<Tag attr={cursor}/>` and `<Box>{cursor}</Box>` resolve under the right scope (C# expression, not markup attribute key)."
+      ]
+    },
+    {
+      "date": "2026-05-08",
+      "versions": {
         "vscode": "1.1.14",
         "vs2022": "1.1.14"
       },

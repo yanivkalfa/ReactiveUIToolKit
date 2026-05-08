@@ -323,8 +323,19 @@ export const UitkxDiagnosticsPage: FC = () => (
           <TableRow>
             <TableCell><Chip label="UITKX0306" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>@(expr) in setup code</TableCell>
-            <TableCell>Inline expressions <code>@(...)</code> are only valid inside markup, not in setup code.</TableCell>
+            <TableCell><code>@(expr)</code> markup syntax is no longer supported</TableCell>
+            <TableCell>
+              The <code>@(expr)</code> markup-child embed has been removed. Use{' '}
+              <code>{'{expr}'}</code> instead (matching JSX/Babel/React). Migration
+              is mechanical: replace every <code>@(</code> with <code>{'{'}</code>{' '}
+              and the matching <code>)</code> with <code>{'}'}</code>. The{' '}
+              <code>@</code> prefix still marks <strong>directives</strong>{' '}
+              (<code>@if</code>, <code>@for</code>, <code>@foreach</code>,{' '}
+              <code>@while</code>, <code>@switch</code>, <code>@case</code>,{' '}
+              <code>@default</code>, <code>@using</code>, <code>@namespace</code>,{' '}
+              <code>@component</code>, <code>@props</code>, <code>@key</code>,{' '}
+              <code>@inject</code>, <code>@uss</code>).
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>

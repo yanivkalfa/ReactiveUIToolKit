@@ -140,7 +140,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     [Fact]
     public async Task InlineExpression_DotCompletion()
     {
-        var raw = "component C {\n  string greeting = \"hi\";\n  return (\n    <Box>\n      @(greeting.|)\n    </Box>\n  )\n}";
+        var raw = "component C {\n  string greeting = \"hi\";\n  return (\n    <Box>\n      {greeting.|}\n    </Box>\n  )\n}";
         var (source, offset) = ExtractCursor(raw);
         var items = await GetCompletions(source, offset, trigger: '.');
         Assert.True(items.Count > 0, "Expected inline expression dot-completions");

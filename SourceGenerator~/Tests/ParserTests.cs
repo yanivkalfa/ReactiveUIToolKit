@@ -454,7 +454,7 @@ public class ParserTests
     [Fact]
     public void Markup_InlineExpression_ProducesExpressionNode()
     {
-        var src = Wrap("<box>@(someCall())</box>");
+        var src = Wrap("<box>{someCall()}</box>");
         var nodes = ParseMarkup(src, out _);
 
         var box = Assert.Single(nodes.OfType<ElementNode>());

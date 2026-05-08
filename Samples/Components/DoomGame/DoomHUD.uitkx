@@ -143,9 +143,9 @@ component DoomHUD(
       </VisualElement>
       // KEYS column
       <VisualElement style={PanelStyle(0.8f)}>
-        @(KeyDot(new Color(0.30f, 0.55f, 1.00f), (keys & KeyCard.Blue)   != 0))
-        @(KeyDot(new Color(0.95f, 0.85f, 0.20f), (keys & KeyCard.Yellow) != 0))
-        @(KeyDot(new Color(0.95f, 0.20f, 0.20f), (keys & KeyCard.Red)    != 0))
+        {KeyDot(new Color(0.30f, 0.55f, 1.00f), (keys & KeyCard.Blue)   != 0)}
+        {KeyDot(new Color(0.95f, 0.85f, 0.20f), (keys & KeyCard.Yellow) != 0)}
+        {KeyDot(new Color(0.95f, 0.20f, 0.20f), (keys & KeyCard.Red)    != 0)}
       </VisualElement>
       // AMMO breakdown
       <VisualElement style={PanelStyle(3.5f)}>

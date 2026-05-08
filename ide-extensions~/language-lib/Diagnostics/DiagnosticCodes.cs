@@ -155,9 +155,11 @@ namespace ReactiveUITK.Language.Diagnostics
         public const string UnknownDirective = "UITKX0305";
 
         /// <summary>
-        /// <c>@(expr)</c> used in function-style setup code. This syntax is not
-        /// supported outside the return markup. Emitted by DirectiveParser.
+        /// <c>@(expr)</c> syntax is not supported. Inline child expressions
+        /// in markup must use <c>{expr}</c>; in raw C# setup code, assign to a
+        /// local variable first. Emitted by <c>UitkxParser</c> (markup context)
+        /// and <c>DirectiveParser</c> (setup-code context).
         /// </summary>
-        public const string AtExprInSetupCode = "UITKX0306";
+        public const string AtExprNotSupported = "UITKX0306";
     }
 }

@@ -60,21 +60,6 @@ public class JsxInExpressionTests
         Assert.True(result.SourceContains("? V.Label(") || result.SourceContains("?V.Label("));
     }
 
-    [Fact]
-    public void Child_AtParenWithJsxTernary_Spliced()
-    {
-        // @(cond ? <A/> : <B/>) and {cond ? <A/> : <B/>} should behave identically.
-        var src = WrapWithSetup(
-            "  bool flag = true;",
-            "<box>@(flag ? <label text=\"A\"/> : <label text=\"B\"/>)</box>"
-        );
-        var result = GeneratorTestHelper.Run(src);
-
-        Assert.True(result.SourceWasProduced);
-        Assert.True(result.SourceContains("V.Label("));
-        Assert.False(result.SourceContains("<label text=\"A\"/>"));
-    }
-
     // ── Attribute value: attr={cond ? <A/> : null} ──────────────────────────
 
     [Fact]
@@ -100,7 +85,7 @@ public class JsxInExpressionTests
         // We verify scanner detects bare JSX after `=>` and splices.
         var src = WrapWithSetup(
             "  System.Func<int, global::ReactiveUITK.Core.VirtualNode> renderItem = i => <label text=\"item\"/>;",
-            "<box>@(renderItem(0))</box>"
+            "<box>{renderItem(0)}</box>"
         );
         var result = GeneratorTestHelper.Run(src);
 
