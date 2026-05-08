@@ -947,7 +947,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (!first)
                         _sb.Append(", ");
                     first = false;
-                    _sb.Append($"{ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
+                    _sb.Append($"{ToPropName(attr.Name)} = {AttrVal(attr)}");
                 }
                 if (injectUssKeys)
                 {
@@ -977,7 +977,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         continue;
                     if (string.Equals(ToPropName(attr.Name), "Style", StringComparison.Ordinal))
                     {
-                        string val = AttrVal(attr.Value);
+                        string val = AttrVal(attr);
 
                         // ── OPT-V2-2 Phase A: try to hoist all-literal styles ──
                         // Handles BOTH `new Style { Width = 5f, ... }` (setter form,
@@ -1021,7 +1021,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     )
                         val = styleVarName;
                     else
-                        val = AttrVal(attr.Value);
+                        val = AttrVal(attr);
                     _rentBuffer.Append($"{propsVar}.{propName} = {val}; ");
                 }
 
@@ -1085,7 +1085,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (!first)
                         _sb.Append(", ");
                     first = false;
-                    _sb.Append($" {{ \"{attr.Name}\", {AttrVal(attr.Value)} }}");
+                    _sb.Append($" {{ \"{attr.Name}\", {AttrVal(attr)} }}");
                 }
                 if (injectUssKeys)
                 {
@@ -1157,7 +1157,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (!first)
                         _sb.Append(", ");
                     first = false;
-                    _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
+                    _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr)}");
                 }
 
                 // Route ref={x} to the component's MutableRef<T> parameter.
@@ -1174,7 +1174,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         case PropsResolver.RefParamLookupResult.Found:
                             if (!first)
                                 _sb.Append(",");
-                            _sb.Append($" {refPropName} = {AttrVal(refAttr.Value)}");
+                            _sb.Append($" {refPropName} = {AttrVal(refAttr)}");
                             break;
 
                         case PropsResolver.RefParamLookupResult.None:
@@ -1576,10 +1576,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitExpressionNode(ExpressionNode ex)
         {
-            // @(expr) — passed as-is into __C which handles both VirtualNode and
-            // IEnumerable<VirtualNode> (e.g. @(__children) for slot pass-through).
-            // No cast here — __C's params object[] dispatch handles the runtime type.
-            _sb.Append($"({ex.Expression})");
+            // @(expr) / {expr} — passed as-is into __C which handles both
+            // VirtualNode and IEnumerable<VirtualNode> (e.g. @(__children) for
+            // slot pass-through). No cast here — __C's params object[] dispatch
+            // handles the runtime type.
+            //
+            // Phase 1: any JSX literals embedded inside the expression
+            // (e.g. {cond ? <A/> : <B/>}) are spliced to V.Tag(...) calls.
+            // For the common case (no JSX), the scanner returns empty and the
+            // helper returns the original string unchanged — a single O(n) pass.
+            string spliced = SpliceExpressionMarkup(ex.Expression, ex.SourceLine);
+            _sb.Append($"({spliced})");
         }
 
         // ── Body expression helpers ───────────────────────────────────────────
@@ -1728,6 +1735,30 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 BooleanShorthandValue => "true",
                 _ => "null",
             };
+
+        /// <summary>
+        /// Attribute-aware overload that splices JSX literals embedded inside
+        /// a <see cref="CSharpExpressionValue"/> using the attribute's source
+        /// line for accurate <c>#line</c> directives. Other branches fall
+        /// through to the value-only path.
+        /// <para>Used by the element-emit pathways. Helpers that look up
+        /// values by name (<see cref="ExtractKey"/>, <see cref="GetAttrValue"/>)
+        /// keep using the value-only overload — they pre-date Phase 1 and
+        /// don't need source-line context.</para>
+        /// </summary>
+        private string AttrVal(AttributeNode attr)
+        {
+            if (attr.Value is CSharpExpressionValue cev)
+            {
+                // Phase 1: splice JSX literals embedded inside the expression
+                // (e.g. attr={cond ? <A/> : <B/>} or attr={x => <Item/>}).
+                // For the common case (no JSX) the helper returns the input
+                // unchanged after a single O(n) scan — no allocation.
+                string spliced = SpliceExpressionMarkup(cev.Expression, attr.SourceLine);
+                return TransformExpression(spliced);
+            }
+            return AttrVal(attr.Value);
+        }
 
         /// <summary>
         /// Emits a JSX <see cref="ElementNode"/> to a string by temporarily capturing
@@ -2026,6 +2057,154 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (prev < bodyCode.Length)
                 spliced.Append(bodyCode, prev, bodyCode.Length - prev);
+
+            return spliced.ToString();
+        }
+
+        // ── Inline-expression JSX splice ──────────────────────────────────────
+
+        /// <summary>
+        /// Splices JSX literals embedded inside an arbitrary C# expression
+        /// (used for <c>{ expr }</c> child positions and <c>attr={ expr }</c>
+        /// attribute values). Each detected JSX literal is replaced by its
+        /// emitted <c>V.Tag(...)</c> equivalent; the surrounding C# remains
+        /// verbatim. Pool-rent statements produced by inner JSX flow into the
+        /// shared <see cref="_rentBuffer"/> so the surrounding emit context
+        /// hoists them above the parent expression — matching how
+        /// <see cref="EmitJsxToString"/> handles <c>JsxExpressionValue</c>.
+        ///
+        /// <para>Returns <paramref name="expr"/> unchanged when no JSX is
+        /// detected (the common case — scanner cost is O(n) on the expression
+        /// text and runs only when the expression actually contains JSX).</para>
+        ///
+        /// <para>This is the single emit-time entry point that makes JSX
+        /// recognized in arbitrary expression positions, mirroring Babel/TSC's
+        /// "JSX is allowed wherever an expression is allowed" semantics.</para>
+        /// </summary>
+        /// <param name="expr">The raw C# expression text (already extracted
+        /// from the <c>{</c>...<c>}</c> or <c>@(</c>...<c>)</c> wrapper).</param>
+        /// <param name="sourceLine">1-based line number in the .uitkx source
+        /// where this expression begins; used to map <c>#line</c> directives
+        /// in the spliced JSX back to the user's file.</param>
+        private string SpliceExpressionMarkup(string expr, int sourceLine)
+        {
+            if (string.IsNullOrEmpty(expr))
+                return expr;
+
+            // Re-run the same scanners that already handle preamble &
+            // directive bodies. Output ranges are relative to the input
+            // string (start = 0), so no offset arithmetic is needed.
+            var markupRanges = DirectiveParser.FindJsxBlockRanges(expr, 0, expr.Length);
+            var bareRanges = DirectiveParser.FindBareJsxRanges(expr, 0, expr.Length);
+
+            bool hasMarkup = !markupRanges.IsDefaultOrEmpty;
+            bool hasBare = !bareRanges.IsDefaultOrEmpty;
+            if (!hasMarkup && !hasBare)
+                return expr;
+
+            var allRanges = new List<(int Start, int End, int Line)>(
+                markupRanges.Length + bareRanges.Length
+            );
+            if (hasMarkup)
+                foreach (var r in markupRanges)
+                    allRanges.Add(r);
+            if (hasBare)
+                foreach (var r in bareRanges)
+                    allRanges.Add(r);
+            allRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+            var spliced = new StringBuilder(expr.Length);
+            int prev = 0;
+
+            foreach (var (start, end, line) in allRanges)
+            {
+                int s = start;
+                int e = end;
+                if (s < 0)
+                    s = 0;
+                if (e < 0)
+                    e = 0;
+                if (s > expr.Length)
+                    s = expr.Length;
+                if (e > expr.Length)
+                    e = expr.Length;
+                if (e <= s)
+                    continue;
+
+                // Skip inner paren-JSX ranges that fall inside an outer
+                // bare-JSX range already processed as a unit by the mini-parser.
+                if (s < prev)
+                    continue;
+
+                if (s > prev)
+                    spliced.Append(expr, prev, s - prev);
+
+                string jsxText = expr.Substring(s, e - s);
+
+                // Scanner returns 1-based lines relative to the input string.
+                // Combine with the expression's source line so #line directives
+                // emitted by the inner UitkxParser map back to the .uitkx file.
+                int absLine = sourceLine + (line - 1);
+
+                var miniDirectives = new DirectiveSet(
+                    Namespace: null,
+                    ComponentName: null,
+                    PropsTypeName: null,
+                    DefaultKey: null,
+                    Usings: _directives.Usings,
+                    UssFiles: ImmutableArray<string>.Empty,
+                    Injects: ImmutableArray<(string, string)>.Empty,
+                    MarkupStartLine: absLine,
+                    MarkupStartIndex: 0,
+                    MarkupEndIndex: jsxText.Length
+                );
+                var miniDiags = new List<ParseDiagnostic>();
+                var nodes = UitkxParser.Parse(
+                    jsxText,
+                    _filePath,
+                    miniDirectives,
+                    miniDiags,
+                    lineOffset: absLine - 1
+                );
+
+                if (nodes.Length > 0)
+                {
+                    // Emit into a temporary buffer; rent flows to the SHARED
+                    // _rentBuffer so the parent emit context (component setup
+                    // or directive body) hoists it above the surrounding
+                    // expression — same contract as EmitJsxToString.
+                    int savedLen = _sb.Length;
+                    if (nodes.Length == 1)
+                    {
+                        var node = nodes[0];
+                        if (node is ForeachNode or ForNode or WhileNode)
+                            _sb.Append(
+                                "#error UITKX: @foreach/@for/@while produces a list and cannot appear directly in an expression position. Wrap it in a container element."
+                            );
+                        else
+                            EmitNode(node);
+                    }
+                    else
+                        _sb.Append(
+                            "#error UITKX0025: Inline JSX expression must have a single root element."
+                        );
+                    string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
+                    _sb.Length = savedLen;
+
+                    spliced.Append(emittedCs.Trim());
+                }
+                else
+                {
+                    // Parse failed — keep the original text so the C# compiler
+                    // surfaces a clear error rather than silently dropping content.
+                    spliced.Append(jsxText);
+                }
+
+                prev = e;
+            }
+
+            if (prev < expr.Length)
+                spliced.Append(expr, prev, expr.Length - prev);
 
             return spliced.ToString();
         }
