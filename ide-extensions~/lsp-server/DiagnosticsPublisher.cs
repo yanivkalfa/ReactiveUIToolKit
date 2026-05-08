@@ -699,9 +699,19 @@ public sealed class DiagnosticsPublisher
     /// <summary>
     /// Builds a map of element-name → valid attribute names for the UITKX0109
     /// unknown-attribute check.
-    /// Schema elements use the full attribute list from the schema JSON (including
-    /// universal attributes).  Workspace elements use their prop names plus
-    /// the schema's universal attributes.
+    ///
+    /// <para><b>Built-in (schema) elements</b> get the schema's per-element
+    /// attributes plus <c>IntrinsicElementAttributes</c> (BaseProps surface)
+    /// plus <c>StructuralAttributes</c> (<c>key</c>, <c>ref</c>) — i.e. the full
+    /// set returned by <see cref="UitkxSchema.GetAttributesForElement"/>.</para>
+    ///
+    /// <para><b>User-component (workspace) elements</b> get <i>only</i> their
+    /// declared parameters plus <c>StructuralAttributes</c>. Intrinsic-element
+    /// attributes are deliberately <b>NOT</b> auto-allowed: a user component
+    /// has no underlying <c>VisualElement</c>, so <c>style</c>/<c>onClick</c>/
+    /// <c>extraProps</c>/etc. are structurally meaningless unless the author
+    /// opts in by declaring the parameter explicitly. This mirrors React/Vue/
+    /// Svelte (typed) component-prop semantics.</para>
     /// </summary>
     private IReadOnlyDictionary<string, IReadOnlyCollection<string>> BuildKnownAttributes(
         HashSet<string> projectElements
@@ -711,7 +721,7 @@ public sealed class DiagnosticsPublisher
             StringComparer.OrdinalIgnoreCase
         );
 
-        // Schema elements — use the schema's per-element + universal attributes.
+        // Built-in elements — schema per-element + intrinsic + structural.
         foreach (var tagName in _schema.Root.Elements.Keys)
         {
             var attrs = _schema
@@ -721,7 +731,7 @@ public sealed class DiagnosticsPublisher
             result[tagName] = attrs;
         }
 
-        // Workspace elements — prop names from *Props.cs + universal attributes.
+        // User components (workspace elements) — declared params + structural ONLY.
         foreach (var tagName in _index.KnownElements)
         {
             if (result.ContainsKey(tagName))
@@ -729,8 +739,8 @@ public sealed class DiagnosticsPublisher
 
             var props = _index.GetProps(tagName);
             var attrs = props.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var ua in _schema.Root.UniversalAttributes)
-                attrs.Add(ua.Name);
+            foreach (var sa in _schema.Root.StructuralAttributes)
+                attrs.Add(sa.Name);
             result[tagName] = attrs;
         }
 

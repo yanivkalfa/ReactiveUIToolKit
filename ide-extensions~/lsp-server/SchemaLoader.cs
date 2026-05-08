@@ -68,10 +68,34 @@ public sealed class UitkxSchema
     public sealed class SchemaRoot
     {
         [JsonPropertyName("version")]
-        public string Version { get; set; } = "1.0";
+        public string Version { get; set; } = "1.1";
 
-        [JsonPropertyName("universalAttributes")]
-        public List<AttributeInfo> UniversalAttributes { get; set; } = new();
+        /// <summary>
+        /// Attributes that apply to every JSX call — both built-in elements AND
+        /// user components. Currently <c>key</c> and <c>ref</c>:
+        /// <list type="bullet">
+        ///   <item><c>key</c> is structural — lives directly on <c>VirtualNode</c> and
+        ///   is consumed by the reconciler for stable identity matching.</item>
+        ///   <item><c>ref</c> is universal at the JSX surface; built-ins receive the
+        ///   underlying <c>VisualElement</c>, user components must declare a
+        ///   <c>Ref&lt;T&gt;</c> parameter to accept it (forwardRef pattern).</item>
+        /// </list>
+        /// </summary>
+        [JsonPropertyName("structuralAttributes")]
+        public List<AttributeInfo> StructuralAttributes { get; set; } = new();
+
+        /// <summary>
+        /// Attributes that apply to built-in (BaseProps-derived) elements only —
+        /// never to user components. These are <c>BaseProps</c> members
+        /// (<c>style</c>, <c>name</c>, <c>className</c>, focus, events, lifecycle,
+        /// the <c>extraProps</c> escape hatch, …) which require an underlying
+        /// <c>VisualElement</c> to apply to. User components don't have one
+        /// (they emit <c>VirtualNode</c>s from their <c>Render</c>), so accepting
+        /// these on user components would be a silent no-op or a CS-error against
+        /// the generated <c>{Component}Props</c> class.
+        /// </summary>
+        [JsonPropertyName("intrinsicElementAttributes")]
+        public List<AttributeInfo> IntrinsicElementAttributes { get; set; } = new();
 
         [JsonPropertyName("directives")]
         public List<DirectiveInfo> Directives { get; set; } = new();
@@ -151,12 +175,20 @@ public sealed class UitkxSchema
     public ElementInfo? TryGetElement(string tagName) =>
         Root.Elements.TryGetValue(tagName, out var el) ? el : null;
 
+    /// <summary>
+    /// Returns every attribute valid for a built-in element — the element's
+    /// per-tag attributes, plus the intrinsic-element common attributes
+    /// (<c>BaseProps</c> surface), plus the structural-universal attributes
+    /// (<c>key</c>, <c>ref</c>). Returns empty for unknown / user-component tags.
+    /// </summary>
     public IEnumerable<AttributeInfo> GetAttributesForElement(string tagName)
     {
         var el = TryGetElement(tagName);
         if (el is null)
             return Enumerable.Empty<AttributeInfo>();
-        return el.Attributes.Concat(Root.UniversalAttributes);
+        return el.Attributes
+            .Concat(Root.IntrinsicElementAttributes)
+            .Concat(Root.StructuralAttributes);
     }
 
     // ── Version-awareness helpers ────────────────────────────────────────────

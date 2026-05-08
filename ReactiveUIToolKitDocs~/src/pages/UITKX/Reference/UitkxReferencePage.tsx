@@ -331,6 +331,48 @@ export const UitkxReferencePage: FC = () => (
 <Box>{KeyDot(label)}</Box>`} />
     </Box>
 
+    {/* ── User-component strict attribute validation (0.5.4) ───────────────── */}
+    <Box sx={{ my: 3, p: 2, borderLeft: '4px solid', borderColor: 'warning.main', bgcolor: 'action.hover' }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+        Migration: User-component attribute strictness (<code>0.5.4</code>)
+      </Typography>
+      <Typography variant="body2" paragraph sx={{ mb: 1 }}>
+        Earlier versions silently allowed any <code>BaseProps</code> attribute
+        (<code>style</code>, <code>name</code>, <code>className</code>,{' '}
+        <code>onClick</code>, <code>extraProps</code>, …) on every tag — including
+        user-defined function components — because the schema lumped them with{' '}
+        <code>key</code> / <code>ref</code> under one <em>universal</em> list.
+        That produced <strong>CS0117</strong> at C# compile time when the user
+        component's generated <code>*Props</code> class didn't actually have
+        the property.
+      </Typography>
+      <Typography variant="body2" paragraph sx={{ mb: 1 }}>
+        From <code>0.5.4</code> onward, user components only accept their{' '}
+        <strong>declared parameters</strong> plus the two truly universal
+        attributes: <code>key</code> (VirtualNode reconciliation slot) and{' '}
+        <code>ref</code> (auto-routed to the unique{' '}
+        <code>{'Hooks.MutableRef<T>'}</code> parameter via{' '}
+        <code>forwardRef</code>-style semantics). Anything else raises{' '}
+        <strong>UITKX0109</strong> (Error). Built-in tags (<code>Box</code>,{' '}
+        <code>Button</code>, <code>Label</code>, …) are unchanged — they still
+        accept the full <code>BaseProps</code> intrinsic surface.
+      </Typography>
+      <Typography variant="body2" sx={{ mb: 1 }}>
+        Migration: declare the attribute as a parameter and forward it.
+      </Typography>
+      <CodeBlock language="jsx" code={`// before — silent slip-through, then CS0117 on AppButtonProps.Style
+component AppButton(string text = "") {
+    return (<Button text={text}/>);
+}
+<AppButton text="Save" style={btnStyle}/>   // UITKX0109 in 0.5.4+
+
+// after — declare style as a parameter and forward it explicitly
+component AppButton(string text = "", IStyle? style = null) {
+    return (<Button text={text} style={style}/>);
+}
+<AppButton text="Save" style={btnStyle}/>   // OK`} />
+    </Box>
+
     {/* ── JSX in Setup Code ──────────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
       JSX in Setup Code
