@@ -6,6 +6,99 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.5] - 2026-05-09
+
+### Added
+
+- **JSX `&&` short-circuit splice in markup expression positions.** The React
+  idiom `{cond && <Tag/>}` is impossible to emit verbatim because C# `&&` is
+  bool-only and `bool && VirtualNode` is **CS0019**. The splicer now detects
+  a trailing `&&` operator at the end of the prefix preceding any JSX literal
+  in `{expr}` or `attr={expr}` positions and rewrites the expression to
+  ternary form
+
+  ```csharp
+  ((cond) ? V.Tag(...) : (global::ReactiveUITK.Core.VirtualNode?)null)
+  ```
+
+  reusing the already-tested Phase 1 ternary path. The `null` fallback is
+  dropped at render time by `__C(params object[])` which filters nulls — no
+  runtime change required.
+
+  A new shared precedence-aware walker
+  `DirectiveParser.FindLhsStartForLogicalAnd` locates where the LHS of the
+  `&&` begins inside the surrounding expression: single forward pass with
+  per-paren-depth boundary tracking, lexer-aware string/comment skipping,
+  and recognition of `?`, `:`, `??`, `||`, `,`, `;` as boundary tokens at
+  the same paren depth as the `&&`. Examples:
+
+  ```jsx
+  // simple bool
+  <Box>{flag && <Label text="hi"/>}</Box>
+
+  // null check (the user-reported repro)
+  <Box>{icon != null && <Image texture={icon}/>}</Box>
+
+  // parenthesised LHS preserved
+  <Box>{(x.Count > 0) && <Label text="non-empty"/>}</Box>
+
+  // method-call LHS preserved (parens balanced)
+  <Box>{IsActive(item) && <Label text="on"/>}</Box>
+
+  // nested in ternary — LHS walker stops at `:` boundary
+  <Box>{(a ? b : c && <Label text="x"/>)}</Box>   // LHS = c
+
+  // nested in `||` — LHS walker stops at `||` boundary
+  <Box>{a || b && <Label text="x"/>}</Box>        // LHS = b
+
+  // bitwise `&` is NOT mistaken for logical
+  <Box>{((a & b) > 0 ? <Label text="on"/> : <Label text="off"/>)}</Box>
+  ```
+
+  Mirrored across all four code layers: shared scanner adds the `&&` trigger
+  in `FindBareJsxRanges` and the LHS walker; SG `CSharpEmitter` and HMR
+  `HmrCSharpEmitter` emit the ternary desugar (HMR via a new reflection
+  delegate `FindLhsStartFunc` plumbed through `UitkxHmrCompiler`); the IDE
+  `VirtualDocumentGenerator` rewrites the same shape to a typed-null ternary
+  placeholder so Roslyn does not show a permanent CS0019 squiggle on the
+  `&&` line.
+
+  When the LHS walker fails on degenerate input (e.g. `{ && <X/>}`) the
+  splicer emits a single `#error UITKX0026: Could not desugar \`&&\` JSX
+  expression. Use \`cond ? <Tag/> : null\` instead.` directive instead of
+  cascading into raw-JSX compile errors.
+
+  Setup-code and directive-body `&&` JSX positions (e.g. `var node = cond &&
+  <Tag/>;` inside a component setup block) remain unsupported and are
+  tracked in `Plans~/TECH_DEBT_V2.md` item 15. The workaround is identical
+  to before: rewrite as an explicit ternary `var node = cond ? <Tag/> :
+  null;`.
+
+### Fixed
+
+- **Source generator and HMR emitter now inject `using UnityEngine;` into
+  the generated component compilation unit.** Six emit sites covered the
+  namespace block, the partial-class body, and the function-component
+  overload across both pipelines (three in SG `CSharpEmitter`, three in HMR
+  `HmrCSharpEmitter`). The IDE virtual document already pulled
+  `UnityEngine` into scope via its Roslyn workspace, so user code
+  referencing types like `Texture2D`, `Color`, `Vector2`, `Mathf`, etc.
+  without an explicit `@using UnityEngine` directive compiled green in the
+  editor but red at build/HMR time. Both pipelines now see the same surface
+  area and the editor-vs-build asymmetry on `UnityEngine.*` symbols is
+  gone.
+
+### Tests
+
+- 8 new regression tests in `JsxInExpressionTests` cover the `&&` desugar:
+  simple bool, null comparison, parenthesised LHS, method-call LHS,
+  nested-in-`?:`, nested-in-`||`, bitwise-`&` non-trigger, and the
+  UITKX0026 diagnostic path.
+- 3 new tests in `UnityEngineImportTests` cover the namespace-scope,
+  class-scope, and function-component-overload `using UnityEngine;`
+  injection sites.
+- **1198/1198 SG** passing. LSP server build clean.
+
 ## [0.5.4] - 2026-05-08
 
 ### Changed

@@ -143,6 +143,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using ReactiveUITK.Core;");
             L("using ReactiveUITK.Core.Animation;");
             L("using ReactiveUITK.Props.Typed;");
+            L("using UnityEngine;");
             L("using static ReactiveUITK.Props.Typed.StyleKeys;");
             L("using static ReactiveUITK.Props.Typed.CssHelpers;");
             L("using static ReactiveUITK.AssetHelpers;");
@@ -2333,8 +2334,62 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (s < prev)
                     continue;
 
-                if (s > prev)
-                    spliced.Append(expr, prev, s - prev);
+                // ── Detect logical-AND desugar mode ────────────────────────
+                // If the prefix expr[prev..s] ends in `&&` (modulo whitespace),
+                // the user wrote `cond && <Tag/>`. Rewrite to
+                //   ((cond) ? V.Tag(...) : (VirtualNode?)null)
+                // so it typechecks (`bool && VirtualNode` is CS0019).
+                // The LHS walker scans expr[prev..ampStart] precedence-aware
+                // to find where `cond` begins.
+                int ampStart = TryFindTrailingLogicalAnd(expr, prev, s);
+                int lhsStart = -1;
+                if (ampStart >= 0)
+                {
+                    lhsStart = DirectiveParser.FindLhsStartForLogicalAnd(expr, prev, ampStart);
+                }
+                bool desugarAnd = ampStart >= 0 && lhsStart >= 0;
+
+                if (desugarAnd)
+                {
+                    // Emit text before the LHS verbatim (operators, prior
+                    // sub-expressions, leading whitespace).
+                    if (lhsStart > prev)
+                        spliced.Append(expr, prev, lhsStart - prev);
+                    // Open the ternary: ((LHS) ?
+                    // Trim trailing whitespace from the LHS slice so the
+                    // emitted ternary reads `((flag) ? ` not `((flag ) ? `.
+                    int lhsEnd = ampStart;
+                    while (lhsEnd > lhsStart
+                           && (expr[lhsEnd - 1] == ' '
+                               || expr[lhsEnd - 1] == '\t'
+                               || expr[lhsEnd - 1] == '\r'
+                               || expr[lhsEnd - 1] == '\n'))
+                        lhsEnd--;
+                    spliced.Append("((");
+                    spliced.Append(expr, lhsStart, lhsEnd - lhsStart);
+                    spliced.Append(") ? ");
+                }
+                else if (ampStart >= 0)
+                {
+                    // Walker failed — emit prefix verbatim then a UITKX0026
+                    // directive that surfaces as a CS1029 at the right line.
+                    // Drop the JSX entirely (advance prev past it) so the user
+                    // sees ONE diagnostic, not the cascade from raw JSX.
+                    if (s > prev)
+                        spliced.Append(expr, prev, s - prev);
+                    spliced.Append(
+                        "\n#error UITKX0026: Could not desugar `&&` JSX expression. "
+                        + "Use `cond ? <Tag/> : null` instead.\n"
+                    );
+                    prev = e;
+                    continue;
+                }
+                else
+                {
+                    // Normal (non-`&&`) splice: append prefix verbatim.
+                    if (s > prev)
+                        spliced.Append(expr, prev, s - prev);
+                }
 
                 string jsxText = expr.Substring(s, e - s);
 
@@ -2397,6 +2452,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     spliced.Append(jsxText);
                 }
 
+                if (desugarAnd)
+                {
+                    // Close the ternary: : (VirtualNode?)null)
+                    spliced.Append(" : (global::ReactiveUITK.Core.VirtualNode?)null)");
+                }
+
                 prev = e;
             }
 
@@ -2404,6 +2465,27 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 spliced.Append(expr, prev, expr.Length - prev);
 
             return spliced.ToString();
+        }
+
+        /// <summary>
+        /// Returns the index of the trailing <c>&amp;&amp;</c> in
+        /// <paramref name="expr"/><c>[prev..jsxStart]</c> if the prefix ends
+        /// with that operator (modulo trailing whitespace), or -1 otherwise.
+        /// Used by <see cref="SpliceExpressionMarkup"/> to detect the
+        /// logical-AND desugar trigger.
+        /// </summary>
+        private static int TryFindTrailingLogicalAnd(string expr, int prev, int jsxStart)
+        {
+            int i = jsxStart - 1;
+            // Skip trailing whitespace between `&&` and the JSX `<`
+            while (i >= prev && (expr[i] == ' ' || expr[i] == '\t' || expr[i] == '\r' || expr[i] == '\n'))
+                i--;
+            if (i - 1 < prev) return -1;
+            if (expr[i] != '&' || expr[i - 1] != '&') return -1;
+            // Reject `&&&` (degenerate) — the scanner already filters this
+            // but defence-in-depth keeps the splice contract local.
+            if (i - 2 >= prev && expr[i - 2] == '&') return -1;
+            return i - 1;
         }
 
         /// <summary>

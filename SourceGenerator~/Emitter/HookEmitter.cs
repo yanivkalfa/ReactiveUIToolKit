@@ -50,6 +50,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             sb.AppendLine("using ReactiveUITK.Core;");
             sb.AppendLine("using ReactiveUITK.Core.Animation;");
             sb.AppendLine("using ReactiveUITK.Props.Typed;");
+            sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.StyleKeys;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.CssHelpers;");
             sb.AppendLine("using static ReactiveUITK.AssetHelpers;");

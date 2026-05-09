@@ -536,3 +536,77 @@ than a once-a-year curiosity, ship Level 3.
   (would need updating once synthetic dispatch lands)
 - `Editor/EditorRootRendererUtility.cs` + `Runtime/Core/RootRenderer.cs`
   — `HostContext.Environment` seeding entry points
+
+---
+
+## 15. JSX `&&` short-circuit splice — extend beyond `{expr}` markup positions
+
+**Status:** Open — partial implementation shipped in v0.5.5 covers the
+React idiom `<Box>{cond && <Tag/>}</Box>` (markup `{expr}` and
+`attr={expr}` positions). The same syntax in two other expression
+positions is **not yet supported** and will produce CS0019 today.
+
+**What's covered (v0.5.5):**
+- Child expression: `<Box>{cond && <Tag/>}</Box>`
+- Attribute value: `<Wrapper header={cond && <Label/>}/>`
+- Both desugared at emit time to
+  `((cond) ? V.Tag(...) : (global::ReactiveUITK.Core.VirtualNode?)null)`,
+  reusing the already-tested Phase 1 ternary path.
+
+**What's NOT covered:**
+
+1. **Setup-code `&&` JSX** — bare expressions in component setup blocks:
+   ```jsx
+   component MyComp {
+     var node = cond && <Image texture={icon}/>;   // ← CS0019 today
+     return (<Box>{node}</Box>);
+   }
+   ```
+   Workaround: rewrite as ternary explicitly:
+   `var node = cond ? <Image texture={icon}/> : null;`
+
+2. **Directive-body `&&` JSX** — bare expressions inside `@if`/`@for`/
+   `@foreach`/`@while`/`@switch` body code:
+   ```jsx
+   @foreach (var item in items) {
+     var maybeIcon = item.IsActive && <Image texture={item.Icon}/>;
+     return (<Row>{maybeIcon}</Row>);
+   }
+   ```
+   Same workaround — rewrite as ternary inline.
+
+**Why deferred:**
+- The v0.5.5 desugar lives in `CSharpEmitter.SpliceExpressionMarkup`
+  (the single emit-time entry point for `{expr}` / `attr={expr}`).
+  Setup code and directive bodies route through different splicers
+  (`SpliceSetupCodeMarkup` and `SpliceBodyCodeMarkup`) which currently
+  **do not** desugar — they only stitch already-emitted JSX back into
+  the surrounding C# verbatim.
+- The LHS walker (`FindLhsStartForLogicalAnd`) is already implemented
+  as a static helper and would slot into both splicers cleanly.
+- The IDE virtual document has parallel scanners
+  (`EmitMappedExpressionStrippingJsx` covered in v0.5.5; the larger
+  setup-code scanner around `VirtualDocumentGenerator.cs:1970+` is not).
+- Risk: the setup-code splicer is older, hand-rolled, and has subtle
+  interactions with pool-rent statement hoisting. Touching it for a
+  feature most users never hit is not justified by current usage data.
+
+**Trigger to revisit:**
+Multiple bug reports of the form "`&&` works inside `{...}` but not in
+my `var x = cond && <Tag/>` — why?" If we get more than two such
+reports, the consistency argument starts to outweigh the cost.
+
+**Files involved (when this is picked up):**
+- `SourceGenerator~/Emitter/CSharpEmitter.cs` — `SpliceSetupCodeMarkup`
+  and `SpliceBodyCodeMarkup` need the same desugar branch added
+- `Editor/HMR/HmrCSharpEmitter.cs` — mirror sites
+- `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs` —
+  the setup-code scanner around line 1970 needs an `&&` branch added
+  parallel to the existing `?` / `:` / `=>` branches
+- Reuse the existing `FindLhsStartForLogicalAnd` helper from v0.5.5
+
+**Diagnostic hook (already in place):**
+v0.5.5 emits `UITKX0026` when the LHS walker fails. The same diagnostic
+ID can be reused for setup/body splicers when they're extended.
+
+---

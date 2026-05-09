@@ -60,6 +60,16 @@ namespace ReactiveUITK.EditorSupport.HMR
         internal delegate IEnumerable FindJsxRangesFunc(string source, int rangeStart, int rangeEnd);
 
         /// <summary>
+        /// Reflective access to <c>DirectiveParser.FindLhsStartForLogicalAnd</c>.
+        /// Used by the <c>&amp;&amp;</c> JSX desugar branch in
+        /// <see cref="EmitCtx.SpliceExpressionMarkup"/> to find the start of
+        /// the LHS expression of a logical-AND operator preceding JSX.
+        /// Returns -1 when the LHS slice would be empty (caller treats as
+        /// "could not desugar" and emits UITKX0026).
+        /// </summary>
+        internal delegate int FindLhsStartFunc(string source, int sliceStart, int ampStart);
+
+        /// <summary>
         /// Emit C# from the AST and directives produced by the Language parser.
         /// All parameters are opaque objects from the dynamically loaded Language.dll.
         /// </summary>
@@ -69,7 +79,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             string filePath,
             MarkupParseFunc parseMarkup = null,
             FindJsxRangesFunc findJsxBlockRanges = null,
-            FindJsxRangesFunc findBareJsxRanges = null
+            FindJsxRangesFunc findBareJsxRanges = null,
+            FindLhsStartFunc findLhsStartForLogicalAnd = null
         )
         {
             var ctx = new EmitCtx(
@@ -77,7 +88,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 filePath,
                 parseMarkup,
                 findJsxBlockRanges,
-                findBareJsxRanges
+                findBareJsxRanges,
+                findLhsStartForLogicalAnd
             );
             ctx.EmitFile(rootNodes);
             return ctx.ToString();
@@ -113,6 +125,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             private readonly MarkupParseFunc _parseMarkup;
             private readonly FindJsxRangesFunc _findJsxBlockRanges;
             private readonly FindJsxRangesFunc _findBareJsxRanges;
+            private readonly FindLhsStartFunc _findLhsStartForLogicalAnd;
             private bool _isRootElement = true;
 
             public EmitCtx(
@@ -120,7 +133,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string filePath,
                 MarkupParseFunc parseMarkup,
                 FindJsxRangesFunc findJsxBlockRanges = null,
-                FindJsxRangesFunc findBareJsxRanges = null
+                FindJsxRangesFunc findBareJsxRanges = null,
+                FindLhsStartFunc findLhsStartForLogicalAnd = null
             )
             {
                 _directives = directives;
@@ -128,6 +142,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _parseMarkup = parseMarkup;
                 _findJsxBlockRanges = findJsxBlockRanges;
                 _findBareJsxRanges = findBareJsxRanges;
+                _findLhsStartForLogicalAnd = findLhsStartForLogicalAnd;
                 _displayName = Path.GetFileName(filePath);
                 _linePath = filePath.Replace("\\", "/");
                 _ns = GP<string>(directives, "Namespace") ?? "UITKX.Generated";
@@ -175,6 +190,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("using ReactiveUITK.Core;");
                 L("using ReactiveUITK.Core.Animation;");
                 L("using ReactiveUITK.Props.Typed;");
+                L("using UnityEngine;");
                 L("using static ReactiveUITK.Props.Typed.StyleKeys;");
                 L("using static ReactiveUITK.Props.Typed.CssHelpers;");
                 L("using static ReactiveUITK.AssetHelpers;");
@@ -764,8 +780,51 @@ namespace ReactiveUITK.EditorSupport.HMR
                     if (s < prev)
                         continue;
 
-                    if (s > prev)
-                        spliced.Append(expr, prev, s - prev);
+                    // ── Detect logical-AND desugar mode (mirrors SG) ──────────
+                    // If the prefix expr[prev..s] ends in `&&` (modulo
+                    // whitespace), rewrite `cond && <Tag/>` to
+                    //   ((cond) ? V.Tag(...) : (VirtualNode?)null)
+                    // The LHS walker (reflective into DirectiveParser) finds
+                    // where the LHS expression begins in expr[prev..ampStart].
+                    int ampStart = TryFindTrailingLogicalAnd(expr, prev, s);
+                    int lhsStart = -1;
+                    if (ampStart >= 0 && _findLhsStartForLogicalAnd != null)
+                        lhsStart = _findLhsStartForLogicalAnd(expr, prev, ampStart);
+                    bool desugarAnd = ampStart >= 0 && lhsStart >= 0;
+
+                    if (desugarAnd)
+                    {
+                        if (lhsStart > prev)
+                            spliced.Append(expr, prev, lhsStart - prev);
+                        // Trim trailing whitespace from the LHS slice so the
+                        // HMR emit matches SG byte-for-byte (parity contract).
+                        int lhsEnd = ampStart;
+                        while (lhsEnd > lhsStart
+                               && (expr[lhsEnd - 1] == ' '
+                                   || expr[lhsEnd - 1] == '\t'
+                                   || expr[lhsEnd - 1] == '\r'
+                                   || expr[lhsEnd - 1] == '\n'))
+                            lhsEnd--;
+                        spliced.Append("((");
+                        spliced.Append(expr, lhsStart, lhsEnd - lhsStart);
+                        spliced.Append(") ? ");
+                    }
+                    else if (ampStart >= 0)
+                    {
+                        if (s > prev)
+                            spliced.Append(expr, prev, s - prev);
+                        spliced.Append(
+                            "\n#error UITKX0026: Could not desugar `&&` JSX expression. "
+                            + "Use `cond ? <Tag/> : null` instead.\n"
+                        );
+                        prev = e;
+                        continue;
+                    }
+                    else
+                    {
+                        if (s > prev)
+                            spliced.Append(expr, prev, s - prev);
+                    }
 
                     string jsxText = expr.Substring(s, e - s);
                     int absLine = sourceLine + (line - 1);
@@ -807,6 +866,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                         spliced.Append(jsxText);
                     }
 
+                    if (desugarAnd)
+                    {
+                        spliced.Append(" : (global::ReactiveUITK.Core.VirtualNode?)null)");
+                    }
+
                     prev = e;
                 }
 
@@ -814,6 +878,23 @@ namespace ReactiveUITK.EditorSupport.HMR
                     spliced.Append(expr, prev, expr.Length - prev);
 
                 return spliced.ToString();
+            }
+
+            /// <summary>
+            /// Returns the index of the trailing <c>&amp;&amp;</c> in
+            /// <paramref name="expr"/><c>[prev..jsxStart]</c> if the prefix
+            /// ends with that operator (modulo trailing whitespace), or -1
+            /// otherwise. Mirror of <c>CSharpEmitter.TryFindTrailingLogicalAnd</c>.
+            /// </summary>
+            private static int TryFindTrailingLogicalAnd(string expr, int prev, int jsxStart)
+            {
+                int i = jsxStart - 1;
+                while (i >= prev && (expr[i] == ' ' || expr[i] == '\t' || expr[i] == '\r' || expr[i] == '\n'))
+                    i--;
+                if (i - 1 < prev) return -1;
+                if (expr[i] != '&' || expr[i - 1] != '&') return -1;
+                if (i - 2 >= prev && expr[i - 2] == '&') return -1;
+                return i - 1;
             }
 
             /// <summary>

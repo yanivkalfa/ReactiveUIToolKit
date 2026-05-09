@@ -166,4 +166,185 @@ public class JsxInExpressionTests
         Assert.True(result.SourceContains("V.Label("));
         Assert.True(result.SourceContains("V.Box("));
     }
+
+    // ── Phase 1.5 — `cond && <Tag/>` short-circuit desugar ─────────────────
+    //
+    // The React idiom `{cond && <Tag/>}` is impossible to emit verbatim because
+    // C# `&&` is bool-only and `bool && VirtualNode` is CS0019. The splice
+    // layer rewrites these expressions to a ternary
+    //   ((cond) ? V.Tag(...) : (VirtualNode?)null)
+    // reusing the already-tested ternary emit path. The `null` branch is
+    // dropped at render time by `__C(params object[])` which filters nulls.
+
+    [Fact]
+    public void LogicalAnd_SimpleBool_DesugaredToTernary()
+    {
+        var src = WrapWithSetup(
+            "  bool flag = true;",
+            "<box>{flag && <label text=\"hi\"/>}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Label("));
+        // Ternary opening: ((flag) ?
+        Assert.True(
+            result.SourceContains("((flag) ? "),
+            "Expected `((flag) ? ` opening of the desugared ternary."
+        );
+        // Null fallback branch
+        Assert.True(
+            result.SourceContains(": (global::ReactiveUITK.Core.VirtualNode?)null)"),
+            "Expected typed-null fallback branch."
+        );
+        // Raw `&&` should NOT survive in the emitted code (sanity).
+        Assert.False(
+            result.SourceContains("flag && V.Label"),
+            "Raw `&&` should be desugared, not pass through."
+        );
+    }
+
+    [Fact]
+    public void LogicalAnd_NullCheck_DesugaredToTernary()
+    {
+        // The exact user-reported repro: `icon != null && <Image .../>`.
+        // Ensures the LHS walker preserves the `!=` comparison expression
+        // as the ternary condition, not just the bare identifier.
+        var src = WrapWithSetup(
+            "  global::UnityEngine.Texture2D? icon = null;",
+            "<box>{icon != null && <Image texture={icon} />}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Image("));
+        Assert.True(
+            result.SourceContains("((icon != null) ? "),
+            "Expected `((icon != null) ? ` — LHS walker must keep the full comparison."
+        );
+        Assert.True(
+            result.SourceContains(": (global::ReactiveUITK.Core.VirtualNode?)null)")
+        );
+    }
+
+    [Fact]
+    public void LogicalAnd_ParenthesizedLhs_PreservedByWalker()
+    {
+        // `(x.Count > 0) && <X/>` — the LHS walker must include the entire
+        // parenthesised expression, not just `0)`.
+        var src = WrapWithSetup(
+            "  System.Collections.Generic.List<int> x = new();",
+            "<box>{(x.Count > 0) && <label text=\"non-empty\"/>}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Label("));
+        Assert.True(
+            result.SourceContains("(((x.Count > 0)) ? "),
+            "Expected `(((x.Count > 0)) ? ` — LHS walker must wrap the full parenthesised expression."
+        );
+    }
+
+    [Fact]
+    public void LogicalAnd_MethodCallLhs_PreservedByWalker()
+    {
+        // `IsActive(item) && <X/>` — the walker must balance method-call parens
+        // and treat the whole call as a single LHS expression.
+        var src = WrapWithSetup(
+            "  bool IsActive(int x) => x > 0; var item = 1;",
+            "<box>{IsActive(item) && <label text=\"on\"/>}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Label("));
+        Assert.True(
+            result.SourceContains("((IsActive(item)) ? "),
+            "Expected `((IsActive(item)) ? ` — walker must balance method-call parens."
+        );
+    }
+
+    [Fact]
+    public void LogicalAnd_NestedInTernary_RespectsBindingBoundaries()
+    {
+        // `a ? b : c && <X/>` parses as `a ? b : (c && <X/>)` per C# precedence.
+        // The LHS of `&&` is just `c`, NOT `a ? b : c`. The walker must stop
+        // at the `:` boundary.
+        var src = WrapWithSetup(
+            "  bool a = true; global::ReactiveUITK.Core.VirtualNode? b = null; bool c = true;",
+            "<box>{(a ? b : c && <label text=\"x\"/>)}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Label("));
+        // Walker must produce `((c) ?`, NOT `((a ? b : c) ?`.
+        Assert.True(
+            result.SourceContains("((c) ? "),
+            "Expected `((c) ? ` — LHS walker must stop at the `:` ternary boundary."
+        );
+        Assert.False(
+            result.SourceContains("((a ? b : c) ?"),
+            "LHS walker must NOT include the outer ternary in the LHS expression."
+        );
+    }
+
+    [Fact]
+    public void LogicalAnd_NestedInOr_RespectsBindingBoundaries()
+    {
+        // `a || b && <X/>` — `&&` binds tighter than `||`, so LHS = `b`.
+        var src = WrapWithSetup(
+            "  bool a = false; bool b = true;",
+            "<box>{a || b && <label text=\"x\"/>}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Label("));
+        Assert.True(
+            result.SourceContains("((b) ? "),
+            "Expected `((b) ? ` — LHS walker must stop at the `||` boundary."
+        );
+    }
+
+    [Fact]
+    public void BitwiseAnd_NotMistakenForLogical()
+    {
+        // `(a & b) > 0 ? <x/> : <y/>` — the single `&` is bitwise, not the
+        // logical-AND trigger. Only the existing `?:` splice should fire.
+        var src = WrapWithSetup(
+            "  int a = 1; int b = 2;",
+            "<box>{((a & b) > 0 ? <label text=\"on\"/> : <label text=\"off\"/>)}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Label("));
+        // No `&&` desugar should have fired — its hallmark is the typed-null
+        // fallback branch, which the user-written `?:` would not produce.
+        Assert.False(
+            result.SourceContains("(global::ReactiveUITK.Core.VirtualNode?)null)"),
+            "Bitwise `&` must not trigger the logical-AND desugar (no typed-null fallback)."
+        );
+    }
+
+    [Fact]
+    public void LogicalAnd_AtExpressionStart_EmitsUITKX0026()
+    {
+        // Degenerate input: `&&` with no LHS. Walker returns -1 → splicer
+        // emits `#error UITKX0026` directive and drops the JSX so the user
+        // gets ONE clear diagnostic instead of a CS0019 cascade.
+        var src = WrapWithSetup(
+            "",
+            "<box>{ && <label text=\"x\"/>}</box>"
+        );
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("UITKX0026"),
+            "Expected `UITKX0026` diagnostic when LHS walker fails."
+        );
+    }
 }
