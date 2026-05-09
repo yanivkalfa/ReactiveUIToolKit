@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-05-09",
+      "versions": {
+        "vscode": "1.2.1",
+        "vs2022": "1.2.1"
+      },
+      "shared": [
+        "Feature: JSX `&&` short-circuit now splices cleanly in markup expression positions. The React idiom `{cond && <Tag/>}` is impossible to emit verbatim because C# `&&` is bool-only and `bool && VirtualNode` is CS0019. The splicer now detects a trailing `&&` operator at the end of the prefix preceding any JSX literal in `{expr}` or `attr={expr}` positions and rewrites the expression to a ternary form `((cond) ? V.Tag(...) : (global::ReactiveUITK.Core.VirtualNode?)null)` reusing the already-tested Phase 1 ternary path. The `null` fallback is dropped at render time by `__C(params object[])` which filters nulls. New shared `DirectiveParser.FindLhsStartForLogicalAnd` precedence-aware forward walker locates where the LHS of the `&&` begins inside the surrounding expression — single forward pass over `expr[prev..ampStart]` with per-paren-depth boundary tracking, lexer-aware string/comment skipping, and recognition of `?`, `:`, `??`, `||`, `,`, `;` as boundary tokens at the same paren depth as the `&&`. Mirrored across all four code layers: shared scanner adds the `&&` trigger in `FindBareJsxRanges` and the LHS walker; SG `CSharpEmitter.SpliceExpressionMarkup` and HMR `HmrCSharpEmitter.SpliceExpressionMarkup` emit the ternary desugar (HMR via a third reflection delegate `FindLhsStartFunc` plumbed through `UitkxHmrCompiler`); IDE `VirtualDocumentGenerator.EmitMappedExpressionStrippingJsx` rewrites the same shape to a typed-null ternary placeholder so Roslyn doesn't show a permanent CS0019 squiggle on the `&&` line. Walker degenerate-input failure (e.g. `{ && <X/>}`) emits `#error UITKX0026` with an actionable message instead of cascading into raw-JSX compile errors. Setup-code and directive-body `&&` JSX positions remain unsupported and tracked in TECH_DEBT_V2 item 15. 8 new regression tests in `JsxInExpressionTests` cover simple bool, null comparison, parenthesised LHS, method-call LHS, nested-in-`?:`, nested-in-`||`, bitwise-`&` non-trigger, and the UITKX0026 diagnostic path. 1198/1198 SG tests passing; LSP server build clean.",
+        "Fix: source generator and HMR emitter now inject `using UnityEngine;` into the generated component compilation unit. Six emit sites (three in SG `CSharpEmitter`, three in HMR `HmrCSharpEmitter`) covered the namespace block, the partial-class body, and the function-component overload. The IDE virtual document already pulled `UnityEngine` into scope via its Roslyn workspace, so user code referencing types like `Texture2D`, `Color`, `Vector2`, `Mathf` etc. without an explicit `@using UnityEngine` directive compiled green in the editor but red at build/HMR time. Now both pipelines see the same surface area and the editor-vs-build asymmetry on `UnityEngine.*` symbols is gone. 3 regression tests added covering the namespace-scope, class-scope, and function-component-overload positions."
+      ]
+    },
+    {
       "date": "2026-05-08",
       "versions": {
         "vscode": "1.2.0",
