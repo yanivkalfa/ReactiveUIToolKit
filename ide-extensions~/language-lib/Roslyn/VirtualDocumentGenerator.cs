@@ -684,6 +684,33 @@ namespace ReactiveUITK.Language.Roslyn
                 if (s < prev)
                     continue;
 
+                // ── Logical-AND desugar parity (mirrors CSharpEmitter) ────
+                // If the prefix text[prev..s] ends in `&&`, the runtime
+                // splicer rewrites to a ternary. To prevent a permanent
+                // CS0019 squiggle in the editor on the user's `&&` line,
+                // emit the prefix WITHOUT the `&&`, then replace the `&&`
+                // and JSX with a ternary placeholder that Roslyn typechecks
+                // identically to the runtime form.
+                int ampStart = TryFindTrailingLogicalAnd(text, prev, s);
+                if (ampStart >= 0)
+                {
+                    // Map the LHS portion (everything up to but not including
+                    // the `&&`) so completions / hovers / squiggles on `cond`
+                    // still work at their original source positions.
+                    if (ampStart > prev)
+                    {
+                        string lhsSeg = text.Substring(prev, ampStart - prev);
+                        b.Mapped(lhsSeg, uitkxOffset + prev, kind, uitkxLine);
+                    }
+                    // Replace `&& <Tag/>` with `? ((VirtualNode)null!) : null`.
+                    // Same typed-null technique as the standard placeholder so
+                    // both ternary branches return `VirtualNode` and the outer
+                    // expression's type stays well-defined.
+                    b.Scaffold("? ((global::ReactiveUITK.Core.VirtualNode)null!) : null");
+                    prev = e;
+                    continue;
+                }
+
                 if (s > prev)
                 {
                     string seg = text.Substring(prev, s - prev);
@@ -703,6 +730,26 @@ namespace ReactiveUITK.Language.Roslyn
                 string tail = text.Substring(prev);
                 b.Mapped(tail, uitkxOffset + prev, kind, uitkxLine);
             }
+        }
+
+        /// <summary>
+        /// Returns the index of the trailing <c>&amp;&amp;</c> in
+        /// <paramref name="text"/><c>[prev..jsxStart]</c> if the prefix ends
+        /// with that operator (modulo trailing whitespace), or -1 otherwise.
+        /// IDE-side mirror of <c>CSharpEmitter.TryFindTrailingLogicalAnd</c>.
+        /// Used by <see cref="EmitMappedExpressionStrippingJsx"/> to trigger
+        /// the logical-AND desugar parity rewrite so the editor doesn't show
+        /// a permanent CS0019 squiggle on `cond &amp;&amp; &lt;Tag/&gt;`.
+        /// </summary>
+        private static int TryFindTrailingLogicalAnd(string text, int prev, int jsxStart)
+        {
+            int i = jsxStart - 1;
+            while (i >= prev && (text[i] == ' ' || text[i] == '\t' || text[i] == '\r' || text[i] == '\n'))
+                i--;
+            if (i - 1 < prev) return -1;
+            if (text[i] != '&' || text[i - 1] != '&') return -1;
+            if (i - 2 >= prev && text[i - 2] == '&') return -1;
+            return i - 1;
         }
 
         /// <summary>

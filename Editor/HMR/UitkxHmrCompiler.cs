@@ -32,6 +32,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         private MethodInfo _canonicalLower;
         private MethodInfo _findJsxBlockRanges;
         private MethodInfo _findBareJsxRanges;
+        private MethodInfo _findLhsStartForLogicalAnd;
         private Type _parseDiagnosticType;
 
         // ── Reference cache (built once per session) ──────────────────────────
@@ -248,13 +249,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                         : (src, s, e) => (System.Collections.IEnumerable)
                             _findBareJsxRanges.Invoke(null, new object[] { src, s, e });
 
+                // Phase 1.5: LHS walker for `cond && <Tag/>` desugar. Same
+                // null-fallback pattern as the range scanners above.
+                HmrCSharpEmitter.FindLhsStartFunc findLhsStartForLogicalAnd =
+                    _findLhsStartForLogicalAnd == null
+                        ? null
+                        : (src, ss, ae) => (int)
+                            _findLhsStartForLogicalAnd.Invoke(null, new object[] { src, ss, ae });
+
                 string csharp = HmrCSharpEmitter.Emit(
                     directives,
                     lowered,
                     uitkxPath,
                     parseMarkup,
                     findJsxBlockRanges,
-                    findBareJsxRanges
+                    findBareJsxRanges,
+                    findLhsStartForLogicalAnd
                 );
                 stepSw.Stop();
                 result.EmitMs = stepSw.Elapsed.TotalMilliseconds;
@@ -558,6 +568,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
             _findBareJsxRanges = dpType.GetMethod(
                 "FindBareJsxRanges",
+                BindingFlags.Public | BindingFlags.Static
+            );
+            // Phase 1.5 LHS walker for `cond && <Tag/>` desugar. Same
+            // optional-resolution pattern — when missing, the HMR splicer
+            // falls back to emitting raw `&&` JSX (which the user's compiler
+            // surfaces as CS0019 at the right line).
+            _findLhsStartForLogicalAnd = dpType.GetMethod(
+                "FindLhsStartForLogicalAnd",
                 BindingFlags.Public | BindingFlags.Static
             );
 
