@@ -17,6 +17,21 @@ namespace ReactiveUITK.Core
         private VisualElement rootElement;
         private VNodeHostRenderer vnodeHostRenderer;
 
+        // UIDocument host-rebuild tracking. Unity rebuilds the panel
+        // (replacing rootVisualElement) on undo, asset swap, disable/enable,
+        // and the editor playmode selection storm. UIDocument exposes no
+        // event for this, so when Initialize(UIDocument, ...) is used we
+        // poll once per frame via AnimationTicker (a panel-independent
+        // tick source already running for animations) and reparent the
+        // mounted fiber tree onto the new root via VNodeHostRenderer
+        // .RetargetHost when the reference changes.
+        //
+        // Cost is one ReferenceEquals per RootRenderer per frame (~3 ns);
+        // the editor selection storm collapses to a single retarget thanks
+        // to the dedupe gate.
+        private UIDocument hostDocument;
+        private System.Action hostDocumentTickUnsubscribe;
+
 #if UNITY_EDITOR
         /// <summary>HMR: all active RootRenderer instances for multi-tree walking.</summary>
         private static readonly HashSet<RootRenderer> s_allInstances = new();
@@ -78,6 +93,7 @@ namespace ReactiveUITK.Core
 #if UNITY_EDITOR
             s_allInstances.Remove(this);
 #endif
+            UnsubscribeFromHostDocument();
             if (Instance == this)
             {
                 Instance = null;
@@ -106,6 +122,80 @@ namespace ReactiveUITK.Core
             env?.Invoke(sharedHostContext);
         }
 
+        /// <summary>
+        /// UIDocument-aware overload. Polls the document's
+        /// <c>rootVisualElement</c> once per frame and reparents the
+        /// mounted fiber tree onto the new root whenever Unity rebuilds
+        /// the panel (undo, asset swap, disable/enable, scene reload,
+        /// <c>panelSettings</c>/<c>visualTreeAsset</c> reassignment, and
+        /// the editor-selection panel-rebuild storm in playmode). Without
+        /// this the rendered UI vanishes after any of those events because
+        /// the VisualElement that <see cref="Render"/> was first called
+        /// against has been replaced by Unity.
+        ///
+        /// The retarget is dedupe-gated by reference-equality so the
+        /// per-frame editor selection storm collapses to a single reparent.
+        /// UIDocument exposes no panel-rebuild event, so polling is the
+        /// only correct mechanism. The cost is one pointer compare per
+        /// frame on a tick source that is already running.
+        /// </summary>
+        public void Initialize(UIDocument hostDoc, Action<HostContext> env = null)
+        {
+            EnsureSetup();
+            UnsubscribeFromHostDocument();
+            hostDocument = hostDoc;
+            rootElement = hostDoc != null ? hostDoc.rootVisualElement : null;
+            env?.Invoke(sharedHostContext);
+            SubscribeToHostDocument();
+        }
+
+        private void SubscribeToHostDocument()
+        {
+            if (hostDocument == null || hostDocumentTickUnsubscribe != null)
+            {
+                return;
+            }
+            hostDocumentTickUnsubscribe = ReactiveUITK.Core.Animation.AnimationTicker.Subscribe(
+                PollHostDocument
+            );
+        }
+
+        private void UnsubscribeFromHostDocument()
+        {
+            if (hostDocumentTickUnsubscribe == null)
+            {
+                return;
+            }
+            hostDocumentTickUnsubscribe.Invoke();
+            hostDocumentTickUnsubscribe = null;
+        }
+
+        private void PollHostDocument()
+        {
+            if (hostDocument == null)
+            {
+                UnsubscribeFromHostDocument();
+                return;
+            }
+            var nextRoot = hostDocument.rootVisualElement;
+            if (ReferenceEquals(nextRoot, rootElement))
+            {
+                return;
+            }
+            rootElement = nextRoot;
+            if (nextRoot == null)
+            {
+                return;
+            }
+            // Move the live tree onto the freshly-built root. If we have
+            // not yet rendered we just record the new root for the first
+            // Render() call.
+            if (vnodeHostRenderer != null)
+            {
+                vnodeHostRenderer.RetargetHost(nextRoot);
+            }
+        }
+
         public void Render(VirtualNode rootNode)
         {
             EnsureSetup();
@@ -122,6 +212,7 @@ namespace ReactiveUITK.Core
 
         public void Unmount()
         {
+            UnsubscribeFromHostDocument();
             if (vnodeHostRenderer != null)
             {
                 vnodeHostRenderer.Unmount();
