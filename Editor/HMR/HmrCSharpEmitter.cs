@@ -2546,6 +2546,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             ("useDeferredValue(", "Hooks.UseDeferredValue("),
             ("useTransition(", "Hooks.UseTransition("),
             ("useSfx(", "Hooks.UseSfx("),
+            ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
             ("provideContext(", "Hooks.ProvideContext("),
         };
 
