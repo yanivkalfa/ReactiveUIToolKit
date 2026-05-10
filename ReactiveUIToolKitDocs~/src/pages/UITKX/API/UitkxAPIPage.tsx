@@ -21,7 +21,7 @@ export const UitkxAPIPage: FC = () => (
           <ListItemText primary={<><code>ReactiveUITK.Core.V</code> — static factory for building <code>VirtualNode</code> trees (<code>V.VisualElement</code>, <code>V.Button</code>, <code>V.Label</code>, <code>V.Router</code>, etc.).</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ReactiveUITK.Core.Hooks</code> — hook functions: <code>UseState</code>, <code>UseReducer</code>, <code>UseEffect</code>, <code>UseLayoutEffect</code>, <code>UseMemo</code>, <code>UseCallback</code>, <code>UseRef</code>, <code>UseContext</code>, <code>ProvideContext</code>, <code>UseDeferredValue</code>, <code>UseImperativeHandle</code>, <code>UseStableFunc</code>, <code>UseStableAction</code>, <code>UseStableCallback</code>, <code>UseSignal</code>, <code>UseAnimate</code>, <code>UseTweenFloat</code>, <code>UseSafeArea</code>. Static configuration: <code>Hooks.EnableHookValidation</code>, <code>Hooks.EnableStrictDiagnostics</code>, <code>Hooks.EnableHookAutoRealign</code>.</>} />
+          <ListItemText primary={<><code>ReactiveUITK.Core.Hooks</code> — hook functions: <code>UseState</code>, <code>UseReducer</code>, <code>UseEffect</code>, <code>UseLayoutEffect</code>, <code>UseMemo</code>, <code>UseCallback</code>, <code>UseRef</code>, <code>UseContext</code>, <code>ProvideContext</code>, <code>UseDeferredValue</code>, <code>UseImperativeHandle</code>, <code>UseStableFunc</code>, <code>UseStableAction</code>, <code>UseStableCallback</code>, <code>UseSignal</code>, <code>UseAnimate</code>, <code>UseTweenFloat</code>, <code>UseSafeArea</code>, <code>UseUiDocumentRoot</code>. Static configuration: <code>Hooks.EnableHookValidation</code>, <code>Hooks.EnableStrictDiagnostics</code>, <code>Hooks.EnableHookAutoRealign</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<><code>ReactiveUITK.Core.StateSetterExtensions</code> — fluent helpers for state setters (<code>set.Set(value)</code> / <code>{'set.Set(prev => next)'}</code>).</>} />
@@ -122,6 +122,23 @@ export const UitkxAPIPage: FC = () => (
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<><code>{'<VisualElementSafe>'}</code> — a drop-in safe-area-aware container that automatically applies padding from <code>SafeAreaInsets</code>.</>} />
+        </ListItem>
+      </List>
+    </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Unity 6.3 panel-rebuild defense
+      </Typography>
+      <List sx={Styles.list}>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>RootRenderer.Initialize(UIDocument)</code> — additive overload that polls <code>UIDocument.rootVisualElement</code> via the panel-independent <code>AnimationTicker</code> and migrates the mounted fiber tree onto the new root whenever Unity rebuilds the panel. Defends against the Unity 6.3 regression where every <code>InspectorWindow</code> redraw silently recreates the root (reported to Unity; distinct from UUM-47682 which is closed "By Design" for the UI Builder Live Reload trigger). The legacy <code>Initialize(VisualElement)</code> overload remains valid for hosts without a <code>UIDocument</code>. Steady-state cost: one <code>ReferenceEquals</code> per frame per managed root, no allocations.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>Hooks.UseUiDocumentRoot(UIDocument)</code> — returns a stable <code>VisualElement</code> reference that always tracks the document's current <code>rootVisualElement</code>. Polls via <code>AnimationTicker</code>, short-circuits with <code>ReferenceEquals</code>. Convenience overload <code>UseUiDocumentRoot(string contextKey)</code> resolves the document from <code>HostContext.Environment</code> by key. Pair with a non-null guard at the call site (<code>{'target != null ? <Portal target={target}>…</Portal> : null'}</code>) for components portaling into a UIDocument that may not have built its panel yet.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>ReactiveUITK.Core.Animation.AnimationTicker</code> (internal) — panel-independent shared ticker. Editor uses <code>EditorApplication.update</code>; Player uses <code>MediaHost.SubscribeTick</code>. Backs the rebuild poll, animation hooks, and reparent-resilient adapters.</>} />
         </ListItem>
       </List>
     </Box>

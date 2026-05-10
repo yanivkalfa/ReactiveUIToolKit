@@ -2,40 +2,28 @@
 
 ### Unity 6.3 panel-rebuild defense — UIs no longer disappear on Inspector interaction
 
-If you upgraded to Unity 6.3 and your reactive UIs started vanishing the moment you clicked around the Inspector, this release is for you. We built a standalone probe (`PanelLifecycleProbe`) to isolate the cause and confirmed it: **Unity 6.3 silently recreates `UIDocument.rootVisualElement` on every `InspectorWindow` redraw** — selection changes, hovers, field focus, all of it. Unity 6.2 fires zero events on the same project; 6.3 fires a `DetachFromPanelEvent` followed by a fresh `VisualElement` instance, with a call stack ending at `UnityEditor.InspectorWindow.RedrawFromNative`. Reported to Unity. Related to UUM-47682 ("by design" for UI Builder Live Reload), but the trigger here is the **standard Inspector window** — Unity's documented workaround for that ticket ("create UI in `OnEnable`") doesn't apply because the rebuild happens repeatedly *after* `OnEnable` has run.
+**Confirmed Unity 6.3 regression.** A standalone probe (`PanelLifecycleProbe`) showed `UIDocument.rootVisualElement` is silently recreated on every `InspectorWindow` redraw — selection changes, hovers, field focus. 6.2 fires zero events on the same project; 6.3 fires `DetachFromPanelEvent` → fresh `VisualElement` instance, call stack ending at `UnityEditor.InspectorWindow.RedrawFromNative`. Reported to Unity. Distinct from UUM-47682 (closed "By Design" for UI Builder Live Reload only) — the documented workaround there ("create UI in `OnEnable`") doesn't apply because the rebuild fires repeatedly *after* `OnEnable`.
 
-There is no public API to subscribe to this rebuild. For a reactive UI framework that holds references across renders, polling `rootVisualElement` is the only viable defense. The fix is layered:
+There is no public event for this rebuild, so polling is the only defense. The fix is additive — both old and new APIs remain valid.
 
-**Plan 1 — `RootRenderer.Initialize(UIDocument)` overload.** The new entry point subscribes to a per-frame poll. On swap, the entire fiber tree is migrated to the new root: host props re-applied, all direct children re-added under the new container, all hook state, signals, and `VisualElement` subscriptions preserved.
+**`RootRenderer.Initialize(UIDocument)` overload (new).** Subscribes to a per-frame poll. On swap, migrates the fiber tree to the new root via `RetargetHost` + `RetargetContainer`: host props re-applied, children re-added, all hook state and subscriptions preserved.
 
 ```csharp
-// before — vulnerable to 6.3 rebuilds
-rootRenderer.Initialize(uiDocument.rootVisualElement);
-
-// after — survives rebuilds
-rootRenderer.Initialize(uiDocument);
+rootRenderer.Initialize(uiDocument.rootVisualElement); // legacy, still valid
+rootRenderer.Initialize(uiDocument);                   // 6.3-resilient
 ```
 
-The original `Initialize(VisualElement)` overload is unchanged — opt-in.
-
-**Plan 2 — `UseUiDocumentRoot` hook.** Returns a stable `VisualElement` reference that always tracks the current root. Polls via the shared `AnimationTicker` and short-circuits with `ReferenceEquals` so no re-render fires unless the root actually changed.
+**`UseUiDocumentRoot` hook (new).** Stable `VisualElement` reference tracking the current root, with `ReferenceEquals` short-circuit.
 
 ```csharp
 var root = Hooks.UseUiDocumentRoot(myUIDocument);
-// or, by HostContext key
-var root = Hooks.UseUiDocumentRoot("uiDocument");
 ```
 
-**Plan 3 — Reparent-resilient element adapters.** Video, MultiColumnListView, MultiColumnTreeView, and TabView selection trackers used to tear down their underlying state on `DetachFromPanelEvent`. Under 6.3's detach-then-reattach-same-frame pattern, that destroyed state about to be reused. They now route through a new `PanelDetachGuard.Wire(ve, teardown)` helper that defers teardown one frame via `MainThreadTimer.OneFrameLater` and cancels it if the element re-attaches before the deferred frame runs.
+**Reparent-resilient adapters.** Video, MultiColumnListView, MultiColumnTreeView, TabView selection trackers route through new `PanelDetachGuard.Wire(ve, teardown)`, which defers teardown one frame via `MainThreadTimer.OneFrameLater` and cancels it on re-attach.
 
-### Under the hood
+**Cost.** ~10 ns/frame per managed root. Zero hot-path allocations. O(N) retarget runs only on real rebuilds (Editor-only). HMR compatible.
 
-- **`AnimationTicker`** — new panel-independent shared ticker. Editor uses `EditorApplication.update`, Player uses `MediaHost.SubscribeTick`. `Animator.PlayTrack` migrated to it so animation clocks advance regardless of attach state; style writes gated on `ve.panel != null` so detached elements don't paint stale frames.
-- **`VNodeHostRenderer.RetargetHost` / `FiberRenderer.RetargetContainer`** — internal retarget chain. Snapshots children, re-adds them, updates root containers and fiber host pointers in one pass.
-- **Steady-state cost** — ~10 ns/frame per managed root (one property read + one `ReferenceEquals`). Zero allocations on the hot path. The O(N) retarget code runs only on real rebuilds, which exclusively happen in the Editor during Inspector repaints. Built players never trigger the bug — production builds carry one extra `ReferenceEquals` per frame and that's it.
-- **HMR compatible** — delegate-swap and trigger-re-render walk fiber roots independently of the container; the next poll tick re-targets and the freshly re-rendered tree comes with it.
-
-VS Code **1.2.1 → 1.2.2** · VS 2022 **1.2.1 → 1.2.2** (emitter parity — the new `useUiDocumentRoot` hook is added to the SG + HMR hook-signature regex on both pipelines).
+VS Code **1.2.1 → 1.2.2** · VS 2022 **1.2.1 → 1.2.2**.
 
 ---
 

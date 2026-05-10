@@ -59,6 +59,17 @@ export const UitkxGettingStartedPage: FC = () => (
       Mount the component at runtime with <code>RootRenderer</code>:
     </Typography>
     <CodeBlock language="jsx" code={UITKX_HELLO_WORLD_BOOTSTRAP} />
+    <Typography variant="body1" paragraph>
+      <code>RootRenderer.Initialize</code> has two overloads. Prefer{' '}
+      <code>Initialize(UIDocument)</code>: it polls <code>rootVisualElement</code> once per frame
+      via the panel-independent <code>AnimationTicker</code> and migrates the mounted fiber tree
+      onto the new root whenever Unity rebuilds the panel — a known Unity 6.3 regression where
+      every <code>InspectorWindow</code> redraw silently recreates the root (reported to Unity;
+      distinct from UUM-47682). The legacy <code>Initialize(VisualElement)</code> overload remains
+      valid for hosts without a <code>UIDocument</code> (custom <code>EditorWindow</code>, tests,
+      bespoke panels). Steady-state cost is one <code>ReferenceEquals</code> per frame; no
+      allocations on the hot path.
+    </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>
       Editor windows
