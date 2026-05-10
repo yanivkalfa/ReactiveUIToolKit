@@ -6,6 +6,143 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.6] - 2026-05-10
+
+### Fixed
+
+- **Unity 6.3 panel-rebuild defense — UIs no longer disappear on Inspector
+  interaction.** Unity 6.3 silently recreates `UIDocument.rootVisualElement`
+  on `InspectorWindow` redraws (selection change, hover over fields, focus,
+  property edits). Confirmed via standalone repro probe — fires zero events
+  on 6.2, repeated `DetachFromPanelEvent` → new `VisualElement` instance on
+  6.3 with call stack ending at `UnityEditor.InspectorWindow.RedrawFromNative`.
+  Reported to Unity; distinct from UUM-47682 (closed "By Design" for the UI
+  Builder Live Reload trigger). There is no public API to detect the rebuild,
+  so the only viable defense for a reactive UI framework is to poll
+  `rootVisualElement` and migrate the rendered tree on swap. The fix is
+  layered across three plans:
+
+  1. **`RootRenderer.Initialize(UIDocument hostDoc, ...)` overload** (new).
+     When you construct a `RootRenderer` against a `UIDocument` (instead of
+     a raw `VisualElement`) it subscribes to a per-frame poll via
+     `AnimationTicker` and, on swap, calls `VNodeHostRenderer.RetargetHost`
+     which re-applies the captured host props and forwards to
+     `FiberRenderer.RetargetContainer`. `RetargetContainer` snapshots the
+     existing child array and re-adds each child to the new root container,
+     preserving the entire fiber tree, all hook state, and all
+     `VisualElement` subscriptions through Unity's rebuild. The original
+     `Initialize(VisualElement)` overload is unchanged — opt-in only.
+
+     ```csharp
+     // before — vulnerable to Unity 6.3 rebuilds
+     rootRenderer.Initialize(uiDocument.rootVisualElement);
+
+     // after — survives rebuilds via poll + retarget
+     rootRenderer.Initialize(uiDocument);
+     ```
+
+  2. **`UseUiDocumentRoot` hook** (new). Returns a stable
+     `VisualElement` reference that always tracks the current
+     `UIDocument.rootVisualElement`. Polls via `AnimationTicker` and updates
+     state with a structural `ReferenceEquals` short-circuit (no re-render
+     unless the root actually changed). Two overloads:
+
+     ```csharp
+     // by UIDocument instance
+     var root = Hooks.UseUiDocumentRoot(myUIDocument);
+
+     // by HostContext key (when bootstrap injects the document)
+     var root = Hooks.UseUiDocumentRoot("uiDocument");
+     ```
+
+  3. **Reparent-resilient element adapters.** `VideoElementAdapter`,
+     `MultiColumnListViewElementAdapter`, `MultiColumnTreeViewElementAdapter`,
+     and `TabViewSelectionTracker` previously tore down their underlying
+     state on `DetachFromPanelEvent`. Under the 6.3 rebuild pattern
+     (detach → reattach in same frame) this destroyed state that was about
+     to be reused. They now route through a new `PanelDetachGuard.Wire`
+     helper which defers teardown one frame via `MainThreadTimer.OneFrameLater`
+     and cancels it if the element re-attaches before the deferred frame
+     runs. `VideoElementAdapter` additionally calls `Setup` only on the
+     true first attach so reattach is a no-op.
+
+### Added
+
+- **`Shared/Core/Animation/AnimationTicker.cs`** — panel-independent shared
+  ticker for animation/poll subscribers. One `Action onTick` per
+  subscriber, internally hooked once via `EditorApplication.update` (Editor)
+  or `MediaHost.SubscribeTick` (Player). `Subscribe(Action) => Action unsubscribe`.
+  `Animator.PlayTrack` migrated off panel-attached scheduling onto this
+  ticker so animation clocks advance regardless of attach/detach state;
+  style writes are gated on `ve.panel != null` so detached elements do not
+  paint stale frames. Used by `RootRenderer.SubscribeToHostDocument` and
+  `UseUiDocumentRoot` for the rebuild poll. ~3–5 ns per subscriber per
+  frame; zero allocations on the hot path.
+
+- **`Shared/Core/MainThreadTimer.cs`** — `OneFrameLater(Action callback) =>
+  Action cancel`. One-shot main-thread continuation backed by
+  `EditorApplication.update` (Editor) or `MediaHost.SubscribeTick`
+  (Player). Self-removes after firing; `cancel()` is idempotent. Used by
+  `PanelDetachGuard` for deferred adapter teardown.
+
+- **`Shared/Core/PanelDetachGuard.cs`** — `Wire(VisualElement ve, Action
+  teardown)`. Registers a `DetachFromPanelEvent` listener on `ve` that
+  schedules `teardown` one frame later. If the element re-attaches before
+  the deferred frame runs, the pending teardown is cancelled. Centralises
+  the reparent-resilient pattern used by the three column/tab/video
+  adapters.
+
+### Changed
+
+- **`VNodeHostRenderer.hostElement` is now mutable** so `RetargetHost(nextHost)`
+  can swap it on Unity-induced rebuilds. Last-applied host props are
+  captured per render so the new host receives the same prop pass.
+  `internal` API — not a public-surface change.
+
+- **`FiberRenderer.RetargetContainer(VisualElement nextContainer)`** added
+  (internal). Snapshots `_container.Children().ToArray()` and re-adds each
+  to `nextContainer`, then updates `_container`, `_root.ContainerElement`,
+  and `_root.Current.HostElement`. O(N) in number of direct children of
+  the renderer's container — runs once per Unity-induced rebuild, not
+  per frame.
+
+- **`Shared/AssemblyInfo.cs`** — `[InternalsVisibleTo("ReactiveUITK.Runtime")]`
+  is now always-on (previously editor-gated) so `RootRenderer` can call
+  the new internal retarget API and subscribe to `AnimationTicker`.
+
+### Source generator / HMR
+
+- **Hook regex whitelist extended** with `useUiDocumentRoot` /
+  `UseUiDocumentRoot` in both `SourceGenerator~/Emitter/CSharpEmitter.cs`
+  and `Editor/HMR/HmrCSharpEmitter.cs` so the new hook participates in
+  hook-signature detection on identical terms with the rest of the suite.
+
+### Performance
+
+- Steady-state cost of the rebuild defense is ~10 ns/frame per
+  `RootRenderer` initialised against a `UIDocument` (one property read +
+  one `ReferenceEquals`). `UseUiDocumentRoot` consumers cost the same per
+  hook instance. No allocations on the poll hot path.
+- The retarget path (O(N) re-add of direct children) executes only on
+  actual Unity rebuilds, which happen exclusively in the Editor when the
+  Inspector window is repainted. Built players never trigger the bug, so
+  the retarget code is dead weight in production builds (one ReferenceEquals
+  per frame).
+- `Animator` migration to `AnimationTicker` is performance-neutral or
+  better: the per-tick body skips style writes when the element is
+  detached, where previously it always wrote.
+
+### Compatibility
+
+- HMR cooperates with all three plans. `UitkxHmrDelegateSwapper` walks
+  `RootRenderer.AllInstances` and `FiberRenderer.Root` independently of
+  the container, so swapping delegate pointers / triggering re-renders
+  remains valid through Unity rebuilds — the next poll tick re-targets
+  the host and the freshly re-rendered tree comes with it.
+- Editor renderers (`UitkxWindow`) and the legacy `Initialize(VisualElement)`
+  overload do not subscribe to the rebuild poll; only the
+  `Initialize(UIDocument)` path activates Plan 3.
+
 ## [0.5.5] - 2026-05-09
 
 ### Added

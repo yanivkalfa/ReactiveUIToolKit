@@ -1309,6 +1309,102 @@ namespace ReactiveUITK.Core
         }
 
         // ═══════════════════════════════════════════════════════════════════
+        //  UseUiDocumentRoot — reactive UIDocument.rootVisualElement tracking
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Returns the current <c>rootVisualElement</c> of the supplied
+        /// <see cref="UnityEngine.UIElements.UIDocument"/>, or null if the
+        /// document is null or has not yet built its panel. The hook
+        /// re-renders the calling component whenever the
+        /// <c>rootVisualElement</c> reference changes — Unity rebuilds the
+        /// panel (and therefore replaces the root) on undo, asset swap,
+        /// disable/enable, and the editor playmode selection storm. This
+        /// hook gives consumer components a stable handle that follows the
+        /// rebuilds without requiring any manual subscription.
+        ///
+        /// Designed for portal targeting: pair with a non-null guard at the
+        /// call site, e.g.
+        /// <c>target != null ? &lt;Portal target={target}&gt;...&lt;/Portal&gt; : null</c>,
+        /// so the portal is unrendered while the panel is between rebuilds.
+        ///
+        /// Detection uses a per-frame ReferenceEquals poll on the
+        /// panel-independent <see cref="ReactiveUITK.Core.Animation.AnimationTicker"/>
+        /// because <c>UIDocument</c> exposes no public event for panel
+        /// rebuilds and AttachToPanelEvent fires on the (replaced) root, not
+        /// on the document itself.
+        /// </summary>
+        public static UnityEngine.UIElements.VisualElement UseUiDocumentRoot(
+            UnityEngine.UIElements.UIDocument doc
+        )
+        {
+            var (current, setCurrent) = UseState<UnityEngine.UIElements.VisualElement>(
+                doc != null ? doc.rootVisualElement : null
+            );
+
+            UseEffect(
+                () =>
+                {
+                    if (doc == null)
+                    {
+                        return null;
+                    }
+                    // Sync once on effect-run in case the rootVisualElement
+                    // changed between hook-call (UseState init) and the
+                    // commit phase that runs effects.
+                    var initial = doc.rootVisualElement;
+                    if (!ReferenceEquals(initial, current))
+                    {
+                        setCurrent(initial);
+                    }
+
+                    System.Action unsubscribe = null;
+                    unsubscribe = ReactiveUITK.Core.Animation.AnimationTicker.Subscribe(() =>
+                    {
+                        if (doc == null)
+                        {
+                            unsubscribe?.Invoke();
+                            unsubscribe = null;
+                            return;
+                        }
+                        var next = doc.rootVisualElement;
+                        System.Func<
+                            UnityEngine.UIElements.VisualElement,
+                            UnityEngine.UIElements.VisualElement
+                        > updater = prev => ReferenceEquals(prev, next) ? prev : next;
+                        setCurrent(updater);
+                    });
+
+                    return () =>
+                    {
+                        unsubscribe?.Invoke();
+                        unsubscribe = null;
+                    };
+                },
+                doc
+            );
+
+            return current;
+        }
+
+        /// <summary>
+        /// Resolves a <see cref="UnityEngine.UIElements.UIDocument"/> via
+        /// <see cref="UseContext{T}"/> using <paramref name="contextKey"/>
+        /// and forwards to <see cref="UseUiDocumentRoot(UnityEngine.UIElements.UIDocument)"/>.
+        /// Returns null if the key is empty or the context value is not a
+        /// UIDocument.
+        /// </summary>
+        public static UnityEngine.UIElements.VisualElement UseUiDocumentRoot(string contextKey)
+        {
+            if (string.IsNullOrEmpty(contextKey))
+            {
+                return null;
+            }
+            var doc = UseContext<UnityEngine.UIElements.UIDocument>(contextKey);
+            return UseUiDocumentRoot(doc);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
         //  UseSfx — fire-and-forget one-shot audio
         // ═══════════════════════════════════════════════════════════════════
 
@@ -1408,80 +1504,77 @@ namespace ReactiveUITK.Core
             UseEffect(
                 () =>
                 {
-                    UnityEngine.UIElements.IVisualElementScheduledItem item = null;
+                    System.Action unsubscribe = null;
                     double start = 0;
                     bool started = false;
+                    bool completed = false;
                     var target = ResolveAnimationTarget(metadata, state);
                     if (target == null)
                     {
                         return null;
                     }
-                    item = target
-                        .schedule.Execute(() =>
+                    unsubscribe = ReactiveUITK.Core.Animation.AnimationTicker.Subscribe(() =>
+                    {
+                        if (completed)
                         {
-                            if (target.panel == null)
-                            {
-                                try
-                                {
-                                    item?.Pause();
-                                }
-                                catch { }
-                                item = null;
-                                return;
-                            }
-                            double now;
+                            return;
+                        }
+                        double now;
+                        try
+                        {
+                            now = UnityEngine.Time.realtimeSinceStartupAsDouble;
+                        }
+                        catch
+                        {
+                            now = (double)UnityEngine.Time.realtimeSinceStartup;
+                        }
+                        if (!started)
+                        {
+                            start = now + delay;
+                            started = true;
+                        }
+                        if (now < start)
+                        {
+                            return;
+                        }
+                        float t =
+                            duration <= 0f
+                                ? 1f
+                                : UnityEngine.Mathf.Clamp01((float)((now - start) / duration));
+                        float eased = ReactiveUITK.Core.Animation.Easing.Evaluate(ease, t);
+                        float v = UnityEngine.Mathf.Lerp(from, to, eased);
+                        // onUpdate is the consumer's writeback; the consumer is
+                        // responsible for any panel-presence gating it needs.
+                        try
+                        {
+                            onUpdate?.Invoke(v);
+                        }
+                        catch { }
+                        if (t >= 1f)
+                        {
+                            completed = true;
                             try
                             {
-                                now = UnityEngine.Time.realtimeSinceStartupAsDouble;
-                            }
-                            catch
-                            {
-                                now = (double)UnityEngine.Time.realtimeSinceStartup;
-                            }
-                            if (!started)
-                            {
-                                start = now + delay;
-                                started = true;
-                            }
-                            if (now < start)
-                            {
-                                return;
-                            }
-                            float t =
-                                duration <= 0f
-                                    ? 1f
-                                    : UnityEngine.Mathf.Clamp01((float)((now - start) / duration));
-                            float eased = ReactiveUITK.Core.Animation.Easing.Evaluate(ease, t);
-                            float v = UnityEngine.Mathf.Lerp(from, to, eased);
-                            try
-                            {
-                                onUpdate?.Invoke(v);
+                                onComplete?.Invoke();
                             }
                             catch { }
-                            if (t >= 1f)
+                            try
                             {
-                                try
-                                {
-                                    onComplete?.Invoke();
-                                }
-                                catch { }
-                                try
-                                {
-                                    item?.Pause();
-                                }
-                                catch { }
-                                item = null;
+                                unsubscribe?.Invoke();
                             }
-                        })
-                        .Every(16);
+                            catch { }
+                            unsubscribe = null;
+                        }
+                    });
 
                     return () =>
                     {
                         try
                         {
-                            item?.Pause();
+                            unsubscribe?.Invoke();
                         }
                         catch { }
+                        unsubscribe = null;
                     };
                 },
                 dependencies

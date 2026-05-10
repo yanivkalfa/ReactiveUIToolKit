@@ -56,6 +56,12 @@ namespace ReactiveUITK.Elements
         private bool _attached;
         private bool _prepared;
 
+        // Pending one-frame teardown from a transient DetachFromPanelEvent.
+        // If the element is reattached within the same frame (panel rebuild,
+        // reparent), the cancellation is invoked from OnAttach and the
+        // rented VideoPlayer / RenderTexture stay live across the gap.
+        private System.Action _cancelPendingTeardown;
+
         // Wired-once handler refs so we can `-=` on teardown.
         private VideoPlayer.EventHandler _onPrepared;
         private VideoPlayer.EventHandler _onLoopPoint;
@@ -146,6 +152,16 @@ namespace ReactiveUITK.Elements
 
         private void OnAttach(AttachToPanelEvent _)
         {
+            if (_cancelPendingTeardown != null)
+            {
+                // A detach was scheduled but the element came back inside one
+                // frame: cancel the deferred teardown and reuse the live
+                // player. _attached stayed true through the gap so no Setup
+                // is needed.
+                _cancelPendingTeardown.Invoke();
+                _cancelPendingTeardown = null;
+                return;
+            }
             _attached = true;
             if (_props != null)
                 Setup();
@@ -153,11 +169,20 @@ namespace ReactiveUITK.Elements
 
         private void OnDetach(DetachFromPanelEvent _)
         {
-            _attached = false;
+            _cancelPendingTeardown?.Invoke();
+            _cancelPendingTeardown = ReactiveUITK.Core.MainThreadTimer.OneFrameLater(() =>
+            {
+                _cancelPendingTeardown = null;
+                if (panel != null)
+                {
+                    return;
+                }
+                _attached = false;
 #if UNITY_EDITOR
-            _cachedOwnerWindow = null;
+                _cachedOwnerWindow = null;
 #endif
-            Teardown();
+                Teardown();
+            });
         }
 
         private void OnGeometry(GeometryChangedEvent evt)

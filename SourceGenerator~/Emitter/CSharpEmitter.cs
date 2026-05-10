@@ -467,7 +467,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private static readonly System.Text.RegularExpressions.Regex s_hookSignatureRe =
             new System.Text.RegularExpressions.Regex(
-                @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
+                @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useUiDocumentRoot|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseUiDocumentRoot|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
@@ -1157,7 +1157,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             string displayName = SimpleNameForDiagnostic(typeName);
             if (res.FuncPropsTypeName != null)
             {
-                var knownProps = _resolver.GetPublicPropertyNamesByQualifiedName(res.FuncPropsTypeName);
+                var knownProps = _resolver.GetPublicPropertyNamesByQualifiedName(
+                    res.FuncPropsTypeName
+                );
                 if (knownProps.Count > 0)
                 {
                     foreach (var attr in attrs)
@@ -1167,8 +1169,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         string mapped = ToPropName(attr.Name);
                         if (!knownProps.Contains(mapped))
                         {
-                            (unknownAttrs ??= new HashSet<string>(StringComparer.Ordinal)).Add(attr.Name);
-                            string hint = BuildUnknownAttrHintForUserComponent(mapped, displayName, knownProps);
+                            (unknownAttrs ??= new HashSet<string>(StringComparer.Ordinal)).Add(
+                                attr.Name
+                            );
+                            string hint = BuildUnknownAttrHintForUserComponent(
+                                mapped,
+                                displayName,
+                                knownProps
+                            );
                             var loc = MakeLoc(_filePath, attr.SourceLine);
                             _diagnostics.Add(
                                 Diagnostic.Create(
@@ -1191,7 +1199,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (IsKey(attr.Name) || IsRefAttr(attr.Name))
                         continue;
                     (unknownAttrs ??= new HashSet<string>(StringComparer.Ordinal)).Add(attr.Name);
-                    string hint = $". Component '{displayName}' declares no parameters; add one to the component or remove the attribute.";
+                    string hint =
+                        $". Component '{displayName}' declares no parameters; add one to the component or remove the attribute.";
                     var loc = MakeLoc(_filePath, attr.SourceLine);
                     _diagnostics.Add(
                         Diagnostic.Create(
@@ -1789,9 +1798,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (knownProps.Count == 0)
                 return $". Component '{componentDisplayName}' declares no parameters; add one or remove the attribute.";
             var ordered = knownProps.OrderBy(s => s, StringComparer.Ordinal).ToList();
-            string available = ordered.Count <= 8
-                ? string.Join(", ", ordered)
-                : string.Join(", ", ordered.Take(8)) + ", …";
+            string available =
+                ordered.Count <= 8
+                    ? string.Join(", ", ordered)
+                    : string.Join(", ", ordered.Take(8)) + ", …";
             return $". Available on '{componentDisplayName}': {available}. Add a parameter to the component or remove the attribute.";
         }
 
@@ -2057,13 +2067,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     i += 2;
                     while (i + 1 < len && !(text[i] == '*' && text[i + 1] == '/'))
                         i++;
-                    if (i + 1 < len) i += 2;
-                    else i = len;
+                    if (i + 1 < len)
+                        i += 2;
+                    else
+                        i = len;
                     continue;
                 }
                 // ── Verbatim / interpolated-verbatim string @"..."  /  $@"..."
                 bool isVerbatim = c == '@' && i + 1 < len && text[i + 1] == '"';
-                bool isDollarVerbatim = c == '$' && i + 1 < len && text[i + 1] == '@' && i + 2 < len && text[i + 2] == '"';
+                bool isDollarVerbatim =
+                    c == '$'
+                    && i + 1 < len
+                    && text[i + 1] == '@'
+                    && i + 2 < len
+                    && text[i + 2] == '"';
                 if (isVerbatim || isDollarVerbatim)
                 {
                     i += isDollarVerbatim ? 3 : 2;
@@ -2071,7 +2088,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     {
                         if (text[i] == '"')
                         {
-                            if (i + 1 < len && text[i + 1] == '"') { i += 2; continue; }
+                            if (i + 1 < len && text[i + 1] == '"')
+                            {
+                                i += 2;
+                                continue;
+                            }
                             i++;
                             break;
                         }
@@ -2082,7 +2103,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // ── Regular / interpolated string "..."  /  $"..."
                 if (c == '"' || (c == '$' && i + 1 < len && text[i + 1] == '"'))
                 {
-                    if (c == '$') i++;
+                    if (c == '$')
+                        i++;
                     i++; // past opening "
                     int braceDepth = 0;
                     while (i < len)
@@ -2093,11 +2115,33 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                             i += 2;
                             continue;
                         }
-                        if (ci == '{' && i + 1 < len && text[i + 1] == '{') { i += 2; continue; }
-                        if (ci == '}' && i + 1 < len && text[i + 1] == '}') { i += 2; continue; }
-                        if (ci == '{') { braceDepth++; i++; continue; }
-                        if (ci == '}' && braceDepth > 0) { braceDepth--; i++; continue; }
-                        if (ci == '"' && braceDepth == 0) { i++; break; }
+                        if (ci == '{' && i + 1 < len && text[i + 1] == '{')
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        if (ci == '}' && i + 1 < len && text[i + 1] == '}')
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        if (ci == '{')
+                        {
+                            braceDepth++;
+                            i++;
+                            continue;
+                        }
+                        if (ci == '}' && braceDepth > 0)
+                        {
+                            braceDepth--;
+                            i++;
+                            continue;
+                        }
+                        if (ci == '"' && braceDepth == 0)
+                        {
+                            i++;
+                            break;
+                        }
                         i++;
                     }
                     continue;
@@ -2108,8 +2152,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     i++;
                     while (i < len)
                     {
-                        if (text[i] == '\\' && i + 1 < len) { i += 2; continue; }
-                        if (text[i] == '\'') { i++; break; }
+                        if (text[i] == '\\' && i + 1 < len)
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        if (text[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
                         i++;
                     }
                     continue;
@@ -2359,11 +2411,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     // Trim trailing whitespace from the LHS slice so the
                     // emitted ternary reads `((flag) ? ` not `((flag ) ? `.
                     int lhsEnd = ampStart;
-                    while (lhsEnd > lhsStart
-                           && (expr[lhsEnd - 1] == ' '
-                               || expr[lhsEnd - 1] == '\t'
-                               || expr[lhsEnd - 1] == '\r'
-                               || expr[lhsEnd - 1] == '\n'))
+                    while (
+                        lhsEnd > lhsStart
+                        && (
+                            expr[lhsEnd - 1] == ' '
+                            || expr[lhsEnd - 1] == '\t'
+                            || expr[lhsEnd - 1] == '\r'
+                            || expr[lhsEnd - 1] == '\n'
+                        )
+                    )
                         lhsEnd--;
                     spliced.Append("((");
                     spliced.Append(expr, lhsStart, lhsEnd - lhsStart);
@@ -2379,7 +2435,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         spliced.Append(expr, prev, s - prev);
                     spliced.Append(
                         "\n#error UITKX0026: Could not desugar `&&` JSX expression. "
-                        + "Use `cond ? <Tag/> : null` instead.\n"
+                            + "Use `cond ? <Tag/> : null` instead.\n"
                     );
                     prev = e;
                     continue;
@@ -2478,13 +2534,19 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         {
             int i = jsxStart - 1;
             // Skip trailing whitespace between `&&` and the JSX `<`
-            while (i >= prev && (expr[i] == ' ' || expr[i] == '\t' || expr[i] == '\r' || expr[i] == '\n'))
+            while (
+                i >= prev
+                && (expr[i] == ' ' || expr[i] == '\t' || expr[i] == '\r' || expr[i] == '\n')
+            )
                 i--;
-            if (i - 1 < prev) return -1;
-            if (expr[i] != '&' || expr[i - 1] != '&') return -1;
+            if (i - 1 < prev)
+                return -1;
+            if (expr[i] != '&' || expr[i - 1] != '&')
+                return -1;
             // Reject `&&&` (degenerate) — the scanner already filters this
             // but defence-in-depth keeps the splice contract local.
-            if (i - 2 >= prev && expr[i - 2] == '&') return -1;
+            if (i - 2 >= prev && expr[i - 2] == '&')
+                return -1;
             return i - 1;
         }
 

@@ -33,7 +33,14 @@ public sealed class HelloRuntime : MonoBehaviour
       rootRenderer = new GameObject("ReactiveUIRoot").AddComponent<RootRenderer>();
     }
 
-    rootRenderer.Initialize(uiDocument.rootVisualElement);
+    // Recommended: pass the UIDocument itself so the renderer survives
+    // Unity 6.3's silent rootVisualElement rebuilds on Inspector redraws.
+    rootRenderer.Initialize(uiDocument);
+
+    // Legacy overload (still valid if you don't have a UIDocument, e.g.
+    // mounting into a custom EditorWindow VisualElement):
+    //   rootRenderer.Initialize(uiDocument.rootVisualElement);
+
     rootRenderer.Render(V.Func(HelloWorld.Render));
   }
 }`

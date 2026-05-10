@@ -70,5 +70,50 @@ namespace ReactiveUITK.Core.Fiber
             _container.Clear();
             _root = null;
         }
+
+        /// <summary>
+        /// Repoint the renderer at a new container VisualElement without
+        /// tearing down the fiber tree. Moves all currently-mounted
+        /// children from the old container to the new one (preserving
+        /// child VisualElement identity, hooks, refs, animations) and
+        /// updates the FiberRoot / root FiberNode host pointers so
+        /// subsequent reconciliations write to the correct element.
+        ///
+        /// Called by <see cref="VNodeHostRenderer.RetargetHost"/> in
+        /// response to UIDocument panel rebuilds where the parent
+        /// rootVisualElement was replaced but the user's logical UI tree
+        /// is unchanged.
+        /// </summary>
+        public void RetargetContainer(VisualElement nextContainer)
+        {
+            if (nextContainer == null || ReferenceEquals(nextContainer, _container))
+            {
+                return;
+            }
+            // Snapshot before moving — Add() removes from current parent and
+            // mutates the source collection.
+            int childCount = _container.childCount;
+            if (childCount > 0)
+            {
+                var moved = new VisualElement[childCount];
+                for (int i = 0; i < childCount; i++)
+                {
+                    moved[i] = _container[i];
+                }
+                for (int i = 0; i < childCount; i++)
+                {
+                    nextContainer.Add(moved[i]);
+                }
+            }
+            _container = nextContainer;
+            if (_root != null)
+            {
+                _root.ContainerElement = nextContainer;
+                if (_root.Current != null)
+                {
+                    _root.Current.HostElement = nextContainer;
+                }
+            }
+        }
     }
 }

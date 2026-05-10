@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-10",
+      "versions": {
+        "vscode": "1.2.2",
+        "vs2022": "1.2.2"
+      },
+      "shared": [
+        "Feature: SG and HMR emitter hook-signature regex extended with `useUiDocumentRoot` / `UseUiDocumentRoot` so the new hook participates in hook detection on identical terms with the rest of the suite. Ships in lockstep with library 0.5.6, which adds the hook itself and the `RootRenderer.Initialize(UIDocument)` overload that defends against the Unity 6.3 regression where `UIDocument.rootVisualElement` is silently recreated on every `InspectorWindow` redraw (confirmed via standalone repro probe — 6.2 fires zero events on the same project, 6.3 fires repeated `DetachFromPanelEvent` → fresh `VisualElement` instance with call stack ending at `UnityEditor.InspectorWindow.RedrawFromNative`; reported to Unity; distinct from UUM-47682 which is closed \"By Design\" for the UI Builder Live Reload trigger). Six emit sites covered across both pipelines (three in SG `CSharpEmitter`, three in HMR `HmrCSharpEmitter`). No diagnostic-surface or IDE-language behaviour change beyond accepting the new hook name; LSP server build clean."
+      ]
+    },
+    {
       "date": "2026-05-09",
       "versions": {
         "vscode": "1.2.1",
