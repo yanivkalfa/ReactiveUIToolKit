@@ -1,6 +1,33 @@
-﻿## [0.5.5] - 2026-05-09
+﻿## [0.5.6] - 2026-05-10
 
-### JSX `&&` short-circuit splice + `using UnityEngine` parity
+### Unity 6.3 panel-rebuild defense — UIs no longer disappear on Inspector interaction
+
+**Confirmed Unity 6.3 regression.** A standalone probe (`PanelLifecycleProbe`) showed `UIDocument.rootVisualElement` is silently recreated on every `InspectorWindow` redraw — selection changes, hovers, field focus. 6.2 fires zero events on the same project; 6.3 fires `DetachFromPanelEvent` → fresh `VisualElement` instance, call stack ending at `UnityEditor.InspectorWindow.RedrawFromNative`. Reported to Unity. Distinct from UUM-47682 (closed "By Design" for UI Builder Live Reload only) — the documented workaround there ("create UI in `OnEnable`") doesn't apply because the rebuild fires repeatedly *after* `OnEnable`.
+
+There is no public event for this rebuild, so polling is the only defense. The fix is additive — both old and new APIs remain valid.
+
+**`RootRenderer.Initialize(UIDocument)` overload (new).** Subscribes to a per-frame poll. On swap, migrates the fiber tree to the new root via `RetargetHost` + `RetargetContainer`: host props re-applied, children re-added, all hook state and subscriptions preserved.
+
+```csharp
+rootRenderer.Initialize(uiDocument.rootVisualElement); // legacy, still valid
+rootRenderer.Initialize(uiDocument);                   // 6.3-resilient
+```
+
+**`UseUiDocumentRoot` hook (new).** Stable `VisualElement` reference tracking the current root, with `ReferenceEquals` short-circuit.
+
+```csharp
+var root = Hooks.UseUiDocumentRoot(myUIDocument);
+```
+
+**Reparent-resilient adapters.** Video, MultiColumnListView, MultiColumnTreeView, TabView selection trackers route through new `PanelDetachGuard.Wire(ve, teardown)`, which defers teardown one frame via `MainThreadTimer.OneFrameLater` and cancels it on re-attach.
+
+**Cost.** ~10 ns/frame per managed root. Zero hot-path allocations. O(N) retarget runs only on real rebuilds (Editor-only). HMR compatible.
+
+VS Code **1.2.1 → 1.2.2** · VS 2022 **1.2.1 → 1.2.2**.
+
+---
+
+## [0.5.5] - 2026-05-09
 
 The React idiom `{cond && <Tag/>}` now splices cleanly in markup expression positions. C# `&&` is bool-only — `bool && VirtualNode` is `CS0019` — so the splicer rewrites the expression at emit time to a ternary `((cond) ? V.Tag(...) : (VirtualNode?)null)`, reusing the already-tested Phase 1 ternary path. The `null` fallback is dropped at render time by `__C(params object[])` which filters nulls. No runtime change.
 

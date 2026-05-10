@@ -25,14 +25,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 );
                 return;
             }
-            if (uiDocument == null || uiDocument.rootVisualElement == null)
+            if (uiDocument == null)
             {
                 Debug.LogError(
-                    "RuntimeAppExampleUIBootstrap: UIDocument not assigned or rootVisualElement null"
+                    "RuntimeAppExampleUIBootstrap: UIDocument not assigned"
                 );
                 return;
             }
-            rootRenderer.Initialize(uiDocument.rootVisualElement);
+            rootRenderer.Initialize(uiDocument);
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
             rootRenderer.Render(V.Host(hostProps, null, V.Func(StressTest.Render)));
         }

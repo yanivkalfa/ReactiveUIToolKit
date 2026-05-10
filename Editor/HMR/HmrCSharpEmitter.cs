@@ -57,7 +57,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// (Start, End, Line). Used by Phase 1's expression splice to detect
         /// JSX literals embedded inside arbitrary C# expressions at HMR time.
         /// </summary>
-        internal delegate IEnumerable FindJsxRangesFunc(string source, int rangeStart, int rangeEnd);
+        internal delegate IEnumerable FindJsxRangesFunc(
+            string source,
+            int rangeStart,
+            int rangeEnd
+        );
 
         /// <summary>
         /// Reflective access to <c>DirectiveParser.FindLhsStartForLogicalAnd</c>.
@@ -504,13 +508,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                         i += 2;
                         while (i + 1 < len && !(text[i] == '*' && text[i + 1] == '/'))
                             i++;
-                        if (i + 1 < len) i += 2;
-                        else i = len;
+                        if (i + 1 < len)
+                            i += 2;
+                        else
+                            i = len;
                         continue;
                     }
                     // ── Verbatim / interpolated-verbatim string @"..."  /  $@"..."
                     bool isVerbatim = c == '@' && i + 1 < len && text[i + 1] == '"';
-                    bool isDollarVerbatim = c == '$' && i + 1 < len && text[i + 1] == '@' && i + 2 < len && text[i + 2] == '"';
+                    bool isDollarVerbatim =
+                        c == '$'
+                        && i + 1 < len
+                        && text[i + 1] == '@'
+                        && i + 2 < len
+                        && text[i + 2] == '"';
                     if (isVerbatim || isDollarVerbatim)
                     {
                         i += isDollarVerbatim ? 3 : 2;
@@ -518,7 +529,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                         {
                             if (text[i] == '"')
                             {
-                                if (i + 1 < len && text[i + 1] == '"') { i += 2; continue; }
+                                if (i + 1 < len && text[i + 1] == '"')
+                                {
+                                    i += 2;
+                                    continue;
+                                }
                                 i++;
                                 break;
                             }
@@ -529,7 +544,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                     // ── Regular / interpolated string "..."  /  $"..."
                     if (c == '"' || (c == '$' && i + 1 < len && text[i + 1] == '"'))
                     {
-                        if (c == '$') i++;
+                        if (c == '$')
+                            i++;
                         i++; // past opening "
                         int braceDepth = 0;
                         while (i < len)
@@ -540,11 +556,33 @@ namespace ReactiveUITK.EditorSupport.HMR
                                 i += 2;
                                 continue;
                             }
-                            if (ci == '{' && i + 1 < len && text[i + 1] == '{') { i += 2; continue; }
-                            if (ci == '}' && i + 1 < len && text[i + 1] == '}') { i += 2; continue; }
-                            if (ci == '{') { braceDepth++; i++; continue; }
-                            if (ci == '}' && braceDepth > 0) { braceDepth--; i++; continue; }
-                            if (ci == '"' && braceDepth == 0) { i++; break; }
+                            if (ci == '{' && i + 1 < len && text[i + 1] == '{')
+                            {
+                                i += 2;
+                                continue;
+                            }
+                            if (ci == '}' && i + 1 < len && text[i + 1] == '}')
+                            {
+                                i += 2;
+                                continue;
+                            }
+                            if (ci == '{')
+                            {
+                                braceDepth++;
+                                i++;
+                                continue;
+                            }
+                            if (ci == '}' && braceDepth > 0)
+                            {
+                                braceDepth--;
+                                i++;
+                                continue;
+                            }
+                            if (ci == '"' && braceDepth == 0)
+                            {
+                                i++;
+                                break;
+                            }
                             i++;
                         }
                         continue;
@@ -555,8 +593,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                         i++;
                         while (i < len)
                         {
-                            if (text[i] == '\\' && i + 1 < len) { i += 2; continue; }
-                            if (text[i] == '\'') { i++; break; }
+                            if (text[i] == '\\' && i + 1 < len)
+                            {
+                                i += 2;
+                                continue;
+                            }
+                            if (text[i] == '\'')
+                            {
+                                i++;
+                                break;
+                            }
                             i++;
                         }
                         continue;
@@ -744,7 +790,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 if (string.IsNullOrEmpty(expr))
                     return expr;
-                if (_findJsxBlockRanges == null || _findBareJsxRanges == null || _parseMarkup == null)
+                if (
+                    _findJsxBlockRanges == null
+                    || _findBareJsxRanges == null
+                    || _parseMarkup == null
+                )
                     return expr;
 
                 var markupRanges = TuplesFromEnumerable(_findJsxBlockRanges(expr, 0, expr.Length));
@@ -799,11 +849,15 @@ namespace ReactiveUITK.EditorSupport.HMR
                         // Trim trailing whitespace from the LHS slice so the
                         // HMR emit matches SG byte-for-byte (parity contract).
                         int lhsEnd = ampStart;
-                        while (lhsEnd > lhsStart
-                               && (expr[lhsEnd - 1] == ' '
-                                   || expr[lhsEnd - 1] == '\t'
-                                   || expr[lhsEnd - 1] == '\r'
-                                   || expr[lhsEnd - 1] == '\n'))
+                        while (
+                            lhsEnd > lhsStart
+                            && (
+                                expr[lhsEnd - 1] == ' '
+                                || expr[lhsEnd - 1] == '\t'
+                                || expr[lhsEnd - 1] == '\r'
+                                || expr[lhsEnd - 1] == '\n'
+                            )
+                        )
                             lhsEnd--;
                         spliced.Append("((");
                         spliced.Append(expr, lhsStart, lhsEnd - lhsStart);
@@ -815,7 +869,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                             spliced.Append(expr, prev, s - prev);
                         spliced.Append(
                             "\n#error UITKX0026: Could not desugar `&&` JSX expression. "
-                            + "Use `cond ? <Tag/> : null` instead.\n"
+                                + "Use `cond ? <Tag/> : null` instead.\n"
                         );
                         prev = e;
                         continue;
@@ -889,11 +943,17 @@ namespace ReactiveUITK.EditorSupport.HMR
             private static int TryFindTrailingLogicalAnd(string expr, int prev, int jsxStart)
             {
                 int i = jsxStart - 1;
-                while (i >= prev && (expr[i] == ' ' || expr[i] == '\t' || expr[i] == '\r' || expr[i] == '\n'))
+                while (
+                    i >= prev
+                    && (expr[i] == ' ' || expr[i] == '\t' || expr[i] == '\r' || expr[i] == '\n')
+                )
                     i--;
-                if (i - 1 < prev) return -1;
-                if (expr[i] != '&' || expr[i - 1] != '&') return -1;
-                if (i - 2 >= prev && expr[i - 2] == '&') return -1;
+                if (i - 1 < prev)
+                    return -1;
+                if (expr[i] != '&' || expr[i - 1] != '&')
+                    return -1;
+                if (i - 2 >= prev && expr[i - 2] == '&')
+                    return -1;
                 return i - 1;
             }
 
@@ -903,7 +963,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             /// concrete tuple list that <see cref="SpliceExpressionMarkup"/>
             /// can consume directly.
             /// </summary>
-            private static List<(int Start, int End, int Line)> TuplesFromEnumerable(IEnumerable raw)
+            private static List<(int Start, int End, int Line)> TuplesFromEnumerable(
+                IEnumerable raw
+            )
             {
                 var result = new List<(int, int, int)>();
                 if (raw == null)
@@ -2919,7 +2981,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// Captures the hook name (without "Hooks." prefix) in group 1.
         /// </summary>
         private static readonly Regex s_hookSignatureRe = new Regex(
-            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
+            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useUiDocumentRoot|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseUiDocumentRoot|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
             RegexOptions.Compiled
         );
 

@@ -226,7 +226,7 @@ namespace ReactiveUITK.Elements.Trackers
             if (!state.DetachHooked)
             {
                 state.DetachHooked = true;
-                view.RegisterCallback<DetachFromPanelEvent>(_ => DetachHooks(view, state));
+                ReactiveUITK.Core.PanelDetachGuard.Wire(view, () => DetachHooks(view, state));
             }
         }
 
