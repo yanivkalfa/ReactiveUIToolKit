@@ -6,7 +6,77 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
-## [0.5.6] - 2026-05-10
+## [0.5.7] - 2026-05-11
+
+### Fixed
+
+- **`<Portal>` survives Unity 6.3 panel rebuilds.** When a `<Portal target={x}>`
+  was rendering into a world-space `UIDocument`, clicking that document in
+  the Hierarchy (or any other action that triggered Unity 6.3's silent
+  `rootVisualElement` rebuild — see 0.5.6) caused the portal contents to
+  disappear. Diagnostic logs confirmed the world panel's root was being
+  swapped repeatedly with `childCount=0`: 0.5.6's `Hooks.UseUiDocumentRoot`
+  correctly re-fired the consumer with the new root reference, but the
+  Fiber commit phase had no path for moving an existing portal's children
+  from the old target VisualElement to the new one. The Portal HostFiber's
+  `PortalTarget` and `HostElement` were refreshed by `FiberFactory.CloneFiber`,
+  newly-mounted children were placed into the new target, deleted children
+  were removed from the old — but **stable** children (the common case)
+  remained parented to the dead target.
+
+  Fixed at the right architectural layer — the commit phase, mirroring the
+  shape of 0.5.6's `RetargetContainer`:
+
+  - New `EffectFlags.PortalRetarget` (bit 6) — set in `CompleteWork` for any
+    `HostPortal` fiber whose `PortalTarget` reference no longer matches its
+    alternate's. One `ReferenceEquals` per portal fiber per render; no cost
+    when the target is stable.
+  - New `CommitWork` branch invokes `CommitPortalRetarget`, which performs a
+    bounded depth-first walk of the portal's fiber subtree, descending only
+    through non-host wrappers (`Fragment`, `FunctionComponent`, `ErrorBoundary`,
+    `Suspense`) to the first host descendant on each branch. Reparenting one
+    `VisualElement` carries its full UI Toolkit subtree along, so no per-VE
+    recursion is needed. Nested `HostPortal` fibers are skipped — they own
+    their own targets.
+  - `_hostConfig.AppendChild` (which calls `parent.Add(child)`) transparently
+    removes the child from its previous parent first, so the retarget is
+    safe even when the old target VisualElement has already been disposed
+    by Unity (the 6.3 rebuild scenario this fix exists for).
+  - Null-target case detaches the portal's host descendants cleanly so they
+    do not linger as orphans of a dead panel root.
+
+  Combined with 0.5.6's `Hooks.UseUiDocumentRoot`, world-space portals are
+  now resilient to the full 6.3 rebuild storm: the hook re-fires with the
+  new root, the consumer renders `<Portal target={newRoot}>`, and the
+  reconciler reparents the existing portal subtree into the new root in
+  the same commit. Steady-state cost is one `ReferenceEquals` per portal
+  per render; retarget cost is `O(top-level host descendants)` and only
+  runs on actual rebuild events.
+
+- **Source generator and HMR emitter — lowercase `useUiDocumentRoot` alias
+  and IDE virtual-document stubs.** 0.5.6 added `Hooks.UseUiDocumentRoot`
+  to the hook signature regex (so it counted as a hook for ordering
+  diagnostics) but missed three downstream sites: the `s_hookAliases`
+  rewrite table in both `SourceGenerator~/Emitter/CSharpEmitter.cs` and
+  `Editor/HMR/HmrCSharpEmitter.cs` plus `HmrHookEmitter.cs`, and the
+  Roslyn virtual-document stubs in
+  `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs`.
+  The result was that lowercase `useUiDocumentRoot(...)` in `.uitkx`
+  produced `CS0103: The name 'useUiDocumentRoot' does not exist in the
+  current context` both in Unity build output and in the IDE LSP
+  preview — only the fully-qualified `Hooks.UseUiDocumentRoot(...)` form
+  worked. All four sites are now in sync; the lowercase form participates
+  on identical terms with `useState` / `useEffect` / `useContext` / etc.
+
+### Changed
+
+- **`AppBootstrap` portal-stage seeding** in samples now stashes the
+  `UIDocument` itself (not its `rootVisualElement`) into the
+  `HostContext.Environment` slot, and the consuming component reads it
+  via `Hooks.UseUiDocumentRoot(contextKey)`. The previous pattern (seed
+  the root directly) is still supported but does not survive panel
+  rebuilds. Updated example: `MenuPage.uitkx` in the Pretty UI sample.
+
 
 ### Fixed
 
