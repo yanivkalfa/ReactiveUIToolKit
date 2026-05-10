@@ -16,7 +16,7 @@ namespace ReactiveUITK.Core
     public sealed class VNodeHostRenderer : IVNodeHostRenderer
     {
         private readonly FiberRenderer fiberRenderer;
-        private readonly VisualElement hostElement;
+        private VisualElement hostElement;
         private IReadOnlyDictionary<string, object> lastHostProps;
 
 #if UNITY_EDITOR
@@ -39,6 +39,31 @@ namespace ReactiveUITK.Core
         {
             ClearHostProps();
             fiberRenderer?.Clear();
+        }
+
+        /// <summary>
+        /// Repoints this renderer at a new host VisualElement. Used by
+        /// <see cref="RootRenderer"/> when Unity rebuilds the panel
+        /// (UIDocument asset swap, undo, disable/enable, editor selection
+        /// storm in playmode) so the rendered fiber tree can be moved to
+        /// the freshly-created root without unmount/remount. Re-applies
+        /// the last host props to the new element so style overrides
+        /// (flexGrow, etc.) survive the swap. The fiber tree's container
+        /// and root host pointer must be updated separately via
+        /// <see cref="FiberRenderer.RetargetContainer(VisualElement)"/>.
+        /// </summary>
+        internal void RetargetHost(VisualElement nextHost)
+        {
+            if (nextHost == null || ReferenceEquals(nextHost, hostElement))
+            {
+                return;
+            }
+            hostElement = nextHost;
+            if (lastHostProps != null)
+            {
+                PropsApplier.Apply(hostElement, lastHostProps);
+            }
+            fiberRenderer.RetargetContainer(nextHost);
         }
 
         private VirtualNode NormalizeHostRoot(VirtualNode vnode)

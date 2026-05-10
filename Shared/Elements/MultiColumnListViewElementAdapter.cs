@@ -1202,29 +1202,32 @@ namespace ReactiveUITK.Elements
                 return;
             }
             parts.DetachWired = true;
-            view.RegisterCallback<DetachFromPanelEvent>(_ =>
-            {
-                try
+            ReactiveUITK.Core.PanelDetachGuard.Wire(
+                view,
+                () =>
                 {
-                    parts.AdjustmentTracker.Detach(view, parts);
+                    try
+                    {
+                        parts.AdjustmentTracker.Detach(view, parts);
+                    }
+                    catch { }
+                    try
+                    {
+                        parts.SortTracker.Detach(view, parts);
+                    }
+                    catch { }
+                    try
+                    {
+                        parts.LayoutTracker.Detach(view, parts);
+                    }
+                    catch { }
+                    try
+                    {
+                        parts.ScrollTracker.Detach(view, parts);
+                    }
+                    catch { }
                 }
-                catch { }
-                try
-                {
-                    parts.SortTracker.Detach(view, parts);
-                }
-                catch { }
-                try
-                {
-                    parts.LayoutTracker.Detach(view, parts);
-                }
-                catch { }
-                try
-                {
-                    parts.ScrollTracker.Detach(view, parts);
-                }
-                catch { }
-            });
+            );
         }
 
         private static void EnsureViewDataKey(

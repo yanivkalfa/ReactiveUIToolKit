@@ -1211,24 +1211,27 @@ namespace ReactiveUITK.Elements
                 return;
             }
             parts.DetachWired = true;
-            tv.RegisterCallback<DetachFromPanelEvent>(_ =>
-            {
-                try
+            ReactiveUITK.Core.PanelDetachGuard.Wire(
+                tv,
+                () =>
                 {
-                    parts.AdjustmentTracker.Detach(tv, parts);
+                    try
+                    {
+                        parts.AdjustmentTracker.Detach(tv, parts);
+                    }
+                    catch { }
+                    try
+                    {
+                        parts.SortTracker.Detach(tv, parts);
+                    }
+                    catch { }
+                    try
+                    {
+                        parts.LayoutTracker.Detach(tv, parts);
+                    }
+                    catch { }
                 }
-                catch { }
-                try
-                {
-                    parts.SortTracker.Detach(tv, parts);
-                }
-                catch { }
-                try
-                {
-                    parts.LayoutTracker.Detach(tv, parts);
-                }
-                catch { }
-            });
+            );
         }
     }
 }
