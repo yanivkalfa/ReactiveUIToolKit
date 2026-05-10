@@ -610,3 +610,65 @@ v0.5.5 emits `UITKX0026` when the LHS walker fails. The same diagnostic
 ID can be reused for setup/body splicers when they're extended.
 
 ---
+
+## 16. Unity 6.3 obsolete API — `AssetDatabase.GetAssetPath(int)` / `EditorUtility.InstanceIDToObject(int)`
+
+**Status:** Open — produces `CS0618` warnings on Unity 6.3, no functional
+impact.
+
+Unity 6.3 deprecated the `int`-overload `AssetDatabase.GetAssetPath(int)`
+and `EditorUtility.InstanceIDToObject(int)` in favor of new overloads
+taking the `EntityId` struct. Two call sites in the package surface the
+warnings:
+
+```
+Editor/UitkxConsoleNavigation.cs(198,32): warning CS0618:
+  AssetDatabase.GetAssetPath(int) is obsolete — use GetAssetPath(EntityId).
+Editor/UitkxConsoleNavigation.cs(201,27): warning CS0618:
+  EditorUtility.InstanceIDToObject(int) is obsolete — use EntityIdToObject.
+```
+
+**Why deferred:** the new `EntityId` overloads do not exist on Unity 6.2
+or earlier, so the migration must be guarded by a version pragma:
+
+```csharp
+#if UNITY_6000_3_OR_NEWER
+    var path = AssetDatabase.GetAssetPath(new EntityId(instanceId));
+    var obj  = EditorUtility.EntityIdToObject(new EntityId(instanceId));
+#else
+    var path = AssetDatabase.GetAssetPath(instanceId);
+    var obj  = EditorUtility.InstanceIDToObject(instanceId);
+#endif
+```
+
+The exact symbol shape (`EntityId` ctor vs implicit cast from `int`)
+needs to be confirmed against 6.3 docs before the conditional is added.
+Filed as the new symbol surface stabilises across 6.3 releases.
+
+**Files:** `Editor/UitkxConsoleNavigation.cs` (two call sites).
+
+---
+
+## 17. `DoomTextures.uitkx` non-nullable Texture2DArray fields trigger CS8618
+
+**Status:** Open — pre-existing nullable-reference-type warnings in the
+Doom sample.
+
+Six fields on `DoomTextures` (`_walls`, `_floors`, `_sprites`, `_sky`,
+`_faces`, `_weapons`) are declared as non-nullable `Texture2DArray` but
+populated lazily by `Setup()`/`Awake()` after construction. The compiler
+flags each with `CS8618` ("Non-nullable field must contain a non-null
+value when exiting constructor").
+
+**Fix options:**
+1. `private Texture2DArray _walls = null!;` — short, idiomatic for
+   "framework-initialized later" state. Matches MonoBehaviour-style
+   conventions used elsewhere in the samples.
+2. Make the fields nullable (`Texture2DArray? _walls;`) and add `!`
+   at the read sites — more invasive, propagates nullability.
+
+Option 1 is preferred — six one-liners, no read-site churn.
+
+**Files:** `Samples/Components/DoomGame/DoomTextures.uitkx` (lines 69–73).
+
+---

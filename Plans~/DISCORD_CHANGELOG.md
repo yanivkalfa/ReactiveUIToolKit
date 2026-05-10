@@ -1,4 +1,24 @@
-﻿## [0.5.6] - 2026-05-10
+﻿## [0.5.7] - 2026-05-11
+
+### `<Portal>` survives Unity 6.3 panel rebuilds — completes the 0.5.6 defense
+
+**Bug class 2 closed.** 0.5.6 fixed the main `RootRenderer` against Unity 6.3's silent `rootVisualElement` rebuilds, but world-space portals still vanished when their `UIDocument` was clicked in the Hierarchy. Logs showed the world root swapped repeatedly with `childCount=0`: `Hooks.UseUiDocumentRoot` correctly re-fired the consumer with the new root, but the Fiber commit phase had no path to physically move existing portal children from the old target to the new one. New mounts went to the new target; deletions cleared from the old; **stable** children stayed parented to the dead target.
+
+**Fix lives in the commit phase**, mirroring 0.5.6's `RetargetContainer` at portal granularity:
+
+- New `EffectFlags.PortalRetarget` (bit 6), set in `CompleteWork` when a `HostPortal` fiber's `PortalTarget` differs from its alternate's. One `ReferenceEquals` per portal per render — zero cost when stable.
+- New `CommitWork` branch runs `CommitPortalRetarget`: bounded DFS descending only through non-host wrappers (`Fragment`, `FunctionComponent`, `ErrorBoundary`, `Suspense`) to the first host descendant on each branch. Reparenting one VisualElement carries its subtree along — no per-VE recursion. Nested portals skipped.
+- `parent.Add(child)` removes from the old parent first, so retarget is safe even when Unity has already disposed the old target.
+
+Combined with `UseUiDocumentRoot`, world-space portals now survive the rebuild storm: hook re-fires → consumer renders `<Portal target={newRoot}>` → reconciler reparents the subtree, all in one commit.
+
+**Fix — lowercase `useUiDocumentRoot` alias.** 0.5.6 only registered the hook in the signature regex; SG/HMR rewrite tables and IDE Roslyn stubs were missed, so `useUiDocumentRoot(...)` in `.uitkx` produced `CS0103` except via `Hooks.UseUiDocumentRoot(...)`. All four sites synced.
+
+VS Code **1.2.2 → 1.2.3** · VS 2022 **1.2.2 → 1.2.3**.
+
+---
+
+## [0.5.6] - 2026-05-10
 
 ### Unity 6.3 panel-rebuild defense — UIs no longer disappear on Inspector interaction
 

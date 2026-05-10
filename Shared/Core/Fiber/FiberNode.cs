@@ -190,5 +190,15 @@ namespace ReactiveUITK.Core.Fiber
 
         /// <summary>Ref needs update</summary>
         Ref = 1 << 5,
+
+        /// <summary>
+        /// HostPortal whose <see cref="FiberNode.PortalTarget"/> changed between
+        /// renders. The commit phase must physically reparent the portal's
+        /// top-level host descendants from the previous target VisualElement to
+        /// the new one. Set in <c>CompleteWork</c> by comparing the WIP fiber's
+        /// PortalTarget to its alternate's; honored in <c>CommitWork</c> by
+        /// <c>CommitPortalRetarget</c>.
+        /// </summary>
+        PortalRetarget = 1 << 6,
     }
 }

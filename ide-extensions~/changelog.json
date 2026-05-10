@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-11",
+      "versions": {
+        "vscode": "1.2.3",
+        "vs2022": "1.2.3"
+      },
+      "shared": [
+        "Feature: SG and HMR `s_hookAliases` rewrite tables and the IDE Roslyn `VirtualDocumentGenerator` stubs now include `useUiDocumentRoot` so the lowercase form participates on identical terms with the rest of the hook suite. 0.5.6 added `Hooks.UseUiDocumentRoot` to the signature regex (hook counting/ordering) but missed three downstream sites — SG `CSharpEmitter.s_hookAliases`, HMR `HmrCSharpEmitter`/`HmrHookEmitter` `s_hookAliases`, and the two `VirtualDocumentGenerator` stub blocks (static-method and instance-method scopes). Result was that `var root = useUiDocumentRoot(uiDoc);` in `.uitkx` produced CS0103 in both the Unity build output and the IDE LSP preview while `Hooks.UseUiDocumentRoot(uiDoc)` worked. All four sites now in sync. Ships in lockstep with library 0.5.7 which adds the Fiber-side commit-phase `EffectFlags.PortalRetarget` path closing bug class 2 of the Unity 6.3 silent `rootVisualElement` rebuild defense (world-space `<Portal target={x}>` chrome was vanishing on Hierarchy click because stable portal children stayed parented to the dead old target — `RootRenderer.Initialize(UIDocument)` from 0.5.6 only handles the host-renderer path, not portals). LSP server build clean; SG `dotnet build` clean (0 errors)."
+      ]
+    },
+    {
       "date": "2026-05-10",
       "versions": {
         "vscode": "1.2.2",

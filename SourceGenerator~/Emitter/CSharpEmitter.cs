@@ -399,6 +399,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             ("useDeferredValue(", "Hooks.UseDeferredValue("),
             ("useTransition(", "Hooks.UseTransition("),
             ("useSfx(", "Hooks.UseSfx("),
+            ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
             ("provideContext(", "Hooks.ProvideContext("),
         };
 

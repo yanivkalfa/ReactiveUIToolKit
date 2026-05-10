@@ -618,6 +618,25 @@ namespace ReactiveUITK.Core.Fiber
                         fiber.PendingHostProps = fiber.HostProps;
                     }
                     break;
+
+                case FiberTag.HostPortal:
+                    // Portal target may change between renders when the consumer rebinds
+                    // <Portal target={x}>, e.g. via Hooks.UseUiDocumentRoot reacting to a
+                    // Unity 6.3 panel rebuild. FiberFactory.CloneFiber already refreshes
+                    // PortalTarget/HostElement from the new VNode; here we detect the
+                    // identity change so the commit phase can reparent the portal's
+                    // existing host descendants from the old target VE to the new one.
+                    //
+                    // Skipped on first mount (no Alternate) — CommitPlacement on the
+                    // children handles initial attachment through fiber.HostElement.
+                    if (
+                        fiber.Alternate != null
+                        && !ReferenceEquals(fiber.PortalTarget, fiber.Alternate.PortalTarget)
+                    )
+                    {
+                        fiber.EffectTag |= EffectFlags.PortalRetarget;
+                    }
+                    break;
             }
 
             // Collect effects
@@ -876,6 +895,20 @@ namespace ReactiveUITK.Core.Fiber
                 CommitDeletion(fiber);
             }
 
+            // PortalRetarget runs AFTER Placement/Update/Deletion of this fiber
+            // and AFTER all descendant CommitWork passes (the effect list is built
+            // in post-order). By this point any newly-placed children have been
+            // appended to the new target (because clone refreshed HostElement),
+            // and any deleted children have been removed from the old target.
+            // We move the remaining stable children from old target to new in
+            // fiber order so they end up after the new ones — the chosen
+            // ordering for the common case where target changes alone and the
+            // child set is stable.
+            if ((fiber.EffectTag & EffectFlags.PortalRetarget) != 0)
+            {
+                CommitPortalRetarget(fiber);
+            }
+
             // Layout effects
             if ((fiber.EffectTag & EffectFlags.LayoutEffect) != 0)
             {
@@ -891,6 +924,102 @@ namespace ReactiveUITK.Core.Fiber
             if ((fiber.EffectTag & (EffectFlags.LayoutEffect | EffectFlags.PassiveEffect)) != 0)
             {
                 _effectsCommitted++;
+            }
+        }
+
+        /// <summary>
+        /// Reparents the top-level host descendants of a HostPortal fiber from
+        /// the previous <c>PortalTarget</c> VisualElement to the new one. Runs
+        /// when <see cref="EffectFlags.PortalRetarget"/> is set in CommitWork.
+        ///
+        /// The walk is bounded: it descends only through non-host wrapper
+        /// fibers (Fragment, FunctionComponent, ErrorBoundary, Suspense) to
+        /// reach the first host descendant on each branch. Reparenting a host
+        /// VisualElement carries its whole UI Toolkit subtree along, so there
+        /// is no need to recurse into host descendants. Nested HostPortal
+        /// fibers manage their own targets and are skipped.
+        ///
+        /// <c>VisualElement.Add</c> transparently removes a child from its
+        /// previous parent before appending, which makes this safe even when
+        /// the previous target has already been disposed by Unity (the
+        /// 6.3 panel-rebuild scenario this fix exists for).
+        /// </summary>
+        private void CommitPortalRetarget(FiberNode portalFiber)
+        {
+            var newTarget = portalFiber.PortalTarget;
+            if (newTarget == null)
+            {
+                // Defensive: clearing the target detaches existing host
+                // descendants from the old parent so they do not linger as
+                // orphan children of a dead panel root.
+                DetachTopLevelHostChildren(portalFiber);
+                return;
+            }
+
+            ReparentTopLevelHostChildren(portalFiber, newTarget);
+        }
+
+        /// <summary>
+        /// Depth-first walk of <paramref name="parent"/>'s fiber subtree that
+        /// reparents the first host fiber encountered on each branch to
+        /// <paramref name="newTarget"/>, preserving fiber-tree order. Stops
+        /// descent at host fibers (whose VE subtree comes along automatically)
+        /// and at nested HostPortal fibers (which own their own target).
+        /// </summary>
+        private void ReparentTopLevelHostChildren(FiberNode parent, VisualElement newTarget)
+        {
+            var child = parent.Child;
+            while (child != null)
+            {
+                if (child.Tag == FiberTag.HostPortal)
+                {
+                    // Nested portal owns its own target; do not touch.
+                }
+                else if (child.HostElement != null)
+                {
+                    if (!ReferenceEquals(child.HostElement.parent, newTarget))
+                    {
+                        _hostConfig.AppendChild(newTarget, child.HostElement);
+                    }
+                }
+                else
+                {
+                    // Wrapper fiber without a VE (Fragment / FunctionComponent /
+                    // ErrorBoundary / Suspense). Descend to find the first host
+                    // descendant on this branch.
+                    ReparentTopLevelHostChildren(child, newTarget);
+                }
+                child = child.Sibling;
+            }
+        }
+
+        /// <summary>
+        /// Removes the top-level host descendants of a HostPortal from their
+        /// current parent. Used when PortalTarget transitions to null between
+        /// renders so the children do not remain attached to a stale parent.
+        /// </summary>
+        private void DetachTopLevelHostChildren(FiberNode parent)
+        {
+            var child = parent.Child;
+            while (child != null)
+            {
+                if (child.Tag == FiberTag.HostPortal)
+                {
+                    // Nested portal owns its own target; do not touch.
+                }
+                else if (child.HostElement != null)
+                {
+                    var current = child.HostElement.parent;
+                    if (current != null)
+                    {
+                        _hostConfig.RemoveChild(current, child.HostElement);
+                    }
+                }
+                else
+                {
+                    DetachTopLevelHostChildren(child);
+                }
+                child = child.Sibling;
             }
         }
 
