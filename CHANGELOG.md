@@ -6,6 +6,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.8] - 2026-05-11
+
+### Fixed
+
+- **`[OnOpenAsset]` migration to `EntityId` callbacks on Unity 6.3+.** The
+  Console hyperlink navigation hook in `UitkxConsoleNavigation.cs`
+  surfaced `CS0618` warnings on 6.3 / 6.4 because every `int↔EntityId`
+  conversion on `EntityId` is `[Obsolete]` — including the implicit cast
+  operator itself, which carries the deprecation message *"EntityId will
+  not be representable by an int in the future. This casting operator
+  will be removed in a future version."* A reflection probe of
+  `UnityEngine.CoreModule.dll` on 6000.3.8f1 and 6000.4.6f1 revealed
+  that the clean migration is not to convert `int → EntityId` at the
+  call site but to let `[OnOpenAsset]` hand us an `EntityId` directly:
+  Unity's `OnOpenAssetAttribute` accepts both the legacy
+  `(int, int, int)` callback shape and a new `(EntityId, int, int)`
+  shape on 6.3+. The four registered callbacks (`OnOpenAssetPriority`,
+  `OnOpenAssetPriorityCompat`, `OnOpenAssetCompat`, `OnOpenAssetCompat2`)
+  are now split by `#if UNITY_6000_3_OR_NEWER`:
+  - 6.3+ branch: callbacks take `EntityId entityId` and forward to an
+    `EntityId`-typed `HandleOnOpenAsset` overload that calls
+    `AssetDatabase.GetAssetPath(entityId)` and
+    `EditorUtility.EntityIdToObject(entityId)` directly. Zero
+    `int↔EntityId` conversions, zero obsolete APIs touched.
+  - Pre-6.3 branch: retains the original `int`-typed callbacks verbatim,
+    since `EntityId` does not exist on the package's minimum supported
+    Unity 6000.2.
+
+  The version-independent path-resolution and external-editor-launch
+  logic was extracted into a shared `ResolveAndDispatch(assetPath, line,
+  column)` so neither branch duplicates the resolver. Tech-debt item 16
+  closed with full reasoning so the dead-end cast approach is not
+  re-attempted.
+
+- **`DoomTextures` sample — `CS8618` on non-nullable lazy fields.** Six
+  fields (`_walls`, `_floors`, `_sprites`, `_sky`, `_faces`, `_weapons`)
+  were declared as non-nullable `Texture2D` / `Texture2D[]` but populated
+  lazily by `EnsureBuilt()` after first read. The compiler flagged each
+  with `CS8618` ("Non-nullable field must contain a non-null value when
+  exiting constructor"). Suffixed each declaration with `= null!`,
+  idiomatic for framework-initialized-later state. Every public getter
+  routes through `EnsureBuilt()` so consumers never observe the null
+  state — zero behaviour change. Tech-debt item 17 closed.
+
+VS Code **1.2.3 → 1.2.4** · VS 2022 **1.2.3 → 1.2.4**.
+
 ## [0.5.7] - 2026-05-11
 
 ### Fixed
@@ -76,6 +122,31 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   via `Hooks.UseUiDocumentRoot(contextKey)`. The previous pattern (seed
   the root directly) is still supported but does not survive panel
   rebuilds. Updated example: `MenuPage.uitkx` in the Pretty UI sample.
+
+### Known limitations
+
+- **Editor-only: portal contents are non-interactive *while* a Unity 6.3
+  panel-rebuild storm is in progress.** Selecting a world-space
+  `UIDocument` in the Hierarchy triggers Unity 6.3's
+  `InspectorWindow.RedrawFromNative` to rebuild `rootVisualElement`
+  *every frame* for as long as the document is selected. Our retarget
+  keeps the chrome painted, but UI Toolkit's per-panel event-dispatcher
+  state (`FocusController`, pointer capture, hover tracking) is owned by
+  the panel and is destroyed and recreated each frame alongside the
+  root. `PointerDownEvent` may fire on a child of root R<sub>n</sub> and
+  the matching `PointerUpEvent` arrives after R<sub>n+1</sub> already
+  replaced it, so clicks, hover, and focus traversal do not land. The
+  same applies to non-portal Reactive trees attached to the affected
+  document. Deselecting the document (or selecting any other Hierarchy
+  object) stops the storm immediately and full interactivity returns
+  within one frame. The behaviour does not exist in Player builds —
+  `RedrawFromNative` is an Editor-only path. There is no framework-side
+  fix: any attempt would require synthesising panel-internal event state
+  across rebuilds, which is brittle against Unity's private surface and
+  would be a poor trade for an Editor-only upstream regression that has
+  already been reported. Once Unity ships the fix, occasional one-shot
+  rebuilds keep working transparently through the existing 0.5.6/0.5.7
+  plumbing.
 
 
 ### Fixed

@@ -140,7 +140,13 @@ export const UitkxAPIPage: FC = () => (
         <ListItem disablePadding>
           <ListItemText primary={<><code>ReactiveUITK.Core.Animation.AnimationTicker</code> (internal) — panel-independent shared ticker. Editor uses <code>EditorApplication.update</code>; Player uses <code>MediaHost.SubscribeTick</code>. Backs the rebuild poll, animation hooks, and reparent-resilient adapters.</>} />
         </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>{'<Portal>'}</code> retarget on rebuild (v0.5.7) — the Fiber commit phase detects when a <code>{'<Portal target={x}>'}</code>'s target VisualElement reference changes between renders and physically reparents the portal's stable host descendants from the old target to the new one. Pair with <code>UseUiDocumentRoot</code> on a world-space document and the portal contents survive Unity 6.3's panel rebuild storm.</>} />
+        </ListItem>
       </List>
+      <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic' }}>
+        <strong>Editor-only caveat.</strong> While a Unity 6.3 panel-rebuild storm is actively in progress (e.g. you have selected a world-space <code>UIDocument</code> in the Hierarchy and Unity is rebuilding its <code>rootVisualElement</code> every frame via <code>InspectorWindow.RedrawFromNative</code>), <code>RootRenderer.Initialize(UIDocument)</code> and <code>{'<Portal>'}</code> retarget keep the affected chrome painted, but UI Toolkit's per-panel event-dispatcher state (<code>FocusController</code>, pointer capture, hover tracking) is owned by the panel and is destroyed and recreated each frame alongside the root. Pointer events fired against root R<sub>n</sub> are received by a controller on R<sub>n+1</sub>, so clicks, hover, and focus traversal do not land for as long as the storm continues. Deselecting the document (or selecting any other Hierarchy object) stops the storm immediately and full interactivity returns within one frame. The behaviour does not exist in Player builds — <code>RedrawFromNative</code> is an Editor-only path. There is no framework-side fix; resolution depends on the upstream Unity bug being addressed.
+      </Typography>
     </Box>
 
     <Box sx={Styles.section}>
