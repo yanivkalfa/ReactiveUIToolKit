@@ -3,6 +3,16 @@
     {
       "date": "2026-05-11",
       "versions": {
+        "vscode": "1.2.4",
+        "vs2022": "1.2.4"
+      },
+      "shared": [
+        "Migrated `[OnOpenAsset]` Console-navigation callbacks to Unity 6.3's EntityId callback shape — `UitkxConsoleNavigation.cs` callbacks split by `#if UNITY_6000_3_OR_NEWER` and call `AssetDatabase.GetAssetPath(EntityId)` / `EditorUtility.EntityIdToObject(EntityId)` directly. Zero `int↔EntityId` conversions, zero `CS0618` warnings on 6.3 / 6.4. Pre-6.3 retains the legacy int callbacks. Common path-resolution and external-editor-launch logic extracted to a shared `ResolveAndDispatch`.\nAlso fixed `DoomTextures` sample `CS8618` (six lazy-init fields suffixed `= null!`) and added the Unity 6.3 storm-time interactivity caveat to the web API docs."
+      ]
+    },
+    {
+      "date": "2026-05-11",
+      "versions": {
         "vscode": "1.2.3",
         "vs2022": "1.2.3"
       },
