@@ -166,6 +166,56 @@ namespace ReactiveUITK.Editor
             RegexOptions.Compiled
         );
 
+        // ── [OnOpenAsset] callbacks ────────────────────────────────────────
+        // Unity 6.3 introduced EntityId-typed callback signatures and deprecated
+        // every int↔EntityId conversion (including the implicit cast operator),
+        // so on 6.3+ we register callbacks that accept EntityId directly and
+        // forward to an EntityId-aware HandleOnOpenAsset overload — no
+        // conversion, no obsolete API touched. On 6.2 and earlier (where
+        // EntityId does not exist) we keep the original int-typed callbacks.
+#if UNITY_6000_3_OR_NEWER
+        [OnOpenAsset(-10000)]
+        private static bool OnOpenAssetPriority(EntityId entityId, int line, int column)
+        {
+            return HandleOnOpenAsset(entityId, line, column);
+        }
+
+        [OnOpenAsset(-10000)]
+        private static bool OnOpenAssetPriorityCompat(EntityId entityId, int line)
+        {
+            return HandleOnOpenAsset(entityId, line, 1);
+        }
+
+        [OnOpenAsset]
+        private static bool OnOpenAssetCompat(EntityId entityId, int line, int column)
+        {
+            return HandleOnOpenAsset(entityId, line, column);
+        }
+
+        [OnOpenAsset]
+        private static bool OnOpenAssetCompat2(EntityId entityId, int line)
+        {
+            return HandleOnOpenAsset(entityId, line, 1);
+        }
+
+        private static bool HandleOnOpenAsset(EntityId entityId, int line, int column)
+        {
+            if (s_isProgrammaticOpenInProgress)
+                return false;
+
+            string assetPath = AssetDatabase.GetAssetPath(entityId);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                var obj = EditorUtility.EntityIdToObject(entityId);
+                if (obj != null)
+                    assetPath = AssetDatabase.GetAssetPath(obj);
+            }
+
+            LogVerbose($"[UITKX Nav] OnOpenAsset entityId={entityId} line={line} column={column} assetPath='{assetPath}'");
+
+            return ResolveAndDispatch(assetPath, line, column);
+        }
+#else
         [OnOpenAsset(-10000)]
         private static bool OnOpenAssetPriority(int instanceId, int line, int column)
         {
@@ -205,6 +255,12 @@ namespace ReactiveUITK.Editor
 
             LogVerbose($"[UITKX Nav] OnOpenAsset instanceId={instanceId} line={line} column={column} assetPath='{assetPath}'");
 
+            return ResolveAndDispatch(assetPath, line, column);
+        }
+#endif
+
+        private static bool ResolveAndDispatch(string assetPath, int line, int column)
+        {
             if (string.IsNullOrEmpty(assetPath)
                 && TryResolveFromConsoleActiveText(out string consolePath, out int consoleLine, out int consoleColumn))
             {
