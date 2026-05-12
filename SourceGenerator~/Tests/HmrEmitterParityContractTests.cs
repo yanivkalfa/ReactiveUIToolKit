@@ -575,10 +575,13 @@ public class HmrEmitterParityContractTests
     }
 
     /// <summary>
-    /// <c>const</c> fields, <c>static readonly</c> fields, mutable static
-    /// fields, instance methods, properties, and nested types must all be
-    /// emitted verbatim — never wrapped in trampolines. Anything else would
-    /// be a regression on existing module behaviour.
+    /// <c>const</c> fields, mutable static fields, instance methods,
+    /// properties, and nested types must all be emitted verbatim — never
+    /// wrapped in trampolines. <c>static readonly</c> fields are an exception:
+    /// they are rewritten to <c>[UitkxHmrSwap] static</c> (B28 — see
+    /// StaticReadonlyStripper) so the HMR pipeline can re-initialise them
+    /// across edit-save cycles. Anything else would be a regression on
+    /// existing module behaviour.
     /// </summary>
     [Fact]
     public void Sg_ModuleNonMethodMembers_StayVerbatim()
@@ -603,7 +606,12 @@ public class HmrEmitterParityContractTests
         Assert.DoesNotContain("__hmr_", output.GeneratedSource);
         // Original member declarations preserved (substring matches the source).
         Assert.Contains("public const int VERSION = 7", output.GeneratedSource);
-        Assert.Contains("public static readonly string Tag", output.GeneratedSource);
+        // `static readonly` is rewritten to `[UitkxHmrSwap] static` for HMR
+        // re-initialisation. The `readonly` keyword must be GONE from the
+        // emitted output and the attribute must be present.
+        Assert.Contains("[global::ReactiveUITK.UitkxHmrSwap]", output.GeneratedSource);
+        Assert.Contains("public static string Tag", output.GeneratedSource);
+        Assert.DoesNotContain("public static readonly string Tag", output.GeneratedSource);
         Assert.Contains("private static int _counter", output.GeneratedSource);
         Assert.Contains("public enum Color", output.GeneratedSource);
         Assert.Contains("public struct Pair", output.GeneratedSource);

@@ -1,75 +1,100 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  UitkxHmrModuleStaticSwapper — re-bind `static readonly` module fields after
-//  a hot-reload compile.
+//  UitkxHmrModuleStaticSwapper — re-bind generator-managed module fields
+//  ([UitkxHmrSwap]) after a hot-reload compile.
 // ════════════════════════════════════════════════════════════════════════════
 //
-//  Problem this solves (Issue 13 in Plans~/PRETTY_UI_HMR_BUGS.md)
-//  ─────────────────────────────────────────────────────────────
+//  Problem this solves (Issue 13 / B28 in Plans~/PRETTY_UI_HMR_BUGS.md)
+//  ───────────────────────────────────────────────────────────────────
 //
 //  `module` declarations in .uitkx files are emitted by both the source
 //  generator (SourceGenerator~/Emitter/ModuleEmitter.cs) and the HMR pipeline
 //  (Editor/HMR/HmrHookEmitter.EmitModules) as a `public partial class` whose
-//  body is the user's module body verbatim:
+//  body contains the user's module declarations:
 //
 //      module MenuPage {
-//          public static readonly Style Root = new Style { BackgroundColor = ... };
+//          public static readonly Style Root = new Style { ... };
 //      }
 //
 //  When the project is cold-built, the CLR runs `MenuPage`'s type initializer
 //  (cctor) ONCE and pins `MenuPage.Root` to a `Style` instance produced by the
-//  initializer expression. That instance lives in the project's
-//  `Assembly-CSharp.dll` for the duration of the AppDomain.
+//  initializer expression. That instance lives in `Assembly-CSharp.dll` for
+//  the duration of the AppDomain.
 //
-//  When the user edits the module body and saves, HMR rebuilds a *new* dynamic
-//  assembly that contains a fresh `MenuPage` type with the NEW initializer
-//  expression — and loading that assembly runs its cctor, producing a fresh
-//  `Style` instance bound to the HMR-`MenuPage.Root` field.
+//  When the user edits the module body and saves, HMR rebuilds a *new*
+//  dynamic assembly that contains a fresh `MenuPage` type with the NEW
+//  initializer expression. Loading that assembly runs its cctor, producing a
+//  fresh `Style` instance bound to the HMR-`MenuPage.Root` field.
 //
-//  But the project type's `MenuPage.Root` still references the ORIGINAL
-//  cold-build instance: nothing in the existing HMR pipeline copies values
-//  across the assembly boundary for plain `static readonly` fields.
+//  Two problems then arise:
 //
-//  `UitkxHmrDelegateSwapper.SwapAll` and `SwapHooks` only re-bind fields whose
-//  names start with `__hmr_*` (the synthesized delegate slots). Module fields
-//  are user-named (`Root`, `Bar`, `BgColor`, …) and are skipped. The result
-//  observed in PrettyUi: deleting `BackgroundColor = Theme.BgPanel,` from a
-//  style and saving produces a successful HMR cycle but the rendered UI still
-//  shows the old background — until the user exits Play mode, which forces a
-//  full assembly reload (re-running every cctor).
+//    (1) The project type's `MenuPage.Root` still references the ORIGINAL
+//        cold-build instance: nothing in the existing HMR pipeline copies
+//        values across the assembly boundary by default.
+//
+//    (2) Mono's JIT inlines the object reference for `ldsfld` against
+//        `initonly` (== `readonly`) static fields. Once a Render method is
+//        JIT-compiled it caches the old reference in machine code and never
+//        re-reads the slot — so even a successful slot update is invisible.
 //
 //
-//  Strategy (Option C in the design discussion)
-//  ────────────────────────────────────────────
+//  Strategy
+//  ────────
 //
-//  The HMR-compiled assembly's cctor *already* runs the new initializer
-//  expressions and produces fresh values bound to the HMR type's static
-//  readonly fields. We simply copy those values into the project type via
-//  reflection. `FieldInfo.SetValue` bypasses the `readonly` runtime check on
-//  both .NET Core and Mono, which is the documented escape hatch the BCL
-//  itself uses for record InitOnly support.
+//  Two coordinated changes solve both problems:
 //
-//  Why this is preferable to alternatives:
+//    A. The source generator (and the HMR emitter) STRIP the `readonly`
+//       keyword from every module-scope `static readonly` field and decorate
+//       it with [global::ReactiveUITK.UitkxHmrSwap]. Without `initonly` the
+//       JIT cannot legally inline the reference; every read goes through the
+//       slot. The attribute discriminates "generator-managed, HMR-swap me"
+//       from "user-authored mutable static, preserve my value".
 //
-//    • "Synthesize a `__hmr_reinit_module()` method" — would require parsing
-//      the module body (freeform user C#) at HMR-emit time and rewriting it
-//      into discrete field-assignment statements. That's a Roslyn-level
-//      rewrite with parity risk against ModuleEmitter, and gains nothing over
-//      simply copying the values produced by the HMR cctor.
+//    B. This swapper iterates over types in the freshly-HMR-compiled
+//       assembly, locates the same-FullName project type, and copies the
+//       value of every [UitkxHmrSwap] field across via reflection.
+//
+//  `UitkxHmrDelegateSwapper.SwapAll` and `SwapHooks` handle fields whose
+//  names start with `__hmr_*` (the synthesized delegate slots). This swapper
+//  handles every other generator-managed module static.
+//
+//  The hook `_cache` ConcurrentDictionary (emitted as `static readonly`) is
+//  still picked up here via the `IsInitOnly` branch — its reference is
+//  semantically immutable but its contents are HMR-replaced.
+//
+//
+//  Why "strip readonly" is preferable to alternatives
+//  ──────────────────────────────────────────────────
+//
+//    • "Mutate Style in-place preserving identity" would break the
+//      reference-equality fast paths (`Style.SameInstance`,
+//      `BaseProps.SameInstance`, `TypedPropsApplier.DiffStyle`,
+//      `FiberReconciler` short-circuits, `PropsApplier`). Every one of those
+//      would turn from a perf optimisation into a correctness bug.
+//
+//    • "Force re-JIT" of all methods that ever `ldsfld`'d the slot is not
+//      achievable from managed Mono — there is no public API to invalidate
+//      a JIT'd method.
 //
 //    • "Re-run the project type's cctor" — `RuntimeHelpers.RunClassConstructor`
 //      is a no-op on second call (CLR enforces type-initializer-runs-once),
 //      and invoking the cctor `MethodInfo` directly would re-fire any
 //      side-effects (event subscriptions, registry pushes, …) the user wrote
 //      in the module body, producing duplicate handlers / corrupt state.
-//      The cross-assembly copy approach side-steps both issues.
+//
+//  Stripping `readonly` is a single emission-time change with no runtime
+//  overhead (one extra L1-cached static-slot load per access, ~1 ns) and
+//  applies uniformly in Editor (Mono JIT), Editor Play, Player IL2CPP, and
+//  Player Mono AOT builds — keeping HMR a faithful Player preview.
 //
 //
 //  Safety guardrails
 //  ─────────────────
 //
-//    • Only fields where `FieldInfo.IsInitOnly == true` (i.e. `static readonly`)
-//      are copied. Mutable `static` fields are preserved across HMR — they
-//      represent user runtime state and clobbering them would be a regression.
+//    • Only fields decorated with [UitkxHmrSwap] OR having
+//      `FieldInfo.IsInitOnly == true` (the hook `_cache` case) are copied.
+//      Mutable `static` fields without the attribute are preserved across HMR
+//      — they represent user runtime state and clobbering them would be a
+//      regression.
 //
 //    • `FieldInfo.IsLiteral` (i.e. `const`) is skipped — consts have no
 //      runtime field slot to set.
@@ -104,6 +129,10 @@
 //      them; anything compiled against the project type pre-edit does not.
 //      A full assembly reload is required to materialise them on the project
 //      type.
+//
+//    • Field initializers with side-effects (subscribe / register). The HMR
+//      cctor re-runs them, producing duplicates. Pre-existing limitation —
+//      orthogonal to B28.
 
 using System;
 using System.Collections.Generic;
@@ -155,8 +184,9 @@ namespace ReactiveUITK.EditorSupport.HMR
         // Once-per-session dedup of "added field" warnings. Key is
         // "{Type.FullName}.{FieldName}". Cleared automatically on domain reload
         // because all static state in the HMR Editor assembly resets then.
-        private static readonly HashSet<string> s_warnedAddedFields =
-            new HashSet<string>(StringComparer.Ordinal);
+        private static readonly HashSet<string> s_warnedAddedFields = new HashSet<string>(
+            StringComparer.Ordinal
+        );
 
         /// <summary>
         /// For every type in <paramref name="hmrAssembly"/>, locate a project
@@ -168,7 +198,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         public static ModuleStaticSwapResult SwapModuleStatics(Assembly hmrAssembly)
         {
-            if (hmrAssembly == null) return ModuleStaticSwapResult.Empty;
+            if (hmrAssembly == null)
+                return ModuleStaticSwapResult.Empty;
 
             int copied = 0;
             int addedFieldsDetected = 0;
@@ -185,22 +216,25 @@ namespace ReactiveUITK.EditorSupport.HMR
             catch (ReflectionTypeLoadException ex)
             {
                 Debug.LogWarning(
-                    "[HMR] UitkxHmrModuleStaticSwapper: could not enumerate types " +
-                    "from HMR assembly — module statics will not be re-initialised. " +
-                    $"({ex.Message})"
+                    "[HMR] UitkxHmrModuleStaticSwapper: could not enumerate types "
+                        + "from HMR assembly — module statics will not be re-initialised. "
+                        + $"({ex.Message})"
                 );
                 return ModuleStaticSwapResult.Empty;
             }
 
             foreach (var hmrType in hmrTypes)
             {
-                if (hmrType == null) continue;
-                if (ShouldSkipType(hmrType)) continue;
+                if (hmrType == null)
+                    continue;
+                if (ShouldSkipType(hmrType))
+                    continue;
 
                 var projectType = FindProjectType(hmrType.FullName);
-                if (projectType == null) continue;
+                if (projectType == null)
+                    continue;
 
-                copied += CopyStaticReadonlyFields(hmrType, projectType);
+                copied += CopyHotReinitableFields(hmrType, projectType);
                 addedFieldsDetected += DetectAndWarnAddedFields(hmrType, projectType);
             }
 
@@ -208,7 +242,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         }
 
         /// <summary>
-        /// Counts <c>static readonly</c> fields that exist on the HMR-compiled
+        /// Counts generator-managed static fields (passing
+        /// <see cref="IsHotReinitableField"/>) that exist on the HMR-compiled
         /// type but NOT on the project-loaded type. For each such field, logs a
         /// once-per-session warning explaining the CLR rude-edit constraint.
         /// Returns the count of newly-detected fields (after dedup).
@@ -218,12 +253,19 @@ namespace ReactiveUITK.EditorSupport.HMR
             int newlyDetected = 0;
 
             FieldInfo[] hmrFields;
-            try { hmrFields = hmrType.GetFields(StaticFieldFlags); }
-            catch { return 0; }
+            try
+            {
+                hmrFields = hmrType.GetFields(StaticFieldFlags);
+            }
+            catch
+            {
+                return 0;
+            }
 
             foreach (var hmrField in hmrFields)
             {
-                if (!IsHotReinitableField(hmrField)) continue;
+                if (!IsHotReinitableField(hmrField))
+                    continue;
 
                 // Field exists on the project type — already handled by Copy.
                 if (projectType.GetField(hmrField.Name, StaticFieldFlags) != null)
@@ -236,15 +278,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                 newlyDetected++;
 
                 Debug.LogWarning(
-                    $"[HMR] '{hmrType.FullName}' has a newly-added 'static readonly' " +
-                    $"field '{hmrField.Name}' that does not exist on the project-loaded " +
-                    "type. The CLR seals type metadata at load time and cannot grow new " +
-                    "fields without a full assembly reload. Code recompiled by HMR (the " +
-                    "render delegate from this cycle) can use the field, but references " +
-                    "from non-HMR code (.cs scripts, untouched .uitkx files) will throw " +
-                    "MissingFieldException. Trigger a domain reload to materialise the " +
-                    "field everywhere — or enable EditorPref 'UITKX_HMR_AutoReloadOnRudeEdit'. " +
-                    "(Shown once per session per field.)"
+                    $"[HMR] '{hmrType.FullName}' has a newly-added generator-managed "
+                        + $"static field '{hmrField.Name}' that does not exist on the project-loaded "
+                        + "type. The CLR seals type metadata at load time and cannot grow new "
+                        + "fields without a full assembly reload. Code recompiled by HMR (the "
+                        + "render delegate from this cycle) can use the field, but references "
+                        + "from non-HMR code (.cs scripts, untouched .uitkx files) will throw "
+                        + "MissingFieldException. By default HMR will auto-reload the domain "
+                        + "to materialise the field everywhere (disable via the HMR window "
+                        + "'Auto-reload on rude edit' toggle or EditorPref 'UITKX_HMR_AutoReloadOnRudeEdit'). "
+                        + "(Shown once per session per field.)"
                 );
             }
 
@@ -264,14 +307,22 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             // Compiler-generated infrastructure: <Module>, <>f__AnonymousType,
             // <>c__DisplayClass*, etc. None of these are user module material.
-            if (string.IsNullOrEmpty(t.FullName)) return true;
-            if (t.FullName.StartsWith("<", StringComparison.Ordinal)) return true;
-            if (t.FullName.IndexOf("<>", StringComparison.Ordinal) >= 0) return true;
+            if (string.IsNullOrEmpty(t.FullName))
+                return true;
+            if (t.FullName.StartsWith("<", StringComparison.Ordinal))
+                return true;
+            if (t.FullName.IndexOf("<>", StringComparison.Ordinal) >= 0)
+                return true;
 
             // Compiler-generated attribute marker — produced for things like
             // closures and iterator state machines. Never has user-written
             // module statics.
-            if (t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false))
+            if (
+                t.IsDefined(
+                    typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute),
+                    inherit: false
+                )
+            )
                 return true;
 
             return false;
@@ -284,42 +335,61 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         private static Type FindProjectType(string fullName)
         {
-            if (string.IsNullOrEmpty(fullName)) return null;
+            if (string.IsNullOrEmpty(fullName))
+                return null;
 
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (asm.IsDynamic) continue;
+                if (asm.IsDynamic)
+                    continue;
 
                 Type t;
-                try { t = asm.GetType(fullName, throwOnError: false); }
-                catch { continue; }
+                try
+                {
+                    t = asm.GetType(fullName, throwOnError: false);
+                }
+                catch
+                {
+                    continue;
+                }
 
-                if (t != null) return t;
+                if (t != null)
+                    return t;
             }
             return null;
         }
 
         /// <summary>
-        /// Iterates <c>static readonly</c> fields declared on
-        /// <paramref name="hmrType"/> and copies their values into the
-        /// equally-named field on <paramref name="projectType"/>.
+        /// Iterates fields declared on <paramref name="hmrType"/> that pass
+        /// <see cref="IsHotReinitableField"/> (decorated with
+        /// <c>[UitkxHmrSwap]</c> or <c>static readonly</c>) and copies their
+        /// values into the equally-named field on <paramref name="projectType"/>.
         /// Returns the count of successful copies.
         /// </summary>
-        private static int CopyStaticReadonlyFields(Type hmrType, Type projectType)
+        private static int CopyHotReinitableFields(Type hmrType, Type projectType)
         {
             int copied = 0;
 
             FieldInfo[] hmrFields;
-            try { hmrFields = hmrType.GetFields(StaticFieldFlags); }
-            catch { return 0; }
+            try
+            {
+                hmrFields = hmrType.GetFields(StaticFieldFlags);
+            }
+            catch
+            {
+                return 0;
+            }
 
             foreach (var hmrField in hmrFields)
             {
-                if (!IsHotReinitableField(hmrField)) continue;
+                if (!IsHotReinitableField(hmrField))
+                    continue;
 
                 var projectField = projectType.GetField(hmrField.Name, StaticFieldFlags);
-                if (projectField == null) continue;
-                if (!IsHotReinitableField(projectField)) continue;
+                if (projectField == null)
+                    continue;
+                if (!IsHotReinitableField(projectField))
+                    continue;
 
                 // Field-type sanity check across assemblies. Same FullName +
                 // same defining assembly name => same type identity. If the
@@ -329,7 +399,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                     continue;
 
                 object value;
-                try { value = hmrField.GetValue(null); }
+                try
+                {
+                    value = hmrField.GetValue(null);
+                }
                 catch (Exception ex)
                 {
                     Debug.LogWarning(
@@ -357,18 +430,75 @@ namespace ReactiveUITK.EditorSupport.HMR
         }
 
         /// <summary>
-        /// True for fields the swapper should re-initialise: <c>static readonly</c>,
-        /// not <c>const</c>, not the synthesized <c>__hmr_*</c> delegate slots.
+        /// True for fields the swapper should re-initialise:
+        /// <list type="bullet">
+        ///   <item><description>Fields decorated with <see cref="UitkxHmrSwapAttribute"/>
+        ///   (generator-managed mutable statics: hoisted styles,
+        ///   <c>__uitkx_ussKeys</c>, user-authored <c>static readonly</c>
+        ///   module fields whose <c>readonly</c> was stripped to defeat JIT
+        ///   inlining — see B28 plan). These are the primary target.</description></item>
+        ///   <item><description><c>static readonly</c> fields the generator
+        ///   emits deliberately (e.g. hook <c>_cache</c> ConcurrentDictionary
+        ///   whose ref-identity is semantically immutable but contents are
+        ///   HMR-replaced).</description></item>
+        /// </list>
+        /// Always excludes <c>const</c> (no slot) and the synthesized
+        /// <c>__hmr_*</c> delegate slots (owned by UitkxHmrDelegateSwapper).
         /// </summary>
         private static bool IsHotReinitableField(FieldInfo f)
         {
-            if (f == null) return false;
-            if (!f.IsStatic) return false;
-            if (f.IsLiteral) return false;        // const — no runtime slot
-            if (!f.IsInitOnly) return false;       // mutable static — preserve user state
+            if (f == null)
+                return false;
+            if (!f.IsStatic)
+                return false;
+            if (f.IsLiteral)
+                return false; // const — no runtime slot
             if (f.Name.StartsWith("__hmr_", StringComparison.Ordinal))
-                return false;                      // owned by UitkxHmrDelegateSwapper
-            return true;
+                return false; // owned by UitkxHmrDelegateSwapper
+
+            // Generator-managed mutable statics opt in via [UitkxHmrSwap].
+            if (HasUitkxHmrSwapAttribute(f))
+                return true;
+
+            // Backwards path for fields the generator intentionally leaves
+            // as `static readonly` (e.g. hook _cache dictionaries).
+            return f.IsInitOnly;
+        }
+
+        // Cached attribute Type lookup. The attribute lives in
+        // ReactiveUITK.Shared.dll so we resolve it by AssemblyQualifiedName
+        // once. We avoid a typed reference to keep the Editor assembly's
+        // dependencies minimal.
+        private static Type s_hmrSwapAttrType;
+        private static bool s_hmrSwapAttrTypeLooked;
+
+        private static bool HasUitkxHmrSwapAttribute(FieldInfo f)
+        {
+            if (!s_hmrSwapAttrTypeLooked)
+            {
+                s_hmrSwapAttrTypeLooked = true;
+                try
+                {
+                    s_hmrSwapAttrType = Type.GetType(
+                        "ReactiveUITK.UitkxHmrSwapAttribute, ReactiveUITK.Shared",
+                        throwOnError: false
+                    );
+                }
+                catch
+                {
+                    s_hmrSwapAttrType = null;
+                }
+            }
+            if (s_hmrSwapAttrType == null)
+                return false;
+            try
+            {
+                return f.IsDefined(s_hmrSwapAttrType, inherit: false);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -379,14 +509,18 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         private static bool AreCompatibleFieldTypes(Type hmrFieldType, Type projectFieldType)
         {
-            if (hmrFieldType == projectFieldType) return true; // identical
-            if (hmrFieldType == null || projectFieldType == null) return false;
+            if (hmrFieldType == projectFieldType)
+                return true; // identical
+            if (hmrFieldType == null || projectFieldType == null)
+                return false;
 
             // Same canonical full name AND same defining assembly => same type
             // across the HMR and project sides (e.g. `Style` from Shared.dll,
             // `Color` from UnityEngine.dll). This is the common case.
-            if (hmrFieldType.FullName == projectFieldType.FullName
-                && hmrFieldType.Assembly.FullName == projectFieldType.Assembly.FullName)
+            if (
+                hmrFieldType.FullName == projectFieldType.FullName
+                && hmrFieldType.Assembly.FullName == projectFieldType.Assembly.FullName
+            )
             {
                 return true;
             }

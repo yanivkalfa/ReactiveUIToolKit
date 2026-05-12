@@ -911,11 +911,24 @@ Tests:
 
 ---
 
-# Issue 13 � module `static readonly` fields not re-initialised on HMR
+# Issue 13 � module `static readonly` fields not re-initialised on HMR — RESOLVED (B28)
 
 **Discovered:** 2026-05-03 during manual validation of v0.4.19 fixes against
 PrettyUi. The 12 prior issues were all for the component / hook / Roslyn-host
 paths; this is the analogous gap for the `module` declaration path.
+
+**Resolution.** See [`B28_HMR_STATIC_READONLY_FIX.md`](B28_HMR_STATIC_READONLY_FIX.md).
+Root cause: Mono JIT inlines `ldsfld` reads of `initonly` static fields into
+native code, so `FieldInfo.SetValue` updates the slot but pre-JIT'd callers
+keep reading the cold reference. Fix: SG (and the parallel HMR emitter)
+emit module-scope static fields without `readonly`, decorating them with
+`[ReactiveUITK.UitkxHmrSwap]` as the discriminator the swapper uses to find
+generator-managed mutable statics. The hook-cache `static readonly` field
+(ref-identity immutable; only its contents are replaced) is preserved and the
+swapper predicate still matches it via `IsInitOnly`. Analyzer **UITKX0210**
+warns when user code writes to `[UitkxHmrSwap]`-marked fields outside the
+static constructor. Test coverage: 1218/1218 pass including 20 new tests
+(stripper unit tests, analyzer tests, end-to-end module strip tests).
 
 **Symptom (Play mode, HMR enabled).**
 1. Author a `module` with at least one `public static readonly` field
