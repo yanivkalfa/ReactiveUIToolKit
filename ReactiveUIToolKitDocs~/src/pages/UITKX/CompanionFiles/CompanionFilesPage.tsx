@@ -190,7 +190,13 @@ export const CompanionFilesPage: FC = () => (
         <ListItemText primary="Hook state is preserved across swaps (useState, useRef, useEffect, etc.)." />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary="Module changes (styles, utilities) trigger a domain reload since they contain static data." />
+        <ListItemText primary="Module changes (styles, utilities) hot-reload in-place: static readonly field initializers are re-evaluated and the new values are copied into the live module type, and static method bodies are swapped via per-method delegate trampolines. No domain reload required." />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary="Adding a new field or method to a module mid-session is a CLR rude edit — the project type's metadata cannot grow at runtime. HMR auto-recovers by scheduling a domain reload (configurable via the HMR window's 'Auto-reload on rude edit' toggle, default on; or EditorPref UITKX_HMR_AutoReloadOnRudeEdit). A once-per-session warning is logged either way." />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary="For HMR-able module values prefer fields (public static readonly Style Root = …) over static auto-properties — the C# compiler lowers get-only auto-properties to a private static readonly backing field that the source generator cannot rewrite, so the JIT inlines the cold value and HMR cannot refresh it." />
       </ListItem>
     </List>
 

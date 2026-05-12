@@ -71,15 +71,18 @@ namespace ReactiveUITK.EditorSupport.HMR
             get => EditorPrefs.GetBool("UITKX_HMR_ShowNotify", true);
             set => EditorPrefs.SetBool("UITKX_HMR_ShowNotify", value);
         }
+
         /// <summary>
         /// When true, a detected CLR rude edit on a module type (newly-added
         /// <c>static readonly</c> field) automatically triggers a domain
         /// reload via <c>EditorUtility.RequestScriptReload</c> on the next
-        /// editor frame. Default false — a warning is logged either way.
+        /// editor frame. Default true — adding a new field is otherwise
+        /// invisible until the user manually reloads. Disable only if you
+        /// want full manual control (a warning is still logged either way).
         /// </summary>
         public bool AutoReloadOnRudeEdit
         {
-            get => EditorPrefs.GetBool("UITKX_HMR_AutoReloadOnRudeEdit", false);
+            get => EditorPrefs.GetBool("UITKX_HMR_AutoReloadOnRudeEdit", true);
             set => EditorPrefs.SetBool("UITKX_HMR_AutoReloadOnRudeEdit", value);
         }
 
@@ -102,10 +105,14 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         [System.Runtime.InteropServices.DllImport("psapi.dll", SetLastError = true)]
         private static extern bool GetProcessMemoryInfo(
-            System.IntPtr hProcess, out PROCESS_MEMORY_COUNTERS counters, uint size);
+            System.IntPtr hProcess,
+            out PROCESS_MEMORY_COUNTERS counters,
+            uint size
+        );
 
         [System.Runtime.InteropServices.StructLayout(
-            System.Runtime.InteropServices.LayoutKind.Sequential)]
+            System.Runtime.InteropServices.LayoutKind.Sequential
+        )]
         private struct PROCESS_MEMORY_COUNTERS
         {
             public uint cb;
@@ -138,9 +145,8 @@ namespace ReactiveUITK.EditorSupport.HMR
 #endif
 
         /// <summary>Delta from HMR session start, in MB.</summary>
-        public float SessionMemoryDeltaMB => _active
-            ? (CurrentMemoryBytes - _sessionBaselineMemory) / (1024f * 1024f)
-            : 0f;
+        public float SessionMemoryDeltaMB =>
+            _active ? (CurrentMemoryBytes - _sessionBaselineMemory) / (1024f * 1024f) : 0f;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -290,7 +296,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         private static string ResolveParentComponentFile(string uitkxPath)
         {
             // Companion files have double extensions: ComponentName.suffix.uitkx
-            var fileName = Path.GetFileName(uitkxPath);       // "Foo.style.uitkx"
+            var fileName = Path.GetFileName(uitkxPath); // "Foo.style.uitkx"
             var withoutExt = Path.GetFileNameWithoutExtension(fileName); // "Foo.style"
 
             // If the base name still contains a dot, it's a companion
@@ -355,8 +361,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 ModuleStaticSwapResult moduleStaticResult = ModuleStaticSwapResult.Empty;
                 try
                 {
-                    moduleStaticResult = UitkxHmrModuleStaticSwapper
-                        .SwapModuleStatics(result.LoadedAssembly);
+                    moduleStaticResult = UitkxHmrModuleStaticSwapper.SwapModuleStatics(
+                        result.LoadedAssembly
+                    );
                 }
                 catch (Exception ex)
                 {
@@ -373,8 +380,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 int reInitedMethods = 0;
                 try
                 {
-                    reInitedMethods = UitkxHmrModuleMethodSwapper
-                        .SwapModuleMethods(result.LoadedAssembly);
+                    reInitedMethods = UitkxHmrModuleMethodSwapper.SwapModuleMethods(
+                        result.LoadedAssembly
+                    );
                 }
                 catch (Exception ex)
                 {
@@ -426,12 +434,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                     Debug.Log(
                         $"[HMR] {result.ComponentName} updated ({result.TotalMs:F0}ms, "
                             + $"{swapped} instance(s)) — {result.TimingBreakdown}"
-                            + (reInitedFields > 0
-                                ? $" | Module statics re-init: {reInitedFields}"
-                                : string.Empty)
-                            + (reInitedMethods > 0
-                                ? $" | Module methods re-init: {reInitedMethods}"
-                                : string.Empty)
+                            + (
+                                reInitedFields > 0
+                                    ? $" | Module statics re-init: {reInitedFields}"
+                                    : string.Empty
+                            )
+                            + (
+                                reInitedMethods > 0
+                                    ? $" | Module methods re-init: {reInitedMethods}"
+                                    : string.Empty
+                            )
                     );
 
                 // Rude-edit handling: a newly-added `static readonly` field on
@@ -450,7 +462,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                     );
                     EditorApplication.delayCall += () =>
                     {
-                        try { UnityEditor.EditorUtility.RequestScriptReload(); }
+                        try
+                        {
+                            UnityEditor.EditorUtility.RequestScriptReload();
+                        }
                         catch (Exception ex)
                         {
                             Debug.LogWarning(
@@ -483,11 +498,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                         if (_recentErrors.Count > 10)
                             _recentErrors.RemoveAt(0);
                         Debug.LogError(
-                            "[HMR] Infrastructure failure — the loaded language " +
-                            "library is incompatible with this HMR build. HMR has " +
-                            "been disabled for this session. Restart Unity (or click " +
-                            "Start in the HMR window) after rebuilding the language " +
-                            "library.\n\nDetails: " + result.Error);
+                            "[HMR] Infrastructure failure — the loaded language "
+                                + "library is incompatible with this HMR build. HMR has "
+                                + "been disabled for this session. Restart Unity (or click "
+                                + "Start in the HMR window) after rebuilding the language "
+                                + "library.\n\nDetails: "
+                                + result.Error
+                        );
                     }
                     Stop();
                     return;
@@ -540,7 +557,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 string assetRelative = normalized.Substring(assetsIdx + 1); // "Assets/..."
                 AssetDatabase.ImportAsset(assetRelative, ImportAssetOptions.ForceSynchronousImport);
-                var sheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.StyleSheet>(assetRelative);
+                var sheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.StyleSheet>(
+                    assetRelative
+                );
                 if (sheet != null)
                     UitkxAssetRegistry.InjectCacheEntry(assetRelative, sheet);
             }
@@ -562,7 +581,13 @@ namespace ReactiveUITK.EditorSupport.HMR
             _ussDependents.Clear();
             try
             {
-                foreach (string uitkxPath in Directory.EnumerateFiles(assetsRoot, "*.uitkx", SearchOption.AllDirectories))
+                foreach (
+                    string uitkxPath in Directory.EnumerateFiles(
+                        assetsRoot,
+                        "*.uitkx",
+                        SearchOption.AllDirectories
+                    )
+                )
                 {
                     RegisterUssDependencies(uitkxPath);
                 }
@@ -597,7 +622,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                     else
                     {
                         // Assume Assets-relative path
-                        string projectRoot = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, ".."));
+                        string projectRoot = Path.GetFullPath(
+                            Path.Combine(UnityEngine.Application.dataPath, "..")
+                        );
                         absoluteUss = Path.GetFullPath(Path.Combine(projectRoot, rawPath));
                     }
 
@@ -610,7 +637,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                         list.Add(uitkxPath);
                 }
             }
-            catch { /* file may be locked or deleted */ }
+            catch
+            { /* file may be locked or deleted */
+            }
         }
 
         // ── Missing dependency discovery ──────────────────────────────────────
@@ -733,11 +762,13 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         private static readonly Regex s_assetCallRe = new Regex(
             @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled
+        );
 
         private static readonly Regex s_ussDirectiveRe = new Regex(
             @"@uss\s+""([^""]+)""",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled
+        );
 
         /// <summary>
         /// Lightweight HMR-safe asset cache sync: reads the .uitkx file, extracts
@@ -748,7 +779,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             try
             {
-                if (!File.Exists(uitkxPath)) return;
+                if (!File.Exists(uitkxPath))
+                    return;
                 string content = File.ReadAllText(uitkxPath);
 
                 string normalized = uitkxPath.Replace('\\', '/');
@@ -780,10 +812,20 @@ namespace ReactiveUITK.EditorSupport.HMR
         // ── Image extensions handled by TextureImporter ────────────────────────
 
         private static readonly HashSet<string> s_imageExtensions = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase)
+            StringComparer.OrdinalIgnoreCase
+        )
         {
-            ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".psd",
-            ".gif", ".tif", ".tiff", ".exr", ".hdr"
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".bmp",
+            ".tga",
+            ".psd",
+            ".gif",
+            ".tif",
+            ".tiff",
+            ".exr",
+            ".hdr",
         };
 
         private static void InjectIfResolved(string uitkxDir, string rawPath, string requestedType)
@@ -796,7 +838,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var stack = new List<string>();
                 foreach (var p in parts)
                 {
-                    if (p == "." || p == "") continue;
+                    if (p == "." || p == "")
+                        continue;
                     if (p == ".." && stack.Count > 0)
                         stack.RemoveAt(stack.Count - 1);
                     else if (p != "..")
@@ -819,7 +862,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string projectRoot = Application.dataPath;
                 if (projectRoot.EndsWith("/Assets") || projectRoot.EndsWith("\\Assets"))
                     projectRoot = projectRoot.Substring(0, projectRoot.Length - 6);
-                string diskPath = Path.Combine(projectRoot, resolved.Replace('/', Path.DirectorySeparatorChar));
+                string diskPath = Path.Combine(
+                    projectRoot,
+                    resolved.Replace('/', Path.DirectorySeparatorChar)
+                );
 
                 if (File.Exists(diskPath))
                 {
@@ -828,7 +874,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
             }
 
-            if (asset == null) return;
+            if (asset == null)
+                return;
 
             // ── Auto-configure importer when requested type doesn't match ─────
             string ext = Path.GetExtension(resolved);
@@ -851,10 +898,12 @@ namespace ReactiveUITK.EditorSupport.HMR
         private static UnityEngine.Object ConfigureTextureImport(
             string assetPath,
             UnityEngine.Object currentAsset,
-            string requestedType)
+            string requestedType
+        )
         {
             var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
-            if (importer == null) return currentAsset;
+            if (importer == null)
+                return currentAsset;
 
             if (string.Equals(requestedType, "Sprite", StringComparison.Ordinal))
             {
