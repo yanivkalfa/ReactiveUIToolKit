@@ -1,0 +1,53 @@
+@namespace Samples.StressTest
+@using UnityEngine
+@using UnityEngine.UIElements
+
+module StressTest {
+  public static readonly Style Root = new Style {
+    Display = DisplayStyle.Flex,
+    FlexGrow = 1f,
+    FlexDirection = UnityEngine.UIElements.FlexDirection.Column,
+    BackgroundColor = new Color(0.08f, 0.08f, 0.1f, 1f),
+  };
+
+  public static readonly Style HeaderBar = new Style {
+    Display = DisplayStyle.Flex,
+    FlexDirection = UnityEngine.UIElements.FlexDirection.Row,
+    Padding = 8f,
+    FlexShrink = 0f,
+    AlignItems = Align.Center,
+  };
+
+  public static readonly Style StatusLabel = new Style {
+    Color = Color.white,
+    FontSize = 16f,
+    FlexGrow = 1f,
+  };
+
+  public static readonly Style FieldLabel = new Style {
+    Color = Color.white,
+    MarginLeft = 12f,
+  };
+
+  public static readonly Style DurationField = new Style {
+    Width = 50f,
+    MarginLeft = 4f,
+  };
+
+  public static readonly Style BoxesField = new Style {
+    Width = 80f,
+    MarginLeft = 4f,
+  };
+
+  public static readonly Style StartButton = new Style {
+    MarginLeft = 8f,
+    Height = 24f,
+    Width = 70f,
+  };
+
+  public static readonly Style StressArea = new Style {
+    Display = DisplayStyle.Flex,
+    FlexGrow = 1f,
+    Position = UnityEngine.UIElements.Position.Relative,
+  };
+}
