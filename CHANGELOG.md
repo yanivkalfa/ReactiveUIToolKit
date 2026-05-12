@@ -6,6 +6,100 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.9] - 2026-05-12
+
+### Fixed
+
+- **B28 — HMR now refreshes `module` `static readonly` fields without a
+  domain reload.** Editing a module-scope `Style`, `Color`, or any other
+  `static readonly` field initializer in a `.uitkx` file (for example
+  changing `PaddingTop = 4` to `16` in a `Sidebar` style module) used
+  to report a successful HMR cycle but the rendered UI kept showing
+  the cold-build value until you exited Play mode. Already-mounted
+  components picked up the change (because their `Render` delegate
+  was hot-swapped to the freshly compiled body); newly-mounted
+  components on subsequent navigation kept reading the **old**
+  reference. Root cause confirmed via byte-level IL diagnostics: the
+  Mono JIT inlines the object reference for `ldsfld <static readonly>`
+  into native code at first call-site emission. The HMR swapper's
+  `FieldInfo.SetValue` correctly writes the new instance into the
+  field slot, but already-JIT'd methods continue to read the inlined
+  cold reference.
+
+  The fix is permanent and applies in IL2CPP and Mono AOT player
+  builds too (we deliberately keep Editor and Player IL identical so
+  HMR remains a faithful Player preview). The source generator now
+  strips the `readonly` modifier from every top-level `static readonly`
+  field in a `module { … }` body and decorates the rewritten field
+  with `[global::ReactiveUITK.UitkxHmrSwap]`. The HMR pipeline mirrors
+  the rewrite in `HmrHookEmitter.EmitModules` via a hand-written
+  tokenizer (`HmrStaticReadonlyStripper`) so the Editor assembly does
+  not need to take a direct dependency on Microsoft.CodeAnalysis. The
+  same transformation is applied to the two generator-managed module
+  statics: the `__sty_N` style-hoist fields and the `__uitkx_ussKeys`
+  array. The hook-cache `static readonly ConcurrentDictionary` field
+  (whose reference is genuinely immutable; only its contents are
+  HMR-replaced) is deliberately left as `initonly` and continues to
+  be matched by the swapper via `FieldInfo.IsInitOnly`.
+
+  `UitkxHmrModuleStaticSwapper`'s eligibility predicate now accepts
+  `HasUitkxHmrSwapAttribute(f) || f.IsInitOnly` so both the new
+  `[UitkxHmrSwap]` mutable statics and legacy `initonly` fields are
+  refreshed in one pass. Per-access cost is one extra static-slot
+  load (~1 ns, L1-cached, single `mov`); a 50-button Sidebar pays
+  ~50 ns/frame, far below noise.
+
+### Added
+
+- **`ReactiveUITK.UitkxHmrSwap` attribute** (under `Shared/Core/`) — the
+  source-generator-emitted marker that opts a field into HMR-managed
+  re-initialization. The attribute is the live semantic distinction
+  between user-immutable module statics (where writes overwrite an
+  initializer the HMR pipeline owns) and ordinary mutable statics
+  (lazy caches, counters) whose value should carry across HMR cycles.
+- **`UITKX0210` analyzer warning** (Roslyn). Flags writes to
+  `[UitkxHmrSwap]` fields from anywhere other than the containing
+  type's static constructor. The HMR pipeline will overwrite any
+  external write on the next save, so the rule surfaces the bug
+  ahead of time. Categories: `SimpleAssignment`, `CompoundAssignment`,
+  `Increment`, `Decrement`. Allowed when the containing symbol is
+  `MethodKind.StaticConstructor`. Suppress with
+  `#pragma warning disable UITKX0210` if intentional.
+
+### Documentation
+
+- HMR docs page corrected: module saves no longer claim to trigger a
+  domain reload. The new contract (re-init `static readonly` fields,
+  hot-swap `static` methods, preserve mutable `static` fields) is
+  spelled out alongside the rude-edit and field-vs-static-auto-property
+  caveats.
+- Diagnostics reference page picked up the `UITKX0210` row.
+
+### Known limitations
+
+- **Static auto-properties** (`public static Style Root { get; } = …`).
+  The C# compiler lowers these to a private `static readonly` backing
+  field that the source generator cannot see during emission, so the
+  JIT inlines the cold reference and HMR cannot refresh it. For
+  HMR-able module values prefer fields:
+  `public static readonly Style Root = new Style { … }`. Promotion of
+  static auto-properties into HMR-able backing fields is on the
+  roadmap.
+- **Newly added** `static readonly` fields mid-session remain a CLR
+  rude edit; the project type's metadata cannot grow at runtime. The
+  existing once-per-session warning is unchanged.
+
+### Tests
+
+- 1218/1218 SG passing (1198 pre-existing plus 20 new): 9 stripper
+  unit tests (multi-declarator, generic type, attributes, XML doc,
+  const-untouched, mutable-untouched, instance-readonly-untouched),
+  6 analyzer tests (write outside cctor flagged, write inside cctor
+  allowed, no false positives, compound/increment flagged, field
+  initializer allowed), 5 end-to-end module-strip tests (single
+  field, multi-field, const-untouched, mutable-untouched,
+  attribute-preservation).
+
 ## [0.5.8] - 2026-05-11
 
 ### Fixed
@@ -695,7 +789,7 @@ conventions used by React Fast Refresh and .NET Hot Reload.
 | `public static readonly X` | **Re-initialised every HMR cycle** — the new initializer expression runs in the HMR-compiled assembly and the result is copied into the project type via `UitkxHmrModuleStaticSwapper`. |
 | `public static X` (mutable) | **Preserved** — runtime value carries across HMR cycles. Matches React Fast Refresh, .NET Hot Reload, and JS HMR. Use cases: lazy caches (`_textures`, `_built`), session counters, accumulated state. To reset, exit Play mode (or enable the opt-in auto-reload setting). |
 | `public static T Foo(…)` (method) | **Hot-swapped via per-method delegate trampolines** — supports `ref`/`out`/`in`/`params`, default values, generics, and overloads. Behind `#if UNITY_EDITOR`, zero overhead in player builds. |
-| Newly-added `static readonly` field | **CLR rude edit** — the project type's metadata is sealed by the runtime and cannot grow new fields. A warning is logged once per session per field; opt into `UITKX_HMR_AutoReloadOnRudeEdit` for an automatic domain reload. |
+| Newly-added `static readonly` field | **CLR rude edit** — the project type's metadata is sealed by the runtime and cannot grow new fields. By default HMR schedules a domain reload so the new field materialises everywhere; disable via the HMR window's *Auto-reload on rude edit* toggle (EditorPref `UITKX_HMR_AutoReloadOnRudeEdit`) if you want manual control. A once-per-session warning is logged either way. |
 | Newly-added method | The new method exists only on the HMR-compiled type. Calls from already-loaded (non-HMR'd) code throw `MissingMethodException`. Same workaround as new fields. |
 | Instance methods, properties, operators, nested-type members | Emitted verbatim — not hot-reloaded. Edit them and trigger a full domain reload to see changes. |
 
@@ -704,7 +798,7 @@ conventions used by React Fast Refresh and .NET Hot Reload.
 - **Module `static readonly` field re-init.** New `UitkxHmrModuleStaticSwapper` copies static-readonly field values from the freshly HMR-compiled assembly into matching project types. Fixes the case where editing a `Style`/`Color` module field initializer reported a successful HMR cycle but the rendered UI kept showing the cold-build value until you exited Play mode.
 - **Module `static` method hot-swap.** New source-generator pass (`ModuleBodyRewriter`) rewrites every top-level `public static` method inside a `module { … }` body into a trampoline triplet: a public surface method that bounces through an `__hmr_<name>_h<sig>` delegate field to a private `__<name>_body_h<sig>` body method (all `#if UNITY_EDITOR`-gated). After each HMR compile, the new `UitkxHmrModuleMethodSwapper` rebinds every delegate field to the freshly compiled method via `Delegate.CreateDelegate`. Custom delegate types support `ref`/`out`/`in`/`params` (previously impossible with framework `Func<>`/`Action<>`); FNV-1a 32-bit signature hash disambiguates overloads; generic methods use a `MethodInfo` + `ConcurrentDictionary<Type, Delegate>` cache pattern. Trampolines preserve the original method's visibility so `private static` methods using `private` nested types stay valid (no CS0050/CS0051/CS0052/CS0058/CS0059).
 - **Rude-edit detection.** When you add a new `static readonly` field to a module mid-session, the CLR can't grow the project type's metadata — `UitkxHmrModuleStaticSwapper` now detects the mismatch and logs a once-per-session warning naming each affected field, the runtime constraint, and the available remediations.
-- **Opt-in auto-reload.** New `UitkxHmrController.AutoReloadOnRudeEdit` setting (EditorPref `UITKX_HMR_AutoReloadOnRudeEdit`, default `false`). When enabled and a rude edit lands, schedules `EditorUtility.RequestScriptReload()` via `EditorApplication.delayCall` so the new field/method materialises everywhere with one extra round-trip.
+- **Auto-reload on rude edit (default on).** New `UitkxHmrController.AutoReloadOnRudeEdit` setting (EditorPref `UITKX_HMR_AutoReloadOnRudeEdit`, default `true`) surfaced as the *Auto-reload on rude edit* toggle in the HMR window. When a rude edit lands (newly-added field/method), HMR schedules `EditorUtility.RequestScriptReload()` via `EditorApplication.delayCall` so the new member materialises everywhere with one extra round-trip. Disable for manual control — a warning is still logged either way.
 - **`UITKX0150` Info diagnostic.** Emitted when the source generator cannot Roslyn-parse a module body for trampoline rewriting; falls back to verbatim emission so the module still compiles (only per-method HMR for that module is unavailable).
 
 ### Fixed — 12 HMR ↔ source-generator parity bugs in `HmrCSharpEmitter`

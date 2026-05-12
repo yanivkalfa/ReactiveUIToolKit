@@ -212,6 +212,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // indexes by).
                 body = HmrCSharpEmitter.ResolveAssetPaths(body, filePath);
 
+                // ── B28: strip `readonly` from every top-level `static readonly`
+                // field and decorate with [UitkxHmrSwap]. Mirrors the SG-side
+                // StaticReadonlyStripper so module statics can be re-initialised
+                // across HMR cycles (Mono's JIT inlines initonly statics; the
+                // attribute discriminator opts the field in to the swapper).
+                body = HmrStaticReadonlyStripper.Strip(body);
+
                 sb.AppendLine($"    public partial class {name}");
                 sb.AppendLine("    {");
                 sb.AppendLine($"#line {bodyStartLine} \"{linePath}\"");

@@ -205,7 +205,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 string projectRoot = GetProjectRoot(_filePath);
 
                 _sb.Append(
-                    $"{I2}internal static readonly string[] __uitkx_ussKeys = new string[] {{ "
+                    $"{I2}[global::ReactiveUITK.UitkxHmrSwap] internal static string[] __uitkx_ussKeys = new string[] {{ "
                 );
                 for (int idx = 0; idx < _directives.UssFiles.Length; idx++)
                 {
@@ -3169,7 +3169,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             hoistName = $"__sty_{hid}";
             _hoistedStyleFields.Append(I2);
             _hoistedStyleFields.Append(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style "
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style "
             );
             _hoistedStyleFields.Append(hoistName);
             _hoistedStyleFields.Append(" = new global::ReactiveUITK.Props.Typed.Style { ");

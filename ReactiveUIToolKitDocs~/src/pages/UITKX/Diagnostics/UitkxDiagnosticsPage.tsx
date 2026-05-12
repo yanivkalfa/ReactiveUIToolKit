@@ -270,6 +270,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Attribute requires newer Unity version</TableCell>
             <TableCell>The attribute is only available in a newer Unity version, or was removed in the current version.</TableCell>
           </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0210" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Write to <code>[UitkxHmrSwap]</code> field outside type initializer</TableCell>
+            <TableCell>The field is generator-managed for HMR re-initialization. Move the assignment into a <code>static</code> constructor or field initializer. The HMR pipeline will overwrite any external write on the next save. Suppress with <code>#pragma warning disable UITKX0210</code> if intentional.</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>

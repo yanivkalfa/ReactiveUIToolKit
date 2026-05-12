@@ -247,7 +247,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (_ussFiles.Count > 0)
                 {
                     _sb.Append(
-                        "        internal static readonly string[] __uitkx_ussKeys = new string[] { "
+                        "        [global::ReactiveUITK.UitkxHmrSwap] internal static string[] __uitkx_ussKeys = new string[] { "
                     );
                     for (int i = 0; i < _ussFiles.Count; i++)
                     {
@@ -2158,7 +2158,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 hoistName = $"__sty_{hid}";
                 _hoistedStyleFields.Append("        ");
                 _hoistedStyleFields.Append(
-                    "private static readonly global::ReactiveUITK.Props.Typed.Style "
+                    "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style "
                 );
                 _hoistedStyleFields.Append(hoistName);
                 _hoistedStyleFields.Append(" = new global::ReactiveUITK.Props.Typed.Style { ");

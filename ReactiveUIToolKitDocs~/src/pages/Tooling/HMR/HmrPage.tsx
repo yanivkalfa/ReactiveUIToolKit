@@ -152,12 +152,28 @@ export const HmrPage: FC = () => (
           <ListItemText primary={<><strong>Hook files</strong> (e.g. <code>MyComponent.hooks.uitkx</code>) — the hook delegate is swapped in-place. All components that use the hook re-render with the new logic. Hook state is preserved.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><strong>Style modules</strong> (e.g. <code>MyComponent.style.uitkx</code>) — module changes trigger a domain reload since they contain static data.</>} />
+          <ListItemText primary={<><strong>Style modules</strong> (e.g. <code>MyComponent.style.uitkx</code>) — <code>static readonly</code> field initializers are re-evaluated and the new values are copied into the live module type. Editing a <code>Style</code>, <code>Color</code>, or any other module-scope <code>static readonly</code> value takes effect on the next render without a domain reload.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><strong>Utility modules</strong> (e.g. <code>MyComponent.utils.uitkx</code>) — same as style modules, domain reload.</>} />
+          <ListItemText primary={<><strong>Utility modules</strong> (e.g. <code>MyComponent.utils.uitkx</code>) — <code>static</code> method bodies are hot-swapped via per-method delegate trampolines; <code>static readonly</code> fields are re-initialized like style modules; mutable <code>static</code> fields keep their runtime value across cycles.</>} />
         </ListItem>
       </List>
+      <Typography variant="body1" paragraph sx={{ mt: 1 }}>
+        Module-scope <code>static readonly</code> fields are transparently emitted as
+        <code>[UitkxHmrSwap] static</code> by the source generator so the runtime slot stays
+        writable and the Mono JIT cannot inline a stale reference. Writing to these fields from
+        non-cctor code triggers analyzer warning <code>UITKX0210</code> — the HMR pipeline will
+        overwrite the value on the next save.
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <strong>Limitation — prefer fields over static auto-properties.</strong> A get-only static
+        auto-property like <code>public static Style Root {'{'} get; {'}'} = new Style {'{'}…{'}'}</code>
+        is lowered by the C# compiler to a private <code>static readonly</code> backing field that
+        the source generator cannot rewrite. Its value will be inlined by the JIT and HMR cannot
+        refresh it. For HMR-able module values, use fields:
+        <code>public static readonly Style Root = new Style {'{'}…{'}'};</code>. Field handling for
+        static auto-properties is on the roadmap.
+      </Typography>
       <Typography variant="body1" paragraph>
         Generic hooks (e.g. <code>{'hook useLocalStorage<T>(...)'}</code>) use a cached delegate
         strategy — first call per type parameter after HMR pays ~1-2µs, subsequent calls are direct

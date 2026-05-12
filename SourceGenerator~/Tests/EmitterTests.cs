@@ -1438,9 +1438,9 @@ public class EmitterTests
         );
         Assert.True(
             result.SourceContains(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style __sty_0"
             ),
-            $"Expected hoisted static field __sty_0. Got:\n{result.GeneratedSource}"
+            $"Expected hoisted static field __sty_0 with [UitkxHmrSwap]. Got:\n{result.GeneratedSource}"
         );
         Assert.True(
             result.SourceContains("__sty_0"),
@@ -1467,9 +1467,9 @@ public class EmitterTests
         Assert.True(result.SourceWasProduced);
         Assert.True(
             result.SourceContains(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style __sty_0"
             ),
-            $"Expected hoisted static field. Got:\n{result.GeneratedSource}"
+            $"Expected hoisted static field with [UitkxHmrSwap]. Got:\n{result.GeneratedSource}"
         );
         Assert.False(
             result.SourceContains("Style.__Rent()"),
@@ -1516,9 +1516,9 @@ public class EmitterTests
         Assert.True(result.SourceWasProduced);
         Assert.True(
             result.SourceContains(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style __sty_0"
             ),
-            $"new Color(literal-args) must be hoist-safe. Got:\n{result.GeneratedSource}"
+            $"new Color(literal-args) must be hoist-safe with [UitkxHmrSwap]. Got:\n{result.GeneratedSource}"
         );
     }
 

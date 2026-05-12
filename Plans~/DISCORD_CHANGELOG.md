@@ -1,3 +1,31 @@
+﻿## [0.5.9] - 2026-05-12
+
+### Module `static readonly` fields now hot-reload - no domain reload, no stale refs
+
+**B28 closed.** Editing a module-scope `Style` or `Color` field initializer (e.g. `PaddingTop = 4` -> `16` in `Sidebar.style.uitkx`) used to report a successful HMR cycle but leave the UI on the cold value until you exited Play mode. Already-mounted components picked it up; newly-mounted ones kept reading the old ref.
+
+Byte-level IL diagnostics confirmed: the Mono JIT inlines `ldsfld <static readonly>` into native code at first call-site emission. `FieldInfo.SetValue` updates the slot, but already-JIT'd methods keep reading the inlined cold ref.
+
+```csharp
+module Sidebar {
+    public static readonly Style Wrapper = new Style {
+        PaddingTop = 4,   // edit + save - visible next render
+    };
+}
+```
+
+Permanent IL fix (IL2CPP and Mono AOT player builds too - Editor and Player IL stay identical). The SG strips `readonly` from every top-level `static readonly` field inside a `module { ... }` body and decorates the rewrite with `[global::ReactiveUITK.UitkxHmrSwap]`. HMR mirrors the rewrite in `HmrHookEmitter.EmitModules`. Generator-managed module statics (`__sty_N` style hoists, `__uitkx_ussKeys`) get the same treatment. The hook-cache `static readonly ConcurrentDictionary` is intentionally left as `initonly` (ref is immutable; only contents are HMR-replaced) and the swapper still finds it via `IsInitOnly`.
+
+New analyzer `UITKX0210` (Warning) flags writes to `[UitkxHmrSwap]` fields from non-cctor code - HMR will overwrite any external write on the next save.
+
+**Known limitation.** Static auto-properties (`public static Style Root { get; } = ...`) lower to a private `static readonly` backing field the SG cannot rewrite. Prefer fields for HMR-able module values. Auto-property promotion is on the roadmap.
+
+**Tests.** 1218/1218 SG passing (20 new: stripper, analyzer, end-to-end).
+
+VS Code **1.2.4 -> 1.2.5** | VS 2022 **1.2.4 -> 1.2.5**.
+
+---
+
 ## [0.5.8] - 2026-05-11
 
 ### `[OnOpenAsset]` migrated to `EntityId` callbacks on 6.3+ - no obsolete API touched
