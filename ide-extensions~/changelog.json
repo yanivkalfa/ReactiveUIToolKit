@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-13",
+      "versions": {
+        "vscode": "1.2.6",
+        "vs2022": "1.2.6"
+      },
+      "shared": [
+        "Fix: LSP false \"unused local\" diagnostic on hook setter/value pairs that are only consumed inside lambdas. `RoslynHost.AnalyzeUnusedLocals` now includes `dataFlow.Captured` in the read set when computing unused-locals diagnostics. Captures by nested lambdas / local functions are by definition a future use; flagging them as unused was a false positive on hook setter pairs (`var (count, setCount) = useState<int>(0);`) consumed inside event-handler lambdas (e.g. `<Button onClick={() => setCount(count + 1)} />`) or JSX fragments lowered to render lambdas. Adds a regression test in `RoslynHostTests`. Ships in lockstep with library 0.5.10 which rewrites component HMR as a static trampoline field (eliminates per-fiber rollback closures on every save, fixes stale renders after rapid Ctrl+S, makes incompatible hook-signature edits reset state in-place without a domain reload - React Fast Refresh semantics) and adds two complementary HMR fixes: rude-edit-triggered domain reloads are deferred from Play mode to the next `EnteredEditMode` transition (calling `RequestScriptReload` during Play mode produced partial reloads that broke `MonoBehaviour` script refs), and HMR Stop no longer stalls 30-40s by dropping `RequestScriptCompilationOptions.CleanBuildCache` from the change-watcher trigger (Roslyn's content-hashed `AdditionalText` cache picks up modified `.uitkx` files via normal incremental compilation without a clean rebuild). LSP server build clean; SG suite 1222/1222 passing (+2 new trampoline-shape parity tests)."
+      ]
+    },
+    {
       "date": "2026-05-12",
       "versions": {
         "vscode": "1.2.5",

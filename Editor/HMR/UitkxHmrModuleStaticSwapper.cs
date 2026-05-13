@@ -285,7 +285,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                         + "render delegate from this cycle) can use the field, but references "
                         + "from non-HMR code (.cs scripts, untouched .uitkx files) will throw "
                         + "MissingFieldException. By default HMR will auto-reload the domain "
-                        + "to materialise the field everywhere (disable via the HMR window "
+                        + "to materialise the field everywhere (deferred until Play mode "
+                        + "exits if currently playing — disable via the HMR window "
                         + "'Auto-reload on rude edit' toggle or EditorPref 'UITKX_HMR_AutoReloadOnRudeEdit'). "
                         + "(Shown once per session per field.)"
                 );

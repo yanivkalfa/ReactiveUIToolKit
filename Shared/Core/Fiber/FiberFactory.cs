@@ -139,9 +139,6 @@ namespace ReactiveUITK.Core.Fiber
             if (current.Tag != FiberTag.HostComponent)
             {
                 clone.TypedRender = current.TypedRender;
-#if UNITY_EDITOR
-                clone.HmrPreviousRender = current.HmrPreviousRender;
-#endif
                 clone.TypedProps = current.TypedProps;
                 clone.TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps;
                 clone.ComponentState = current.ComponentState; // CRITICAL: Share, don't clone!

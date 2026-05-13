@@ -415,8 +415,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 else
                 {
-                    // Component files: swap per-fiber render delegates
-                    swapped = UitkxHmrDelegateSwapper.SwapAll(
+                    // Component files: swap the per-component __hmr_Render
+                    // trampoline field. Single static-field write per
+                    // component type — no per-fiber tree walk.
+                    swapped = UitkxHmrComponentTrampolineSwapper.SwapAll(
                         result.LoadedAssembly,
                         result.ComponentName,
                         uitkxPath
@@ -449,10 +451,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Rude-edit handling: a newly-added `static readonly` field on
                 // a module type cannot be added to the project-loaded type
                 // (CLR seals type metadata). The swapper has already logged a
-                // once-per-session warning. If the user opted in, schedule a
-                // domain reload on the next editor frame to materialise the
-                // new field everywhere. We delay the reload so the current
-                // HMR cycle completes cleanly first (logs flush, etc.).
+                // once-per-session warning. If the user opted in, request a
+                // domain reload to materialise the new field everywhere.
+                // The request is routed through RequestDomainReloadSafe which
+                // defers the reload until Edit mode if we are currently in
+                // Play mode — firing RequestScriptReload during Play mode
+                // produces partial reloads that leave MonoBehaviours with
+                // missing script references.
                 if (addedFieldsDetected > 0 && AutoReloadOnRudeEdit)
                 {
                     Debug.Log(
@@ -460,19 +465,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                             + $"reload to materialise {addedFieldsDetected} newly-added "
                             + "module field(s) on the project-loaded type(s)."
                     );
-                    EditorApplication.delayCall += () =>
-                    {
-                        try
-                        {
-                            UnityEditor.EditorUtility.RequestScriptReload();
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogWarning(
-                                $"[HMR] AutoReloadOnRudeEdit: RequestScriptReload failed: {ex.Message}"
-                            );
-                        }
-                    };
+                    RequestDomainReloadSafe(
+                        $"materialise {addedFieldsDetected} newly-added module field(s)"
+                    );
                 }
 
                 // Remove from pending retries if this was a re-attempt
@@ -949,6 +944,65 @@ namespace ReactiveUITK.EditorSupport.HMR
                 Debug.Log("[HMR] Auto-stopping due to play mode change.");
                 Stop();
                 UitkxHmrWindow.RepaintIfOpen();
+            }
+        }
+
+        // ── Safe domain reload (Play-mode aware) ──────────────────────────────
+
+        // Set while a domain reload has been requested but is being held until
+        // the editor exits Play mode. Idempotent: multiple rude edits in the
+        // same Play session coalesce into a single deferred reload.
+        private bool _pendingReloadOnEditMode;
+        private string _pendingReloadReason;
+
+        /// <summary>
+        /// Routes a script-reload request through a Play-mode guard.
+        /// Firing <c>RequestScriptReload</c> while the editor is in Play mode
+        /// produces a partial domain reload that leaves Play-mode
+        /// MonoBehaviours with broken script references (observed as
+        /// "The referenced script (Unknown) on this Behaviour is missing!").
+        /// If we are in Play mode (or transitioning), the request is held
+        /// until <c>PlayModeStateChange.EnteredEditMode</c> fires. Otherwise
+        /// it dispatches via <c>delayCall</c> so the current HMR cycle
+        /// completes cleanly first.
+        /// </summary>
+        private void RequestDomainReloadSafe(string reason)
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                if (_pendingReloadOnEditMode)
+                    return;
+                _pendingReloadOnEditMode = true;
+                _pendingReloadReason = reason;
+                EditorApplication.playModeStateChanged += OnPlayModeChangedForDeferredReload;
+                Debug.Log("[HMR] Domain reload deferred until exit of Play mode " + $"({reason}).");
+                return;
+            }
+            string captured = reason;
+            EditorApplication.delayCall += () => SafeRequestScriptReload(captured);
+        }
+
+        private void OnPlayModeChangedForDeferredReload(PlayModeStateChange state)
+        {
+            if (state != PlayModeStateChange.EnteredEditMode)
+                return;
+            EditorApplication.playModeStateChanged -= OnPlayModeChangedForDeferredReload;
+            string reason = _pendingReloadReason;
+            _pendingReloadOnEditMode = false;
+            _pendingReloadReason = null;
+            EditorApplication.delayCall += () => SafeRequestScriptReload(reason);
+        }
+
+        private static void SafeRequestScriptReload(string reason)
+        {
+            try
+            {
+                Debug.Log($"[HMR] Requesting domain reload ({reason}).");
+                UnityEditor.EditorUtility.RequestScriptReload();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HMR] RequestScriptReload failed: {ex.Message}");
             }
         }
     }

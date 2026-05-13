@@ -181,8 +181,8 @@ namespace UitkxLanguageServer.Roslyn
             /// Used by go-to-definition and rename to map Roslyn positions in peer
             /// virtual documents back to their .uitkx source.
             /// </summary>
-            public Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)> PeerVDocs
-                = new Dictionary<DocumentId, (string, VirtualDocument)>();
+            public Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)> PeerVDocs =
+                new Dictionary<DocumentId, (string, VirtualDocument)>();
 
             public VirtualDocument? VirtualDoc;
 
@@ -216,12 +216,14 @@ namespace UitkxLanguageServer.Roslyn
         /// instead of (potentially stale) disk content.
         /// Keyed by full path (case-insensitive).
         /// </summary>
-        private readonly ConcurrentDictionary<string, string> _companionOverlay =
-            new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, string> _companionOverlay = new(
+            StringComparer.OrdinalIgnoreCase
+        );
 
         private readonly ReferenceAssemblyLocator _refLocator;
         private readonly VirtualDocumentGenerator _docGenerator = new VirtualDocumentGenerator();
-        private readonly RoslynSemanticTokensProvider _roslynTokensProvider = new RoslynSemanticTokensProvider();
+        private readonly RoslynSemanticTokensProvider _roslynTokensProvider =
+            new RoslynSemanticTokensProvider();
         private readonly ILanguageServerFacade _server;
         private readonly IPropsTypeProvider _propsTypes;
         private readonly DocumentStore? _documentStore;
@@ -423,10 +425,23 @@ namespace UitkxLanguageServer.Roslyn
                         var dataFlow = semantic.AnalyzeDataFlow(renderMethod.Body);
                         if (dataFlow != null && dataFlow.Succeeded)
                         {
+                            // Read set must include BOTH direct reads
+                            // (dataFlow.ReadInside) AND locals captured by any
+                            // nested lambda / local function. A capture is, by
+                            // definition, a future use — flagging it as "never
+                            // used" is a false positive. Common case: state
+                            // hook deconstructions where the setter is only
+                            // referenced inside an event-handler lambda
+                            // (e.g. `onChange={(e) => setText(e.newValue)}`)
+                            // and the value is only referenced inside a JSX
+                            // fragment that the emitter lowers into a nested
+                            // render lambda.
                             var readSet = new HashSet<ISymbol>(
                                 dataFlow.ReadInside,
                                 SymbolEqualityComparer.Default
                             );
+                            foreach (var captured in dataFlow.Captured)
+                                readSet.Add(captured);
 
                             foreach (var local in dataFlow.VariablesDeclared)
                             {
@@ -479,9 +494,7 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     // Data-flow failure is non-fatal — regular diagnostics still
                     // surface; just log and continue.
-                    ServerLog.Log(
-                        $"[RoslynHost] AnalyzeDataFlow error: {ex.Message}"
-                    );
+                    ServerLog.Log($"[RoslynHost] AnalyzeDataFlow error: {ex.Message}");
                 }
 
                 return result;
@@ -531,7 +544,9 @@ namespace UitkxLanguageServer.Roslyn
         /// documents back to their .uitkx source.
         /// </summary>
         public (string PeerPath, VirtualDocument PeerVDoc)? TryGetPeerVirtualDocument(
-            string uitkxFilePath, DocumentId peerDocId)
+            string uitkxFilePath,
+            DocumentId peerDocId
+        )
         {
             if (!_files.TryGetValue(uitkxFilePath, out var state))
                 return null;
@@ -545,8 +560,10 @@ namespace UitkxLanguageServer.Roslyn
         /// Used by the rename handler to map Roslyn edits in peer virtual documents
         /// back to their .uitkx source.
         /// </summary>
-        public Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)>?
-            GetPeerVirtualDocuments(string uitkxFilePath)
+        public Dictionary<
+            DocumentId,
+            (string PeerPath, VirtualDocument PeerVDoc)
+        >? GetPeerVirtualDocuments(string uitkxFilePath)
         {
             if (!_files.TryGetValue(uitkxFilePath, out var state))
                 return null;
@@ -569,18 +586,26 @@ namespace UitkxLanguageServer.Roslyn
             foreach (var kv in _files)
             {
                 // Skip the changed file itself
-                if (string.Equals(
-                        System.IO.Path.GetFullPath(kv.Key), fullPath,
-                        StringComparison.OrdinalIgnoreCase))
+                if (
+                    string.Equals(
+                        System.IO.Path.GetFullPath(kv.Key),
+                        fullPath,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
                     continue;
 
                 var state = kv.Value;
                 // Check if this file has the changed path as a peer
                 foreach (var (_, (peerPath, _)) in state.PeerVDocs)
                 {
-                    if (string.Equals(
-                            System.IO.Path.GetFullPath(peerPath), fullPath,
-                            StringComparison.OrdinalIgnoreCase))
+                    if (
+                        string.Equals(
+                            System.IO.Path.GetFullPath(peerPath),
+                            fullPath,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
                     {
                         // Force next EnsureReadyAsync to rebuild
                         state.LastBuiltSource = "";
@@ -591,7 +616,8 @@ namespace UitkxLanguageServer.Roslyn
             }
             if (invalidated.Count > 0)
                 ServerLog.Log(
-                    $"[RoslynHost] InvalidatePeerDependents: invalidated {invalidated.Count} workspace(s) depending on {System.IO.Path.GetFileName(changedPeerPath)}");
+                    $"[RoslynHost] InvalidatePeerDependents: invalidated {invalidated.Count} workspace(s) depending on {System.IO.Path.GetFileName(changedPeerPath)}"
+                );
             return invalidated;
         }
 
@@ -601,8 +627,12 @@ namespace UitkxLanguageServer.Roslyn
         /// Returns the companion <see cref="Document"/>, the owning .uitkx path,
         /// and the main virtual-document <see cref="DocumentId"/>, or <c>null</c>.
         /// </summary>
-        public (Document CompanionDoc, string UitkxPath, DocumentId MainDocId, VirtualDocument? VDoc)?
-            FindCompanionDocument(string csFilePath)
+        public (
+            Document CompanionDoc,
+            string UitkxPath,
+            DocumentId MainDocId,
+            VirtualDocument? VDoc
+        )? FindCompanionDocument(string csFilePath)
         {
             var csFileName = System.IO.Path.GetFileName(csFilePath);
             var csDir = System.IO.Path.GetDirectoryName(csFilePath);
@@ -621,7 +651,10 @@ namespace UitkxLanguageServer.Roslyn
                 foreach (var companionDocId in state.CompanionDocIds)
                 {
                     var doc = solution.GetDocument(companionDocId);
-                    if (doc != null && string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase))
+                    if (
+                        doc != null
+                        && string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase)
+                    )
                         return (doc, kv.Key, state.DocumentId, state.VirtualDoc);
                 }
             }
@@ -657,12 +690,18 @@ namespace UitkxLanguageServer.Roslyn
                 foreach (var companionDocId in state.CompanionDocIds)
                 {
                     var doc = state.Workspace.CurrentSolution.GetDocument(companionDocId);
-                    if (doc == null || !string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase))
+                    if (
+                        doc == null
+                        || !string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase)
+                    )
                         continue;
 
                     // Replace the document text in the workspace
                     var newSourceText = Microsoft.CodeAnalysis.Text.SourceText.From(currentText);
-                    var newSolution = state.Workspace.CurrentSolution.WithDocumentText(companionDocId, newSourceText);
+                    var newSolution = state.Workspace.CurrentSolution.WithDocumentText(
+                        companionDocId,
+                        newSourceText
+                    );
                     state.Workspace.TryApplyChanges(newSolution);
                     return state.Workspace.CurrentSolution.GetDocument(companionDocId);
                 }
@@ -688,7 +727,8 @@ namespace UitkxLanguageServer.Roslyn
         public IReadOnlyList<string> FindUitkxFilesForCompanion(string csFilePath)
         {
             var csDir = System.IO.Path.GetDirectoryName(csFilePath);
-            if (csDir == null) return Array.Empty<string>();
+            if (csDir == null)
+                return Array.Empty<string>();
 
             var result = new List<string>();
             foreach (var kv in _files)
@@ -745,7 +785,12 @@ namespace UitkxLanguageServer.Roslyn
                     return;
 
                 var enriched = EnrichWithPeerHookUsings(parseResult, uitkxFilePath);
-                var virtualDoc = _docGenerator.Generate(enriched, source, uitkxFilePath, _propsTypes);
+                var virtualDoc = _docGenerator.Generate(
+                    enriched,
+                    source,
+                    uitkxFilePath,
+                    _propsTypes
+                );
                 UpdateWorkspace(state, uitkxFilePath, virtualDoc, ct);
                 state.VirtualDoc = virtualDoc;
                 state.LastBuiltSource = source;
@@ -789,7 +834,12 @@ namespace UitkxLanguageServer.Roslyn
 
                 // 1. Generate virtual document (enriched with peer hook usings)
                 var enriched = EnrichWithPeerHookUsings(parseResult, uitkxFilePath);
-                var virtualDoc = _docGenerator.Generate(enriched, source, uitkxFilePath, _propsTypes);
+                var virtualDoc = _docGenerator.Generate(
+                    enriched,
+                    source,
+                    uitkxFilePath,
+                    _propsTypes
+                );
 
                 // 2. Update (or create) the AdhocWorkspace for this file
                 UpdateWorkspace(state, uitkxFilePath, virtualDoc, ct);
@@ -812,14 +862,17 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     try
                     {
-                        await PushClassificationOverridesAsync(
-                            uitkxFilePath, source, state, ct
-                        ).ConfigureAwait(false);
+                        await PushClassificationOverridesAsync(uitkxFilePath, source, state, ct)
+                            .ConfigureAwait(false);
                     }
-                    catch (OperationCanceledException) { /* next rebuild will send */ }
+                    catch (OperationCanceledException)
+                    { /* next rebuild will send */
+                    }
                     catch (Exception ex)
                     {
-                        ServerLog.Log($"[RoslynHost] PushClassificationOverrides error: {ex.Message}");
+                        ServerLog.Log(
+                            $"[RoslynHost] PushClassificationOverrides error: {ex.Message}"
+                        );
                     }
                 }
             }
@@ -859,11 +912,10 @@ namespace UitkxLanguageServer.Roslyn
                 .ConfigureAwait(false);
 
             // Always send — an empty array clears stale overrides from a prior edit.
-            _server.SendNotification("uitkx/classificationOverrides", new
-            {
-                uri = DocumentUri.File(uitkxFilePath).ToString(),
-                overrides = overrides,
-            });
+            _server.SendNotification(
+                "uitkx/classificationOverrides",
+                new { uri = DocumentUri.File(uitkxFilePath).ToString(), overrides = overrides }
+            );
         }
 
         private void UpdateWorkspace(
@@ -887,17 +939,20 @@ namespace UitkxLanguageServer.Roslyn
             // never the LSP-internal `ReactiveUITK.Language` parser DLL — that
             // DLL doesn't contain the runtime types (Ref<T>, ReactiveEvent,
             // delegate handlers) that the polyfill provides.
-            bool needsPolyfill = !Array.Exists(refs, r =>
-            {
-                if (r.Display == null)
-                    return false;
-                var name = System.IO.Path.GetFileNameWithoutExtension(r.Display);
-                if (string.IsNullOrEmpty(name))
-                    return false;
-                return name.Equals("ReactiveUITK.Shared", StringComparison.OrdinalIgnoreCase)
-                    || name.Equals("ReactiveUITK.Runtime", StringComparison.OrdinalIgnoreCase)
-                    || name.Equals("ReactiveUITK.Core", StringComparison.OrdinalIgnoreCase);
-            });
+            bool needsPolyfill = !Array.Exists(
+                refs,
+                r =>
+                {
+                    if (r.Display == null)
+                        return false;
+                    var name = System.IO.Path.GetFileNameWithoutExtension(r.Display);
+                    if (string.IsNullOrEmpty(name))
+                        return false;
+                    return name.Equals("ReactiveUITK.Shared", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("ReactiveUITK.Runtime", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("ReactiveUITK.Core", StringComparison.OrdinalIgnoreCase);
+                }
+            );
 
             if (state.Workspace == null)
             {
@@ -988,19 +1043,23 @@ namespace UitkxLanguageServer.Roslyn
                 if (needsPolyfill && state.PolyfillDocId == null)
                 {
                     var newPolyfillId = DocumentId.CreateNewId(
-                        state.ProjectId!, debugName: "__polyfill__");
-                    newSolution = newSolution.AddDocument(DocumentInfo.Create(
-                        id: newPolyfillId,
-                        name: "__UitkxPolyfill__.g.cs",
-                        sourceCodeKind: SourceCodeKind.Regular,
-                        loader: TextLoader.From(
-                            TextAndVersion.Create(
-                                Microsoft.CodeAnalysis.Text.SourceText.From(PolyfillSource),
-                                VersionStamp.Create(),
-                                "__polyfill__"
+                        state.ProjectId!,
+                        debugName: "__polyfill__"
+                    );
+                    newSolution = newSolution.AddDocument(
+                        DocumentInfo.Create(
+                            id: newPolyfillId,
+                            name: "__UitkxPolyfill__.g.cs",
+                            sourceCodeKind: SourceCodeKind.Regular,
+                            loader: TextLoader.From(
+                                TextAndVersion.Create(
+                                    Microsoft.CodeAnalysis.Text.SourceText.From(PolyfillSource),
+                                    VersionStamp.Create(),
+                                    "__polyfill__"
+                                )
                             )
                         )
-                    ));
+                    );
                     state.PolyfillDocId = newPolyfillId;
                 }
                 else if (!needsPolyfill && state.PolyfillDocId != null)
@@ -1056,7 +1115,11 @@ namespace UitkxLanguageServer.Roslyn
                 state.PeerVDocs.Clear();
 
                 newSolution = AddPeerUitkxDocumentsToSolution(
-                    newSolution, state.ProjectId!, state, uitkxFilePath);
+                    newSolution,
+                    state.ProjectId!,
+                    state,
+                    uitkxFilePath
+                );
 
                 state.Workspace.TryApplyChanges(newSolution);
             }
@@ -1148,7 +1211,13 @@ namespace UitkxLanguageServer.Roslyn
             var result = new List<string>();
             foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.uitkx"))
             {
-                if (string.Equals(System.IO.Path.GetFullPath(file), self, StringComparison.OrdinalIgnoreCase))
+                if (
+                    string.Equals(
+                        System.IO.Path.GetFullPath(file),
+                        self,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
                     continue;
                 result.Add(file);
             }
@@ -1201,19 +1270,23 @@ namespace UitkxLanguageServer.Roslyn
 
                     extraUsings.Add($"static {d.Namespace}.{containerClass}");
                 }
-                catch { /* skip unreadable peers */ }
+                catch
+                { /* skip unreadable peers */
+                }
             }
 
             if (extraUsings.Count == 0)
                 return parseResult;
 
             // Build new Usings array with the extra entries.
-            var currentUsings = d.Usings.IsDefault
-                ? ImmutableArray<string>.Empty
-                : d.Usings;
+            var currentUsings = d.Usings.IsDefault ? ImmutableArray<string>.Empty : d.Usings;
             var newUsings = currentUsings.AddRange(extraUsings);
             var enrichedDirectives = d with { Usings = newUsings };
-            return new ParseResult(enrichedDirectives, parseResult.RootNodes, parseResult.Diagnostics);
+            return new ParseResult(
+                enrichedDirectives,
+                parseResult.RootNodes,
+                parseResult.Diagnostics
+            );
         }
 
         /// <summary>
@@ -1236,13 +1309,14 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     var peerSource = ReadPeerSource(peerPath);
                     var peerDiags = new List<ParseDiagnostic>();
-                    var peerDirectives = DirectiveParser.Parse(
-                        peerSource, peerPath, peerDiags);
+                    var peerDirectives = DirectiveParser.Parse(peerSource, peerPath, peerDiags);
 
                     // Only include files that have hooks or modules — regular components
                     // are handled by their own workspace.
-                    if (peerDirectives.HookDeclarations.IsDefaultOrEmpty
-                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty)
+                    if (
+                        peerDirectives.HookDeclarations.IsDefaultOrEmpty
+                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty
+                    )
                         continue;
 
                     var peerParseResult = new ParseResult(
@@ -1250,7 +1324,12 @@ namespace UitkxLanguageServer.Roslyn
                         ImmutableArray<AstNode>.Empty,
                         ImmutableArray.CreateRange<ParseDiagnostic>(peerDiags)
                     );
-                    var peerVDoc = _docGenerator.Generate(peerParseResult, peerSource, peerPath, _propsTypes);
+                    var peerVDoc = _docGenerator.Generate(
+                        peerParseResult,
+                        peerSource,
+                        peerPath,
+                        _propsTypes
+                    );
 
                     var docInfo = DocumentInfo.Create(
                         id: DocumentId.CreateNewId(projectId, debugName: peerPath + ".peer"),
@@ -1270,9 +1349,7 @@ namespace UitkxLanguageServer.Roslyn
                 }
                 catch (Exception ex)
                 {
-                    ServerLog.Log(
-                        $"[RoslynHost] Could not load peer {peerPath}: {ex.Message}"
-                    );
+                    ServerLog.Log($"[RoslynHost] Could not load peer {peerPath}: {ex.Message}");
                 }
             }
 
@@ -1300,11 +1377,12 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     var peerSource = ReadPeerSource(peerPath);
                     var peerDiags = new List<ParseDiagnostic>();
-                    var peerDirectives = DirectiveParser.Parse(
-                        peerSource, peerPath, peerDiags);
+                    var peerDirectives = DirectiveParser.Parse(peerSource, peerPath, peerDiags);
 
-                    if (peerDirectives.HookDeclarations.IsDefaultOrEmpty
-                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty)
+                    if (
+                        peerDirectives.HookDeclarations.IsDefaultOrEmpty
+                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty
+                    )
                         continue;
 
                     var peerParseResult = new ParseResult(
@@ -1312,7 +1390,12 @@ namespace UitkxLanguageServer.Roslyn
                         ImmutableArray<AstNode>.Empty,
                         ImmutableArray.CreateRange<ParseDiagnostic>(peerDiags)
                     );
-                    var peerVDoc = _docGenerator.Generate(peerParseResult, peerSource, peerPath, _propsTypes);
+                    var peerVDoc = _docGenerator.Generate(
+                        peerParseResult,
+                        peerSource,
+                        peerPath,
+                        _propsTypes
+                    );
 
                     var newDocId = DocumentId.CreateNewId(projectId, debugName: peerPath + ".peer");
                     var docInfo = DocumentInfo.Create(
@@ -1333,9 +1416,7 @@ namespace UitkxLanguageServer.Roslyn
                 }
                 catch (Exception ex)
                 {
-                    ServerLog.Log(
-                        $"[RoslynHost] Could not load peer {peerPath}: {ex.Message}"
-                    );
+                    ServerLog.Log($"[RoslynHost] Could not load peer {peerPath}: {ex.Message}");
                 }
             }
 

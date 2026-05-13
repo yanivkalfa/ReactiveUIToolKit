@@ -261,8 +261,41 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 L("");
             }
 
-            // ── Render method signature ───────────────────────────────────────
+            // ── HMR trampoline (component-level) ──────────────────────────────
+            // Mirrors the per-hook / per-module-method trampoline pattern so the
+            // public Render method's identity is stable across HMR cycles. This
+            // gives parent components a single, stable method-group target
+            // (cached by the Roslyn compiler in a static delegate slot per call
+            // site) — restoring `ReferenceEquals(fiber.TypedRender,
+            // vnode.TypedFunctionRender)` after hot-reloads and turning HMR
+            // swaps into a single FieldInfo.SetValue per changed component
+            // type instead of a per-fiber tree walk.
+            //
+            // The field, the IsActive guard, and the body invocation are all
+            // wrapped in `#if UNITY_EDITOR` — in player builds the trampoline
+            // collapses to a thin `return __Render_body(...)` shim that the
+            // JIT/IL2CPP inlines.
+            L($"#if UNITY_EDITOR");
+            L($"{I2}[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            L($"{I2}internal static global::System.Func<global::ReactiveUITK.Core.IProps, IReadOnlyList<{QVNode}>, {QVNode}> __hmr_Render = __Render_body;");
+            L($"#endif");
+            L("");
+
             L($"{I2}public static {QVNode} Render(");
+            L($"{I2}    global::ReactiveUITK.Core.IProps __rawProps,");
+            L($"{I2}    IReadOnlyList<{QVNode}> __children)");
+            L($"{I2}{{");
+            L($"#if UNITY_EDITOR");
+            L($"{I3}if (global::ReactiveUITK.Core.HmrState.IsActive)");
+            L($"{I3}    return __hmr_Render(__rawProps, __children);");
+            L($"#endif");
+            L($"{I3}return __Render_body(__rawProps, __children);");
+            L($"{I2}}}");
+            L("");
+
+            // ── Render body (the actual user code) ────────────────────────────
+            L($"{I2}[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            L($"{I2}private static {QVNode} __Render_body(");
             L($"{I2}    global::ReactiveUITK.Core.IProps __rawProps,");
             L($"{I2}    IReadOnlyList<{QVNode}> __children)");
             L($"{I2}{{");
@@ -353,7 +386,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.AppendLine($"{I3}return ({QVNode})null;");
             }
 
-            L($"{I2}}}"); // close Render
+            L($"{I2}}}"); // close __Render_body
 
             // ── Auto-generated props class for function-style components ──────
             // Emitted as a NESTED type INSIDE the partial class, before its

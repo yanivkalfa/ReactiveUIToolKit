@@ -292,25 +292,14 @@ namespace ReactiveUITK.Core.Fiber
                     )
                         return true;
 
-#if UNITY_EDITOR
-                    // HMR fallback: match by declaring type name when delegates differ
-                    // across assemblies after hot-reload.
-                    if (HmrState.IsActive)
-                    {
-                        var fiberType = fiber.TypedRender.Method.DeclaringType;
-                        var vnodeType = vnode.TypedFunctionRender.Method.DeclaringType;
-                        if (
-                            fiberType != null
-                            && vnodeType != null
-                            && fiberType.Name == vnodeType.Name
-                            && fiber.TypedRender.Method.Name
-                                == vnode.TypedFunctionRender.Method.Name
-                        )
-                        {
-                            return true;
-                        }
-                    }
-#endif
+                    // Cross-assembly HMR fallback was deleted by the
+                    // per-component __hmr_Render trampoline refactor: parent IL
+                    // continues to issue method-group references to the live
+                    // project type's stable Render trampoline (Roslyn caches
+                    // the conversion in a static slot per call site), so the
+                    // ReferenceEquals/Method-equality short-circuits above
+                    // hold across HMR cycles and no name-based fallback is
+                    // needed. See Plans~/HMR_COMPONENT_TRAMPOLINE_REFACTOR.md.
                     return false;
 
                 case VirtualNodeType.Suspense:
