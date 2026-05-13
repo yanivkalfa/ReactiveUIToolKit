@@ -1,4 +1,33 @@
-﻿## [0.5.9] - 2026-05-12
+﻿## [0.5.10] - 2026-05-13
+
+### Component HMR rewritten as a static trampoline - no more stale renders on rapid saves
+
+**Trampoline refactor.** Every `component` now compiles to a `static` triplet: an `internal static` delegate field `__hmr_Render` (initialized to `__Render_body`) and a `Render` entry that branches on `HmrState.IsActive`. HMR-side and project-side emit are byte-identical at the call site.
+
+```csharp
+component Counter(int initial = 0) {
+    var (count, setCount) = useState(initial);
+    return (<Button text={count.ToString()} />);
+}
+```
+
+The new `UitkxHmrComponentTrampolineSwapper` swaps via one O(1) `FieldInfo.SetValue` per type, then notifies only fibers whose `TypedRender.Method.DeclaringType` matches. The legacy per-fiber closure-rollback path (`HmrPreviousRender` field, ~36 lines in `FiberReconciler`, two `IsCompatibleType` source-path fallbacks) is gone. A type-level rollback registry bridges via `HmrState.TryRollbackComponent` so a bad swap reverts cleanly. Roslyn's per-call-site method-group cache keeps `ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)` stable.
+
+User-visible: 30+ Ctrl+S no longer leaks stale renders, navigate-away-then-back shows the new code, and incompatible hook-signature edits reset state in-place (React Fast Refresh) - no domain reload.
+
+**Fix - rude-edit reloads Play-mode-safe.** `RequestScriptReload` in Play mode produced partial reloads that broke `MonoBehaviour` refs. Deferred to the next `EnteredEditMode`.
+
+**Fix - HMR Stop no longer stalls 30-40s.** Dropped `CleanBuildCache` from the change-watcher trigger; Roslyn's `AdditionalText` cache picks up edits incrementally.
+
+**Fix - LSP false "unused local" on hook pairs.** `AnalyzeUnusedLocals` treats `dataFlow.Captured` as reads, so `var (count, setCount) = useState(0);` consumed inside lambdas stops warning.
+
+**Tests.** 1222/1222 SG passing (+2 trampoline parity tests).
+
+VS Code **1.2.5 -> 1.2.6** | VS 2022 **1.2.5 -> 1.2.6**.
+
+---
+
+## [0.5.9] - 2026-05-12
 
 ### Module `static readonly` fields now hot-reload - no domain reload, no stale refs
 

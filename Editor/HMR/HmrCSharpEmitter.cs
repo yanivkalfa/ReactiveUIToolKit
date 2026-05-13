@@ -265,8 +265,33 @@ namespace ReactiveUITK.EditorSupport.HMR
                     L("");
                 }
 
-                // Render method
+                // ── HMR trampoline (component-level) ─────────────────────────
+                // Mirrors the SG-side per-component trampoline so newly compiled
+                // HMR types expose the same `__hmr_Render` field + `__Render_body`
+                // shape. Required for parity with `CSharpEmitter` (see
+                // HmrEmitterParityContractTests) and for chained HMR cycles.
+                L("#if UNITY_EDITOR");
+                L($"        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+                L($"        internal static global::System.Func<global::ReactiveUITK.Core.IProps, IReadOnlyList<{QVNode}>, {QVNode}> __hmr_Render = __Render_body;");
+                L("#endif");
+                L("");
+
+                // Render trampoline
                 L($"        public static {QVNode} Render(");
+                L($"            global::ReactiveUITK.Core.IProps __rawProps,");
+                L($"            IReadOnlyList<{QVNode}> __children)");
+                L("        {");
+                L("#if UNITY_EDITOR");
+                L($"            if (global::ReactiveUITK.Core.HmrState.IsActive)");
+                L($"                return __hmr_Render(__rawProps, __children);");
+                L("#endif");
+                L($"            return __Render_body(__rawProps, __children);");
+                L("        }");
+                L("");
+
+                // Render body
+                L($"        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+                L($"        private static {QVNode} __Render_body(");
                 L($"            global::ReactiveUITK.Core.IProps __rawProps,");
                 L($"            IReadOnlyList<{QVNode}> __children)");
                 L("        {");
@@ -358,7 +383,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     L($"            return ({QVNode})null;");
                 }
 
-                L("        }"); // close Render
+                L("        }"); // close __Render_body
 
                 // Function-style auto-generated props class
                 if (_isFunctionStyle && _functionParams.Count > 0)
