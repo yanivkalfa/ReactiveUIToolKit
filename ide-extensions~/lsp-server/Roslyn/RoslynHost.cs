@@ -230,6 +230,8 @@ namespace UitkxLanguageServer.Roslyn
 
         private string? _workspaceRoot;
 
+        private readonly WorkspaceIndex _workspaceIndex;
+
         private FileSystemWatcher? _dllWatcher;
         private bool _disposed;
 
@@ -244,6 +246,7 @@ namespace UitkxLanguageServer.Roslyn
         {
             _server = server;
             _refLocator = new ReferenceAssemblyLocator();
+            _workspaceIndex = workspaceIndex;
             _propsTypes = new PropsTypeAdapter(schema, workspaceIndex);
             _documentStore = documentStore;
         }
@@ -1195,32 +1198,43 @@ namespace UitkxLanguageServer.Roslyn
         // ── Peer .uitkx file discovery & loading ─────────────────────────────
 
         /// <summary>
-        /// Returns all .uitkx files in the same directory as <paramref name="uitkxFilePath"/>,
-        /// excluding the file itself. These are hook/module/style peers whose generated
-        /// code must be visible in the Roslyn workspace for IntelliSense to resolve
-        /// cross-file references (e.g. <c>useCounter()</c> from a <c>.hooks.uitkx</c>
-        /// or style constants from a <c>.style.uitkx</c>).
+        /// Returns peer .uitkx files whose generated code must be visible in
+        /// the Roslyn workspace for cross-file references to resolve. Includes
+        /// every file in the same directory as <paramref name="uitkxFilePath"/>
+        /// (covers component<->hook/style/types pairs and `*Func` siblings) plus
+        /// every workspace-wide .uitkx file that declares a top-level <c>module</c>
+        /// or <c>hook</c>, sourced from <see cref="WorkspaceIndex"/>. The latter
+        /// is what makes a reference like <c>Theme.SidebarWidth</c> resolve when
+        /// <c>Theme.uitkx</c> lives in a parent or sibling directory.
+        /// The file itself is always excluded; results are case-insensitively
+        /// deduplicated.
         /// </summary>
-        private static IReadOnlyList<string> FindPeerUitkxFiles(string uitkxFilePath)
+        private IReadOnlyList<string> FindPeerUitkxFiles(string uitkxFilePath)
         {
-            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
-            if (dir == null || !System.IO.Directory.Exists(dir))
-                return Array.Empty<string>();
-
             var self = System.IO.Path.GetFullPath(uitkxFilePath);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { self };
             var result = new List<string>();
-            foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.uitkx"))
+
+            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
+            if (dir != null && System.IO.Directory.Exists(dir))
             {
-                if (
-                    string.Equals(
-                        System.IO.Path.GetFullPath(file),
-                        self,
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-                    continue;
-                result.Add(file);
+                foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.uitkx"))
+                {
+                    var full = System.IO.Path.GetFullPath(file);
+                    if (seen.Add(full))
+                        result.Add(file);
+                }
             }
+
+            foreach (var file in _workspaceIndex.GetModuleAndHookFiles())
+            {
+                string full;
+                try { full = System.IO.Path.GetFullPath(file); }
+                catch { continue; }
+                if (seen.Add(full))
+                    result.Add(file);
+            }
+
             return result;
         }
 
