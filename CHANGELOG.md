@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.11] - 2026-05-13
+
+### Fixed
+
+- **LSP Go-To-Definition now resolves module/hook symbols across directories.**
+  Jumping to a `Theme.SidebarWidth` reference from a `.uitkx` file in one
+  folder used to return nothing when the declaring `Theme.uitkx` lived in a
+  different folder, because `RoslynHost.FindPeerUitkxFiles` only enumerated
+  same-directory peers. `WorkspaceIndex` now tracks a workspace-wide set of
+  `.uitkx` files containing top-level `module` or `hook` declarations
+  (`_moduleHookFiles`), exposed via `GetModuleAndHookFiles()` and appended to
+  the per-document peer set. Roslyn then loads them as workspace documents
+  and resolves the cross-directory symbol naturally. The three downstream
+  consumers (`EnrichWithPeerHookUsings`, `AddPeerUitkxDocuments`,
+  `AddPeerUitkxDocumentsToSolution`) already filter peers by
+  `HookDeclarations`/`ModuleDeclarations` so the wider candidate set is
+  cost-free for non-module/hook files. Tooling-only release; no runtime,
+  editor, source-generator, or shared changes.
+
+VS Code **1.2.6 → 1.2.7** | VS 2022 **1.2.6 → 1.2.7**.
+
 ## [0.5.10] - 2026-05-13
 
 ### Changed
