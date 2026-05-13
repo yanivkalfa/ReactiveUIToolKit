@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using ReactiveUITK;
 using ReactiveUITK.Core;
 
@@ -274,42 +273,14 @@ namespace ReactiveUITK.Core.Fiber
                     )
                         return true;
 
-#if UNITY_EDITOR
-                    // HMR fallback: when hot-reloading, the fiber's delegate points to a
-                    // new assembly while the parent's VNode still references the old one.
-                    // Match by declaring type name + method name to preserve state.
-                    if (HmrState.IsActive)
-                    {
-                        var fiberType = fiber.TypedRender.Method.DeclaringType;
-                        var vnodeType = vnode.TypedFunctionRender.Method.DeclaringType;
-                        if (
-                            fiberType != null
-                            && vnodeType != null
-                            && fiber.TypedRender.Method.Name
-                                == vnode.TypedFunctionRender.Method.Name
-                        )
-                        {
-                            // Primary: class name match
-                            if (fiberType.Name == vnodeType.Name)
-                                return true;
-
-                            // Fallback: after a component rename, class names differ
-                            // but [UitkxSource] file paths remain stable.
-                            var fiberSource = fiberType.GetCustomAttribute<UitkxSourceAttribute>();
-                            var vnodeSource = vnodeType.GetCustomAttribute<UitkxSourceAttribute>();
-                            if (
-                                fiberSource != null
-                                && vnodeSource != null
-                                && string.Equals(
-                                    fiberSource.SourcePath,
-                                    vnodeSource.SourcePath,
-                                    System.StringComparison.OrdinalIgnoreCase
-                                )
-                            )
-                                return true;
-                        }
-                    }
-#endif
+                    // Cross-assembly HMR fallback was deleted by the
+                    // per-component __hmr_Render trampoline refactor: parent IL
+                    // continues to issue method-group references to the live
+                    // project type's stable Render trampoline (Roslyn caches
+                    // the conversion in a static slot per call site), so the
+                    // ReferenceEquals/Method-equality short-circuits above
+                    // hold across HMR cycles and no name-based fallback is
+                    // needed. See Plans~/HMR_COMPONENT_TRAMPOLINE_REFACTOR.md.
                     return false;
 
                 case VirtualNodeType.Suspense:
