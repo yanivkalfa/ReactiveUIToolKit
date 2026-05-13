@@ -492,37 +492,41 @@ namespace ReactiveUITK.Core.Fiber
             catch (Exception ex)
             {
 #if UNITY_EDITOR
-                // HMR rollback: if a hot-reloaded delegate crashed, revert to
-                // the previous working delegate and retry the render once.
-                if (fiber.HmrPreviousRender != null)
+                // HMR rollback: if the per-component __hmr_Render trampoline
+                // was just swapped and the new body crashed, ask the Editor
+                // side to revert the trampoline field to its previous value
+                // and retry the render once before falling through to the
+                // nearest error boundary.
+                //
+                // The TryRollbackComponent hook is wired by
+                // UitkxHmrComponentTrampolineSwapper.InstallRollbackHook (the
+                // Shared assembly cannot reference the Editor asmdef
+                // directly). Returns false in player builds (hook is null).
+                if (HmrState.IsActive
+                    && HmrState.TryRollbackComponent != null
+                    && fiber.Tag == FiberTag.FunctionComponent)
                 {
-                    var oldDelegate = fiber.HmrPreviousRender;
-                    fiber.HmrPreviousRender = null;
-                    fiber.TypedRender = oldDelegate;
-
-                    // Also update the committed tree so the next render cycle
-                    // picks up the rolled-back delegate, not the broken one.
-                    if (fiber.Alternate != null)
+                    var declType = fiber.TypedRender?.Method?.DeclaringType;
+                    if (declType != null && HmrState.TryRollbackComponent(declType))
                     {
-                        fiber.Alternate.TypedRender = oldDelegate;
-                        fiber.Alternate.HmrPreviousRender = null;
-                    }
+                        // Reset hook state — partially-executed hooks from
+                        // the crashing delegate may have corrupted slot
+                        // values.
+                        ResetComponentStateForHmrRollback(fiber);
 
-                    // Reset hook state — partially-executed hooks from the
-                    // crashing delegate may have corrupted slot values.
-                    ResetComponentStateForHmrRollback(fiber);
+                        UnityEngine.Debug.LogWarning(
+                            $"[HMR] Render crashed — rolled back component " +
+                            $"'{declType.Name}' to previous version: {ex.Message}"
+                        );
 
-                    UnityEngine.Debug.LogWarning(
-                        $"[HMR] Render crashed — rolled back to previous version: {ex.Message}"
-                    );
-
-                    try
-                    {
-                        return UpdateFunctionComponent(fiber);
-                    }
-                    catch
-                    {
-                        // Old delegate also failed — fall through to ErrorBoundary.
+                        try
+                        {
+                            return UpdateFunctionComponent(fiber);
+                        }
+                        catch
+                        {
+                            // Old body also failed — fall through to ErrorBoundary.
+                        }
                     }
                 }
 #endif
@@ -1694,12 +1698,6 @@ namespace ReactiveUITK.Core.Fiber
 
             // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
             fiber.SubtreeHasUpdates = false;
-
-#if UNITY_EDITOR
-            // Clear HMR rollback delegate after successful commit —
-            // the new delegate rendered and committed without crashing.
-            fiber.HmrPreviousRender = null;
-#endif
 
             // Recursively process children
             var child = fiber.Child;

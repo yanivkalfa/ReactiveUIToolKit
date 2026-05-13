@@ -299,6 +299,117 @@ public class HmrEmitterParityContractTests
         Assert.DoesNotContain("__Rent", output.GeneratedSource);
     }
 
+    // ── Component-level HMR trampoline ────────────────────────────────────────
+
+    /// <summary>
+    /// Every function-component must compile into the per-component HMR
+    /// trampoline triplet — mirroring the per-hook and per-module-method
+    /// patterns:
+    /// <list type="bullet">
+    ///   <item><c>__hmr_Render</c> static delegate field (initialised to the
+    ///         body method) inside <c>#if UNITY_EDITOR</c>.</item>
+    ///   <item>Public <c>Render</c> trampoline that, when
+    ///         <c>HmrState.IsActive</c>, dispatches via the field.</item>
+    ///   <item>Private <c>__Render_body</c> method that holds the user code
+    ///         and is always invoked in player builds (the trampoline check
+    ///         is preprocessor-stripped).</item>
+    /// </list>
+    /// This shape lets the HMR controller swap a single static field per
+    /// changed component type instead of walking every fiber tree, and keeps
+    /// the public <c>Render</c> method's identity stable across HMR cycles
+    /// — which restores the <c>ReferenceEquals(fiber.TypedRender,
+    /// vnode.TypedFunctionRender)</c> short-circuit in the reconciler.
+    /// </summary>
+    [Fact]
+    public void Sg_FunctionComponent_GeneratesRenderTrampoline()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component MyComponent {
+                return (<VisualElement />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        var src = output.GeneratedSource;
+
+        // Field exists, internal-static, EditorBrowsable-suppressed, and
+        // initialised to the body method (so the field is never null when the
+        // first HMR swap arrives).
+        Assert.Contains("internal static global::System.Func<global::ReactiveUITK.Core.IProps", src);
+        Assert.Contains("__hmr_Render = __Render_body;", src);
+
+        // Field/trampoline guarded by #if UNITY_EDITOR — zero player overhead.
+        Assert.Contains("#if UNITY_EDITOR", src);
+
+        // Trampoline dispatches via __hmr_Render when HmrState.IsActive.
+        Assert.Contains("global::ReactiveUITK.Core.HmrState.IsActive", src);
+        Assert.Contains("__hmr_Render(__rawProps, __children)", src);
+
+        // Public Render signature unchanged — parent components keep
+        // referencing MyComponent.Render exactly as before.
+        Assert.Contains("public static global::ReactiveUITK.Core.VirtualNode Render(", src);
+
+        // Body method exists and carries [EditorBrowsable(Never)].
+        Assert.Contains("private static global::ReactiveUITK.Core.VirtualNode __Render_body(", src);
+        Assert.Contains(
+            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]",
+            src);
+    }
+
+    /// <summary>
+    /// Real-world component shape regression: hooks + function-style props +
+    /// markup must all live inside <c>__Render_body</c>, NOT inside the
+    /// public trampoline. Prevents accidental regressions where the props
+    /// binding or the setup code leaks into the public Render method (which
+    /// would re-introduce the per-fiber-walk problem because hook state would
+    /// be re-initialised on every dispatch).
+    /// </summary>
+    [Fact]
+    public void Sg_FunctionComponent_BodyContainsHooksAndSetup_TrampolineStaysThin()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component Counter(int initial = 0) {
+                var (count, setCount) = useState(initial);
+                return (
+                    <Button text={count.ToString()} />
+                );
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        var src = output.GeneratedSource;
+
+        // Trampoline + body both present.
+        Assert.Contains("__hmr_Render = __Render_body;", src);
+        Assert.Contains("__Render_body(", src);
+
+        // Hooks must live in the body method, not the trampoline. We assert
+        // structurally by checking that the user code (UseState call) appears
+        // AFTER the body method's opening line in the generated source.
+        int bodyOpen = src.IndexOf("__Render_body(", System.StringComparison.Ordinal);
+        Assert.True(bodyOpen > 0);
+        // The body method's signature appears twice (once in field
+        // initialiser, once as the method itself). Skip past both to land
+        // inside the method body proper.
+        int afterFirst = src.IndexOf("__Render_body(", bodyOpen + 1, System.StringComparison.Ordinal);
+        int searchFrom = afterFirst > 0 ? afterFirst : bodyOpen;
+        int useStateAt = src.IndexOf("UseState", searchFrom, System.StringComparison.Ordinal);
+        Assert.True(useStateAt > 0,
+            "UseState call must be inside __Render_body, not in the trampoline.");
+
+        // The component still emits a [HookSignature] attribute so HMR can
+        // detect compatible vs incompatible edits.
+        Assert.Contains("HookSignature", src);
+    }
+
     // ── Module static-method HMR rewrite (v0.4.20, Issue (a)) ───────────────────
 
     /// <summary>
@@ -501,8 +612,7 @@ public class HmrEmitterParityContractTests
         Assert.NotNull(output.GeneratedSource);
 
         // Stub for ReactiveUITK.Core.HmrState (referenced by the trampoline).
-        const string Stubs =
-            """
+        const string Stubs = """
             namespace ReactiveUITK.Core
             {
                 public static class HmrState
@@ -530,13 +640,14 @@ public class HmrEmitterParityContractTests
         // more reliable than hand-picking System.Reflection / System.Collections.Concurrent
         // / System.ComponentModel under .NET 10 where types are split across
         // many ref assemblies.
-        var trustedAssemblies =
-            (string)System.AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
+        var trustedAssemblies = (string)System.AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
         var refs = trustedAssemblies
             .Split(System.IO.Path.PathSeparator)
             .Where(p => !string.IsNullOrEmpty(p) && System.IO.File.Exists(p))
-            .Select(p => (Microsoft.CodeAnalysis.MetadataReference)
-                Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(p))
+            .Select(p =>
+                (Microsoft.CodeAnalysis.MetadataReference)
+                    Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(p)
+            )
             .ToArray();
 
         var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(

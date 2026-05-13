@@ -415,8 +415,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 else
                 {
-                    // Component files: swap per-fiber render delegates
-                    swapped = UitkxHmrDelegateSwapper.SwapAll(
+                    // Component files: swap the per-component __hmr_Render
+                    // trampoline field. Single static-field write per
+                    // component type — no per-fiber tree walk.
+                    swapped = UitkxHmrComponentTrampolineSwapper.SwapAll(
                         result.LoadedAssembly,
                         result.ComponentName,
                         uitkxPath

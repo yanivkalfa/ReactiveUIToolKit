@@ -137,8 +137,11 @@ export const HmrPage: FC = () => (
         </Table>
       </TableContainer>
       <Typography variant="body1" paragraph sx={{ mt: 1 }}>
-        If the number or order of hooks changes between edits, HMR detects the mismatch, resets
-        state for that component, and logs a <code>[HMR] Hook mismatch</code> warning.
+        If the number, order, or types of hooks change between edits (an incompatible signature
+        change), HMR resets state for every live instance of the component and logs{' '}
+        <code>[HMR] Hook signature changed in &lt;Component&gt; — resetting state on all instances.</code>{' '}
+        State resets in-place without a domain reload, matching React Fast Refresh semantics; you
+        do not need to recompile, restart Play mode, or close any windows.
       </Typography>
     </Section>
 
@@ -395,7 +398,7 @@ export const HmrPage: FC = () => (
           <ListItemText primary="Hook order or count may have changed — this triggers automatic state reset." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Check Console for "<code>[HMR] Hook mismatch</code>" messages.</>} />
+          <ListItemText primary={<>Check Console for "<code>[HMR] Hook signature changed</code>" messages.</>} />
         </ListItem>
       </List>
     </Section>

@@ -6,6 +6,97 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.10] - 2026-05-13
+
+### Changed
+
+- **Component HMR rewritten as a static trampoline field — eliminates per-fiber
+  rollback closures and stale renders on rapid saves.** The source generator now
+  emits every `component` as a `static` trampoline triplet: an `internal static`
+  delegate field `__hmr_Render` (initialized to a private static body method
+  `__Render_body`), a public `Render` entry point that branches on
+  `HmrState.IsActive` and forwards to either the field or the body directly,
+  and the body method itself. The HMR-side emitter (`HmrCSharpEmitter`) mirrors
+  the same shape so HMR-compiled and project-compiled assemblies are
+  byte-identical at the call site. This collapses the legacy "wrap each fiber's
+  `TypedRender` in a per-instance closure that captures the new delegate, then
+  walk the entire tree replacing closures on every save" model into a single
+  `FieldInfo.SetValue` per component type.
+
+  The new `UitkxHmrComponentTrampolineSwapper` (replaces the component branch
+  of `UitkxHmrDelegateSwapper.SwapAll`) does the swap in one O(1) field write,
+  then notifies fibers of the changed component type via a bounded walk that
+  only touches fibers whose `TypedRender.Method.DeclaringType == oldType` —
+  much cheaper than the previous global tree pass. A `ConcurrentDictionary<Type,
+  Delegate>` rollback registry is bridged to the runtime via
+  `HmrState.TryRollbackComponent` (a `Func<Type, bool>` wired by
+  `[InitializeOnLoadMethod]`), so the reconciler can revert a single bad swap
+  on an exception without per-fiber bookkeeping. The previous per-fiber
+  `HmrPreviousRender` field on `FiberNode` and its ~36 lines of rollback
+  bookkeeping in `FiberReconciler` have been deleted; the `IsCompatibleType`
+  HMR-only fallbacks in both `FiberFunctionComponent.IsCompatibleType` and
+  `FiberChildReconciliation` (the source-path attribute fallback) have been
+  deleted too — Roslyn's per-call-site method-group cache now naturally keeps
+  `ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)` stable across
+  HMR cycles once the trampoline stabilizes the underlying method group.
+
+  User-visible effect: rapid saves (30+ Ctrl+S in a few seconds) no longer
+  leak stale renders, navigating away from and back to a hot-edited component
+  shows the new code immediately, and incompatible hook-signature edits reset
+  state in-place without a domain reload (React Fast Refresh semantics — see
+  HMR docs page).
+
+### Fixed
+
+- **HMR rude-edit domain reloads now Play-mode-safe.** `UitkxHmrController`
+  routes rude-edit-triggered domain reloads through a Play-mode guard. Calling
+  `EditorUtility.RequestScriptReload()` (or `CompilationPipeline.RequestScriptCompilation`)
+  while in Play mode produces partial reloads that leave `MonoBehaviour`
+  instances with broken script references; the reload is now deferred until
+  the next `EnteredEditMode` transition. `UitkxHmrModuleStaticSwapper` warning
+  text updated to mention the deferral.
+
+- **HMR Stop no longer stalls 30-40s on tiny projects.** `UitkxChangeWatcher`
+  no longer passes `RequestScriptCompilationOptions.CleanBuildCache` on HMR
+  triggers. Cold-restarting every analyzer and source generator (Roslyn,
+  ReactiveUITK.SourceGenerator, every other analyzer in the project) was
+  costing tens of seconds per stop; the trigger-file rewrite already
+  invalidates the .cs side, and Roslyn's content-hashed `AdditionalText`
+  cache picks up modified `.uitkx` files via normal incremental compilation
+  without a clean rebuild.
+
+- **LSP: false "unused local" diagnostic on hook setter/value pairs consumed
+  inside lambdas.** `RoslynHost.AnalyzeUnusedLocals` now includes
+  `dataFlow.Captured` in the "read set" when computing unused-locals
+  diagnostics. Captures by nested lambdas / local functions are by definition
+  a future use; flagging them as unused was a false positive on hook setter
+  pairs (`var (count, setCount) = useState<int>(0);`) that are only consumed
+  inside event-handler lambdas (e.g. `<Button onClick={() => setCount(count + 1)} />`)
+  or JSX fragments lowered to render lambdas. Adds a regression test in
+  `RoslynHostTests`.
+
+### Documentation
+
+- HMR docs page updated: incompatible hook-signature edits (changed hook count,
+  order, or types) are now described as in-place state resets with the correct
+  console message (`[HMR] Hook signature changed in <Component> — resetting
+  state on all instances.`) and an explicit note that the reset happens without
+  a domain reload (React Fast Refresh semantics).
+
+### Internal
+
+- `Editor/HMR/UitkxHmrComponentTrampolineSwapper.cs` (new file).
+- `Editor/HMR/UitkxHmrDelegateSwapper.cs` trimmed to `SwapHooks`,
+  `TriggerGlobalReRender`, `ScheduleFullTreeUpdate`; component branch
+  retired.
+- `Shared/HmrState.cs` exports `TryRollbackComponent` bridge.
+- `Shared/Core/Fiber/FiberNode.HmrPreviousRender`, the corresponding
+  `FiberFactory` clone line, the post-commit clear in `FiberReconciler`, and
+  both `IsCompatibleType` HMR fallbacks deleted.
+- 1222 SG tests passing (+2 new `HmrEmitterParityContractTests`:
+  `Sg_FunctionComponent_GeneratesRenderTrampoline`,
+  `Sg_FunctionComponent_BodyContainsHooksAndSetup_TrampolineStaysThin`).
+
 ## [0.5.9] - 2026-05-12
 
 ### Fixed
