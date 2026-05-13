@@ -1,4 +1,22 @@
-﻿## [0.5.10] - 2026-05-13
+﻿## [0.5.11] - 2026-05-13
+
+### LSP Go-To-Definition - resolves module and hook symbols across directories
+
+**Cross-directory peer discovery.** Jumping to `Theme.SidebarWidth` from `Sidebar.style.uitkx` used to return nothing when `Theme.uitkx` lived in a different folder. `RoslynHost.FindPeerUitkxFiles` only enumerated same-directory `.uitkx` files, so Roslyn never saw the declaring document and had no symbol to resolve to.
+
+`WorkspaceIndex` now tracks a workspace-wide set of `.uitkx` files that contain top-level `module` or `hook` declarations (matched by a `Multiline` regex `^(?:module\s+\w+\s*\{|hook\s+\w+\s*[<\(])`). The set is updated incrementally on every `IndexUitkxFile` and `Refresh` call under a brief write lock, exposed via `GetModuleAndHookFiles()`, and appended to the per-document peer list. Roslyn then loads these files as workspace documents alongside same-directory peers, and Go-To-Definition resolves the cross-directory symbol naturally.
+
+The three downstream consumers - `EnrichWithPeerHookUsings`, `AddPeerUitkxDocuments`, `AddPeerUitkxDocumentsToSolution` - already filter peers by `HookDeclarations` / `ModuleDeclarations` not being default, so the wider candidate set is cost-free for files that declare neither. Module/hook files are typically single-digit per workspace.
+
+Tooling-only release. No runtime, editor, source-generator, or shared changes; SG suite untouched. Pure extension fix with a library version bump for symmetry.
+
+**Tests.** 62/62 LSP server tests passing.
+
+VS Code **1.2.6 -> 1.2.7** | VS 2022 **1.2.6 -> 1.2.7**.
+
+---
+
+## [0.5.10] - 2026-05-13
 
 ### Component HMR rewritten as a static trampoline - no more stale renders on rapid saves
 

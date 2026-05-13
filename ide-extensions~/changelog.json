@@ -3,6 +3,16 @@
     {
       "date": "2026-05-13",
       "versions": {
+        "vscode": "1.2.7",
+        "vs2022": "1.2.7"
+      },
+      "shared": [
+        "Fix: Go-To-Definition for module/hook symbols across directories. WorkspaceIndex now tracks workspace-wide .uitkx files containing top-level `module` or `hook` declarations and exposes them via `GetModuleAndHookFiles()`. `RoslynHost.FindPeerUitkxFiles` appends them to the per-document peer set, so Roslyn loads the declaring file as a workspace document and resolves symbols like `Theme.SidebarWidth` even when `Theme.uitkx` lives in a different folder. Downstream peer consumers already filter by `HookDeclarations`/`ModuleDeclarations`, so the wider candidate set is cost-free for non-module/hook files. 62/62 LSP server tests passing."
+      ]
+    },
+    {
+      "date": "2026-05-13",
+      "versions": {
         "vscode": "1.2.6",
         "vs2022": "1.2.6"
       },

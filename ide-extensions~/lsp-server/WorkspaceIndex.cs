@@ -58,6 +58,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
     private readonly HashSet<string> _elements = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ElementInfo> _elementInfo = new(StringComparer.Ordinal);
+
+    // Set of .uitkx file paths whose top-level declarations include `module`
+    // or `hook`. Maintained incrementally by IndexUitkxFile and consumed by
+    // RoslynHost.FindPeerUitkxFiles to enable cross-directory symbol resolution
+    // for module-member references like `Theme.SidebarWidth` when `Theme` lives
+    // in a different folder than the consumer .uitkx file.
+    private readonly HashSet<string> _moduleHookFiles = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly ReaderWriterLockSlim _lock = new();
 
     // ── Patterns ─────────────────────────────────────────────────────────────
@@ -100,6 +108,16 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
     private static readonly Regex s_uitkxDeclPattern = new(
         @"^component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
+    );
+
+    // Matches a top-level `module Foo {` or `hook fooBar(` declaration. Used
+    // to flag .uitkx files that contribute symbols (modules/hooks) which
+    // peer .uitkx files anywhere in the workspace may reference by namespace
+    // import. Multiline so `^` matches each logical line start; the directive
+    // grammar prohibits leading whitespace before `module`/`hook` keywords.
+    private static readonly Regex s_uitkxModuleOrHookPattern = new(
+        @"^(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -201,6 +219,25 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             {
                 _lock.ExitReadLock();
             }
+        }
+    }
+
+    /// <summary>
+    /// Snapshot of every indexed .uitkx file path that declares at least one
+    /// top-level <c>module</c> or <c>hook</c>. Used by the Roslyn host to load
+    /// cross-directory peers into the workspace so module-member references
+    /// (e.g. <c>Theme.SidebarWidth</c>) resolve from any consumer file.
+    /// </summary>
+    public IReadOnlyList<string> GetModuleAndHookFiles()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _moduleHookFiles.ToArray();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
         }
     }
 
@@ -323,7 +360,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         else if (filePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
         {
             if (!File.Exists(filePath))
+            {
+                _lock.EnterWriteLock();
+                try { _moduleHookFiles.Remove(filePath); }
+                finally { _lock.ExitWriteLock(); }
                 return; // deletion — component will disappear on next full scan
+            }
             IndexUitkxFile(filePath);
             IndexChanged?.Invoke();
         }
@@ -404,6 +446,16 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         try
         {
             string content = File.ReadAllText(filePath);
+
+            bool hasModuleOrHook = s_uitkxModuleOrHookPattern.IsMatch(content);
+            _lock.EnterWriteLock();
+            try
+            {
+                if (hasModuleOrHook) _moduleHookFiles.Add(filePath);
+                else _moduleHookFiles.Remove(filePath);
+            }
+            finally { _lock.ExitWriteLock(); }
+
             foreach (Match m in s_uitkxDeclPattern.Matches(content))
             {
                 string componentName = m.Groups["name"].Value;
