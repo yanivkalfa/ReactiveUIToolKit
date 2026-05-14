@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Text.RegularExpressions;
 
-namespace ReactiveUITK.Editor.HMR
+namespace ReactiveUITK.EditorSupport.HMR
 {
     // Editor-only mirror of UitkxPipeline.IsOwnedByCompilation /
     // FindOwningAsmdefAssemblyName (SourceGenerator~/UitkxPipeline.cs L281-L340).

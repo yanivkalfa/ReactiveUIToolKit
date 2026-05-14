@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace ReactiveUITK.Editor.HMR
+namespace ReactiveUITK.EditorSupport.HMR
 {
     // Editor-side workspace-wide index of hook containers, keyed by owning
     // asmdef. Mirrors what WorkspaceIndex.GetAllCsFiles + AsmdefResolver give
