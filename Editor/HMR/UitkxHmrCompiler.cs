@@ -420,6 +420,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             var dir = Path.GetDirectoryName(uitkxPath);
             if (dir == null) return;
 
+            // Track which companion paths we emit inline so the registry pass
+            // below doesn't add a duplicate `using static` for the same FQN.
+            var inlinePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             // Pattern: ComponentName.*.uitkx  (e.g. TicTacToe.style.uitkx)
             string prefix = componentName + ".";
             foreach (var file in Directory.GetFiles(dir, prefix + "*.uitkx"))
@@ -454,6 +458,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                         if (string.IsNullOrEmpty(hookNs))
                             hookNs = componentNs ?? "ReactiveUITK.Generated";
                         hookContainerFqns.Add($"{hookNs}.{containerClass}");
+
+                        try { inlinePaths.Add(Path.GetFullPath(file)); }
+                        catch { /* ignore unfullable */ }
                     }
                 }
                 catch (Exception ex)
@@ -461,7 +468,42 @@ namespace ReactiveUITK.EditorSupport.HMR
                     Debug.LogWarning($"[HMR] Failed to process companion {Path.GetFileName(file)}: {ex.Message}");
                 }
             }
+
+            // Cross-directory hook resolution. The same-folder pass above only
+            // sees files matching `<ComponentName>.*.uitkx`; hooks declared in
+            // a shared folder (e.g. Assets/UI/Hooks/UseUiDocumentSlot.hooks.uitkx
+            // consumed from Assets/UI/Pages/...) live elsewhere. The registry
+            // (seeded at HMR start) supplies their FQNs so the trampoline gets
+            // the right `using static` directives. Their .cs is already in the
+            // loaded assembly so we DO NOT add source — only the using line.
+            //
+            // Brief gate: if the seed scan hasn't completed yet (very first
+            // recompile after HMR start), wait up to 100 ms. Subsequent
+            // recompiles never block here.
+            if (!HookContainerRegistry.TryWaitForSeed(100))
+            {
+                if (!_warnedSeedTimeout)
+                {
+                    _warnedSeedTimeout = true;
+                    Debug.LogWarning(
+                        "[HMR] HookContainerRegistry seed exceeded 100 ms; "
+                        + "first recompile may miss cross-directory hooks. "
+                        + "Subsequent recompiles will pick them up.");
+                }
+            }
+
+            string ownerAsmdef = AsmdefResolver.OwningAsmdefName(uitkxPath);
+            var crossDir = HookContainerRegistry.GetForAsmdef(ownerAsmdef, inlinePaths);
+            if (crossDir.Count > 0)
+            {
+                var seenFqn = new HashSet<string>(hookContainerFqns, StringComparer.Ordinal);
+                foreach (var fqn in crossDir)
+                    if (seenFqn.Add(fqn))
+                        hookContainerFqns.Add(fqn);
+            }
         }
+
+        private bool _warnedSeedTimeout;
 
         /// <summary>
         /// Clears per-session caches without releasing the expensive Roslyn handles

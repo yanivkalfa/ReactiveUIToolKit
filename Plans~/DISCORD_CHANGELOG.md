@@ -1,4 +1,32 @@
-﻿## [0.5.11] - 2026-05-13
+﻿## [0.5.12] - 2026-05-14
+
+### Hooks across folders and namespaces - work in build, IDE, and HMR
+
+**Cross-directory + cross-namespace hook resolution.** A hook in `Assets/UI/Hooks/UseUiDocumentSlot.hooks.uitkx` (namespace `PrettyUi.UIHooks`) consumed by a component in `Assets/UI/Pages/MenuPage.uitkx` (namespace `PrettyUi.UI.Pages`) used to require a manual `using static` at every consumer, and HMR recompiles silently dropped the directive (CS0103 in the swap, even though the SG build was green).
+
+```jsx
+@namespace PrettyUi.UI.Pages
+component MenuPage {
+  var slot = useUiDocumentSlot("Main"); // hook lives 3 folders away
+  return (<UIDocument source={slot}/>);
+}
+```
+
+Three layers fixed in lockstep so squiggle, build, and HMR agree:
+
+- **SG Stage 3d** drops the `phc.Namespace == directives.Namespace` strict check. Asmdef ownership is already enforced by `UitkxGenerator`'s pre-scan via `IsOwnedByCompilation`; injection is now unconditional within an asmdef and de-duplicated via a hash set.
+- **LSP virtual document.** `RoslynHost.EnrichWithPeerHookUsings` mirrors the SG fix and gates by asmdef ownership via a new `AsmdefResolver`. `WorkspaceIndex` tracks every indexed `.cs` (`_allCsFiles`) so `FindCompanionFiles` unions same-folder + workspace-wide `.cs` filtered to the consumer's asmdef.
+- **Editor HMR.** New `HookContainerRegistry` is seeded async from `UitkxHmrController.Start`, invalidated per-file by the watcher, reset on `Stop`. `EmitCompanionUitkxSources` adds a second pass pulling cross-directory FQNs from the registry, deduped against the inline set, with a 100 ms gate on the first recompile.
+
+`AsmdefResolver` ships verbatim under `Editor/HMR/` and the LSP, mirroring the SG `IsOwnedByCompilation` no-asmdef fallback. `AsmdefResolverParityTests` pins the contract. Closes TECH_DEBT_V2 #18 and #19.
+
+**Tests.** SG **1228/1228** (+6). LSP **63/63** (+1).
+
+VS Code **1.2.7 -> 1.2.8** | VS 2022 **1.2.7 -> 1.2.8**.
+
+---
+
+## [0.5.11] - 2026-05-13
 
 ### LSP Go-To-Definition - resolves module and hook symbols across directories
 

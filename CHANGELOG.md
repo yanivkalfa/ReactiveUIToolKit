@@ -6,6 +6,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.12] - 2026-05-14
+
+### Fixed
+
+- **Cross-directory and cross-namespace hook resolution across SG, HMR, and IDE.**
+  Previously, a `.uitkx` component could only see hooks declared in a peer
+  `.uitkx` file when that peer lived in the same folder AND in the same
+  `@namespace`. Hook files like `Assets/UI/Hooks/UseUiDocumentSlot.hooks.uitkx`
+  in namespace `PrettyUi.UIHooks` consumed by components in
+  `Assets/UI/Pages/...` in namespace `PrettyUi.UI.Pages` required a manual
+  `using static` directive at every consumer, and HMR recompiles silently
+  dropped the directive entirely. Three layers were fixed in lockstep:
+
+  - **Source generator (Stage 3d).** `UitkxPipeline` no longer requires the
+    consumer's `@namespace` to match the hook file's. Asmdef ownership is
+    already enforced by `UitkxGenerator`'s pre-scan via `IsOwnedByCompilation`,
+    so injection is now unconditional within an asmdef and de-duplicated via
+    a hash set against the existing `@using` set.
+  - **LSP virtual document.** `RoslynHost.EnrichWithPeerHookUsings` mirrors the
+    SG fix: drops the strict-namespace check, switches the FQN to the hook
+    file's own namespace, and gates injection by asmdef ownership via a new
+    `AsmdefResolver` helper. `WorkspaceIndex` now tracks every indexed `.cs`
+    file (`_allCsFiles` / `GetAllCsFiles()`) so `FindCompanionFiles` unions
+    same-folder `.cs` with workspace-wide `.cs` filtered to the consumer's
+    asmdef.
+  - **Editor HMR.** New `HookContainerRegistry` (seeded asynchronously from
+    `UitkxHmrController.Start`, invalidated per-file by the watcher, reset on
+    `Stop`) gives `UitkxHmrCompiler.EmitCompanionUitkxSources` the cross-
+    directory hook FQNs without scanning the workspace per recompile. The
+    same-folder companion scan still emits inline source for module/hook
+    partials; the registry only contributes `using static` lines for hook
+    classes already compiled into the loaded assembly.
+
+  `AsmdefResolver` is mirrored verbatim across `Editor/HMR/` and the LSP
+  server; SG keeps the original implementation in `UitkxPipeline`. A new
+  `AsmdefResolverParityTests` set pins the no-asmdef Editor / non-Editor
+  fallback contract. Closes TECH_DEBT_V2 #18 and #19.
+
+### Tests
+
+- SG: **1228/1228 passing** (+6: cross-namespace, no-namespace, asmdef-boundary
+  injection coverage; asmdef-resolver parity).
+- LSP: **63/63 passing** (+1: cross-namespace virtual-doc enrichment).
+
+VS Code **1.2.7 → 1.2.8** | VS 2022 **1.2.7 → 1.2.8**.
+
 ## [0.5.11] - 2026-05-13
 
 ### Fixed
