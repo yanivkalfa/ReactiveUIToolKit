@@ -185,6 +185,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             _watcher.OnUssChanged += OnUssFileChanged;
             _watcher.Start(assetsPath);
 
+            // Seed the workspace-wide hook-container registry so HMR recompiles
+            // can resolve cross-directory `using static <Ns>.<HookContainer>;`
+            // directives without scanning the project on every recompile. This
+            // mirrors what the SG's UitkxGenerator pre-scan does at compile
+            // time. The seed runs on a background thread; the first recompile
+            // gates briefly via TryWaitForSeed.
+            HookContainerRegistry.Seed(assetsPath);
+
             // Build initial USS dependency map (only on first start;
             // subsequent starts reuse the map since .uitkx files haven't changed)
             if (_ussDependents.Count == 0)
@@ -235,6 +243,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             _watcher.OnUssChanged -= OnUssFileChanged;
             _watcher.Stop();
 
+            // Drop the workspace-wide hook-container index; a fresh seed runs
+            // on the next Start.
+            HookContainerRegistry.Reset();
+
             _pendingRetryPaths.Clear();
             // Keep _ussDependents across start/stop cycles — it's rebuilt
             // incrementally and re-scanning all .uitkx files is expensive.
@@ -272,6 +284,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             if (!_active)
                 return;
+
+            // Keep the workspace-wide hook-container index in sync with disk so
+            // a newly added or edited hook file is visible to the next recompile.
+            HookContainerRegistry.Invalidate(uitkxPath);
 
             // If a compilation is already in progress, queue this one
             if (_compilationQueued)

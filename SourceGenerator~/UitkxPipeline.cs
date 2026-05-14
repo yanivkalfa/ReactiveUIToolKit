@@ -228,18 +228,26 @@ namespace ReactiveUITK.SourceGenerator
 
             // ── Stage 3d: Inject using-static for peer hook containers ────────
             // Hook files emit into a static class (e.g. TicTacToeHooks). Components
-            // in the same namespace need `using static Ns.TicTacToeHooks;` so that
-            // hook methods like useXxx() are directly callable without qualification.
-            if (peerHookContainers != null && !peerHookContainers.Value.IsDefaultOrEmpty
-                && !string.IsNullOrEmpty(directives.Namespace))
+            // need `using static <HookNs>.<HookContainer>;` so hook methods like
+            // useXxx() are directly callable without qualification, regardless of
+            // whether the hook file lives in the same namespace as the consumer.
+            // Asmdef ownership is already enforced one layer up in UitkxGenerator's
+            // pre-scan via IsOwnedByCompilation, so every entry in peerHookContainers
+            // belongs to the current Unity assembly.
+            if (peerHookContainers != null && !peerHookContainers.Value.IsDefaultOrEmpty)
             {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var u in directives.Usings)
+                    seen.Add(u);
+
                 var extraUsings = ImmutableArray.CreateBuilder<string>(
                     directives.Usings.Length + peerHookContainers.Value.Length);
                 extraUsings.AddRange(directives.Usings);
                 foreach (var phc in peerHookContainers.Value)
                 {
-                    if (phc.Namespace == directives.Namespace)
-                        extraUsings.Add($"static {phc.Namespace}.{phc.ClassName}");
+                    string fqn = $"static {phc.Namespace}.{phc.ClassName}";
+                    if (seen.Add(fqn))
+                        extraUsings.Add(fqn);
                 }
                 if (extraUsings.Count > directives.Usings.Length)
                     directives = directives with { Usings = extraUsings.ToImmutable() };

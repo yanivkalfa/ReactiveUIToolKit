@@ -1131,28 +1131,62 @@ namespace UitkxLanguageServer.Roslyn
         // ── Companion file discovery ──────────────────────────────────────────
 
         /// <summary>
-        /// Returns all .cs files in the same directory as the .uitkx file.
-        /// These are loaded as additional source documents so that partial-class
-        /// members (Styles, utils, types) defined in companion files are visible
-        /// to Roslyn's semantic analysis.
+        /// Returns all .cs files that should be loaded as companions for the
+        /// given .uitkx file. The set includes:
+        ///   - every .cs in the same directory (legacy contract)
+        ///   - every .cs anywhere in the workspace whose nearest *.asmdef
+        ///     resolves to the same owner asmdef as the .uitkx (added 0.5.12)
+        /// The asmdef boundary is identical to the SG's IsOwnedByCompilation
+        /// contract, mirrored via <see cref="AsmdefResolver"/>. Projects with
+        /// no .asmdef anywhere fall back to <c>Assembly-CSharp</c> /
+        /// <c>Assembly-CSharp-Editor</c> by Editor/-segment convention.
         /// </summary>
-        private static IReadOnlyList<string> FindCompanionFiles(string uitkxFilePath)
+        private IReadOnlyList<string> FindCompanionFiles(string uitkxFilePath)
         {
-            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
-            if (dir == null || !System.IO.Directory.Exists(dir))
-                return Array.Empty<string>();
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var result = new List<string>();
-            foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.cs"))
-                result.Add(file);
-            return result;
+            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
+            if (dir != null && System.IO.Directory.Exists(dir))
+            {
+                foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.cs"))
+                    result.Add(file);
+            }
+
+            if (_workspaceIndex != null)
+            {
+                string ownerAsmdef = AsmdefResolver.OwningAsmdefName(uitkxFilePath);
+                var allCs = _workspaceIndex.GetAllCsFiles();
+
+                // Soft telemetry breadcrumb. Documented in LATENCY_TARGETS.md
+                // — the .uitkx-open companion scan cost scales with the .cs
+                // count in the owning asmdef. Asmdef splitting is the
+                // recommended fix for monolith Assembly-CSharp projects.
+                if (allCs.Count > 500)
+                    ServerLog.Log(
+                        $"[RoslynHost] FindCompanionFiles: workspace has {allCs.Count} "
+                        + $".cs files; companion union for '{System.IO.Path.GetFileName(uitkxFilePath)}' "
+                        + $"is asmdef-scoped to '{ownerAsmdef}'.");
+
+                foreach (var cs in allCs)
+                {
+                    if (string.Equals(
+                            AsmdefResolver.OwningAsmdefName(cs),
+                            ownerAsmdef,
+                            StringComparison.Ordinal))
+                        result.Add(cs);
+                }
+            }
+
+            return result.Count == 0
+                ? Array.Empty<string>()
+                : result.ToArray();
         }
 
         /// <summary>
         /// Adds companion .cs files from the .uitkx directory to the workspace.
         /// Called during first-open workspace creation.
         /// </summary>
-        private static void AddCompanionDocuments(
+        private void AddCompanionDocuments(
             AdhocWorkspace ws,
             ProjectId projectId,
             FileState state,
@@ -1240,10 +1274,11 @@ namespace UitkxLanguageServer.Roslyn
 
         /// <summary>
         /// Enriches a <see cref="ParseResult"/> by injecting <c>using static Ns.XxxHooks;</c>
-        /// entries for every peer hook container in the same directory.  This makes hook
-        /// methods (e.g. <c>useTestHomeState()</c>) directly callable in the virtual
-        /// document without qualification — mirroring what the source generator's
-        /// Stage 3d does in <c>UitkxPipeline</c>.
+        /// entries for every peer hook container that belongs to the same asmdef as
+        /// the consumer .uitkx file, regardless of whether the hook file lives in the
+        /// same namespace or directory. This is the LSP-side mirror of the SG's
+        /// Stage 3d in <c>UitkxPipeline.cs</c>; both inject the same set of
+        /// using-static directives so the IDE and the build agree.
         /// </summary>
         private ParseResult EnrichWithPeerHookUsings(ParseResult parseResult, string uitkxFilePath)
         {
@@ -1251,14 +1286,19 @@ namespace UitkxLanguageServer.Roslyn
             // Only enrich component files (hooks/modules don't call peer hooks).
             if (d.ComponentName == null)
                 return parseResult;
-            if (string.IsNullOrEmpty(d.Namespace))
-                return parseResult;
 
             var peers = FindPeerUitkxFiles(uitkxFilePath);
             if (peers.Count == 0)
                 return parseResult;
 
+            string consumerAsmdef = AsmdefResolver.OwningAsmdefName(uitkxFilePath);
+
             var extraUsings = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            if (!d.Usings.IsDefault)
+                foreach (var u in d.Usings)
+                    seen.Add(u);
+
             foreach (var peerPath in peers)
             {
                 try
@@ -1269,20 +1309,18 @@ namespace UitkxLanguageServer.Roslyn
 
                     if (peerDirectives.HookDeclarations.IsDefaultOrEmpty)
                         continue;
-                    if (peerDirectives.Namespace != d.Namespace)
+                    if (string.IsNullOrEmpty(peerDirectives.Namespace))
+                        continue;
+                    if (!string.Equals(
+                            AsmdefResolver.OwningAsmdefName(peerPath),
+                            consumerAsmdef,
+                            StringComparison.Ordinal))
                         continue;
 
-                    // Derive container class name — mirrors HookEmitter / VDG logic.
-                    // Take the part before the first dot so any middle segment is ignored.
-                    string fileName = System.IO.Path.GetFileNameWithoutExtension(peerPath);
-                    int dot = fileName.IndexOf('.');
-                    if (dot > 0)
-                        fileName = fileName.Substring(0, dot);
-                    if (fileName.Length > 0 && char.IsLower(fileName[0]))
-                        fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
-                    string containerClass = fileName + "Hooks";
-
-                    extraUsings.Add($"static {d.Namespace}.{containerClass}");
+                    string containerClass = DerivePeerHookContainerClass(peerPath);
+                    string fqn = $"static {peerDirectives.Namespace}.{containerClass}";
+                    if (seen.Add(fqn))
+                        extraUsings.Add(fqn);
                 }
                 catch
                 { /* skip unreadable peers */
@@ -1292,7 +1330,6 @@ namespace UitkxLanguageServer.Roslyn
             if (extraUsings.Count == 0)
                 return parseResult;
 
-            // Build new Usings array with the extra entries.
             var currentUsings = d.Usings.IsDefault ? ImmutableArray<string>.Empty : d.Usings;
             var newUsings = currentUsings.AddRange(extraUsings);
             var enrichedDirectives = d with { Usings = newUsings };
@@ -1301,6 +1338,22 @@ namespace UitkxLanguageServer.Roslyn
                 parseResult.RootNodes,
                 parseResult.Diagnostics
             );
+        }
+
+        // Derives the static container class name for a peer hook file.
+        // Mirrors HookEmitter.DeriveContainerClassName (SG) and
+        // GenerateHookDocument (VDG): take the part before the first dot in the
+        // filename (so .hooks / .style middle segments are ignored), PascalCase
+        // the first letter, and append "Hooks".
+        private static string DerivePeerHookContainerClass(string peerPath)
+        {
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(peerPath);
+            int dot = fileName.IndexOf('.');
+            if (dot > 0)
+                fileName = fileName.Substring(0, dot);
+            if (fileName.Length > 0 && char.IsLower(fileName[0]))
+                fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
+            return fileName + "Hooks";
         }
 
         /// <summary>

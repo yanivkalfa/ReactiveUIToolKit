@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-14",
+      "versions": {
+        "vscode": "1.2.8",
+        "vs2022": "1.2.8"
+      },
+      "shared": [
+        "Fix: cross-directory and cross-namespace hook resolution. The SG, LSP virtual document, and Editor HMR all used a same-folder + same-namespace assumption when injecting `using static <Ns>.<HookContainer>;` directives for peer hook files; a hook in `Assets/UI/Hooks/UseUiDocumentSlot.hooks.uitkx` (namespace `PrettyUi.UIHooks`) consumed by a component in `Assets/UI/Pages/MenuPage/MenuPage.uitkx` (namespace `PrettyUi.UI.Pages`) needed a manual `using static` line at every consumer, and HMR recompiles silently dropped the directive. Three layers fixed in lockstep: (1) SG `UitkxPipeline` Stage 3d drops the strict-namespace check (asmdef ownership is already enforced by the pre-scan via `IsOwnedByCompilation`); (2) LSP `RoslynHost.EnrichWithPeerHookUsings` mirrors the SG fix and gates injection by asmdef ownership via a new `AsmdefResolver` helper, and `WorkspaceIndex` now tracks every indexed `.cs` file so `FindCompanionFiles` unions same-folder `.cs` with workspace-wide `.cs` filtered to the consumer's asmdef; (3) Editor HMR's new `HookContainerRegistry` (seeded asynchronously from `UitkxHmrController.Start`, invalidated per-file by the watcher, reset on `Stop`) gives `UitkxHmrCompiler.EmitCompanionUitkxSources` the cross-directory hook FQNs without scanning the workspace per recompile. `AsmdefResolver` is mirrored verbatim across `Editor/HMR/` and the LSP server; `AsmdefResolverParityTests` pins the no-asmdef Editor / non-Editor fallback contract. Closes TECH_DEBT_V2 #18 and #19. SG suite 1228/1228 passing (+6 new); LSP suite 63/63 passing (+1 new)."
+      ]
+    },
+    {
       "date": "2026-05-13",
       "versions": {
         "vscode": "1.2.7",
