@@ -66,6 +66,13 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // in a different folder than the consumer .uitkx file.
     private readonly HashSet<string> _moduleHookFiles = new(StringComparer.OrdinalIgnoreCase);
 
+    // Workspace-wide set of all indexed *.cs file paths. Consumed by
+    // RoslynHost.FindCompanionFiles to load partial-class members and types
+    // declared in any .cs file belonging to the same asmdef as the .uitkx
+    // being opened, not just the sibling-folder ones. AsmdefResolver enforces
+    // the asmdef boundary at the call site so this set can be a flat union.
+    private readonly HashSet<string> _allCsFiles = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly ReaderWriterLockSlim _lock = new();
 
     // ── Patterns ─────────────────────────────────────────────────────────────
@@ -242,6 +249,25 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     /// <summary>
+    /// Snapshot of every indexed .cs file path. Used by the Roslyn host to
+    /// load companion .cs files from anywhere in the same asmdef as the
+    /// .uitkx being opened, not just the sibling folder. The asmdef boundary
+    /// is enforced at the call site via <see cref="AsmdefResolver"/>.
+    /// </summary>
+    public IReadOnlyList<string> GetAllCsFiles()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _allCsFiles.ToArray();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
     /// Returns <c>true</c> if any element names have been indexed (i.e. the
     /// background scan has completed at least partially).
     /// </summary>
@@ -349,6 +375,10 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             if (!File.Exists(filePath))
             {
+                _lock.EnterWriteLock();
+                try { _allCsFiles.Remove(filePath); }
+                finally { _lock.ExitWriteLock(); }
+
                 var dir = Path.GetDirectoryName(filePath);
                 if (dir is not null)
                     ScanDirectory(dir);
@@ -508,6 +538,13 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
     private void IndexFile(string filePath)
     {
+        // Workspace-wide registry write happens BEFORE invoking the .cs parser
+        // so the brief write lock cannot nest with CommitElement's write lock
+        // (ReaderWriterLockSlim default policy is NoRecursion).
+        _lock.EnterWriteLock();
+        try { _allCsFiles.Add(filePath); }
+        finally { _lock.ExitWriteLock(); }
+
         try
         {
             var lines = File.ReadAllLines(filePath);

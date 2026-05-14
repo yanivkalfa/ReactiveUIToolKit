@@ -691,3 +691,211 @@ behaviour change.
 **Files:** `Samples/Components/DoomGame/DoomTextures.uitkx`.
 
 ---
+
+## 18. SG `using static` injection only fires when peer-hook namespace equals consumer namespace
+
+**Status:** **RESOLVED in 0.5.12 / VS Code 1.2.8 / VS 2022 1.2.8 (2026-05-14).**
+Fixed across SG, LSP, and HMR in lockstep. SG `UitkxPipeline` Stage 3d drops
+the strict-namespace check (asmdef ownership is enforced one layer up by
+`UitkxGenerator`'s pre-scan via `IsOwnedByCompilation`). LSP
+`RoslynHost.EnrichWithPeerHookUsings` mirrors the SG fix and adds an
+asmdef gate via the new `AsmdefResolver`. HMR `EmitCompanionUitkxSources`
+adds a registry-backed second pass for cross-directory hook FQNs. New
+tests: `HookUsingStaticCrossNamespaceTest`, `HookUsingStaticAsmdefBoundaryTest`,
+`HookCrossNamespaceVirtualDocTests` (LSP), `AsmdefResolverParityTests`.
+
+**Status:** Open — **Priority: HIGH**.
+
+**Bug.** `UitkxPipeline.cs` Stage 3d injects `using static Ns.HookContainer`
+into a component's generated source **only if** the hook file's
+`@namespace` is byte-identical to the component file's `@namespace`. As a
+result, lowercase hook aliases (`useFoo()`) silently fail to resolve when
+the hook lives in a namespace that's "close but not equal" — e.g. parent
+or sibling under a shared root.
+
+**Repro.**
+- `Assets/UI/Hooks/UseUiDocumentSlot.hooks.uitkx` declares `@namespace PrettyUi.UIHooks`.
+- `Assets/UI/Pages/MenuPage/MenuPage.uitkx` declares `@namespace PrettyUi.App.Pages`.
+- `MenuPage` calls `useUiDocumentSlot(...)`.
+- Result: `CS0103: The name 'useUiDocumentSlot' does not exist in the current context`
+  in the Unity Console, **even though** both files compile into the same
+  `Assembly-CSharp.dll`. Workaround today is `@using static PrettyUi.UIHooks.UseUiDocumentSlotHooks`
+  in every consumer — error-prone, easy to forget, and inconsistent with
+  the same-namespace case which works automatically.
+
+**Why it's strict equality today.** Comment in
+`SourceGenerator~/UitkxPipeline.cs` ~L231 explains the original intent:
+"avoid polluting unrelated assemblies." That concern is already handled
+upstream — `UitkxGenerator.cs` L142-L156 pre-filters
+`peerHookContainersBuilder` by `IsOwnedByCompilation(...)`, so the
+`peerHookContainers` list is already scoped to the **owning compilation**
+(asmdef boundary). The additional namespace-equality check is therefore
+redundant for cross-asmdef isolation and only serves to break
+ergonomics within an assembly.
+
+**Fix approach (per-compilation injection).**
+
+1. **`SourceGenerator~/UitkxPipeline.cs` Stage 3d** — drop the
+   `phc.Namespace == directives.Namespace` guard. Inject
+   `using static <Ns>.<ClassName>` for **every** entry in
+   `peerHookContainers`. Deduplicate via a `HashSet<string>`
+   (`StringComparer.Ordinal`) so `directives.Usings` is not duplicated
+   when two hook files share a `<Ns>.<ClassName>` (which is legal —
+   `HookEmitter.cs` L86 emits `partial static class`, so adjacent hook
+   files with the same container merge naturally).
+2. **Self-import guard.** A hook file should not `using static` itself.
+   Skip when `phc.Namespace == directives.Namespace &&
+   phc.ClassName == HookEmitter.DeriveContainerClassName(filePath)`.
+   For pure component files (no own hook container) this guard is a no-op.
+3. **`Editor/HMR/HmrCSharpEmitter.cs`** — mirror the same logic so
+   HMR-recompiled types use the identical `using` list. The HMR emitter
+   uses its own peer scan (search for the matching `phc.Namespace ==`
+   block); apply the same dedup + self-skip pattern.
+4. **Tests.** Add to `SourceGenerator~/Tests/`:
+   - Hook in `NsA.UIHooks` + component in `NsB.Pages` → component
+     compiles with auto-injected `using static NsA.UIHooks.MyHookHooks`.
+   - Two hook files defining `useFoo` in different namespaces → consumer
+     gets a clean `CS0121: ambiguous call` (not a generator crash).
+   - Hook file in same namespace as consumer (existing case) → no
+     duplicate `using static` in the emitted source.
+5. **HMR parity test** in `HmrEmitterParityContractTests.cs` confirming
+   the SG and HMR emitters produce identical using-static blocks.
+
+**Risk: Low.** Pre-scan is already per-compilation. No new fields, no
+API changes, no new analyzers. Worst-case behaviour change is a clean
+`CS0121` if two hooks share a name across namespaces in the same
+assembly — that's the *correct* outcome (the dev needs to qualify),
+and currently same-namespace hooks already produce the same error.
+
+**Tradeoff vs. status quo.**
+| Concern | Today | Proposed |
+|---|---|---|
+| Cross-folder hook in same assembly | Manual `@using static` per consumer | Auto-injected |
+| Cross-asmdef hook | Doesn't work either way (different assembly entirely) | Same |
+| Per-file usings count | ~1-3 hook containers max | Same in practice; one dedup `HashSet` allocation per emit |
+| Compile-time ambiguity if two hooks share a name | Local — only same-namespace | Global within assembly (correct) |
+| HMR emitter parity | Must match | Same — emit logic is identical |
+
+**Files:**
+- `SourceGenerator~/UitkxPipeline.cs` (Stage 3d ~L231-L246)
+- `SourceGenerator~/PeerHookContainerInfo.cs` (no change; record already
+  carries `Namespace` + `ClassName`)
+- `SourceGenerator~/Emitter/HookEmitter.cs` (`DeriveContainerClassName`
+  already public-internal; reuse for self-skip)
+- `Editor/HMR/HmrCSharpEmitter.cs` (matching peer-hook block)
+- `SourceGenerator~/Tests/EmitterTests.cs` + `HmrEmitterParityContractTests.cs`
+
+**Surfaced by:** PrettyUi cross-namespace `useUiDocumentSlot` consumer
+(2026-05-14). User feedback: "incosistant and sami guess work".
+
+---
+
+## 19. LSP Roslyn workspace ignores `.cs` files outside the `.uitkx` directory
+
+**Status:** **RESOLVED in 0.5.12 / VS Code 1.2.8 / VS 2022 1.2.8 (2026-05-14).**
+`WorkspaceIndex` now tracks every indexed `.cs` file (`_allCsFiles` /
+`GetAllCsFiles()`) and `RoslynHost.FindCompanionFiles` unions same-folder
+`.cs` with workspace-wide `.cs` filtered to the consumer's asmdef via the
+new `AsmdefResolver` (mirrored verbatim under `Editor/HMR/` and the LSP).
+
+**Status:** Open — **Priority: HIGH**.
+
+**Bug.** When a `.uitkx` file (component, hook, or module) references a
+type defined in a `.cs` file that lives in a different directory, the
+LSP shows a false-positive `CS0103` / "does not contain a definition"
+squiggle in VS Code, **even though the Unity compile succeeds** (Unity
+feeds the entire `Assembly-CSharp` source set to `csc`).
+
+**Repro.**
+- `Assets/UI/Hooks/UseUiDocumentSlot.hooks.uitkx` references
+  `UIDocumentSlot.SlotChanged` (a static event).
+- `UIDocumentSlot.cs` originally lived at `Assets/Scripts/UIDocumentSlot.cs`.
+- LSP squiggle: `'UIDocumentSlot' does not contain a definition for 'SlotChanged'`.
+- Workaround today: move the `.cs` file into the same directory as the
+  consuming `.uitkx`. This is fragile (encourages bad project structure)
+  and breaks for users who organise scripts under a single `Assets/Scripts/`
+  root.
+
+**Why this happens.** `RoslynHost.cs` builds an `AdhocWorkspace` per opened
+`.uitkx` and adds three categories of documents:
+1. The `.uitkx` itself (as a virtual `.cs` document).
+2. Same-directory `.uitkx` peers (recently extended in v0.5.11 to also
+   include workspace-wide module/hook `.uitkx` files via
+   `WorkspaceIndex.GetModuleAndHookFiles()`).
+3. **Same-directory `.cs` companion files only** — see
+   `RoslynHost.AddPeerCsFiles` / `AddPeerCsFilesToSolution`.
+
+There is no equivalent of `WorkspaceIndex.GetModuleAndHookFiles()` for
+arbitrary `.cs` files, so cross-directory C# types are invisible to the
+language server.
+
+**Fix approach (workspace-wide `.cs` index).**
+
+Two viable strategies — pick one based on perf measurement:
+
+**Option A — eager full-workspace index (simple, may bloat memory).**
+1. Extend `WorkspaceIndex` with a new tracked set:
+   `private readonly HashSet<string> _allCsFiles = new(StringComparer.OrdinalIgnoreCase);`
+2. Populate during `IndexFile(filePath)` for every `.cs` file (already
+   walked for `*Props.cs` extraction) — no extra IO.
+3. Expose `IReadOnlyList<string> GetAllCsFiles()` under read-lock.
+4. `RoslynHost.AddPeerCsFiles` (and `…ToSolution` variant) appends every
+   workspace `.cs` after the same-directory peers, deduped by absolute
+   path. Each becomes a real Roslyn `Document` so semantic resolution
+   works for any symbol in the assembly.
+5. **Asmdef boundary.** To match Unity's compilation model, optionally
+   filter the appended `.cs` files by the `.uitkx`'s asmdef ownership
+   (`UitkxPipeline.IsOwnedByCompilation` already exists in the SG; lift
+   into a shared helper in `language-lib` or `lsp-server`). Without this
+   filter, IDE resolution is *more permissive* than Unity (might
+   suggest a type that's actually unreachable at runtime), but never
+   *less permissive* — so the squiggle goes away in all real cases.
+
+**Option B — lazy, demand-driven `.cs` lookup (heavier code, lighter memory).**
+1. On semantic-failure (e.g. unresolved identifier in
+   `DefinitionHandler` / `CompletionHandler`), perform a workspace
+   text-scan for `class <Name>` / `public static class <Name>` matching
+   the unresolved symbol, then add the matching `.cs` file as a peer
+   document and re-resolve.
+2. Avoids loading `Assets/Plugins/**/*.cs`, `Library/**`, etc.
+3. Significantly more complex — adds an unresolved-symbol pump and
+   cache invalidation.
+
+**Recommendation: Option A with asmdef filter.** Memory cost is bounded
+by the number of `.cs` files in the project (typically < 10k for game
+code), Roslyn's incremental compile handles re-parses efficiently, and
+the impl is a 30-50 line change matching the v0.5.11 module/hook fix
+pattern.
+
+**Risk: Medium.** More documents in the workspace means more memory
+held by the language server process and more work for Roslyn on first
+open per `.uitkx` (one-time cost, cached per session). Mitigations:
+- Cap with a soft warning at e.g. 10000 files (log once, continue).
+- Lazy-add: only add a `.cs` file as a Roslyn document on first
+  semantic request that would otherwise fail. Avoids paying the cost
+  for `.uitkx` files that don't need any cross-directory C# resolution.
+- Use `DocumentInfo.Create(...)` with `LoadTextLazily(...)` so file IO
+  is deferred until Roslyn actually parses a given document.
+
+**Why this matters.** With v0.5.11 we made cross-directory module/hook
+`.uitkx` symbols resolve; the `.cs` side is the symmetric missing
+piece. Together they make consumer projects organise files by domain
+(`Assets/UI/...`, `Assets/Game/...`, `Assets/Scripts/...`) without
+fighting the LSP. Without this fix, every cross-directory C# reference
+shows a squiggle that the user has learned to ignore — eroding trust
+in real diagnostics.
+
+**Files:**
+- `ide-extensions~/lsp-server/WorkspaceIndex.cs` (new `_allCsFiles`
+  set + `GetAllCsFiles()`; populate in existing `IndexFile` path; clear
+  in `Refresh` deletion branch)
+- `ide-extensions~/lsp-server/Roslyn/RoslynHost.cs`
+  (`AddPeerCsFiles` + `AddPeerCsFilesToSolution`: append workspace `.cs`
+  files after same-directory peers, deduped, optionally asmdef-filtered)
+- `ide-extensions~/lsp-server/Tests/` — add cross-directory C# resolution test
+
+**Surfaced by:** PrettyUi `UIDocumentSlot.cs` in `Assets/Scripts/`
+referenced from hook in `Assets/UI/Hooks/` (2026-05-14). Workaround:
+moved `.cs` file next to the hook. Not sustainable as a long-term answer.
+
+---
