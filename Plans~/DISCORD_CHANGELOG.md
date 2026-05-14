@@ -1,4 +1,21 @@
-﻿## [0.5.12] - 2026-05-14
+﻿## [0.5.13] - 2026-05-15
+
+### Hotfix - Editor/HMR namespace mismatch (regression in 0.5.12)
+
+**Unity Editor compile broken in consumer projects.** The two new Editor-only files shipped in 0.5.12 - `HookContainerRegistry` and `AsmdefResolver` (HMR copy) - declared `namespace ReactiveUITK.Editor.HMR` while every other file under `Editor/HMR/` lives in `ReactiveUITK.EditorSupport.HMR`. Five `CS0103` errors at the call sites in `UitkxHmrController.cs` and `UitkxHmrCompiler.cs`, plus one cascade `CS0019` from the broken type binding.
+
+```text
+Editor/HMR/UitkxHmrController.cs(194,13): CS0103: The name 'HookContainerRegistry' does not exist in the current context
+Editor/HMR/UitkxHmrCompiler.cs(495,34):  CS0103: The name 'AsmdefResolver' does not exist in the current context
+```
+
+Why the SG/LSP `dotnet test` suite did not catch it: the `Editor/` folder is excluded from the test projects, so only Unity's own csc invocation links these files together. Both new files now declare `namespace ReactiveUITK.EditorSupport.HMR` to match the rest of the folder. No behaviour change vs. 0.5.12 once compiling.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
+
+---
+
+## [0.5.12] - 2026-05-14
 
 ### Hooks across folders and namespaces - work in build, IDE, and HMR
 
