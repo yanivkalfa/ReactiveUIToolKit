@@ -1,7 +1,7 @@
 {
-  "version": 4,
+  "version": 3,
   "targets": {
-    "netstandard2.0": {
+    ".NETStandard,Version=v2.0": {
       "Microsoft.CodeAnalysis.Analyzers/3.3.3": {
         "type": "package",
         "build": {
@@ -1031,7 +1031,7 @@
     }
   },
   "projectFileDependencyGroups": {
-    "netstandard2.0": [
+    ".NETStandard,Version=v2.0": [
       "Microsoft.CodeAnalysis.CSharp >= 4.3.1",
       "NETStandard.Library >= 2.0.3",
       "ReactiveUITK.Language >= 1.0.0",
@@ -1061,7 +1061,6 @@
       },
       "frameworks": {
         "netstandard2.0": {
-          "framework": "netstandard2.0",
           "targetAlias": "netstandard2.0",
           "projectReferences": {
             "/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/ide-extensions~/language-lib/UitkxLanguage.csproj": {
@@ -1080,11 +1079,10 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.300"
+      "SdkAnalysisLevel": "10.0.200"
     },
     "frameworks": {
       "netstandard2.0": {
-        "framework": "netstandard2.0",
         "targetAlias": "netstandard2.0",
         "dependencies": {
           "Microsoft.CodeAnalysis.CSharp": {
@@ -1115,7 +1113,7 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
-        "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.300/RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.201/RuntimeIdentifierGraph.json"
       }
     }
   }
