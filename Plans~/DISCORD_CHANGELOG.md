@@ -1,4 +1,25 @@
-﻿## [0.5.14] - 2026-05-15
+﻿## [0.5.15] - 2026-05-15
+
+### Hotfix - HMR watcher init order broke event delivery on Mono (regression in 0.5.14)
+
+**HMR went completely silent after upgrading to 0.5.14.** Start logged normally, the assembly-reload lock engaged, but saving a `.uitkx` file produced no `[HMR]` output - and even with the new Verbose watcher trace toggle on, no `[HMR][trace] FSW ...` lines appeared. The watcher was alive but deaf.
+
+Root cause: 0.5.14 set `InternalBufferSize = 64 * 1024` and `EnableRaisingEvents = true` inside the `FileSystemWatcher` object initializer. On .NET Framework that order is harmless, but on Unity's Mono runtime `EnableRaisingEvents` setter starts the native backend immediately - before event handlers are subscribed and before the buffer-size setter runs. On some Mono versions this leaves the watcher in a half-initialized state where it never raises any events for the lifetime of the instance.
+
+Fix: configure properties in explicit order rather than via initializer.
+
+- Configure `Path` / `IncludeSubdirectories` / `NotifyFilter` first.
+- Subscribe `Changed` / `Created` / `Renamed` / `Error` handlers second.
+- Set `InternalBufferSize` third, wrapped in `try/catch`. If Mono refuses the larger size, log a `LogWarning` and fall back to the default 8 KB instead of leaving the watcher dead.
+- Set `EnableRaisingEvents = true` last, when the instance is fully wired.
+
+If you ran 0.5.14, upgrade and Stop -> Start HMR once. The Verbose watcher trace toggle and 64 KB buffer behave as documented; if Mono ever refuses the buffer bump you will see the warning and HMR will keep working at 8 KB.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
+
+---
+
+## [0.5.14] - 2026-05-15
 
 ### Hotfix - HMR file watcher dropped events under save bursts
 
