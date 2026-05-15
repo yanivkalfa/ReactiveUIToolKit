@@ -1,4 +1,26 @@
-﻿## [0.5.15] - 2026-05-15
+﻿## [0.5.16] - 2026-05-15
+
+### HMR file watcher - parallel AssetPostprocessor catches dropped FSW events
+
+**The original bug, properly fixed.** Saves on deeply nested `.uitkx` files (e.g. `Assets/UI/Pages/GamePage/components/PlayerHud/components/StatsPanel.uitkx`) could land with no `[HMR]` log and no visual change, while saves on the parent worked. Root cause: Mono's `FileSystemWatcher` on Windows uses an 8 KB internal buffer that overflows under realistic Unity save bursts (every save also touches `.meta` files plus side-files). On overflow the OS silently drops events for arbitrary files.
+
+0.5.14 and 0.5.15 tried to fix this by changing FSW configuration directly - raising `InternalBufferSize`, subscribing `Error`, reordering `EnableRaisingEvents`. Empirically that broke Mono 6.13.0 (Visual Studio built mono): the watcher silently stopped delivering events at all, killing HMR end-to-end. Both attempts have been reverted; the FSW config block in `UitkxHmrFileWatcher.cs` is byte-identical to 0.5.13 again.
+
+The real fix in 0.5.16 is a parallel event source via Unity's `AssetPostprocessor.OnPostprocessAllAssets`. It runs on the main thread whenever Unity refreshes the asset database after a save, never drops events, and does not depend on Mono FSW. The watcher's existing `_pendingChanges` dictionary already dedupes by path, so redundant events from FSW + AssetPostprocessor coalesce into one swap via the 50 ms debounce window.
+
+New file `Editor/HMR/UitkxHmrAssetPostprocessor.cs`. The watcher registers with it on `Start` and unregisters on `Stop`; while HMR is inactive the postprocessor is a no-op.
+
+0.5.14 and 0.5.15 are superseded - jump straight to 0.5.16 if you installed either.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
+
+---
+
+## [0.5.15] - 2026-05-15
+
+---
+
+## [0.5.15] - 2026-05-15
 
 ### Hotfix - HMR watcher init order broke event delivery on Mono (regression in 0.5.14)
 
