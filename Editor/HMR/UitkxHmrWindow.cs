@@ -229,6 +229,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                 );
                 if (autoReload != _controller.AutoReloadOnRudeEdit)
                     _controller.AutoReloadOnRudeEdit = autoReload;
+
+                bool verbose = EditorGUILayout.Toggle(
+                    new GUIContent(
+                        "Verbose watcher trace",
+                        "Log every raw .uitkx / .uss / .cs file event delivered by the OS to the Console as '[HMR][trace] FSW ...'. Use this when a save seems to do nothing — if no trace line appears for your file, the OS itself isn't delivering the event (FSW buffer overflow, antivirus, OneDrive/symlink path, etc.) and the problem is upstream of HMR. High noise; leave off in normal use."
+                    ),
+                    _controller.VerboseWatcherTrace
+                );
+                if (verbose != _controller.VerboseWatcherTrace)
+                    _controller.VerboseWatcherTrace = verbose;
             }
             else
             {
@@ -239,6 +249,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 EditorGUILayout.Toggle("Show swap notifications", showNotify);
                 bool autoReload = EditorPrefs.GetBool("UITKX_HMR_AutoReloadOnRudeEdit", true);
                 EditorGUILayout.Toggle("Auto-reload on rude edit", autoReload);
+                bool verbose = EditorPrefs.GetBool("UITKX_HMR_VerboseWatcher", false);
+                bool newVerbose = EditorGUILayout.Toggle("Verbose watcher trace", verbose);
+                if (newVerbose != verbose)
+                    EditorPrefs.SetBool("UITKX_HMR_VerboseWatcher", newVerbose);
             }
 
             // ── Shortcuts ────────────────────────────────────────────────────

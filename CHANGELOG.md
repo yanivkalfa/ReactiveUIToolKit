@@ -6,6 +6,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.14] - 2026-05-15
+
+### Fixed
+
+- **HMR silently dropped file-change events under save bursts.** The
+  `FileSystemWatcher` in `Editor/HMR/UitkxHmrFileWatcher.cs` ran with the
+  default 8 KB internal buffer and had no `Error` subscription. Watching the
+  full `Assets/` tree easily overflows that buffer because Unity touches
+  `.meta`, `Library/`, and other side-files on every save, and on overflow
+  the OS silently drops events for arbitrary files. Symptom: parent
+  component saves hot-reloaded normally, but a deeply-nested child
+  component (e.g.
+  `Assets/UI/Pages/GamePage/components/PlayerHud/components/StatsPanel/StatsPanel.uitkx`)
+  saved repeatedly with no `[HMR]` console output and no visual change —
+  removing the component from its parent and re-adding it appeared to
+  "fix" things (because that triggered a fresh fiber mount that picked up
+  the project-loaded type). The buffer is now bumped to 64 KB (the
+  documented maximum) and `FileSystemWatcher.Error` is logged at error
+  level so future overflows surface instead of vanishing. Restart HMR
+  (Stop -> Start in the HMR window) for the new buffer size to take effect.
+
+### Added
+
+- **HMR window: "Verbose watcher trace" toggle.** When enabled, every raw
+  `.uitkx` / `.uss` / `.cs` file event the OS delivers is logged as
+  `[HMR][trace] FSW <ChangeType> <path>`. Use this when a save appears to
+  do nothing — if no trace line appears for your file, the OS itself
+  isn't delivering the event (FSW buffer overflow recurrence, antivirus
+  hook, OneDrive/symlink path, file held by another process) and the
+  problem is upstream of HMR. Backed by `EditorPrefs` key
+  `UITKX_HMR_VerboseWatcher`; off by default. Visible in
+  ReactiveUITK -> HMR Mode under Settings, alongside the existing
+  Auto-stop and Auto-reload toggles.
+
 ## [0.5.13] - 2026-05-15
 
 ### Fixed

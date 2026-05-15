@@ -1,4 +1,25 @@
-﻿## [0.5.13] - 2026-05-15
+﻿## [0.5.14] - 2026-05-15
+
+### Hotfix - HMR file watcher dropped events under save bursts
+
+**Saves on deep paths silently did nothing.** Editing a component like `Assets/UI/Pages/GamePage/components/PlayerHud/components/StatsPanel/StatsPanel.uitkx` could land with no `[HMR]` log and no visual change, while saves on the parent worked fine. Removing the component from its parent and re-adding it looked like a fix - but only because the fresh mount picked up the project-loaded type, not a real swap.
+
+Root cause: `FileSystemWatcher` in `Editor/HMR/UitkxHmrFileWatcher.cs` ran with the default 8 KB internal buffer and had no `Error` subscription. Unity touches `.meta`, `Library/`, and other side-files on every save, so the FSW queue easily overflows when watching the full `Assets/` tree - and on overflow the OS silently drops events for arbitrary files. With no `Error` handler, the loss was invisible.
+
+Two changes:
+
+- Bumped `InternalBufferSize` to 64 KB (the documented maximum). Costs a few KB of pinned memory and removes the overflow under realistic Unity save bursts.
+- Subscribed `FileSystemWatcher.Error` and surfaced it as a `Debug.LogError` so future overflows are loud instead of silent.
+
+Restart HMR (Stop -> Start in the HMR window) once on this version so the new buffer size takes effect.
+
+**Feature - Verbose watcher trace toggle.** New "Verbose watcher trace" setting in the HMR window logs every raw `.uitkx` / `.uss` / `.cs` event the OS delivers as `[HMR][trace] FSW <ChangeType> <path>`. Use it when a save appears to do nothing: no trace line means the event never reached the editor (overflow recurrence, antivirus hook, OneDrive/symlink path, file held by another process), and the fix is upstream of HMR. Off by default. Backed by `EditorPrefs` key `UITKX_HMR_VerboseWatcher`.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
+
+---
+
+## [0.5.13] - 2026-05-15
 
 ### Hotfix - Editor/HMR namespace mismatch (regression in 0.5.12)
 

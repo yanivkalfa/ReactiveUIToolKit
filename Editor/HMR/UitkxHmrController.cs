@@ -86,6 +86,20 @@ namespace ReactiveUITK.EditorSupport.HMR
             set => EditorPrefs.SetBool("UITKX_HMR_AutoReloadOnRudeEdit", value);
         }
 
+        /// <summary>
+        /// When true, the FileSystemWatcher logs every raw .uitkx / .uss / .cs
+        /// event to the Console as <c>[HMR][trace] FSW ...</c>. Use this when a
+        /// save appears to do nothing in HMR — if no trace line appears for
+        /// your file, the OS itself isn't delivering the event (FSW buffer
+        /// overflow, antivirus hook, OneDrive/symlink path, etc.) and the
+        /// problem is upstream of HMR. Off by default; high noise.
+        /// </summary>
+        public bool VerboseWatcherTrace
+        {
+            get => EditorPrefs.GetBool("UITKX_HMR_VerboseWatcher", false);
+            set => EditorPrefs.SetBool("UITKX_HMR_VerboseWatcher", value);
+        }
+
         // ── Memory tracking ─────────────────────────────────────────────────
         private long _sessionBaselineMemory;
 

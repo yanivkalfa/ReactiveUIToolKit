@@ -43,6 +43,14 @@ namespace ReactiveUITK.EditorSupport.HMR
                 Path = watchRoot,
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
+                // Default is 8KB which overflows easily when watching a full
+                // Unity Assets/ tree (every save also touches .meta files,
+                // Library/, etc.). On overflow, the OS silently drops events
+                // for arbitrary files until the buffer drains — which manifests
+                // as "save the .uitkx file but HMR never reacts" for whichever
+                // files happened to be in the dropped batch. 64KB is the
+                // documented maximum and costs only a few KB of pinned memory.
+                InternalBufferSize = 64 * 1024,
                 EnableRaisingEvents = true,
             };
 
@@ -57,9 +65,25 @@ namespace ReactiveUITK.EditorSupport.HMR
                         Path.GetFileName(e.FullPath)
                     )
                 );
+            // Surface buffer overflows instead of silently losing events.
+            // When this fires, every save *after* the overflow is suspect
+            // until the buffer drains — log loudly so the user knows to
+            // re-save (or restart HMR) rather than chasing a phantom bug.
+            _watcher.Error += OnWatcherError;
 
             // Pump pending changes on every editor update
             EditorApplication.update += PumpPendingChanges;
+        }
+
+        private void OnWatcherError(object sender, ErrorEventArgs e)
+        {
+            var ex = e.GetException();
+            UnityEngine.Debug.LogError(
+                "[HMR] FileSystemWatcher error — events may have been dropped. "
+                    + "If a recently saved .uitkx file did not hot-reload, save it "
+                    + "again. Details: "
+                    + (ex?.Message ?? "(no details)")
+            );
         }
 
         public void Stop()
@@ -90,11 +114,31 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         // ── FileSystemWatcher callback (threadpool thread) ────────────────────
 
+        // Toggled via EditorPrefs key "UITKX_HMR_VerboseWatcher". When true,
+        // every raw file event the OS delivers is logged. Useful when a save
+        // appears to do nothing — if the path never appears in the trace, the
+        // OS isn't delivering the event (FSW buffer overflow, antivirus
+        // hook, network share, symlink, etc.) and the fix is upstream of HMR.
+        private static bool VerboseTrace =>
+            EditorPrefs.GetBool("UITKX_HMR_VerboseWatcher", false);
+
         private void OnFileSystemEvent(object sender, FileSystemEventArgs e)
         {
             string ext = Path.GetExtension(e.FullPath);
             if (string.IsNullOrEmpty(ext))
                 return;
+
+            // Trace BEFORE any filtering so the user can see every event
+            // received for the .uitkx / .uss / .cs files we care about.
+            if (VerboseTrace
+                && (ext.Equals(".uitkx", StringComparison.OrdinalIgnoreCase)
+                    || ext.Equals(".uss", StringComparison.OrdinalIgnoreCase)
+                    || ext.Equals(".cs", StringComparison.OrdinalIgnoreCase)))
+            {
+                UnityEngine.Debug.Log(
+                    $"[HMR][trace] FSW {e.ChangeType} {e.FullPath}"
+                );
+            }
 
             // .uss file change
             if (ext.Equals(".uss", StringComparison.OrdinalIgnoreCase))
