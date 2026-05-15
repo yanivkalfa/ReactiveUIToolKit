@@ -197,6 +197,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             string assetsPath = Path.GetFullPath(UnityEngine.Application.dataPath);
             _watcher.OnUitkxChanged += OnUitkxFileChanged;
             _watcher.OnUssChanged += OnUssFileChanged;
+            _watcher.OnUitkxDeleted += OnUitkxFileDeleted;
             _watcher.Start(assetsPath);
 
             // Seed the workspace-wide hook-container registry so HMR recompiles
@@ -255,6 +256,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Stop watching
             _watcher.OnUitkxChanged -= OnUitkxFileChanged;
             _watcher.OnUssChanged -= OnUssFileChanged;
+            _watcher.OnUitkxDeleted -= OnUitkxFileDeleted;
             _watcher.Stop();
 
             // Drop the workspace-wide hook-container index; a fresh seed runs
@@ -554,6 +556,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                         _recentErrors.RemoveAt(0);
                     Debug.LogWarning(result.Error);
                 }
+
+                // If the file no longer exists (renamed away or deleted while
+                // a stale event was in flight), don't enqueue a retry — it can
+                // never succeed and would spam FileNotFoundException on every
+                // RetryPendingCompilations pass. Belt-and-braces against the
+                // postprocessor missing the deletion event (e.g. user deletes
+                // via Explorer instead of the Project window).
+                if (!File.Exists(uitkxPath))
+                {
+                    _pendingRetryPaths.Remove(uitkxPath);
+                    return;
+                }
                 _pendingRetryPaths[uitkxPath] = result.Error;
             }
 
@@ -564,6 +578,31 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _queuedPath = null;
                 // Use delayCall to avoid deep recursion
                 EditorApplication.delayCall += () => ProcessFileChange(queued);
+            }
+        }
+
+        // ── Deletion handler ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Invoked synchronously on the main thread by the watcher when a
+        /// .uitkx file is deleted or renamed away. Evicts the path from the
+        /// pending-retry queue so subsequent <see cref="RetryPendingCompilations"/>
+        /// passes don't try to re-read a file that no longer exists. Without
+        /// this, a copy-rename-edit cycle (the user creates a new component
+        /// by cloning an existing one) would leave a stale entry that throws
+        /// FileNotFoundException on every retry pass forever.
+        /// See Plans~/HMR_NEW_COMPONENT_LIVE_SWAP_PLAN.md §4.4.
+        /// </summary>
+        private void OnUitkxFileDeleted(string uitkxPath)
+        {
+            if (!_active)
+                return;
+            if (_pendingRetryPaths.Remove(uitkxPath))
+            {
+                Debug.Log(
+                    $"[HMR] {Path.GetFileName(uitkxPath)} no longer exists — "
+                        + "removed from retry queue."
+                );
             }
         }
 

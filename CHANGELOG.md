@@ -6,6 +6,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.17] - 2026-05-15
+
+### Added
+
+- **HMR support for components created live (no domain reload required).**
+  The trampoline swap now targets every loaded type representing the
+  changed component — both the project-loaded type (post domain reload)
+  AND every prior `hmr_*.dll` type from earlier HMR cycles. Brand-new
+  components created during a session previously had no project-side type
+  for `SwapAll` to find, so saves silently no-op'd after the first compile.
+  Now the first parent that references the new component binds (via
+  compiler-cached method-group delegate) to the HMR DLL's type, and every
+  subsequent edit writes the fresh delegate into that DLL's
+  `__hmr_Render` static field — the parent's binding hits the new body on
+  the next render. Symmetric across multiple HMR generations: version N+1
+  updates every prior generation's trampoline so all live consumer
+  bindings stay current. See `Plans~/HMR_NEW_COMPONENT_LIVE_SWAP_PLAN.md`.
+
+- **AssetPostprocessor now forwards `deletedAssets` and `movedFromAssetPaths`**
+  to the file watcher via a new `OnUitkxDeleted` event. The controller
+  uses this to evict stale entries from `_pendingRetryPaths` so a
+  rename / delete during HMR no longer leaves a permanent retry-loop
+  pointing at a non-existent file.
+
+### Fixed
+
+- **`_pendingRetryPaths` no longer accumulates entries for files that no
+  longer exist on disk.** Two complementary mechanisms: (a) the new
+  `OnUitkxDeleted` postprocessor path evicts on file delete / rename;
+  (b) the controller's compile-failure branch now does a `File.Exists`
+  check before adding to the retry queue and evicts on miss
+  (belt-and-braces against deletions performed outside the Project
+  window). Eliminates the `FileNotFoundException` cascade observed when
+  cloning components via copy-rename-edit while HMR is active.
+
+- **Visible log when the first compile of a brand-new component has no
+  consumer yet.** Previously `SwapAll` returned 0 silently in this case,
+  giving the impression HMR was dead. Now it logs `[HMR] Compiled X — no
+  live consumer types yet (component is brand-new; subsequent edits will
+  hot-swap once a parent compiles against it)` so the journey is visible.
+
+### Notes
+
+- Editor-only changes; runtime / built-game performance is unaffected.
+  The trampoline field `__hmr_Render` and its single `if (HmrState.IsActive)`
+  branch in generated `Render` were already present in 0.5.16 and are
+  unchanged. Player builds strip the entire HMR editor assembly.
+
 ## [0.5.16] - 2026-05-15
 
 ### Fixed

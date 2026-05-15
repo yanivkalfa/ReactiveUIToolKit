@@ -150,72 +150,118 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return 0;
             }
 
-            // ── 2. Resolve the live (project-loaded) type via [UitkxElement]
-            //       (primary) and [UitkxSource] file path (rename fallback). ─
-            Type oldType = FindProjectComponentType(componentName, uitkxFilePath);
-            if (oldType == null)
+            // ── 2. Resolve every live consumer type for this component:
+            //       project-loaded type (post domain reload) PLUS any prior
+            //       hmr_*.dll types that earlier HMR cycles produced. The
+            //       latter is essential when the user creates a brand-new
+            //       component live — its type only exists in prior HMR DLLs
+            //       (the SG hasn't run, so the project assembly has nothing),
+            //       and parents that consumed it bound their method-group
+            //       delegates to those HMR types' Render. We must update the
+            //       trampoline on every such type or subsequent edits silently
+            //       no-op. See Plans~/HMR_NEW_COMPONENT_LIVE_SWAP_PLAN.md. ──
+            var oldTypes = FindAllSwapTargetTypes(
+                hmrAssembly, componentName, uitkxFilePath
+            );
+            if (oldTypes.Count == 0)
             {
-                // Component never compiled into the project — nothing to swap.
-                // (E.g. brand-new file not yet picked up by the SG.)
-                return 0;
-            }
-
-            // ── 3. Locate the trampoline field on the live type. Components
-            //       compiled with a pre-trampoline SG won't have it and need a
-            //       full domain reload to pick up the new shape. ─────────────
-            FieldInfo hmrField = oldType.GetField(TrampolineFieldName, TrampolineFieldFlags);
-            if (hmrField == null)
-            {
-                Debug.LogWarning(
-                    $"[HMR] Component '{oldType.FullName}' has no '{TrampolineFieldName}' " +
-                    "field — it was compiled before the trampoline refactor. " +
-                    "Recompile the project (full domain reload) to enable hot-swap."
+                // No consumer type yet — first compile of a brand-new component.
+                // The trampoline gets installed when a parent first compiles
+                // against this component (which loads the new HMR DLL with its
+                // own __hmr_Render = __Render_body initial value).
+                Debug.Log(
+                    $"[HMR] Compiled {componentName} — no live consumer types yet " +
+                    "(component is brand-new; subsequent edits will hot-swap once " +
+                    "a parent compiles against it)."
                 );
                 return 0;
             }
 
-            // ── 4. Capture rollback BEFORE the swap so a crash in the new
-            //       body can revert via TryRollback. ─────────────────────────
-            var prev = hmrField.GetValue(null) as Delegate;
-            if (prev != null)
-                s_rollbackByType[oldType] = prev;
-
-            try
+            // ── 3. Decide remount policy via [HookSignature] BEFORE swapping.
+            //       Per-fiber check happens in NotifyMatchingFibers because
+            //       different prior HMR generations may have different sigs;
+            //       the hoisted bool is only for the single summary log. ───
+            bool anySignatureChanged = false;
+            for (int i = 0; i < oldTypes.Count; i++)
             {
-                hmrField.SetValue(null, newRender);
+                if (HasHookSignatureChanged(oldTypes[i], newType))
+                {
+                    anySignatureChanged = true;
+                    break;
+                }
             }
-            catch (Exception ex)
-            {
-                Debug.LogWarning(
-                    $"[HMR] Failed to swap '{TrampolineFieldName}' on " +
-                    $"'{oldType.FullName}': {ex.Message}"
-                );
-                return 0;
-            }
-
-            // ── 5. Decide remount policy via [HookSignature]. Compatible
-            //       edits preserve hook state; incompatible edits force a
-            //       full reset (React Fast Refresh semantics). ──────────────
-            bool signatureChanged = HasHookSignatureChanged(oldType, newType);
-            if (signatureChanged)
+            if (anySignatureChanged)
             {
                 Debug.Log(
                     $"[HMR] Hook signature changed in {componentName} — " +
-                    "resetting state on all instances."
+                    "resetting state on affected instances."
                 );
             }
 
-            // ── 6. Notify every fiber of the changed component type so it
-            //       re-renders into the new body. Bounded to instances of
-            //       this type — much cheaper than the legacy global tree
-            //       walk. ────────────────────────────────────────────────────
+            // ── 4. Swap trampoline on every matched type. Each prior HMR DLL
+            //       carries its own __hmr_Render static field (SG emits it
+            //       unconditionally), so each version's Render path now
+            //       routes through the new delegate. Rollback is captured
+            //       per-type so a render crash on any specific type can
+            //       revert that type's field independently. ────────────────
+            int trampolinesSwapped = 0;
+            foreach (var oldType in oldTypes)
+            {
+                FieldInfo hmrField = oldType.GetField(
+                    TrampolineFieldName, TrampolineFieldFlags
+                );
+                if (hmrField == null)
+                {
+                    // Pre-trampoline-refactor SG output — only possible for
+                    // project-loaded types from a Library/ScriptAssemblies
+                    // built before the refactor landed. Prior HMR DLLs always
+                    // have the field (they're emitted by current HmrCSharpEmitter).
+                    Debug.LogWarning(
+                        $"[HMR] Component '{oldType.FullName}' has no '{TrampolineFieldName}' " +
+                        "field — it was compiled before the trampoline refactor. " +
+                        "Recompile the project (full domain reload) to enable hot-swap on this type."
+                    );
+                    continue;
+                }
+
+                var prev = hmrField.GetValue(null) as Delegate;
+                if (prev != null)
+                    s_rollbackByType[oldType] = prev;
+
+                try
+                {
+                    hmrField.SetValue(null, newRender);
+                    trampolinesSwapped++;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning(
+                        $"[HMR] Failed to swap '{TrampolineFieldName}' on " +
+                        $"'{oldType.FullName}': {ex.Message}"
+                    );
+                }
+            }
+            if (trampolinesSwapped == 0)
+                return 0;
+
+            // ── 5. Notify every fiber whose component type is one of the
+            //       swapped types so it re-renders into the new body. Bounded
+            //       to those types — much cheaper than a global tree walk.
+            //       Per-fiber signature comparison handles mixed-generation
+            //       trees (rare but valid). ─────────────────────────────────
+            var oldTypeSet = oldTypes.Count == 1
+                ? null
+                : new HashSet<Type>(oldTypes);
+            Type singleOldType = oldTypes.Count == 1 ? oldTypes[0] : null;
             int notified = 0;
             foreach (var renderer in EditorRootRendererUtility.GetAllRenderers())
             {
                 var fr = renderer?.FiberRendererInternal;
                 if (fr?.Root?.Current == null)
                     continue;
-                NotifyMatchingFibers(fr.Root.Current, oldType, signatureChanged, ref notified);
+                NotifyMatchingFibers(
+                    fr.Root.Current, singleOldType, oldTypeSet, newType, ref notified
+                );
             }
             foreach (var rootRenderer in RootRenderer.AllInstances)
             {
@@ -224,9 +270,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     continue;
                 NotifyMatchingFibers(
                     vhr.FiberRendererInternal.Root.Current,
-                    oldType,
-                    signatureChanged,
-                    ref notified
+                    singleOldType, oldTypeSet, newType, ref notified
                 );
             }
 
@@ -292,17 +336,39 @@ namespace ReactiveUITK.EditorSupport.HMR
             return types.FirstOrDefault(t => t != null && t.Name == componentName);
         }
 
-        private static Type FindProjectComponentType(string componentName, string uitkxFilePath)
+        /// <summary>
+        /// Returns every loaded type that represents the component named
+        /// <paramref name="componentName"/> — both the project-loaded type
+        /// (if any) AND every prior <c>hmr_*.dll</c> type with the matching
+        /// <c>[UitkxElement]</c> name or <c>[UitkxSource]</c> file path.
+        /// <para>
+        /// The just-loaded HMR assembly (<paramref name="skipAssembly"/>) is
+        /// excluded: its <c>__hmr_Render</c> already points at the brand-new
+        /// body so swapping it onto itself is a no-op. The point of the swap
+        /// is to redirect the OLD types' trampolines so existing parent
+        /// bindings (compiler-cached method groups in already-emitted IL) hit
+        /// the new body on the next render.
+        /// </para>
+        /// <para>
+        /// This is the single change that enables creating new components
+        /// live without a domain reload. Without it, brand-new components
+        /// have no project-side type, so the legacy lookup returned null and
+        /// every subsequent save silently no-op'd.
+        /// </para>
+        /// </summary>
+        private static List<Type> FindAllSwapTargetTypes(
+            Assembly skipAssembly,
+            string componentName,
+            string uitkxFilePath
+        )
         {
-            Type byName = null;
-            Type bySource = null;
+            var results = new List<Type>(2);
+            HashSet<Type> seen = null;
 
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (asm.IsDynamic) continue;
-                // Skip HMR assemblies — they're newer than the project copy.
-                if (asm.GetName().Name?.StartsWith("hmr_", StringComparison.Ordinal) == true)
-                    continue;
+                if (ReferenceEquals(asm, skipAssembly)) continue;
 
                 Type[] types;
                 try { types = asm.GetTypes(); }
@@ -312,14 +378,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 foreach (var t in types)
                 {
                     if (t == null) continue;
+
+                    bool match = false;
                     var elementAttr = t.GetCustomAttribute<UitkxElementAttribute>();
                     if (elementAttr != null && elementAttr.ComponentName == componentName)
-                    {
-                        byName = t;
-                        // Don't break: prefer the source-path match if both exist.
-                    }
+                        match = true;
 
-                    if (uitkxFilePath != null)
+                    if (!match && uitkxFilePath != null)
                     {
                         var sourceAttr = t.GetCustomAttribute<UitkxSourceAttribute>();
                         if (sourceAttr != null && string.Equals(
@@ -327,15 +392,19 @@ namespace ReactiveUITK.EditorSupport.HMR
                                 uitkxFilePath,
                                 StringComparison.OrdinalIgnoreCase))
                         {
-                            bySource = t;
+                            match = true;
                         }
                     }
+
+                    if (!match) continue;
+
+                    seen ??= new HashSet<Type>();
+                    if (seen.Add(t))
+                        results.Add(t);
                 }
             }
 
-            // Source-path takes precedence: it survives renames where the
-            // class name changes but the file path is stable.
-            return bySource ?? byName;
+            return results;
         }
 
         private static Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> ResolveRenderDelegate(
@@ -368,36 +437,50 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         // ── Fiber notification ───────────────────────────────────────────────
 
+        // Per-fiber notify: matches against either a single old-type fast path
+        // (most common case — exactly one project-loaded type) OR a HashSet of
+        // multiple types when prior HMR generations produced their own copies.
+        // Per-fiber signature comparison ensures mixed-generation fibers each
+        // get the correct compatible / force-reset treatment.
         private static void NotifyMatchingFibers(
             FiberNode fiber,
-            Type oldType,
-            bool signatureChanged,
+            Type singleOldType,
+            HashSet<Type> oldTypeSet,
+            Type newType,
             ref int count
         )
         {
             if (fiber == null) return;
 
-            if (fiber.Tag == FiberTag.FunctionComponent
-                && fiber.TypedRender?.Method?.DeclaringType == oldType)
+            if (fiber.Tag == FiberTag.FunctionComponent)
             {
-                if (signatureChanged)
-                    FullResetComponentState(fiber);
+                var declaring = fiber.TypedRender?.Method?.DeclaringType;
+                bool isMatch = declaring != null && (
+                    (singleOldType != null && declaring == singleOldType) ||
+                    (oldTypeSet != null && oldTypeSet.Contains(declaring))
+                );
 
-                try
+                if (isMatch)
                 {
-                    fiber.ComponentState?.OnStateUpdated?.Invoke();
+                    if (HasHookSignatureChanged(declaring, newType))
+                        FullResetComponentState(fiber);
+
+                    try
+                    {
+                        fiber.ComponentState?.OnStateUpdated?.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning(
+                            $"[HMR] Re-render scheduling failed on '{declaring.Name}': {ex.Message}"
+                        );
+                    }
+                    count++;
                 }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning(
-                        $"[HMR] Re-render scheduling failed on '{oldType.Name}': {ex.Message}"
-                    );
-                }
-                count++;
             }
 
-            NotifyMatchingFibers(fiber.Child, oldType, signatureChanged, ref count);
-            NotifyMatchingFibers(fiber.Sibling, oldType, signatureChanged, ref count);
+            NotifyMatchingFibers(fiber.Child, singleOldType, oldTypeSet, newType, ref count);
+            NotifyMatchingFibers(fiber.Sibling, singleOldType, oldTypeSet, newType, ref count);
         }
 
         // ── Hook signature & state-reset helpers ─────────────────────────────

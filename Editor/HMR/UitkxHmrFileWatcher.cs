@@ -25,6 +25,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         public event Action<string> OnUssChanged;
 
+        /// <summary>
+        /// Fires on the main thread (synchronously, no debounce) when a .uitkx
+        /// file is deleted or renamed away. Parameter is the absolute path of
+        /// the file that no longer exists. Used by the controller to evict
+        /// stale entries from <c>_pendingRetryPaths</c> so retries don't loop
+        /// on a missing file.
+        /// </summary>
+        public event Action<string> OnUitkxDeleted;
+
         private FileSystemWatcher _watcher;
         private readonly Dictionary<string, int> _pendingChanges = new();
         private readonly Dictionary<string, int> _pendingUssChanges = new();
@@ -158,6 +167,30 @@ namespace ReactiveUITK.EditorSupport.HMR
                     Path.GetFileName(absolutePath)
                 )
             );
+        }
+
+        // Push a deletion notification from the AssetPostprocessor. Fires the
+        // OnUitkxDeleted event synchronously on the main thread (deletions
+        // are cleanup, not work — no need to debounce). Companion .cs
+        // deletions are intentionally ignored: there's no retry-state keyed
+        // by .cs path. Also evicts any pending change entry for the path so
+        // a stale debounced compile doesn't fire after the file is gone.
+        internal void EnqueueAssetDeletion(string absolutePath)
+        {
+            if (_disposed || string.IsNullOrEmpty(absolutePath))
+                return;
+            string ext = Path.GetExtension(absolutePath);
+            if (string.IsNullOrEmpty(ext))
+                return;
+            if (!ext.Equals(".uitkx", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            lock (_lock)
+            {
+                _pendingChanges.Remove(absolutePath);
+            }
+
+            OnUitkxDeleted?.Invoke(absolutePath);
         }
 
         // ── Main thread pump ──────────────────────────────────────────────────
