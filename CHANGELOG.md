@@ -6,6 +6,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.18] - 2026-05-15
+
+### Fixed
+
+- **Critical follow-up to 0.5.17: HMR's Roslyn compile now defines
+  `UNITY_EDITOR` (and the full Unity editor define-set when available
+  via `CompilationPipeline.GetAssemblies(AssembliesType.Editor)`).**
+  Without this, every HMR-compiled DLL had its `__hmr_Render` static
+  field AND the `if (HmrState.IsActive) return __hmr_Render(...)`
+  trampoline branch in `Render` stripped by the `#if UNITY_EDITOR`
+  guards in `HmrCSharpEmitter` and the SG. Net effect:
+  - The 0.5.17 "swap on prior HMR DLL types" feature couldn't actually
+    work — prior HMR DLLs had no field to write into. Brand-new
+    components created live still silently no-op'd after the first
+    save. (Symptom in user logs:
+    `Component 'X' has no '__hmr_Render' field` warning followed by no
+    swap.)
+  - User companion .cs `#if UNITY_EDITOR` blocks compiled with opposite
+    semantics to the project's actual editor build, a latent
+    correctness bug for any user code gated on it.
+  Now resolved: HMR DLLs carry the trampoline field and the parent's
+  `<NewComponent />` binding actually flows through it on every
+  subsequent save. Symbols are pulled from
+  `CompilationPipeline.GetAssemblies(AssembliesType.Editor)` so
+  version pragmas, scripting backend pragmas, and any user-defined
+  symbols match the project's editor compile. Falls back to
+  `UNITY_EDITOR`-only if the API is unavailable.
+
+- **Reworded the `no '__hmr_Render' field` warning** in
+  `UitkxHmrComponentTrampolineSwapper` to reflect both possible causes
+  (pre-trampoline-refactor SG output OR a stale HMR DLL from a
+  pre-0.5.18 session) and to point at the correct remediation
+  (restart Unity).
+
+### Notes
+
+- If you have a Unity session running with HMR DLLs from 0.5.17 or
+  earlier in `%TEMP%/UitkxHmr/`, restart Unity once after upgrading.
+  Subsequent sessions emit HMR DLLs with the trampoline field intact.
+
 ## [0.5.17] - 2026-05-15
 
 ### Added

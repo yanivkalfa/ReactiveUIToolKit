@@ -834,6 +834,44 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
             _parseOptions = defaultProp.GetValue(null);
 
+            // ── Define UNITY_EDITOR (and Unity's full editor-define list when
+            //    available) so the SG / HmrCSharpEmitter trampoline blocks
+            //    guarded by `#if UNITY_EDITOR` survive compilation. Without
+            //    this, every HMR-compiled DLL has its `__hmr_Render` field
+            //    AND the `if (HmrState.IsActive) return __hmr_Render(...)`
+            //    branch stripped from `Render`, which means:
+            //    (a) we can't write a fresh delegate into prior HMR DLLs'
+            //        types (they have no field), so brand-new components
+            //        created live can never trampoline-swap; and
+            //    (b) any companion .cs `#if UNITY_EDITOR` blocks compile with
+            //        opposite semantics to the project's Unity-Editor build,
+            //        producing latent correctness bugs.
+            //    See Plans~/HMR_NEW_COMPONENT_LIVE_SWAP_PLAN.md.
+            string[] preprocessorSymbols = ResolveEditorPreprocessorSymbols();
+            var withSymbolsMethod = parseOptionsType.GetMethod(
+                "WithPreprocessorSymbols",
+                BindingFlags.Public | BindingFlags.Instance,
+                null,
+                new[] { typeof(IEnumerable<string>) },
+                null
+            );
+            if (withSymbolsMethod != null)
+            {
+                _parseOptions = withSymbolsMethod.Invoke(
+                    _parseOptions,
+                    new object[] { (IEnumerable<string>)preprocessorSymbols }
+                );
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "[HMR] Roslyn CSharpParseOptions.WithPreprocessorSymbols(IEnumerable<string>) "
+                        + "not found — UNITY_EDITOR will be undefined in HMR builds, breaking the "
+                        + "trampoline on prior HMR DLLs (brand-new components will not hot-swap "
+                        + "until a domain reload)."
+                );
+            }
+
             // CSharpSyntaxTree.ParseText(string text, CSharpParseOptions options, ...)
             // Roslyn ships multiple overloads of ParseText. The canonical one we want
             // has all-optional tail (so we can pass just the text + parse options) —
@@ -1539,6 +1577,59 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// <para>
         /// Critical for Roslyn discovery: <see cref="System.Linq.Enumerable.First{TSource}(System.Collections.Generic.IEnumerable{TSource}, Func{TSource, bool})"/>
         /// has no documented ordering guarantee across runtime versions, and
+        /// <summary>
+        /// Returns the preprocessor symbols Roslyn should define when
+        /// compiling user .uitkx / companion .cs sources for HMR. Mirrors
+        /// Unity's editor-side compile so the SG-emitted trampoline (and any
+        /// user <c>#if UNITY_EDITOR</c> blocks) survive.
+        /// <para>
+        /// Strategy: ask <see cref="UnityEditor.Compilation.CompilationPipeline"/>
+        /// for the editor-target Assembly-CSharp-Editor defines (Unity adds
+        /// <c>UNITY_EDITOR</c>, version pragmas, scripting-backend pragmas
+        /// etc. there). Fall back to a minimum viable set of just
+        /// <c>UNITY_EDITOR</c> if the API is unavailable or returns nothing.
+        /// </para>
+        /// </summary>
+        private static string[] ResolveEditorPreprocessorSymbols()
+        {
+            HashSet<string> symbols = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "UNITY_EDITOR",
+            };
+
+            try
+            {
+                var asms = UnityEditor.Compilation.CompilationPipeline.GetAssemblies(
+                    UnityEditor.Compilation.AssembliesType.Editor
+                );
+                if (asms != null)
+                {
+                    foreach (var asm in asms)
+                    {
+                        if (asm?.defines == null) continue;
+                        for (int i = 0; i < asm.defines.Length; i++)
+                            symbols.Add(asm.defines[i]);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning(
+                    $"[HMR] Could not enumerate Unity editor defines via CompilationPipeline; "
+                        + $"falling back to UNITY_EDITOR-only. ({ex.Message})"
+                );
+            }
+
+            var result = new string[symbols.Count];
+            symbols.CopyTo(result);
+            return result;
+        }
+
+        /// <summary>
+        /// Picks the overload whose parameters past <paramref name="firstParamType"/>
+        /// are all optional. Used for resolving Roslyn surface methods in a
+        /// version-tolerant way without locking to a particular API generation.
+        /// <para>
         /// <c>Compilation.Emit</c> in particular ships multiple <c>(Stream, …)</c>
         /// overloads where parameter 1 is a non-defaulted <c>Stream</c>. A
         /// non-deterministic First() pick on those silently fails at invoke time.
