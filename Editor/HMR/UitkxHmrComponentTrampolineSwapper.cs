@@ -212,14 +212,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                 );
                 if (hmrField == null)
                 {
-                    // Pre-trampoline-refactor SG output — only possible for
-                    // project-loaded types from a Library/ScriptAssemblies
-                    // built before the refactor landed. Prior HMR DLLs always
-                    // have the field (they're emitted by current HmrCSharpEmitter).
+                    // Either pre-trampoline-refactor SG output (project type
+                    // compiled before the trampoline existed) or an HMR DLL
+                    // produced by an HMR session that didn't define
+                    // UNITY_EDITOR in its Roslyn parse options (pre-0.5.18).
+                    // Either way, this type can't participate in the swap;
+                    // skip it and continue to the next match. The fix is to
+                    // restart Unity (regenerates project assemblies under the
+                    // current SG; clears stale HMR DLLs).
                     Debug.LogWarning(
-                        $"[HMR] Component '{oldType.FullName}' has no '{TrampolineFieldName}' " +
-                        "field — it was compiled before the trampoline refactor. " +
-                        "Recompile the project (full domain reload) to enable hot-swap on this type."
+                        $"[HMR] Component '{oldType.FullName}' (assembly '{oldType.Assembly.GetName().Name}') "
+                            + $"has no '{TrampolineFieldName}' field. Skipping this swap target. "
+                            + "Restart Unity to clear stale HMR DLLs from before the UNITY_EDITOR-define fix."
                     );
                     continue;
                 }

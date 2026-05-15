@@ -1,4 +1,20 @@
-﻿## [0.5.17] - 2026-05-15
+﻿## [0.5.18] - 2026-05-15
+
+### HMR - critical follow-up to 0.5.17 (UNITY_EDITOR define)
+
+0.5.17's "swap on prior HMR DLL types" couldn't actually work in production. The HMR Roslyn compile used `CSharpParseOptions.Default` which defines no preprocessor symbols, so every HMR-compiled DLL had its `__hmr_Render` static field and the trampoline branch in `Render` stripped by the `#if UNITY_EDITOR` guards in `HmrCSharpEmitter` and the source generator. Symptom seen in the wild: `Component 'X' has no '__hmr_Render' field` warning followed by no swap, even though my new code correctly found prior HMR DLL types as swap targets.
+
+Fix: the HMR compile now defines `UNITY_EDITOR` plus Unity's full editor define-set. Symbols are pulled from `CompilationPipeline.GetAssemblies(AssembliesType.Editor)` so version pragmas, scripting backend pragmas, and any user-defined symbols match the project's actual editor compile. Falls back to `UNITY_EDITOR`-only if the API is unavailable.
+
+With this in place, HMR DLLs carry the trampoline field and the parent's `<NewComponent />` binding actually flows through it on every subsequent save - the original "create new component live, every edit hot-swaps without domain reload" workflow finally works end-to-end.
+
+Secondary correctness fix: user companion .cs `#if UNITY_EDITOR` blocks now compile with the same semantics in HMR as in the project's editor build (previously they compiled with the opposite, a latent correctness trap).
+
+If you have HMR DLLs from 0.5.17 or earlier in `%TEMP%/UitkxHmr/`, restart Unity once after upgrading. Subsequent sessions emit DLLs with the trampoline intact.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
+
+## [0.5.17] - 2026-05-15
 
 ### HMR - live-create new components without a domain reload
 
