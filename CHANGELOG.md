@@ -6,6 +6,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.16] - 2026-05-15
+
+### Fixed
+
+- **HMR silently dropped file-change events under save bursts on a deep
+  Assets/ tree** (the original bug 0.5.14 and 0.5.15 tried and failed to fix).
+  Mono's `FileSystemWatcher` on Windows uses an 8 KB internal buffer; under
+  realistic Unity save bursts (every save touches `.meta` files plus assorted
+  side-files) the buffer overflows and the OS silently drops events for
+  arbitrary files. Symptom: parent component saves hot-reloaded, but a
+  deeply-nested child component (e.g.
+  `Assets/UI/Pages/GamePage/components/PlayerHud/components/StatsPanel/StatsPanel.uitkx`)
+  saved repeatedly with no `[HMR]` console output and no visual change.
+
+  The 0.5.14/0.5.15 attempts modified `FileSystemWatcher` directly
+  (`InternalBufferSize`, `Error` handler, `EnableRaisingEvents` ordering).
+  Empirically that proved fragile on Mono 6.13.0 (Visual Studio built mono):
+  the watcher silently fell into a state where it stopped delivering events
+  entirely, killing HMR end-to-end. Both fixes have been reverted; the FSW
+  configuration block in `Editor/HMR/UitkxHmrFileWatcher.cs` is byte-identical
+  to the 0.5.13 known-good state.
+
+  The actual fix this release ships is a **parallel event source** via
+  Unity's `AssetPostprocessor.OnPostprocessAllAssets`. It fires on the main
+  thread whenever Unity refreshes the asset database after a save, never
+  drops events, and does not depend on Mono FSW. The watcher's existing
+  `_pendingChanges` dictionary already deduplicates by path, so redundant
+  events from FSW + AssetPostprocessor are coalesced into a single swap by
+  the existing 50 ms debounce window. New file:
+  `Editor/HMR/UitkxHmrAssetPostprocessor.cs`. Registration is gated by
+  `UitkxHmrFileWatcher.Start` / `Stop` so the postprocessor is a no-op when
+  HMR is not active.
+
+### Notes
+
+- 0.5.14 and 0.5.15 are superseded. If you upgraded to either, you should
+  upgrade straight to 0.5.16 — do not stay on 0.5.14/0.5.15.
+- The "Verbose watcher trace" toggle added in 0.5.14 is still present in
+  the HMR window. It is harmless leftover; full wire-up is deferred until
+  there is a concrete next-debugging need.
+
 ## [0.5.15] - 2026-05-15
 
 ### Fixed
