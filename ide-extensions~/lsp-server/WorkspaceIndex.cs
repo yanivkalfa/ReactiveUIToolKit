@@ -59,6 +59,17 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     private readonly HashSet<string> _elements = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ElementInfo> _elementInfo = new(StringComparer.Ordinal);
 
+    // Reverse map: file path -> set of element names currently contributed by
+    // that file. Maintained alongside _elementInfo / _elements so that a file
+    // re-index (after edit / rename) or deletion can deterministically evict
+    // names the file used to declare but no longer does. Without this, when a
+    // file's `component Foo { ... }` is edited to `component Bar { ... }`,
+    // the `Foo` entry stays in _elementInfo forever pointing at this file,
+    // breaking go-to-definition / hover / diagnostics for any later file
+    // that legitimately declares `component Foo`.
+    private readonly Dictionary<string, HashSet<string>> _elementsByFile =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // Set of .uitkx file paths whose top-level declarations include `module`
     // or `hook`. Maintained incrementally by IndexUitkxFile and consumed by
     // RoslynHost.FindPeerUitkxFiles to enable cross-directory symbol resolution
@@ -379,6 +390,13 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 try { _allCsFiles.Remove(filePath); }
                 finally { _lock.ExitWriteLock(); }
 
+                // Evict element names contributed by the now-deleted .cs file.
+                // Without this, deleting a *Props.cs file leaves its element
+                // entries dangling in _elementInfo until the next process
+                // restart. ScanDirectory below re-indexes survivors but never
+                // touches the deleted file's stale entries.
+                EvictElementsFromFile(filePath);
+
                 var dir = Path.GetDirectoryName(filePath);
                 if (dir is not null)
                     ScanDirectory(dir);
@@ -394,7 +412,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 _lock.EnterWriteLock();
                 try { _moduleHookFiles.Remove(filePath); }
                 finally { _lock.ExitWriteLock(); }
-                return; // deletion — component will disappear on next full scan
+
+                // Evict element names contributed by the now-deleted file so
+                // go-to-definition / hover / diagnostics don't keep pointing
+                // at a phantom path. Without this, after a delete the index
+                // entry survives until the next process restart.
+                EvictElementsFromFile(filePath);
+                IndexChanged?.Invoke();
+                return;
             }
             IndexUitkxFile(filePath);
             IndexChanged?.Invoke();
@@ -473,6 +498,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// </summary>
     private void IndexUitkxFile(string filePath)
     {
+        // Drop every element name this file PREVIOUSLY contributed so that a
+        // rename like `component Foo { }` -> `component Bar { }` doesn't leave
+        // a stale `Foo` entry pointing at this file. CommitElement re-adds
+        // each name found in the new content below.
+        EvictElementsFromFile(filePath);
+
         try
         {
             string content = File.ReadAllText(filePath);
@@ -544,6 +575,11 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         _lock.EnterWriteLock();
         try { _allCsFiles.Add(filePath); }
         finally { _lock.ExitWriteLock(); }
+
+        // Drop element names this file PREVIOUSLY contributed so a renamed /
+        // removed *Props class can't keep its old name pointing at this file.
+        // CommitElement re-adds names found in the new content below.
+        EvictElementsFromFile(filePath);
 
         try
         {
@@ -667,6 +703,50 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             _elements.Add(elementName);
             _elementInfo[elementName] = info;
+
+            if (!_elementsByFile.TryGetValue(filePath, out var names))
+            {
+                names = new HashSet<string>(StringComparer.Ordinal);
+                _elementsByFile[filePath] = names;
+            }
+            names.Add(elementName);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Removes every element name currently attributed to <paramref name="filePath"/>
+    /// from the index but only if the entry's <c>FilePath</c> still matches
+    /// (i.e. some other file hasn't already claimed the same name in the
+    /// meantime). Call BEFORE re-indexing a file's new content or when the
+    /// file is deleted; combined with <see cref="CommitElement"/>'s tracking,
+    /// this gives the index correct rename / content-change semantics without
+    /// requiring a workspace rescan.
+    /// </summary>
+    private void EvictElementsFromFile(string filePath)
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            if (!_elementsByFile.TryGetValue(filePath, out var names))
+                return;
+
+            foreach (var name in names)
+            {
+                if (_elementInfo.TryGetValue(name, out var existing) &&
+                    string.Equals(
+                        existing.FilePath,
+                        filePath,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    _elementInfo.Remove(name);
+                    _elements.Remove(name);
+                }
+            }
+            _elementsByFile.Remove(filePath);
         }
         finally
         {
