@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.15] - 2026-05-15
+
+### Fixed
+
+- **Hotfix: HMR file watcher initialization order broke event delivery on Mono
+  (regression in 0.5.14).** The 0.5.14 watcher hardening set
+  `InternalBufferSize = 64*1024` and `EnableRaisingEvents = true` inside the
+  `FileSystemWatcher` object initializer, which on Unity's Mono runtime
+  enables the watcher BEFORE event handlers are wired and BEFORE the buffer
+  size is applied. On some Mono versions this combination leaves the
+  watcher in a half-initialized state where it never raises any events.
+  Symptom: HMR Start logs normally but no `[HMR]` messages appear on save
+  and no `[HMR][trace] FSW ...` lines appear with verbose-trace enabled.
+  The watcher is now configured property-by-property in the correct order:
+  configure paths/filters first, subscribe handlers second, set
+  `InternalBufferSize` (wrapped in try/catch with a fall-back warning if
+  Mono refuses) third, and `EnableRaisingEvents = true` last. If
+  `InternalBufferSize` cannot be raised, HMR continues to run with the
+  default 8 KB buffer instead of going dark.
+
 ## [0.5.14] - 2026-05-15
 
 ### Fixed

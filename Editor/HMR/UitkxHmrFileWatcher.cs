@@ -38,20 +38,18 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (_watcher != null)
                 Stop();
 
+            // IMPORTANT ordering — on Mono (Unity's runtime), setting
+            // EnableRaisingEvents inside the object initializer enables the
+            // watcher BEFORE handlers are wired and BEFORE InternalBufferSize
+            // is applied. On some Mono versions this leaves the watcher in a
+            // half-initialized state where it never fires events. Configure
+            // properties first, subscribe handlers second, set buffer size
+            // third (with a safe fallback), enable LAST.
             _watcher = new FileSystemWatcher
             {
                 Path = watchRoot,
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
-                // Default is 8KB which overflows easily when watching a full
-                // Unity Assets/ tree (every save also touches .meta files,
-                // Library/, etc.). On overflow, the OS silently drops events
-                // for arbitrary files until the buffer drains — which manifests
-                // as "save the .uitkx file but HMR never reacts" for whichever
-                // files happened to be in the dropped batch. 64KB is the
-                // documented maximum and costs only a few KB of pinned memory.
-                InternalBufferSize = 64 * 1024,
-                EnableRaisingEvents = true,
             };
 
             _watcher.Changed += OnFileSystemEvent;
@@ -66,10 +64,30 @@ namespace ReactiveUITK.EditorSupport.HMR
                     )
                 );
             // Surface buffer overflows instead of silently losing events.
-            // When this fires, every save *after* the overflow is suspect
-            // until the buffer drains — log loudly so the user knows to
-            // re-save (or restart HMR) rather than chasing a phantom bug.
             _watcher.Error += OnWatcherError;
+
+            // Try to bump the internal buffer above the 8 KB default — large
+            // Unity Assets/ trees easily overflow it under save bursts because
+            // every save also touches .meta files, Library/, etc., and on
+            // overflow the OS silently drops events for arbitrary files. 64 KB
+            // is the documented maximum for network paths and a safe ceiling
+            // for local. If Mono refuses (some runtimes throw on this setter),
+            // fall back to the default rather than leaving the watcher dead.
+            try
+            {
+                _watcher.InternalBufferSize = 64 * 1024;
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning(
+                    "[HMR] Could not raise FileSystemWatcher.InternalBufferSize "
+                        + $"to 64KB ({ex.GetType().Name}: {ex.Message}). Falling back "
+                        + "to default 8KB; watcher overflows under save bursts may "
+                        + "still drop events."
+                );
+            }
+
+            _watcher.EnableRaisingEvents = true;
 
             // Pump pending changes on every editor update
             EditorApplication.update += PumpPendingChanges;
