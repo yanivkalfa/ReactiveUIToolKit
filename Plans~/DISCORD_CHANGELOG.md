@@ -1,4 +1,20 @@
-﻿## [0.5.16] - 2026-05-15
+﻿## [0.5.17] - 2026-05-15
+
+### HMR - live-create new components without a domain reload
+
+You can now create a new `.uitkx` component during a live HMR session and every save hot-swaps it just like an existing component. Previously the first save compiled fine but subsequent edits silently no-op'd: HMR's trampoline swap looked for the project-loaded type and a brand-new component has none (the source generator only runs on assembly recompile, which HMR holds locked).
+
+The fix: `SwapAll` now finds every loaded type for the changed component, including types from prior `hmr_*` DLLs that earlier HMR cycles produced. As soon as a parent compiles with a reference to the new component, the parent's emitted IL binds via a compiler-cached method-group delegate to the HMR DLL's type. Subsequent saves write the new delegate into THAT DLL's `__hmr_Render` static field - the field the parent's binding actually reaches at render time - so the new body executes without any rebinding. Symmetric across multiple HMR generations: version N+1 updates every prior generation's trampoline.
+
+Also fixed in the same release: the `_pendingRetryPaths` queue used to accumulate entries for files that no longer exist on disk (e.g. after a copy-rename-edit cycle while HMR was active), producing a `FileNotFoundException` cascade on every retry pass forever. The AssetPostprocessor now forwards `deletedAssets` and `movedFromAssetPaths` to the watcher, the watcher exposes a new `OnUitkxDeleted` event, and the controller evicts the stale path. Belt-and-braces: the compile-failure branch now checks `File.Exists` before adding to the retry queue.
+
+Visible log when the first compile of a brand-new component has no consumer yet, so the journey reads correctly instead of looking dead.
+
+Editor-only changes - runtime and built-game performance unaffected.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
+
+## [0.5.16] - 2026-05-15
 
 ### HMR file watcher - parallel AssetPostprocessor catches dropped FSW events
 

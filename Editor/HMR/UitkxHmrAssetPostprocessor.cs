@@ -90,10 +90,31 @@ namespace ReactiveUITK.EditorSupport.HMR
                     snapshot[i].EnqueueAssetChange(abs);
             }
 
+            // Deletion / move-from forwarding. Without this, the controller's
+            // _pendingRetryPaths can hold a key for a path that no longer
+            // exists (rename moves the file out from under it), and every
+            // retry pass throws FileNotFoundException forever. Routing the
+            // old paths to a dedicated cleanup sink evicts those keys.
+            // See Plans~/HMR_NEW_COMPONENT_LIVE_SWAP_PLAN.md §4.2.
+            void ForwardDeletion(string assetPath)
+            {
+                if (string.IsNullOrEmpty(assetPath))
+                    return;
+                if (!HasInterestingExtension(assetPath))
+                    return;
+                string abs = Path.GetFullPath(Path.Combine(projectRoot, assetPath));
+                for (int i = 0; i < snapshot.Length; i++)
+                    snapshot[i].EnqueueAssetDeletion(abs);
+            }
+
             for (int i = 0; i < importedAssets.Length; i++)
                 Forward(importedAssets[i]);
             for (int i = 0; i < movedAssets.Length; i++)
                 Forward(movedAssets[i]);
+            for (int i = 0; i < deletedAssets.Length; i++)
+                ForwardDeletion(deletedAssets[i]);
+            for (int i = 0; i < movedFromAssetPaths.Length; i++)
+                ForwardDeletion(movedFromAssetPaths[i]);
         }
 
         private static bool HasInterestingExtension(string assetPath)
