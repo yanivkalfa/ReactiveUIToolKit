@@ -38,18 +38,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (_watcher != null)
                 Stop();
 
-            // IMPORTANT ordering — on Mono (Unity's runtime), setting
-            // EnableRaisingEvents inside the object initializer enables the
-            // watcher BEFORE handlers are wired and BEFORE InternalBufferSize
-            // is applied. On some Mono versions this leaves the watcher in a
-            // half-initialized state where it never fires events. Configure
-            // properties first, subscribe handlers second, set buffer size
-            // third (with a safe fallback), enable LAST.
             _watcher = new FileSystemWatcher
             {
                 Path = watchRoot,
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
+                EnableRaisingEvents = true,
             };
 
             _watcher.Changed += OnFileSystemEvent;
@@ -63,50 +57,27 @@ namespace ReactiveUITK.EditorSupport.HMR
                         Path.GetFileName(e.FullPath)
                     )
                 );
-            // Surface buffer overflows instead of silently losing events.
-            _watcher.Error += OnWatcherError;
-
-            // Try to bump the internal buffer above the 8 KB default — large
-            // Unity Assets/ trees easily overflow it under save bursts because
-            // every save also touches .meta files, Library/, etc., and on
-            // overflow the OS silently drops events for arbitrary files. 64 KB
-            // is the documented maximum for network paths and a safe ceiling
-            // for local. If Mono refuses (some runtimes throw on this setter),
-            // fall back to the default rather than leaving the watcher dead.
-            try
-            {
-                _watcher.InternalBufferSize = 64 * 1024;
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning(
-                    "[HMR] Could not raise FileSystemWatcher.InternalBufferSize "
-                        + $"to 64KB ({ex.GetType().Name}: {ex.Message}). Falling back "
-                        + "to default 8KB; watcher overflows under save bursts may "
-                        + "still drop events."
-                );
-            }
-
-            _watcher.EnableRaisingEvents = true;
 
             // Pump pending changes on every editor update
             EditorApplication.update += PumpPendingChanges;
-        }
 
-        private void OnWatcherError(object sender, ErrorEventArgs e)
-        {
-            var ex = e.GetException();
-            UnityEngine.Debug.LogError(
-                "[HMR] FileSystemWatcher error — events may have been dropped. "
-                    + "If a recently saved .uitkx file did not hot-reload, save it "
-                    + "again. Details: "
-                    + (ex?.Message ?? "(no details)")
-            );
+            // Register a redundant event source via Unity's AssetPostprocessor.
+            // Mono's FileSystemWatcher silently drops events when its 8 KB
+            // internal buffer overflows under save bursts on a deep Assets/
+            // tree (every save also touches .meta files, etc.). The
+            // AssetPostprocessor path is main-thread, never drops, and
+            // _pendingChanges dedupes by path so redundant events from both
+            // sources are harmless. Touching FSW config has proven fragile on
+            // some Mono versions, so we keep FSW exactly as-is and add
+            // AssetPostprocessor as a parallel safety net.
+            UitkxHmrAssetPostprocessor.Register(this);
         }
 
         public void Stop()
         {
             EditorApplication.update -= PumpPendingChanges;
+
+            UitkxHmrAssetPostprocessor.Unregister(this);
 
             if (_watcher != null)
             {
@@ -132,31 +103,11 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         // ── FileSystemWatcher callback (threadpool thread) ────────────────────
 
-        // Toggled via EditorPrefs key "UITKX_HMR_VerboseWatcher". When true,
-        // every raw file event the OS delivers is logged. Useful when a save
-        // appears to do nothing — if the path never appears in the trace, the
-        // OS isn't delivering the event (FSW buffer overflow, antivirus
-        // hook, network share, symlink, etc.) and the fix is upstream of HMR.
-        private static bool VerboseTrace =>
-            EditorPrefs.GetBool("UITKX_HMR_VerboseWatcher", false);
-
         private void OnFileSystemEvent(object sender, FileSystemEventArgs e)
         {
             string ext = Path.GetExtension(e.FullPath);
             if (string.IsNullOrEmpty(ext))
                 return;
-
-            // Trace BEFORE any filtering so the user can see every event
-            // received for the .uitkx / .uss / .cs files we care about.
-            if (VerboseTrace
-                && (ext.Equals(".uitkx", StringComparison.OrdinalIgnoreCase)
-                    || ext.Equals(".uss", StringComparison.OrdinalIgnoreCase)
-                    || ext.Equals(".cs", StringComparison.OrdinalIgnoreCase)))
-            {
-                UnityEngine.Debug.Log(
-                    $"[HMR][trace] FSW {e.ChangeType} {e.FullPath}"
-                );
-            }
 
             // .uss file change
             if (ext.Equals(".uss", StringComparison.OrdinalIgnoreCase))
@@ -189,6 +140,24 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 _pendingChanges[uitkxPath] = Environment.TickCount;
             }
+        }
+
+        // Push a synthetic change event from the AssetPostprocessor.
+        // Routes through OnFileSystemEvent so all extension filtering,
+        // companion-.cs mapping, USS handling, and dedupe behave identically
+        // to the FileSystemWatcher path.
+        internal void EnqueueAssetChange(string absolutePath)
+        {
+            if (_disposed || string.IsNullOrEmpty(absolutePath))
+                return;
+            OnFileSystemEvent(
+                this,
+                new FileSystemEventArgs(
+                    WatcherChangeTypes.Changed,
+                    Path.GetDirectoryName(absolutePath) ?? string.Empty,
+                    Path.GetFileName(absolutePath)
+                )
+            );
         }
 
         // ── Main thread pump ──────────────────────────────────────────────────
