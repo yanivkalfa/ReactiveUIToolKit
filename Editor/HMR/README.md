@@ -102,6 +102,29 @@ HMR can compile and load **new** `.uitkx` files that don't exist in any pre-comp
 - The parent is automatically retried after the dependency resolves
 - Cross-component references are managed via an assembly registry
 
+### Live-editing a brand-new component (no domain reload)
+
+A component created during a live HMR session has no project-side type
+(the source generator runs only on assembly recompile, which HMR holds
+locked). The first compile of such a component therefore has nothing to
+swap into — the trampoline lives only in its own freshly-loaded HMR DLL,
+which already contains the brand-new body.
+
+As soon as a parent component recompiles with a reference to the new
+component, the parent's emitted IL binds to that HMR DLL's type via a
+compiler-cached method-group delegate. Subsequent saves of the new
+component compile a fresh HMR DLL and write its delegate into the
+**prior HMR DLL's** `__hmr_Render` static field — that's the field the
+parent's binding reaches at render time, so the new body executes
+without any rebinding. The user-visible result: every save hot-swaps
+the new component just like an existing one, no domain reload required.
+
+The behaviour is symmetric across multiple HMR generations: if version
+N is currently swapped in, version N+1's compile updates every prior
+generation's trampoline so all live consumer bindings hit the newest
+body. See `Plans~/HMR_NEW_COMPONENT_LIVE_SWAP_PLAN.md` for the design
+rationale.
+
 ## Hook State Preservation
 
 HMR preserves all hook state across swaps:
