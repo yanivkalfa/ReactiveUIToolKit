@@ -656,6 +656,10 @@ namespace ReactiveUITK.Props
                     e.style.unityMaterial = smd;
                 else if (v is MaterialDefinition md)
                     e.style.unityMaterial = new StyleMaterialDefinition(md);
+                else if (v is Material mat)
+                    e.style.unityMaterial = new StyleMaterialDefinition(
+                        new MaterialDefinition(mat)
+                    );
             };
 #else
             styleSetters["aspectRatio"] = (e, v) => { };

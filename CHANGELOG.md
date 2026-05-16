@@ -6,6 +6,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.19] - 2026-05-15
+
+### Fixed
+
+- **Unity 6.3 style types are now reachable by short name from `.uitkx` source.**
+  `StyleMaterialDefinition`, `MaterialDefinition`, `StyleRatio`, `Ratio` and
+  `FilterFunction` are now emitted as preprocessor-guarded
+  (`#if UNITY_6000_3_OR_NEWER`) `using` aliases in every component, hook,
+  module and HMR-recompiled file. Before this fix, expressions such as
+  `UnityMaterial = new StyleMaterialDefinition(new MaterialDefinition(mat))`
+  failed at compile time with `CS0246: The type or namespace name
+  'StyleMaterialDefinition' could not be found` even though the typed
+  `Style.UnityMaterial` property compiled fine inside the library itself.
+  Affected emitters: `CSharpEmitter`, `ModuleEmitter`, `HookEmitter`,
+  `HmrCSharpEmitter`, `HmrHookEmitter`, and the IDE LSP virtual document.
+
+- **HMR's component emitter (`HmrCSharpEmitter`) now emits the same
+  targeted `UnityEngine.UIElements` alias block as the source generator.**
+  Previously HMR only emitted `using Color = UnityEngine.Color;`, so any
+  user expression referencing `EasingFunction`, `BackgroundRepeat`,
+  `Length`, `StyleKeyword`, `TextAutoSizeMode`, etc. compiled cleanly on
+  cold builds but failed on hot reload with `CS0246`. A new text-level
+  parity test (`HmrCSharpEmitterAliasParityTests`) acts as a drift tripwire.
+
+### Added
+
+- **`CssHelpers.MaterialDef(Material)`** returns a ready-to-assign
+  `StyleMaterialDefinition` (mirrors the existing `FontDef` precedent).
+- **`CssHelpers.Ratio(float value)`** returns a `StyleRatio` so
+  `AspectRatio` can be authored without manually wrapping
+  `new StyleRatio(new Ratio(...))`.
+- **`PropsApplier.unityMaterial`** now accepts a bare `Material` in
+  addition to `StyleMaterialDefinition`/`MaterialDefinition` (matches the
+  multi-shape precedent already used by `aspectRatio`).
+
+### Notes
+
+- Pure additive release — no API removals, no behavior change for code
+  that already uses the verbose `new StyleMaterialDefinition(new
+  MaterialDefinition(mat))` form. Both forms continue to compile.
+
 ## [0.5.18] - 2026-05-15
 
 ### Fixed
