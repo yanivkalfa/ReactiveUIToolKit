@@ -202,6 +202,31 @@ namespace ReactiveUITK.EditorSupport.HMR
                 foreach (var u in _usings)
                     L($"using {u};");
                 L("using Color = UnityEngine.Color;");
+                // Targeted UIElements aliases — must stay in lock-step with
+                // CSharpEmitter's alias block. `using static StyleKeys` imports string
+                // constants that collide with identically-named enums/structs from
+                // UnityEngine.UIElements, so we cannot import that namespace wholesale.
+                // CssHelpers returns types from UIElements; users need them by short name.
+                L("using EasingFunction = UnityEngine.UIElements.EasingFunction;");
+                L("using EasingMode = UnityEngine.UIElements.EasingMode;");
+                L("using BackgroundRepeat = UnityEngine.UIElements.BackgroundRepeat;");
+                L("using BackgroundPosition = UnityEngine.UIElements.BackgroundPosition;");
+                L("using BackgroundSize = UnityEngine.UIElements.BackgroundSize;");
+                L("using TransformOrigin = UnityEngine.UIElements.TransformOrigin;");
+                L("using BackgroundPositionKeyword = UnityEngine.UIElements.BackgroundPositionKeyword;");
+                L("using BackgroundSizeType = UnityEngine.UIElements.BackgroundSizeType;");
+                L("using Repeat = UnityEngine.UIElements.Repeat;");
+                L("using Length = UnityEngine.UIElements.Length;");
+                L("using StyleKeyword = UnityEngine.UIElements.StyleKeyword;");
+                L("using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;");
+                // Unity 6.3+ types — preprocessor-guarded so pre-6.3 builds compile clean.
+                L("#if UNITY_6000_3_OR_NEWER");
+                L("using FilterFunction = UnityEngine.UIElements.FilterFunction;");
+                L("using Ratio = UnityEngine.UIElements.Ratio;");
+                L("using StyleRatio = UnityEngine.UIElements.StyleRatio;");
+                L("using MaterialDefinition = UnityEngine.UIElements.MaterialDefinition;");
+                L("using StyleMaterialDefinition = UnityEngine.UIElements.StyleMaterialDefinition;");
+                L("#endif");
                 L("");
 
                 // Namespace + class

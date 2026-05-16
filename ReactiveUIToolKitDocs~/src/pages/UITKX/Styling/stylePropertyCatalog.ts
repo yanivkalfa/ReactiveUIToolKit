@@ -908,8 +908,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     category: 'Filter & Effects',
     sinceUnity: '6000.3',
     description: 'Sets the preferred aspect ratio (width / height). The layout engine uses this when one dimension is auto.',
-    typedExample: 'AspectRatio = new StyleRatio(new Ratio(16, 9))',
-    untypedExample: '(StyleKeys.AspectRatio, new StyleRatio(new Ratio(16, 9)))',
+    typedExample: 'AspectRatio = Ratio(16f / 9f)',
+    untypedExample: '(StyleKeys.AspectRatio, 16f / 9f)',
+    helpers: ['Ratio(value)'],
   },
   {
     key: 'filter',
@@ -929,8 +930,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     category: 'Filter & Effects',
     sinceUnity: '6000.3',
     description: 'Assigns a Unity Material (Shader Graph or built-in) for custom rendering. Useful for shader-driven effects.',
-    typedExample: 'UnityMaterial = new StyleMaterialDefinition(\n    new MaterialDefinition(myMaterial))',
-    untypedExample: '(StyleKeys.UnityMaterial, new StyleMaterialDefinition(...))',
+    typedExample: 'UnityMaterial = MaterialDef(myMaterial)',
+    untypedExample: '(StyleKeys.UnityMaterial, myMaterial)',
+    helpers: ['MaterialDef(material)'],
   },
 
   // ── Transitions ─────────────────────────────────────────────────────

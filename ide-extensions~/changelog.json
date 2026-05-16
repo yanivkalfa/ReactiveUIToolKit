@@ -1,6 +1,19 @@
 {
   "entries": [
     {
+      "date": "2026-05-16",
+      "versions": {
+        "vscode": "1.2.10",
+        "vs2022": "1.2.10"
+      },
+      "shared": [
+        "Unity 6.3+ types now resolve by short name in .uitkx source. `StyleMaterialDefinition`, `MaterialDefinition`, `StyleRatio`, `Ratio` and `FilterFunction` are emitted as preprocessor-guarded `using` aliases by every emitter (component, hook, module, HMR, and the LSP virtual document). Eliminates spurious CS0246 errors on expressions like `UnityMaterial = new StyleMaterialDefinition(new MaterialDefinition(mat))`.",
+        "HMR's component emitter (`HmrCSharpEmitter`) now emits the full targeted UnityEngine.UIElements alias block in lock-step with the SG. Previously it only emitted `using Color = UnityEngine.Color;` so hot-reloads of files referencing `EasingFunction`, `BackgroundRepeat`, `Length`, `StyleKeyword`, `TextAutoSizeMode`, etc. failed with CS0246 even though cold builds worked.",
+        "New CssHelpers: `MaterialDef(Material)` returns `StyleMaterialDefinition` (mirrors the existing `FontDef` precedent). `Ratio(float)` returns `StyleRatio` so `AspectRatio` no longer requires manual wrapping.",
+        "`PropsApplier.unityMaterial` now accepts a bare `Material` in addition to the existing `StyleMaterialDefinition` / `MaterialDefinition` shapes (matches `aspectRatio`'s multi-shape precedent)."
+      ]
+    },
+    {
       "date": "2026-05-15",
       "versions": {
         "vscode": "1.2.9",
