@@ -148,10 +148,13 @@ export const STYLE_PROPERTY_DETAILS: Record<string, StylePropertyDetail> = {
       'Sets the preferred aspect ratio (width\u00A0/\u00A0height) for the element. ' +
       'The layout engine uses this when one dimension is auto.',
     example: [
+      'using static ReactiveUITK.Props.Typed.CssHelpers;',
+      '',
       'new Style {',
-      '    AspectRatio = new StyleRatio(new Ratio(16, 9)),',
+      '    AspectRatio = Ratio(16f / 9f),',
       '}',
     ].join('\n'),
+    relatedHelpers: ['Ratio'],
   },
   filter: {
     sinceUnity: '6000.3',
@@ -180,12 +183,13 @@ export const STYLE_PROPERTY_DETAILS: Record<string, StylePropertyDetail> = {
       'Assigns a Unity Material (Shader Graph or built-in) for custom rendering of the element. ' +
       'Useful for shader-driven UI effects.',
     example: [
+      'using static ReactiveUITK.Props.Typed.CssHelpers;',
+      '',
       'new Style {',
-      '    UnityMaterial = new StyleMaterialDefinition(',
-      '        new MaterialDefinition(myMaterial)',
-      '    ),',
+      '    UnityMaterial = MaterialDef(myMaterial),',
       '}',
     ].join('\n'),
+    relatedHelpers: ['MaterialDef'],
   },
 }
 

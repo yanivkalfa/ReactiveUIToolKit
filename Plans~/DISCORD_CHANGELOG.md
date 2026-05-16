@@ -1,4 +1,22 @@
-﻿## [0.5.18] - 2026-05-15
+﻿## [0.5.19] - 2026-05-16
+
+### Unity 6.3 style types reachable by short name from .uitkx
+
+`UnityMaterial`, `AspectRatio` and `Filter` were added to `Style` in the Unity 6.3 batch, but none of the five emitters that produce per-component, per-hook, per-module and per-HMR .cs files included the new `StyleMaterialDefinition`, `MaterialDefinition`, `StyleRatio`, `Ratio` or `FilterFunction` types in their alias block. Result: an obvious user expression like `UnityMaterial = new StyleMaterialDefinition(new MaterialDefinition(mat))` failed at compile time with `CS0246`, even though the typed `Style.UnityMaterial` property inside the library compiled fine. Fixed by emitting all five types as preprocessor-guarded (`#if UNITY_6000_3_OR_NEWER`) aliases from CSharpEmitter, ModuleEmitter, HookEmitter, HmrCSharpEmitter, HmrHookEmitter and the IDE LSP virtual document.
+
+### HMR component emitter brought back to alias parity with the SG
+
+While investigating the Unity 6.3 bug above I found a long-standing latent parity gap: `HmrCSharpEmitter` only emitted `using Color = UnityEngine.Color;` while the source generator's `CSharpEmitter` emits 12 targeted UIElements aliases (EasingFunction, BackgroundRepeat, Length, StyleKeyword, TextAutoSizeMode, etc.). Any user file referencing those by short name compiled clean on a cold project build but failed on hot-reload with `CS0246`. HMR now emits the full alias block, and a new text-level parity test reads both emitters' source on disk to catch future drift.
+
+### New typed helpers: MaterialDef + Ratio
+
+Authoring `UnityMaterial = MaterialDef(myMat)` and `AspectRatio = Ratio(16f / 9f)` now work directly. Mirrors the existing `FontDef` and `Filter*` precedents. The untyped `PropsApplier.unityMaterial` setter also accepts a bare `Material` (matches `aspectRatio`'s multi-shape precedent).
+
+Additive release. No API removals; existing verbose forms continue to compile.
+
+VS Code 1.2.10 / VS 2022 1.2.10 ship alongside (LSP virtual document fix).
+
+## [0.5.18] - 2026-05-15
 
 ### HMR - critical follow-up to 0.5.17 (UNITY_EDITOR define)
 

@@ -200,6 +200,15 @@ namespace ReactiveUITK.Language.Roslyn
             "using Length = UnityEngine.UIElements.Length;",
             "using StyleKeyword = UnityEngine.UIElements.StyleKeyword;",
             "using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;",
+            // Unity 6.3+ types — guarded so the virtual document parses cleanly under both
+            // 6.2- and 6.3+ targets (the LSP simply forwards the directives to Roslyn).
+            "#if UNITY_6000_3_OR_NEWER",
+            "using FilterFunction = UnityEngine.UIElements.FilterFunction;",
+            "using Ratio = UnityEngine.UIElements.Ratio;",
+            "using StyleRatio = UnityEngine.UIElements.StyleRatio;",
+            "using MaterialDefinition = UnityEngine.UIElements.MaterialDefinition;",
+            "using StyleMaterialDefinition = UnityEngine.UIElements.StyleMaterialDefinition;",
+            "#endif",
         };
 
         // ── Public API ────────────────────────────────────────────────────────

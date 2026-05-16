@@ -169,6 +169,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using Length = UnityEngine.UIElements.Length;");
             L("using StyleKeyword = UnityEngine.UIElements.StyleKeyword;");
             L("using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;");
+            // Unity 6.3+ types referenced via Style.UnityMaterial, Style.AspectRatio,
+            // Style.Filter and the corresponding CssHelpers (MaterialDef, Ratio, Filter*).
+            // Emitted as preprocessor-guarded strings so pre-6.3 builds still compile clean.
+            L("#if UNITY_6000_3_OR_NEWER");
+            L("using FilterFunction = UnityEngine.UIElements.FilterFunction;");
+            L("using Ratio = UnityEngine.UIElements.Ratio;");
+            L("using StyleRatio = UnityEngine.UIElements.StyleRatio;");
+            L("using MaterialDefinition = UnityEngine.UIElements.MaterialDefinition;");
+            L("using StyleMaterialDefinition = UnityEngine.UIElements.StyleMaterialDefinition;");
+            L("#endif");
             L("");
 
             // ── Namespace + class ────────────────────────────────────────────
