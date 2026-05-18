@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-18",
+      "versions": {
+        "vscode": "1.2.11",
+        "vs2022": "1.2.11"
+      },
+      "shared": [
+        "LSP workspace index now stores every declarant of a duplicated `component <Name>` instead of silently overwriting on the second commit. `WorkspaceIndex._elementInfo` becomes multi-valued; `TryGetElementInfo` keeps its deterministic-first-match contract for existing callers, and new `GetAllElementInfo` / `GetDuplicateDeclarations` accessors expose the full set for diagnostics and rename. `EvictElementsFromFile` now removes only the per-file entry so editing one duplicate no longer evicts the entire name globally. `DiagnosticsPublisher` raises `UITKX0113` (Warning) against each duplicate's `component <Name>` line, asmdef-scoped (cross-asmdef collisions are legal), suppressed until the workspace scan completes to avoid transient false positives during indexing.\n\nNew analyzer `UITKX0211` (Warning) in the language-lib `DiagnosticsAnalyzer` flags `const` fields inside a `module { }` body. Const values inline into every consumer's IL at compile time and never propagate under HMR; recommends `static readonly` (which the SG strips of `readonly` and the HMR static-swapper refreshes on every edit-save cycle). Six new tests in the SG suite pin the warning shape (`public const`, severity, no-fire on `static readonly`, no-fire on commented const, per-decl on multi-decl). Ships in lockstep with library 0.5.20 which lands the HMR save-cascade walker (one save propagates through every transitive consumer in the same asmdef), the per-SCC union-compile path (closes TD22B - cross-component prop-signature refactors no longer need a second save), and new-`.cs` pickup so helper `.cs` files referenced from a `.uitkx` are visible to HMR before Unity has recompiled the project DLL. LSP suite 69/69 passing (+6 `WorkspaceIndexDuplicateTests`); SG suite 1237/1237 passing."
+      ]
+    },
+    {
       "date": "2026-05-16",
       "versions": {
         "vscode": "1.2.10",

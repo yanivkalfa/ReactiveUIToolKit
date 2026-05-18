@@ -301,6 +301,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                     }
                 }
 
+                // ── Rank 2: pick up new .cs files anywhere in the asmdef ─────
+                // When the user adds a fresh helper .cs (not in the same folder
+                // as the .uitkx) and references it before Unity recompiles, the
+                // helper is invisible to HMR by default. NewCsFileDiscovery
+                // scans the asmdef for .cs files newer than the project DLL's
+                // mtime whose primary type-name is not yet in AppDomain, and
+                // adds them as additional source trees. Type-name dedupe avoids
+                // CS0101 against the project DLL.
+                TryIncludeNewAsmdefCsFiles(uitkxPath, companionCsFiles, sources);
+
                 var asm = CompileSources(sources.ToArray(), componentName, out string compileError);
                 stepSw.Stop();
                 result.CompileMs = stepSw.Elapsed.TotalMilliseconds;
@@ -335,6 +345,508 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             return result;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  RANK 5 — Per-SCC union compile
+        //
+        //  CompileBatch emits N component files into a SINGLE Roslyn
+        //  compilation. The resulting assembly carries the new shape of every
+        //  type in the batch, so when the parent's render is swapped to its
+        //  union-DLL delegate the new ChildProps shape resolves to a SINGLE
+        //  authoritative type within the union assembly — closing failure mode
+        //  #22B (cascading prop signatures across parent+child saves).
+        //
+        //  Type identity is preserved at the IProps interface boundary
+        //  (UitkxHmrComponentTrampolineSwapper binds via Func<IProps,...,...>),
+        //  so the project-DLL Child trampoline and the union-DLL Child
+        //  trampoline both produce VirtualNodes carrying IProps that the
+        //  matching peer renders unbox via cast.
+        //
+        //  Guards (per §5.2.1 of TECH_DEBT_20_21_22_RESOLUTION_PLAN.md):
+        //    • Pre-compile: every component in the batch must have a unique
+        //      (Namespace, ComponentName) tuple. Conflict → fall back per-file.
+        //    • Post-compile: every batch component's expected type FQN must
+        //      load from the union assembly. Mismatch → fall back per-file.
+        //  On either guard failure the controller is expected to invoke the
+        //  per-file path so the user still sees the (real) compile error.
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Per-file build artifacts collected by <see cref="BuildComponentArtifacts"/>.
+        /// Shared between single-file Compile and batched CompileBatch flows so
+        /// the parse/lower/emit pipeline is implemented once.
+        /// </summary>
+        private sealed class ComponentBuildArtifacts
+        {
+            public string UitkxPath;
+            public string ComponentName;
+            public string Namespace;
+            public string FullyQualifiedName;
+            public string EmittedComponentSource;
+            public List<string> CompanionUitkxSources = new();
+            public List<string> CompanionCsSources = new();
+            public List<string> HookContainerFqns = new();
+            public HashSet<string> CompanionUitkxPathsConsumed =
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            public double ParseMs;
+            public double EmitMs;
+            public string Error;
+        }
+
+        /// <summary>
+        /// Parse + lower + emit a single component .uitkx file into a build
+        /// artifact bundle. Mirrors the per-file emit work that <see cref="Compile"/>
+        /// inlines, factored out so the union-compile path can reuse it.
+        /// Returns null on parse failure with <c>error</c> populated.
+        ///
+        /// Hook/module-only files (no <c>component</c> keyword) are out of scope
+        /// — callers must route them through <see cref="CompileHookModuleFile"/>.
+        /// </summary>
+        private ComponentBuildArtifacts BuildComponentArtifacts(
+            string uitkxPath, string[] companionCsFiles, out string error)
+        {
+            error = null;
+            var artifacts = new ComponentBuildArtifacts { UitkxPath = uitkxPath };
+
+            try
+            {
+                string source = File.ReadAllText(uitkxPath);
+                var stepSw = Stopwatch.StartNew();
+
+                var diagList = CreateDiagnosticList();
+                var directives = InvokeWithDefaults(
+                    _directiveParse, null, source, uitkxPath, diagList, true);
+                if (directives == null)
+                {
+                    error = "DirectiveParser returned null";
+                    return null;
+                }
+
+                string componentName = (string)GetProp(directives, "ComponentName");
+                string ns = (string)GetProp(directives, "Namespace");
+
+                if (string.IsNullOrEmpty(componentName))
+                {
+                    // Hook/module-only file — caller routes these separately.
+                    error = "Hook/module file not eligible for union compile";
+                    return null;
+                }
+
+                artifacts.ComponentName = componentName;
+                artifacts.Namespace = ns ?? string.Empty;
+                artifacts.FullyQualifiedName = string.IsNullOrEmpty(ns)
+                    ? componentName
+                    : ns + "." + componentName;
+
+                var astNodes = InvokeWithDefaults(
+                    _uitkxParse, null,
+                    source, uitkxPath, directives, diagList, false, 0);
+                stepSw.Stop();
+                artifacts.ParseMs = stepSw.Elapsed.TotalMilliseconds;
+
+                stepSw = Stopwatch.StartNew();
+                var lowered = InvokeWithDefaults(
+                    _canonicalLower, null,
+                    directives, astNodes, uitkxPath);
+
+                // Build the parse delegates that the emitter needs for JSX
+                // splice handling. Identical to the per-file path; the
+                // delegates are pure functions over text + the language-lib
+                // reflection handles, so sharing them across batch members is
+                // safe (no per-file state inside).
+                HmrCSharpEmitter.MarkupParseFunc parseMarkup = (jsxText, path, startLine) =>
+                {
+                    string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
+                    var miniDiags = CreateDiagnosticList();
+                    var miniDir = InvokeWithDefaults(
+                        _directiveParse, null, synthetic, path, miniDiags, false);
+                    var nodes = InvokeWithDefaults(
+                        _uitkxParse, null, synthetic, path, miniDir, miniDiags, false, 0);
+                    return GetItems(nodes);
+                };
+                HmrCSharpEmitter.FindJsxRangesFunc findJsxBlockRanges =
+                    _findJsxBlockRanges == null
+                        ? null
+                        : (src, s, e) => (System.Collections.IEnumerable)
+                            _findJsxBlockRanges.Invoke(null, new object[] { src, s, e });
+                HmrCSharpEmitter.FindJsxRangesFunc findBareJsxRanges =
+                    _findBareJsxRanges == null
+                        ? null
+                        : (src, s, e) => (System.Collections.IEnumerable)
+                            _findBareJsxRanges.Invoke(null, new object[] { src, s, e });
+                HmrCSharpEmitter.FindLhsStartFunc findLhsStartForLogicalAnd =
+                    _findLhsStartForLogicalAnd == null
+                        ? null
+                        : (src, ss, ae) => (int)
+                            _findLhsStartForLogicalAnd.Invoke(null, new object[] { src, ss, ae });
+
+                string csharp = HmrCSharpEmitter.Emit(
+                    directives, lowered, uitkxPath,
+                    parseMarkup, findJsxBlockRanges, findBareJsxRanges,
+                    findLhsStartForLogicalAnd);
+
+                // Companion .uitkx pickup. EmitCompanionUitkxSources writes
+                // into the (sources, fqns) lists; we tee into our per-file
+                // bundle and remember which companion paths we consumed so
+                // the batch can dedupe shared style/hook files across members.
+                var companionInline = new List<string>();
+                EmitCompanionUitkxSources(
+                    uitkxPath, componentName, ns, companionInline, artifacts.HookContainerFqns);
+
+                // Track which companion paths were inlined. The companion file
+                // discovery is path-based (same dir, prefix match) so the same
+                // path appears once per parent component file. Across-batch
+                // dedupe happens in CompileBatch.
+                var compDir = Path.GetDirectoryName(uitkxPath);
+                if (compDir != null)
+                {
+                    string prefix = componentName + ".";
+                    foreach (var file in Directory.GetFiles(compDir, prefix + "*.uitkx"))
+                    {
+                        if (!string.Equals(file, uitkxPath, StringComparison.OrdinalIgnoreCase))
+                            artifacts.CompanionUitkxPathsConsumed.Add(Path.GetFullPath(file));
+                    }
+                }
+                artifacts.CompanionUitkxSources = companionInline;
+
+                // Inject the same `using static` lines that the per-file path
+                // prepends, but as a separate header source so we can leave
+                // the main C# string untouched. Empty when no peer hooks.
+                if (artifacts.HookContainerFqns.Count > 0)
+                {
+                    var usingLines = new System.Text.StringBuilder();
+                    foreach (var fqn in artifacts.HookContainerFqns)
+                        usingLines.AppendLine($"using static {fqn};");
+                    csharp = usingLines.ToString() + csharp;
+                }
+
+                artifacts.EmittedComponentSource = csharp;
+
+                if (companionCsFiles != null)
+                {
+                    foreach (var csFile in companionCsFiles)
+                    {
+                        if (File.Exists(csFile))
+                            artifacts.CompanionCsSources.Add(File.ReadAllText(csFile));
+                    }
+                }
+
+                stepSw.Stop();
+                artifacts.EmitMs = stepSw.Elapsed.TotalMilliseconds;
+                return artifacts;
+            }
+            catch (Exception ex)
+            {
+                error = ex is TargetInvocationException tie
+                    ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}"
+                    : $"{ex.GetType().Name}: {ex.Message}";
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Public entry point for the union compile. Caller is expected to
+        /// provide already-resolved component .uitkx files (companion / hook
+        /// files routed individually). When the batch is empty or contains a
+        /// single eligible file, falls through to <see cref="Compile"/> to
+        /// preserve the well-tested single-file path.
+        ///
+        /// Failure semantics: on guard or compile failure the returned result
+        /// has <see cref="HmrBatchCompileResult.OverallSuccess"/> = false and
+        /// <see cref="HmrBatchCompileResult.FallbackReason"/> populated. The
+        /// controller MUST then invoke <see cref="Compile"/> per file so the
+        /// user-facing error surface (CS0117 etc.) is not swallowed by the
+        /// union path. See §5.2.1 of TECH_DEBT_20_21_22_RESOLUTION_PLAN.md.
+        /// </summary>
+        public HmrBatchCompileResult CompileBatch(
+            IReadOnlyList<string> uitkxPaths,
+            IReadOnlyDictionary<string, string[]> companionCsByPath = null)
+        {
+            var result = new HmrBatchCompileResult
+            {
+                BatchSize = uitkxPaths?.Count ?? 0,
+            };
+
+            if (uitkxPaths == null || uitkxPaths.Count == 0)
+            {
+                result.OverallError = "Empty batch";
+                return result;
+            }
+
+            // Single-file batch → reuse the existing well-tested path. No
+            // union compile is needed; caller still gets a HmrBatchCompileResult
+            // back with one PerFileResults entry so the controller's swap loop
+            // works uniformly.
+            if (uitkxPaths.Count == 1)
+            {
+                string only = uitkxPaths[0];
+                string[] companions = companionCsByPath != null
+                    && companionCsByPath.TryGetValue(only, out var c)
+                        ? c : null;
+                var single = Compile(only, companions);
+                result.PerFileResults.Add(single);
+                result.OverallSuccess = single.Success;
+                result.OverallError = single.Error;
+                result.UnionAssembly = single.LoadedAssembly;
+                result.TotalMs = single.TotalMs;
+                return result;
+            }
+
+            var sw = Stopwatch.StartNew();
+
+            try
+            {
+                // ── 1. Per-file build (parse + lower + emit) ───────────────
+                var artifactsByPath = new Dictionary<string, ComponentBuildArtifacts>(
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var path in uitkxPaths)
+                {
+                    var art = BuildComponentArtifacts(
+                        path,
+                        companionCsByPath != null
+                            && companionCsByPath.TryGetValue(path, out var c) ? c : null,
+                        out string artErr);
+                    if (art == null)
+                    {
+                        // One file can't be union-compiled (parse error or
+                        // hook/module-only). Bail to per-file. Don't try to
+                        // partially batch — the cascade semantics expect all
+                        // files to participate.
+                        result.FallbackReason =
+                            $"BuildComponentArtifacts failed for {Path.GetFileName(path)}: {artErr}";
+                        result.OverallError = result.FallbackReason;
+                        return result;
+                    }
+                    artifactsByPath[path] = art;
+                }
+
+                // ── 2. Pre-compile guard: unique (Namespace, ComponentName) ──
+                string guardError = ValidateBatchUniqueness(artifactsByPath.Values);
+                if (guardError != null)
+                {
+                    result.FallbackReason =
+                        $"Pre-compile guard failed: {guardError}";
+                    result.OverallError = result.FallbackReason;
+                    return result;
+                }
+
+                // ── 3. Aggregate sources (with companion dedupe) ───────────
+                var allSources = new List<string>();
+                var consumedCompanionPaths =
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var consumedCompanionCsTexts =
+                    new HashSet<string>(StringComparer.Ordinal);
+
+                foreach (var art in artifactsByPath.Values)
+                {
+                    allSources.Add(art.EmittedComponentSource);
+
+                    // Dedupe shared companion .uitkx emissions (e.g. a
+                    // shared theme module across two components in the
+                    // batch). We track BY PATH on the parent companion
+                    // file rather than by emitted text because the emit
+                    // is path-bound (file headers, line directives).
+                    if (art.CompanionUitkxSources.Count > 0
+                        && art.CompanionUitkxPathsConsumed.Count > 0)
+                    {
+                        var newOnes = new List<string>(art.CompanionUitkxSources.Count);
+                        int idx = 0;
+                        foreach (var compPath in art.CompanionUitkxPathsConsumed)
+                        {
+                            if (idx >= art.CompanionUitkxSources.Count) break;
+                            if (consumedCompanionPaths.Add(compPath))
+                                newOnes.Add(art.CompanionUitkxSources[idx]);
+                            idx++;
+                        }
+                        // Defensive fallback: if the path/source order
+                        // assumption above is off, fall back to text dedupe.
+                        if (newOnes.Count == 0 && art.CompanionUitkxPathsConsumed.Count
+                            < art.CompanionUitkxSources.Count)
+                        {
+                            foreach (var s in art.CompanionUitkxSources)
+                                if (consumedCompanionCsTexts.Add(s))
+                                    allSources.Add(s);
+                        }
+                        else
+                        {
+                            allSources.AddRange(newOnes);
+                        }
+                    }
+
+                    // Companion .cs sources — dedupe by raw text (file path
+                    // isn't tracked through to here, but identical companion
+                    // files would produce identical reads anyway).
+                    foreach (var cs in art.CompanionCsSources)
+                        if (consumedCompanionCsTexts.Add(cs))
+                            allSources.Add(cs);
+                }
+
+                // ── 4. Rank 2 — new asmdef .cs pickup (once per batch) ────
+                // The batch is asmdef-scoped by construction (controller
+                // cascades within an asmdef). Run NewCsFileDiscovery once
+                // against the first member's asmdef and add the union of new
+                // .cs files. Same best-effort wrapping as single-file path.
+                TryIncludeNewAsmdefCsFiles(
+                    uitkxPaths[0],
+                    /* alreadyIncluded */ null,
+                    allSources);
+
+                // ── 5. Roslyn compile ──────────────────────────────────────
+                // Use a deterministic batch key derived from the LAST file in
+                // the batch (which is the "root" save per the cascade walker's
+                // dependents-first / root-last ordering).
+                string rootBase = Path.GetFileNameWithoutExtension(
+                    uitkxPaths[uitkxPaths.Count - 1]);
+                string batchKey = $"batch_{rootBase}_{uitkxPaths.Count}";
+
+                // Invalidate cached compilations for every batch member —
+                // the next per-file compile must rebuild from scratch since
+                // the cached SyntaxTrees belong to a different compile shape.
+                foreach (var art in artifactsByPath.Values)
+                {
+                    _cachedCompilations.Remove(art.ComponentName);
+                    _cachedSyntaxTrees.Remove(art.ComponentName);
+                }
+
+                var compileSw = Stopwatch.StartNew();
+                var asm = CompileSources(
+                    allSources.ToArray(), batchKey, out string compileError);
+                compileSw.Stop();
+                double compileMs = compileSw.Elapsed.TotalMilliseconds;
+
+                if (asm == null)
+                {
+                    result.OverallError =
+                        $"[HMR] Union compile failed ({uitkxPaths.Count} files): {compileError}";
+                    result.FallbackReason =
+                        "Roslyn errors in union compile — falling back to per-file";
+                    return result;
+                }
+
+                // ── 6. Post-compile guard: assembly identity ───────────────
+                string postGuardError =
+                    ValidateBatchAssemblyIdentity(asm, artifactsByPath.Values);
+                if (postGuardError != null)
+                {
+                    result.UnionAssembly = asm;
+                    result.OverallError = postGuardError;
+                    result.FallbackReason =
+                        $"Post-compile assembly-identity guard failed: {postGuardError}";
+                    Debug.LogWarning(
+                        "[HMR] union-compile sanity check failed — falling back. "
+                        + postGuardError);
+                    return result;
+                }
+
+                // ── 7. Build per-file results ──────────────────────────────
+                foreach (var path in uitkxPaths)
+                {
+                    var art = artifactsByPath[path];
+                    var perFile = new HmrCompileResult
+                    {
+                        Success = true,
+                        ComponentName = art.ComponentName,
+                        LoadedAssembly = asm,
+                        ParseMs = art.ParseMs,
+                        EmitMs = art.EmitMs,
+                        CompileMs = compileMs / uitkxPaths.Count,
+                        TotalMs = (sw.ElapsedMilliseconds * 1.0) / uitkxPaths.Count,
+                    };
+                    result.PerFileResults.Add(perFile);
+
+                    // Register the union DLL under every batch component's
+                    // name so future single-file cross-refs see it.
+                    if (_hmrAssemblyPaths.TryGetValue(art.ComponentName, out var oldDll)
+                        && !string.Equals(oldDll, asm.Location, StringComparison.OrdinalIgnoreCase)
+                        && File.Exists(oldDll))
+                    {
+                        try { File.Delete(oldDll); } catch { /* may be locked */ }
+                    }
+                    _hmrAssemblyPaths[art.ComponentName] = asm.Location;
+
+                    if (!_genuinelyNewComponents.Contains(art.ComponentName))
+                        CheckIfGenuinelyNew(art.ComponentName, art.Namespace);
+                }
+
+                result.UnionAssembly = asm;
+                result.OverallSuccess = true;
+
+                Debug.Log(
+                    $"[HMR] union: {uitkxPaths.Count} files, {sw.ElapsedMilliseconds} ms");
+            }
+            catch (Exception ex)
+            {
+                result.OverallError = ex is TargetInvocationException tie
+                    ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}"
+                    : $"{ex.GetType().Name}: {ex.Message}";
+                result.FallbackReason = "Union compile threw — falling back to per-file";
+            }
+            finally
+            {
+                sw.Stop();
+                result.TotalMs = sw.Elapsed.TotalMilliseconds;
+            }
+
+            return result;
+        }
+
+        // ── Rank 5 — pre/post-compile guards ─────────────────────────────────
+
+        /// <summary>
+        /// Pre-compile guard: every component in the batch must own a unique
+        /// (Namespace, ComponentName) tuple. Two components colliding on the
+        /// FQN inside one Roslyn compile would surface as <c>CS0260</c> or
+        /// <c>CS0101</c> at emit time, but bailing here gives the controller a
+        /// clean signal to fall back per-file with a useful diagnostic. Pure
+        /// static method — unit-testable without Roslyn/Unity dependencies.
+        /// </summary>
+        internal static string ValidateBatchUniquenessImpl(
+            IEnumerable<(string Namespace, string ComponentName, string FilePath)> components)
+        {
+            var seen = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (ns, name, path) in components)
+            {
+                string fqn = string.IsNullOrEmpty(ns) ? name : ns + "." + name;
+                if (seen.TryGetValue(fqn, out var firstPath))
+                {
+                    return $"Two batch members emit type '{fqn}': "
+                        + $"'{Path.GetFileName(firstPath)}' and "
+                        + $"'{Path.GetFileName(path)}'. Cannot union-compile.";
+                }
+                seen[fqn] = path;
+            }
+            return null;
+        }
+
+        private static string ValidateBatchUniqueness(
+            IEnumerable<ComponentBuildArtifacts> artifacts)
+        {
+            return ValidateBatchUniquenessImpl(artifacts.Select(
+                a => (a.Namespace, a.ComponentName, a.UitkxPath)));
+        }
+
+        /// <summary>
+        /// Post-compile guard: every batch component's expected type FQN must
+        /// resolve to the union assembly we just loaded. If the type isn't
+        /// found (emit-time culling), or worse — points at a DIFFERENT
+        /// assembly (e.g. project DLL win race), the union swap would bind
+        /// the wrong delegate. Bail and let per-file flow expose the issue.
+        /// </summary>
+        private static string ValidateBatchAssemblyIdentity(
+            Assembly unionAssembly,
+            IEnumerable<ComponentBuildArtifacts> artifacts)
+        {
+            foreach (var art in artifacts)
+            {
+                Type t = unionAssembly.GetType(art.FullyQualifiedName, throwOnError: false);
+                if (t == null)
+                    return $"Type '{art.FullyQualifiedName}' missing from union assembly.";
+                if (t.Assembly != unionAssembly)
+                    return $"Type '{art.FullyQualifiedName}' resolved to "
+                        + $"'{t.Assembly.GetName().Name}' instead of union assembly.";
+            }
+            return null;
         }
 
         /// <summary>
@@ -1775,6 +2287,84 @@ namespace ReactiveUITK.EditorSupport.HMR
                 || ex is ReflectionTypeLoadException
                 || ex is BadImageFormatException;
         }
+
+        // ── Rank 2: new .cs pickup ───────────────────────────────────────────
+
+        // Cache: asmdef name → last-known project DLL mtime. Used to filter
+        // .cs files older than the DLL (already compiled into AppDomain).
+        // Refreshed every Compile call cheaply via File.GetLastWriteTimeUtc.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime>
+            s_asmdefDllMtimeCache = new();
+
+        /// <summary>
+        /// Rank 2 helper: appends fresh asmdef-scoped .cs files (whose primary
+        /// type-name isn't yet in AppDomain) to <paramref name="sources"/>.
+        /// Fully best-effort — any failure swallows quietly and the compile
+        /// proceeds without the extra trees, matching pre-Rank-2 behavior.
+        /// </summary>
+        private void TryIncludeNewAsmdefCsFiles(
+            string uitkxPath, string[] alreadyIncludedCs, List<string> sources)
+        {
+            try
+            {
+                string asmdef = AsmdefResolver.OwningAsmdefName(uitkxPath);
+                if (string.IsNullOrEmpty(asmdef))
+                    return;
+
+                string projectRoot = Path.GetFullPath(
+                    Path.Combine(Application.dataPath, ".."));
+
+                // Resolve the project DLL mtime for this asmdef. If we can't
+                // find it (e.g. first cold compile), use DateTime.MinValue so
+                // every .cs is considered "newer" — type-name dedupe still
+                // prevents CS0101 against any types Unity DID load.
+                DateTime dllMtime = ResolveAsmdefDllMtime(projectRoot, asmdef);
+
+                ICollection<string> already = alreadyIncludedCs ?? Array.Empty<string>();
+                var extra = NewCsFileDiscovery.FindForAsmdef(
+                    asmdef, projectRoot, dllMtime, already);
+
+                foreach (var path in extra)
+                {
+                    try { sources.Add(File.ReadAllText(path)); }
+                    catch { /* per-file IO error — skip silently */ }
+                }
+            }
+            catch
+            {
+                // Never let the discovery pass fail the entire compile.
+            }
+        }
+
+        private static DateTime ResolveAsmdefDllMtime(string projectRoot, string asmdef)
+        {
+            if (s_asmdefDllMtimeCache.TryGetValue(asmdef, out var cached))
+            {
+                // Refresh if the DLL has been updated since we cached.
+                string dllPathCached = Path.Combine(
+                    projectRoot, "Library", "ScriptAssemblies", asmdef + ".dll");
+                try
+                {
+                    var fresh = File.GetLastWriteTimeUtc(dllPathCached);
+                    if (fresh != cached)
+                    {
+                        s_asmdefDllMtimeCache[asmdef] = fresh;
+                        return fresh;
+                    }
+                    return cached;
+                }
+                catch { return cached; }
+            }
+
+            string dllPath = Path.Combine(
+                projectRoot, "Library", "ScriptAssemblies", asmdef + ".dll");
+            DateTime mtime;
+            try { mtime = File.GetLastWriteTimeUtc(dllPath); }
+            catch { mtime = DateTime.MinValue; }
+
+            s_asmdefDllMtimeCache[asmdef] = mtime;
+            return mtime;
+        }
     }
 
     // ── Result ────────────────────────────────────────────────────────────────
@@ -1819,5 +2409,33 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// rebuilding the language library.
         /// </summary>
         public bool IsInfrastructureError;
+    }
+
+    // ── Batch (Rank 5 — per-SCC union) result ────────────────────────────────
+
+    /// <summary>
+    /// Result of a single union-compile call covering N <c>.uitkx</c> files.
+    /// All files in the batch share <see cref="UnionAssembly"/>; per-file
+    /// <see cref="HmrCompileResult"/> entries in <see cref="PerFileResults"/>
+    /// each point at the same loaded assembly but carry per-file component
+    /// metadata so the controller can run the existing swap pipeline once
+    /// per file without re-emitting.
+    ///
+    /// On failure (pre-compile guard tripped, Roslyn errors, or post-compile
+    /// guard tripped) <see cref="OverallSuccess"/> is <c>false</c>,
+    /// <see cref="OverallError"/> carries the user-facing reason, and
+    /// <see cref="FallbackReason"/> tells the controller why per-file compile
+    /// must be used as the safety net (per §5.2.1 of the Tech Debt plan:
+    /// "loud regression preferred over silent wrong-IL").
+    /// </summary>
+    internal sealed class HmrBatchCompileResult
+    {
+        public bool OverallSuccess;
+        public string OverallError;
+        public string FallbackReason;
+        public Assembly UnionAssembly;
+        public List<HmrCompileResult> PerFileResults = new();
+        public double TotalMs;
+        public int BatchSize;
     }
 }

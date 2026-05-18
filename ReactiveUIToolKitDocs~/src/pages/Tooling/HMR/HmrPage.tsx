@@ -202,6 +202,31 @@ export const HmrPage: FC = () => (
         <ListItem disablePadding>
           <ListItemText primary="Cross-component references are managed via an assembly registry." />
         </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>New plain <code>.cs</code> helper files referenced from a <code>.uitkx</code> are picked up too, even before Unity has recompiled the project DLL — HMR adds them as additional Roslyn syntax trees, asmdef-scoped and AppDomain-deduped against types Unity already loaded.</>} />
+        </ListItem>
+      </List>
+    </Section>
+
+    <Section title="Save Cascade">
+      <Typography variant="body1" paragraph>
+        Saving a single <code>.uitkx</code> file now enqueues every transitive consumer in the
+        same asmdef and recompiles them in topological order. The drain runs through
+        <code> EditorApplication.delayCall</code> so the editor stays responsive between compiles.
+      </Typography>
+      <List sx={Styles.list}>
+        <ListItem disablePadding>
+          <ListItemText primary="Editing a child component's body now updates parent renderers without requiring a manual second save." />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Module value edits (e.g. <code>Theme.Accent</code>) propagate through every derived module field (<code>StatsPanel.Container.BorderColor</code>) automatically.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>When a cascade pulls in two or more files within one asmdef, HMR compiles them in a single union assembly so a refactored <code>ChildProps</code> shape resolves to a single authoritative type across parent + child. Falls back to per-file compile on failure so the user-facing error surface (CS0117 / CS0246 / CS0433) is preserved.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Telemetry: <code>[HMR] union: N files, M ms</code> on a successful batch compile.</>} />
+        </ListItem>
       </List>
     </Section>
 

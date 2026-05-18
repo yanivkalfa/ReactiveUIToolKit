@@ -216,6 +216,14 @@ public sealed class DiagnosticsPublisher
         var versionDiags = CheckVersionCompatibility(
             parsedNodes, roslynHost?.DetectedUnityVersion ?? UnityVersion.Unknown);
 
+        // ── UITKX0113 — duplicate `component <Name>` in same asmdef ──────────
+        // The multi-valued WorkspaceIndex (TECH_DEBT_V2 #21 fix, 2026-05-18) keeps
+        // every declarant alive so this analyzer can surface the ambiguity to the
+        // user. Fires only when 2+ declarants share the same asmdef — across
+        // asmdefs the same component name is legal (separate compilation units).
+        var duplicateDiags = ComputeDuplicateComponentDiagnostics(
+            directives, parseResult, localPath, text);
+
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Suppress T1 parser diagnostics that fall inside unreachable regions
@@ -244,7 +252,7 @@ public sealed class DiagnosticsPublisher
             });
         }
 
-        var t1t2 = filteredT1.Concat(t2Diags).Concat(versionDiags).ToList();
+        var t1t2 = filteredT1.Concat(t2Diags).Concat(versionDiags).Concat(duplicateDiags).ToList();
         if (!string.IsNullOrEmpty(localPath))
             _lastT1T2[localPath] = t1t2;
 
@@ -589,6 +597,85 @@ public sealed class DiagnosticsPublisher
         }
     }
 
+    // ── UITKX0113 — duplicate `component <Name>` in same asmdef ────────────
+
+    /// <summary>
+    /// Emits UITKX0113 against the current file's <c>component &lt;Name&gt;</c>
+    /// declaration when another <c>.uitkx</c> in the SAME asmdef declares the
+    /// same name. Fires per-declarant (each duplicate file gets its own
+    /// diagnostic) so the user sees the warning regardless of which file they
+    /// open. Suppressed when the workspace scan hasn't completed (transient
+    /// state). Asmdef-scoped because cross-asmdef name collisions are legal in
+    /// Unity.
+    /// </summary>
+    private List<ParseDiagnostic> ComputeDuplicateComponentDiagnostics(
+        DirectiveSet directives,
+        ParseResult parseResult,
+        string localPath,
+        string text)
+    {
+        var diags = new List<ParseDiagnostic>();
+        if (!_index.HasCompletedInitialScan)
+            return diags;
+
+        string? componentName = directives.ComponentName;
+        if (string.IsNullOrEmpty(componentName) || string.IsNullOrEmpty(localPath))
+            return diags;
+
+        var declarants = _index.GetAllElementInfo(componentName);
+        if (declarants.Count < 2)
+            return diags;
+
+        // Filter to same-asmdef declarants. Cross-asmdef duplicates are legal
+        // (separate compilation units), so we only warn within an asmdef.
+        string ownAsmdef = AsmdefResolver.OwningAsmdefName(localPath);
+        var otherPaths = new List<string>();
+        foreach (var d in declarants)
+        {
+            if (string.Equals(d.FilePath, localPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (string.Equals(
+                AsmdefResolver.OwningAsmdefName(d.FilePath), ownAsmdef, StringComparison.Ordinal))
+            {
+                otherPaths.Add(d.FilePath);
+            }
+        }
+        if (otherPaths.Count == 0)
+            return diags;
+
+        // Locate the declaration line for the squiggle. Pull the FileLine from
+        // the index entry for THIS file (always populated by IndexUitkxFile).
+        int line = 1;
+        foreach (var d in declarants)
+        {
+            if (string.Equals(d.FilePath, localPath, StringComparison.OrdinalIgnoreCase))
+            {
+                line = d.FileLine > 0 ? d.FileLine : 1;
+                break;
+            }
+        }
+
+        string others = otherPaths.Count == 1
+            ? System.IO.Path.GetFileName(otherPaths[0])
+            : $"{otherPaths.Count} other files";
+
+        diags.Add(new ParseDiagnostic
+        {
+            Code = DiagnosticCodes.DuplicateComponent,
+            Severity = ParseSeverity.Warning,
+            Message =
+                $"Component '{componentName}' is declared in {others} within the same asmdef "
+                + $"('{ownAsmdef}'). Duplicate declarations are almost always a copy-paste "
+                + "refactor that forgot to rename. Pick a unique name.",
+            SourceLine = line,
+            SourceColumn = 0,
+            EndLine = line,
+            EndColumn = 9999,
+        });
+
+        return diags;
+    }
+
     // ── Version-compatibility diagnostics ──────────────────────────────────
 
     /// <summary>
@@ -603,7 +690,6 @@ public sealed class DiagnosticsPublisher
         var diags = new List<ParseDiagnostic>();
         if (!userVersion.IsKnown)
             return diags;
-
         foreach (var node in nodes)
             WalkForVersionDiags(node, userVersion, diags);
         return diags;
