@@ -1,6 +1,8 @@
-/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/Analyzers/ReactiveUITK.SourceGenerator.deps.json
-/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/Analyzers/ReactiveUITK.SourceGenerator.dll
-/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/Analyzers/ReactiveUITK.SourceGenerator.pdb
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/bin/Release/ReactiveUITK.SourceGenerator.deps.json
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/bin/Release/ReactiveUITK.SourceGenerator.dll
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/bin/Release/ReactiveUITK.SourceGenerator.pdb
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/bin/Release/ReactiveUITK.Language.dll
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/bin/Release/ReactiveUITK.Language.pdb
 /home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.csproj.AssemblyReference.cache
 /home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.GeneratedMSBuildEditorConfig.editorconfig
 /home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.AssemblyInfoInputs.cache

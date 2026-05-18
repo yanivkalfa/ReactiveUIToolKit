@@ -57,7 +57,26 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // ── State ────────────────────────────────────────────────────────────────
 
     private readonly HashSet<string> _elements = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ElementInfo> _elementInfo = new(StringComparer.Ordinal);
+
+    // ── Multi-valued element index (TECH_DEBT_V2 #21 fix, 2026-05-18) ────────
+    //
+    // The outer key is the element name; the inner map keys by absolute file
+    // path so the same `component <Name>` declared in two .uitkx files lives
+    // as two distinct entries. The previous one-to-one `Dictionary<string,
+    // ElementInfo>` silently overwrote on the second indexed file and then
+    // EvictElementsFromFile would delete the shared name entirely on the
+    // winner's next edit — the exact bug surfaced by the PrettyUi folder
+    // copy+rename refactor (see TECH_DEBT_20_21_22_RESOLUTION_PLAN.md §2).
+    //
+    // The inner map is a SortedDictionary keyed by full path (case-insensitive
+    // ordering) so the deterministic-first-match used by TryGetElementInfo
+    // is stable across process restarts and OS file enumeration order.
+    //
+    // All access goes through the public accessor methods on this class; no
+    // external code touches the dictionary directly (verified by workspace
+    // grep before the shape change — 19 hits, all internal).
+    private readonly Dictionary<string, SortedDictionary<string, ElementInfo>> _elementInfo =
+        new(StringComparer.Ordinal);
 
     // Reverse map: file path -> set of element names currently contributed by
     // that file. Maintained alongside _elementInfo / _elements so that a file
@@ -304,9 +323,9 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         _lock.EnterReadLock();
         try
         {
-            if (!_elementInfo.TryGetValue(elementName, out var info))
+            if (!_elementInfo.TryGetValue(elementName, out var bucket) || bucket.Count == 0)
                 return Array.Empty<PropInfo>();
-            return ResolveProps(info);
+            return ResolveProps(bucket.First().Value);
         }
         finally
         {
@@ -315,31 +334,19 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     /// <summary>Returns the <see cref="ElementInfo"/> for the element, or <c>null</c>.</summary>
+    /// <remarks>
+    /// When multiple files declare the same element name, returns the
+    /// deterministic-first match (sorted by absolute file path). Callers that
+    /// need to enumerate every declarant should call <see cref="GetAllElementInfo"/>.
+    /// </remarks>
     public ElementInfo? TryGetElementInfo(string elementName)
     {
         _lock.EnterReadLock();
         try
         {
-            if (!_elementInfo.TryGetValue(elementName, out var info))
+            if (!_elementInfo.TryGetValue(elementName, out var bucket) || bucket.Count == 0)
                 return null;
-            var resolved = ResolveProps(info);
-            if (resolved == info.Props)
-                return new ElementInfo
-                {
-                    FilePath = info.FilePath,
-                    FileLine = info.FileLine,
-                    Props = resolved,
-                    OwnProps = info.Props,
-                    BaseElement = info.BaseElement,
-                };
-            return new ElementInfo
-            {
-                FilePath = info.FilePath,
-                FileLine = info.FileLine,
-                Props = resolved,
-                OwnProps = info.Props,
-                BaseElement = info.BaseElement,
-            };
+            return BuildResolved(bucket.First().Value);
         }
         finally
         {
@@ -348,16 +355,95 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     /// <summary>
+    /// Returns every <see cref="ElementInfo"/> that contributes to <paramref name="elementName"/>,
+    /// sorted by absolute file path. Used by <see cref="RenameHandler"/> so a rename
+    /// touches every file that declares the same component name, and by
+    /// <see cref="DiagnosticsPublisher"/> so the duplicate-component diagnostic
+    /// (UITKX0113) fires once per declarant.
+    /// </summary>
+    public IReadOnlyList<ElementInfo> GetAllElementInfo(string elementName)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            if (!_elementInfo.TryGetValue(elementName, out var bucket) || bucket.Count == 0)
+                return Array.Empty<ElementInfo>();
+            var result = new List<ElementInfo>(bucket.Count);
+            foreach (var info in bucket.Values)
+                result.Add(BuildResolved(info));
+            return result;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Returns every (name, file path) pair where the same element name is
+    /// declared in more than one file. Pairs are returned only when the count
+    /// for a name exceeds one. Used by <see cref="DiagnosticsPublisher"/> to
+    /// publish UITKX0113 duplicate-component-declaration warnings.
+    /// </summary>
+    public IReadOnlyList<(string Name, IReadOnlyList<string> FilePaths)> GetDuplicateDeclarations()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            var result = new List<(string, IReadOnlyList<string>)>();
+            foreach (var kv in _elementInfo)
+            {
+                if (kv.Value.Count <= 1)
+                    continue;
+                var paths = new List<string>(kv.Value.Count);
+                foreach (var path in kv.Value.Keys)
+                    paths.Add(path);
+                result.Add((kv.Key, paths));
+            }
+            return result;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    // Internal helper: returns a wrapped ElementInfo with Props (resolved
+    // inheritance) and OwnProps (declared-only). Must be called under the
+    // read lock.
+    private ElementInfo BuildResolved(ElementInfo info)
+    {
+        var resolved = ResolveProps(info);
+        return new ElementInfo
+        {
+            FilePath = info.FilePath,
+            FileLine = info.FileLine,
+            Props = resolved,
+            OwnProps = info.Props,
+            BaseElement = info.BaseElement,
+        };
+    }
+
+    /// <summary>
     /// Returns all props for the element, including those inherited from base *Props classes.
     /// Must be called under the read lock.
     /// </summary>
     private List<PropInfo> ResolveProps(ElementInfo info, int depth = 0)
     {
+        ElementInfo? baseInfo = null;
         if (
-            depth > 5
-            || info.BaseElement is null
-            || !_elementInfo.TryGetValue(info.BaseElement, out var baseInfo)
+            depth <= 5
+            && info.BaseElement is not null
+            && _elementInfo.TryGetValue(info.BaseElement, out var baseBucket)
+            && baseBucket.Count > 0
         )
+        {
+            // Deterministic-first base pick when the base name is itself
+            // multi-valued. The same selection rule as TryGetElementInfo.
+            baseInfo = baseBucket.First().Value;
+        }
+
+        if (baseInfo is null)
             return info.Props;
 
         var baseProps = ResolveProps(baseInfo, depth + 1);
@@ -702,7 +788,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         try
         {
             _elements.Add(elementName);
-            _elementInfo[elementName] = info;
+
+            // Multi-valued shape: get-or-create the per-name bucket, then
+            // assign the per-file slot. The same file re-indexing itself
+            // overwrites its own slot; a SECOND file declaring the same name
+            // gets a separate slot under its own path key.
+            if (!_elementInfo.TryGetValue(elementName, out var bucket))
+            {
+                bucket = new SortedDictionary<string, ElementInfo>(
+                    StringComparer.OrdinalIgnoreCase);
+                _elementInfo[elementName] = bucket;
+            }
+            bucket[filePath] = info;
 
             if (!_elementsByFile.TryGetValue(filePath, out var names))
             {
@@ -736,11 +833,16 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
             foreach (var name in names)
             {
-                if (_elementInfo.TryGetValue(name, out var existing) &&
-                    string.Equals(
-                        existing.FilePath,
-                        filePath,
-                        StringComparison.OrdinalIgnoreCase))
+                if (!_elementInfo.TryGetValue(name, out var bucket))
+                    continue;
+
+                // Multi-valued shape: drop only THIS file's slot. The name
+                // survives in the global element set when other files still
+                // declare it. This is the core of the TECH_DEBT #21 fix —
+                // the old single-valued code deleted the name entirely on
+                // the first evict, kicking the still-on-disk declarant out
+                // of completion/hover for no reason.
+                if (bucket.Remove(filePath) && bucket.Count == 0)
                 {
                     _elementInfo.Remove(name);
                     _elements.Remove(name);
