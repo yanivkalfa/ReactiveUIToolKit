@@ -30,6 +30,23 @@ jobs:
       - name: Test
         run: dotnet test SourceGenerator~/Tests/ReactiveUITK.SourceGenerator.Tests.csproj -c Release --no-build --logger "trx;LogFileName=results.trx"
 
+      # Soft check: rebuild the generator on its own and compare the resulting
+      # IL against what's committed under Analyzers/.  A drift here is not fatal
+      # — publish.yml rebuilds fresh on release — but it surfaces "forgot to
+      # commit a rebuilt generator" during PR review.
+      - name: Check committed Analyzers/*.dll is up to date (advisory)
+        if: always()
+        continue-on-error: true
+        run: |
+          set -e
+          dotnet build SourceGenerator~/ReactiveUITK.SourceGenerator.csproj -c Release --no-restore
+          if ! cmp -s SourceGenerator~/bin/Release/ReactiveUITK.SourceGenerator.dll Analyzers/ReactiveUITK.SourceGenerator.dll; then
+            echo "::warning::Analyzers/ReactiveUITK.SourceGenerator.dll differs from a fresh Release build. publish.yml will overwrite on release, but committing the rebuilt DLL keeps the main branch consistent for direct UPM consumers."
+          fi
+          if ! cmp -s SourceGenerator~/bin/Release/ReactiveUITK.Language.dll Analyzers/ReactiveUITK.Language.dll; then
+            echo "::warning::Analyzers/ReactiveUITK.Language.dll differs from a fresh Release build."
+          fi
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

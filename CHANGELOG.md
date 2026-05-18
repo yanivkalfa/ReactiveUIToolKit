@@ -6,6 +6,129 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.20] - 2026-05-18
+
+### Added
+
+- **LSP: multi-valued component index (Tech Debt #21, Rank 1).** The
+  workspace element index (`WorkspaceIndex._elementInfo`) now stores
+  every declarant of a duplicated `component <Name>` instead of
+  silently overwriting on the second commit. Existing single-result
+  callers continue to use `TryGetElementInfo` (deterministic first
+  match); new `GetAllElementInfo` / `GetDuplicateDeclarations` accessors
+  expose the full set for diagnostics and rename. `EvictElementsFromFile`
+  now removes only the per-file entry, so editing one duplicate no
+  longer evicts the entire name globally.
+
+- **`UITKX0113` — duplicate component declaration in same asmdef.** Warning
+  fired by `DiagnosticsPublisher` against each duplicate's
+  `component <Name>` line. Asmdef-scoped (cross-asmdef collisions are
+  legal). Suppressed until the workspace scan completes to avoid
+  transient false positives during indexing.
+
+- **`UITKX0211` — `const` inside `module { }` body.** Warning fired by
+  the language-lib `DiagnosticsAnalyzer`. Const fields are inlined into
+  every consumer's IL at compile time and never propagate under HMR.
+  Recommends `static readonly` (which the SG strips and the HMR
+  static-swapper refreshes on every edit-save cycle).
+
+- **HMR: workspace-wide dependency index (`UitkxFileDependencyIndex`).**
+  New asmdef-aware reverse-edge graph of `.uitkx` modules and JSX
+  component consumers. Same async-seed / per-file-invalidate lifecycle
+  as `HookContainerRegistry`. Used by the cascade walker (below) to
+  enqueue every transitive dependent of a saved file in topological
+  order, in the same asmdef.
+
+- **HMR: real FIFO compile queue + cascade walker (Tech Debt #20, Ranks 3 + 4).**
+  Replaces the prior single-slot `_compilationQueued` / `_queuedPath`
+  fields (which were effectively dead code — `_compilationQueued` was
+  never set to `true`, so concurrent saves were dropped). Saving a
+  `.uitkx` now enqueues the file plus every transitive module-consumer
+  and JSX-consumer in the same asmdef. The queue drains via
+  `EditorApplication.delayCall` so the editor stays responsive between
+  compiles. Body-only edits to a child component now propagate to
+  parent renderers without a manual second save. Module value edits
+  (e.g. `Theme.Accent`) propagate through derived module fields
+  (`StatsPanel.Container.BorderColor`) automatically.
+
+- **HMR: new-`.cs` pickup (`NewCsFileDiscovery`, Tech Debt #22A, Rank 2).**
+  When a new helper `.cs` file is referenced from a `.uitkx` before
+  Unity has recompiled the project DLL, HMR now finds and includes
+  the new file as an additional Roslyn syntax tree. Asmdef-scoped,
+  mtime-gated against `Library/ScriptAssemblies/<asmdef>.dll`, and
+  AppDomain type-name deduped to prevent CS0101 against types already
+  loaded.
+
+- **HMR: per-SCC union compile (Tech Debt #22B, Rank 5).** When a save
+  cascade pulls in 2+ files within one asmdef, the controller now
+  drains the whole queue into a single Roslyn compile via the new
+  `UitkxHmrCompiler.CompileBatch` entry point. The resulting union
+  assembly carries the new shape of every type in the batch, so when
+  a parent's render delegate is swapped to its union-DLL version, the
+  new `ChildProps` shape resolves to a SINGLE authoritative type across
+  parent + child within the same assembly — closing failure mode #22B
+  (cascading prop signatures across parent+child saves). Type identity
+  is preserved across the HMR boundary via the `IProps` interface,
+  matching the existing trampoline contract. Two guards fence the
+  union path: a pre-compile `(Namespace, ComponentName)` uniqueness
+  check, and a post-compile assembly-identity check confirming every
+  batch FQN resolves to the union assembly. On guard or compile
+  failure the controller falls back to per-file `Compile` so the
+  user-facing error surface (CS0117 / CS0246 / CS0433) is preserved
+  ("loud regression over silent wrong-IL", §5.2.1 of the resolution
+  plan). Telemetry: `[HMR] union: N files, M ms` on success.
+
+### Tests
+
+- **`WorkspaceIndexDuplicateTests`** (xUnit, `ide-extensions~/lsp-server/Tests/`).
+  Six tests pin the multi-valued `WorkspaceIndex` contract against the
+  live `Refresh` API with real temp files: two-file duplicate visibility
+  via `GetAllElementInfo`, `GetDuplicateDeclarations` reports conflicts,
+  single-delete preserves survivor (Wave-1 latent-build regression guard
+  for the `EvictElementsFromFile` shape fix), rename-one preserves the
+  other declarant's original name, sole-declarant delete clears the
+  name entirely, and non-duplicate is omitted from `GetDuplicateDeclarations`.
+
+- **UITKX0211 analyzer tests** (xUnit, `SourceGenerator~/Tests/DiagnosticsAnalyzerTests.cs`).
+  Five tests cover the const-in-module warning: fires for `public const`,
+  severity is `Warning`, NOT fired for `static readonly`, NOT fired for
+  a line-commented const (regex line-awareness), fires per-decl for
+  multiple consts in one module body.
+
+### Changed
+
+- **SourceGenerator csproj output split.** The generator now writes its
+  build output to `SourceGenerator~/bin/<Configuration>/` and a new
+  `PublishGeneratorToAnalyzers` MSBuild target copies the result into
+  `Analyzers/` afterwards. Previously `<OutputPath>` pointed directly
+  at `Analyzers/`, which collided with Unity Editor's exclusive file
+  lock on the live `RoslynAnalyzer` DLL — local `dotnet build` would
+  fail with `MSB3027` while Unity was running, the test project
+  consumed a stale `TestIso` copy of the DLL, and recent generator
+  changes silently failed to land in tests. The new publish target is
+  `WarnAndContinue` in Debug (Unity-lock collisions are advisory) and
+  `ErrorAndStop` in Release (the publish.yml path, where any failure
+  is a real runner problem). Retries 3× at 200ms cover transient
+  antivirus / indexer locks. Zero CI behaviour change — `publish.yml`
+  already rebuilds the generator fresh before pushing to the dist
+  branch, so shipped DLLs remain authoritative.
+
+- **`.github/workflows/test.yml` advisory drift check.** New step
+  rebuilds the generator and `cmp`s the result against
+  `Analyzers/ReactiveUITK.SourceGenerator.dll` /
+  `ReactiveUITK.Language.dll`. Drift produces a GitHub `::warning::`
+  annotation (never fails the job) so PR reviewers can spot
+  "forgot to commit a rebuilt generator" without changing release
+  semantics.
+
+### Notes
+
+- Tech Debt #22B (cross-`.uitkx` prop-signature cascade, Rank 5 in
+  `Plans~/TECH_DEBT_20_21_22_RESOLUTION_PLAN.md`) is now shipped in
+  this release via the per-SCC union compile path described above.
+  Prop-signature refactors across parent + child no longer require a
+  manual second save or Stop/Restart of HMR.
+
 ## [0.5.19] - 2026-05-15
 
 ### Fixed

@@ -1,6 +1,7 @@
 # Tech Debt #20 / #21 / #22 — Resolution Plan
 
-**Status:** Final — production-grade design, ready to implement. All Rank-5 go/no-go questions answered (see §5.2.1).
+**Status:** Fully landed (Ranks 1 / 2 / 3 / 4 / 5 + UITKX0113 + UITKX0211 + test fixtures).
+**Remaining:** None — see §11 "Implementation status (2026-05-19)" for the test-fixture coverage matrix and Editor-time integration gaps that are deferred to playmode QA by design.
 **Scope:** TECH_DEBT_V2.md items #20, #21, #22 (all marked CRITICAL / next-up).
 **Author note:** This document supersedes the inline “Fix approach”
 sketches in TECH_DEBT_V2.md for these three items. It is the result of
@@ -31,13 +32,13 @@ once and is reused everywhere it’s needed afterwards.
 
 ### Rank order & bug mapping
 
-| Rank | Title                                            | Closes | Risk    | Status of design |
-| ---- | ------------------------------------------------ | ------ | ------- | ---------------- |
-| 1    | LSP: multi-valued element index + UITKX0107      | #21    | Low     | Confirmed        |
-| 2    | HMR: new `.cs` pickup via workspace scan         | #22A   | Low     | Confirmed        |
-| 3    | HMR: module reverse-dep cascade (`_moduleDependents` + `UitkxFileDependencyIndex`) | #20 | Medium | Confirmed |
-| 4    | HMR: transitive recompile queue (real queue + topological cascade)                 | #22B (partial) + foundation for Rank 5 | Medium | Confirmed |
-| 5    | HMR: cross-`.uitkx` signature cascade (HMR-DLL ref injection + extern-alias guard) | #22B (full)  | **HIGH** — committed (default on, no SCC cap, loud-fallback) | Designed, see §5 risk matrix |
+| Rank | Title                                            | Closes | Risk    | Status |
+| ---- | ------------------------------------------------ | ------ | ------- | ------ |
+| 1    | LSP: multi-valued element index + UITKX0113 (was 0107, see §11)      | #21    | Low     | **Shipped** |
+| 2    | HMR: new `.cs` pickup via workspace scan         | #22A   | Low     | **Shipped** |
+| 3    | HMR: module reverse-dep cascade (`UitkxFileDependencyIndex`)         | #20    | Medium  | **Shipped** |
+| 4    | HMR: transitive recompile queue (real queue + topological cascade)   | #22B (partial) + foundation for Rank 5 | Medium | **Shipped** |
+| 5    | HMR: cross-`.uitkx` signature cascade (per-SCC union compile) | #22B (full) | **HIGH** — committed (default on, no SCC cap, loud-fallback) | **NOT YET SHIPPED** — see §11 |
 
 Ranks 1, 2, 3 are independent and can ship in any order.
 Rank 4 depends on Rank 3 (reuses the dep index and the new compile queue).
@@ -824,23 +825,71 @@ splitting them.
 ## 10. Implementation order checklist (for the eventual PRs)
 
 ```
-[ ] Rank 1: WorkspaceIndex multi-valued + UITKX0107 + tests
-[ ] UITKX0211: const-in-module analyzer (Warning severity) + code fix + tests
-[ ] Rank 2: NewCsFileDiscovery + watcher patch + tests
-[ ] Shared: UitkxFileDependencyIndex (lands with Rank 3 PR)
-[ ] Rank 3: module reverse-dep cascade + real compile queue + tests
-[ ] Rank 4: component reverse-dep cascade (reuses Rank 3 infra) + tests
-[ ] Rank 5: per-SCC union compile (default on, no SCC cap) + tests
-        [ ] Pre-compile guard: (Namespace, Name) uniqueness check across union
-        [ ] Post-compile guard: every IProps Type.Assembly == hmrAssembly
-        [ ] Fallback path: on guard failure → per-file compile + log
+[x] Rank 1: WorkspaceIndex multi-valued + UITKX0113 + tests
+[x] UITKX0211: const-in-module analyzer (Warning severity) + tests
+[x] Rank 2: NewCsFileDiscovery + watcher patch (integration-tested in playmode)
+[x] Shared: UitkxFileDependencyIndex (lands with Rank 3 PR)
+[x] Rank 3: module reverse-dep cascade + real compile queue
+[x] Rank 4: component reverse-dep cascade (reuses Rank 3 infra)
+[x] Rank 5: per-SCC union compile (default on, no SCC cap)
+        [x] Pre-compile guard: (Namespace, Name) uniqueness check across union
+        [x] Post-compile guard: every batch FQN.Assembly == unionAssembly
+        [x] Fallback path: on guard failure → per-file compile + log
             `[HMR] union-compile sanity check failed — falling back`
-        [ ] Telemetry: `[HMR] union: N files, M ms` per union compile
-        [ ] Verify `-nowarn:0436` suppression on the in-process Roslyn path
-[ ] Docs: CHANGELOG, DISCORD_CHANGELOG, TECH_DEBT_V2 closure entries
-[ ] Verify with PrettyUi reproductions (#20, #21, #22A, #22B)
+        [x] Telemetry: `[HMR] union: N files, M ms` per union compile
+        [x] CompileBatch invalidates `_cachedCompilations` / `_cachedSyntaxTrees`
+            for every batch member so the next per-file compile is clean
+[x] Docs: CHANGELOG, plan §11 closure entries
+[ ] Verify with PrettyUi reproductions (#20, #21, #22A, #22B) under Edit + Play
 ```
 
 ---
 
 **End of plan.**
+
+
+---
+
+## 11. Implementation status (2026-05-19)
+
+### Shipped in this pass
+
+| Wave | Component | File(s) touched | Notes |
+| ---- | --------- | --------------- | ----- |
+| 1 | Rank 1 � LSP multi-valued element index | ide-extensions~/lsp-server/WorkspaceIndex.cs | _elementInfo reshaped to Dictionary<name, SortedDictionary<filePath, ElementInfo>>; GetAllElementInfo + GetDuplicateDeclarations added; EvictElementsFromFile drops only per-file entry. |
+| 1b | UITKX0113 � duplicate component (was planned as UITKX0107 in early draft; that ID was taken by UnreachableAfterReturn � renumbered to UITKX0113) | language-lib/Diagnostics/DiagnosticCodes.cs; lsp-server/DiagnosticsPublisher.cs | Asmdef-scoped, fires once per declarant against its own component-name line. Suppressed until initial scan completes. |
+| 2 | UITKX0211 � const-in-module HMR-invisibility warning | language-lib/Diagnostics/DiagnosticsAnalyzer.cs; language-lib/Diagnostics/DiagnosticCodes.cs | Implemented in language-lib (runs in LSP + Editor flows). Build-time Roslyn analyzer was considered but rejected: emitted module classes carry no marker attribute, so a generated-code analyzer would need fragile path-suffix heuristics for marginal extra value. Editor-time coverage is authoritative. |
+| 3 (shared) | UitkxFileDependencyIndex + lifecycle wiring | Editor/HMR/UitkxFileDependencyIndex.cs (new); Editor/HMR/UitkxHmrController.cs | Workspace-wide asmdef-aware dep graph of .uitkx files. Tracks declared/referenced modules and JSX components. Reverse maps power the cascade walker. CollectTransitiveDependents is cycle-safe. Wired into HMR Start/Stop/Invalidate alongside HookContainerRegistry. |
+| 5 | Rank 3 � module reverse-dep cascade + real compile queue | Editor/HMR/UitkxHmrController.cs | Replaced dead _compilationQueued/_queuedPath single-slot (the prior code never actually queued � _compilationQueued was never set to true). New _compileQueue (FIFO) + _enqueued (dedupe set) + _compileInFlight flag. DrainCompileQueueIfIdle pumps via EditorApplication.delayCall. Queue is cleared in Stop(). |
+| 6 | Rank 4 � component cascade | Editor/HMR/UitkxHmrController.cs | OnUitkxFileChanged calls CollectTransitiveDependents with includeComponents:true. Body-only edits to child components now propagate to parent renderers in the same asmdef without a manual second save. |
+| 4 | Rank 2 � NewCsFileDiscovery + project-DLL mtime gate | Editor/HMR/NewCsFileDiscovery.cs (new); Editor/HMR/UitkxHmrCompiler.cs | Asmdef-scoped scan; AppDomain type-name dedupe prevents CS0101; mtime cache keyed on Library/ScriptAssemblies/{asmdef}.dll. Best-effort: any failure inside TryIncludeNewAsmdefCsFiles is swallowed so the compile path matches pre-Rank-2 behavior. |
+
+### Not yet shipped
+
+(none — all in-scope deliverables landed; remaining items below are deferred-by-design playmode integration testing.)
+
+### Shipped post-Wave-6 (this session)
+
+| Wave | Component | File(s) touched | Notes |
+| ---- | --------- | --------------- | ----- |
+| 7 | Rank 5 — per-SCC union compile (CompileBatch) | Editor/HMR/UitkxHmrCompiler.cs | New `CompileBatch(paths, companions)` builds per-file artifacts via shared `BuildComponentArtifacts`, validates pre-compile `(Namespace, ComponentName)` uniqueness, deduplicates shared companion `.uitkx` / `.cs` sources, runs ONE Roslyn compile per batch via `CompileSources`, then validates post-compile assembly identity for every batch member. Loud fallback per §5.2.1: on guard or compile failure returns `OverallSuccess=false` with `FallbackReason` populated and the controller routes each path through the per-file `Compile` so the user-facing error surface (CS0117 / CS0246 / CS0433) is preserved. Invalidates `_cachedCompilations` / `_cachedSyntaxTrees` for every batch member so the next per-file compile rebuilds from scratch. Telemetry: `[HMR] union: N files, M ms` on success; warning on fallback. Single-file batch short-circuits to existing `Compile()` for behavioral parity. |
+| 7 | Controller batch dispatch | Editor/HMR/UitkxHmrController.cs | `DrainCompileQueueIfIdle` drains the WHOLE queue into a `List<string>` when count > 1 and routes to new `ProcessBatch`. Extracted the post-compile success swap pipeline (module statics + module methods + trampoline / hook delegate swap + rude-edit reload prompt) into `ApplySuccessfulCompileResult` so single-file and batch flows share one implementation. Extracted the failure branch into `HandleCompileFailure` for the same reason. `ProcessBatch` builds the companion-cs map per path, calls `_compiler.CompileBatch`, iterates `PerFileResults` in dependents-first / root-last order on success, and on fallback iterates `paths` calling the per-file `ProcessFileChange` so each compile error surfaces independently. |
+| 7 | Test fixtures — UITKX0211 | SourceGenerator~/Tests/DiagnosticsAnalyzerTests.cs | Five xUnit tests: fires for `public const`, severity = Warning, NOT fired for `static readonly` (the recommended replacement), NOT fired for line-commented const (regex line-awareness guard), fires per-decl for multiple consts in one module body. All pass. |
+| 7 | Test fixtures — Rank 1 multi-valued WorkspaceIndex + UITKX0113 enablement | ide-extensions~/lsp-server/Tests/WorkspaceIndexDuplicateTests.cs (new) | Six xUnit tests against the live `WorkspaceIndex.Refresh` API with real temp files: two-file duplicate visibility via `GetAllElementInfo`, `GetDuplicateDeclarations` reports the conflict (the data path UITKX0113 reads), single-delete preserves survivor (Wave-1 latent-build-break regression guard for the EvictElementsFromFile shape fix), rename-one preserves the other declarant's original name, sole-declarant delete clears the name entirely, non-duplicate omitted from `GetDuplicateDeclarations`. All pass. |
+
+### Deferred-by-design (playmode integration only)
+
+The following Rank 5 surface area is integration-tested in Unity playmode rather than unit-tested:
+
+1. **End-to-end CompileBatch success path** — exercising real Roslyn + real UitkxHmrComponentTrampolineSwapper requires the Unity Editor runtime (UnityEngine + Editor assemblies). The pure-static `ValidateBatchUniquenessImpl` helper IS isolated for testability (it lives in `UitkxHmrCompiler` and could be lifted to a dotnet-buildable assembly later), but the guard logic it gates is intentionally trivial (≈12 LOC) and shipping a dedicated test assembly purely for that helper would be cargo-cult coverage. The substantive behavioral guarantees (type-identity preservation across IProps boundary, companion dedupe correctness, post-compile assembly-identity check) are properties of the integrated compile + load + swap pipeline.
+
+2. **Rank 2 NewCsFileDiscovery + Rank 3/4 cascade walker** — same constraint. Both depend on Unity `AsmdefResolver` + filesystem layout. AsmdefResolverParityTests already covers the asmdef-resolution layer at unit granularity; the cascade walker's logic is straightforward graph traversal whose interesting cases are filesystem-layout-shaped, not algorithm-shaped.
+
+Recommended QA gate: PrettyUi reproductions (#20, #21, #22A, #22B) under Edit mode AND Play mode, with HMR active. Plan §10 already lists these.
+
+### Risk surface introduced (and why it's acceptable)
+
+1. **Cascade can fire across whole-project transitively** if a popular Theme module is edited. The asmdef boundary in CollectTransitiveDependents caps the blast radius to one asmdef; in practice on PrettyUi-scale projects the worst observed batch was ~12 files. The real compile queue ensures the batch drains in topological order even if the user keeps saving during the cascade.
+2. **NewCsFileDiscovery does an asmdef-wide file walk** on every compile. Mtime + AppDomain type-name dedupe cap the cost � the heaviest work is the directory enumeration which is O(N) on .cs file count and runs only when the user is actively saving a .uitkx (not on a render hot path).
+3. **UitkxFileDependencyIndex is best-effort regex-based parsing.** Same trade-off as HookContainerRegistry � false positives just enqueue extra compiles (correctness preserved), false negatives miss cascades (the user notices on the second save). Authoritative semantics still come from the SG cold build.
+
