@@ -899,3 +899,329 @@ referenced from hook in `Assets/UI/Hooks/` (2026-05-14). Workaround:
 moved `.cs` file next to the hook. Not sustainable as a long-term answer.
 
 ---
+
+## 20. HMR does not cascade to module consumers (cross-file stale values)
+
+**Status:** Open — **Priority: CRITICAL** (next-up).
+
+**Bug.** Editing a value in a module file (e.g. `Theme.Accent` in
+`Theme.uitkx`) recompiles the module successfully under HMR, but every
+consumer that captured that value at cctor time keeps rendering the
+stale value until a full domain reload. The `[HMR]` log reports success
+for the edited file; visual output does not change.
+
+**Repro (PrettyUi, 2026-05-17).**
+- `Theme.uitkx` declares `public static readonly Color Accent = ...`.
+- `StatsPanel.style.uitkx` declares `public static readonly Style Container = new Style { BorderColor = Theme.Accent, ... }`.
+- `StatsPanel.uitkx` consumes `Container`.
+- Edit `Theme.Accent`, save. HMR logs `[HMR] Swapped Theme`. `StatsPanel`
+  continues to render the old border colour.
+- Domain reload fixes it.
+
+**Three converging root causes.**
+
+1. **No `_moduleDependents` reverse-dep map.** `UitkxHmrController`
+   maintains `_ussDependents` for USS → UITKX cascade ([Editor/HMR/UitkxHmrController.cs](../Editor/HMR/UitkxHmrController.cs#L59))
+   but nothing equivalent for module → consumer. When `Theme.uitkx`
+   recompiles, the controller has no way to find `StatsPanel.style.uitkx`
+   (let alone its transitive consumers) and enqueue them for the same
+   HMR batch.
+2. **Consumer cctor captured values by value.** Even if the consumer is
+   recompiled, the 0.5.9 `[UitkxHmrSwap]` rewrite re-runs the field
+   initializer per HMR cycle, which re-reads `Theme.Accent` and updates
+   the captured value — so this part works *once the consumer is in the
+   swap set*. Today it isn't.
+3. **`const` is inlined at compile time.** Module `const float`
+   (`Theme.NavHeight`, `Theme.Radius`, `Theme.BorderWidth`, ...) is
+   baked into every consumer's IL at SG/Roslyn compile time. No HMR
+   mechanism can update these — the consumer's IL would have to be
+   rewritten. Recompiling the consumer via (1) does pick the new
+   constant up, so cascading is the fix.
+
+**Fix approach.**
+
+- **A. Reverse-dep map.** Build `_moduleDependents` mirroring
+  `_ussDependents` shape. Source: scan each `.uitkx` for
+  (i) bare references to top-level `module <Name>` symbols
+  (`<Name>.<Member>` token sequences), and (ii) the SG-injected
+  `using static <Module>;` lines from the same-asmdef cross-file pass
+  (0.5.12). Update incrementally per watcher event; rebuild on `Start`.
+- **B. Cascade enqueue.** On change to file `F.uitkx` that declares a
+  module, enqueue `F` + every transitive dependent in topological order
+  into the same HMR batch. The 0.5.9 swap loop already re-runs cctors
+  per `[UitkxHmrSwap]` field, so consumers pick up the new captured
+  values automatically once recompiled. The 0.5.10 trampoline picks
+  up new component bodies the same way.
+- **C. (Optional, additive) Const → static readonly promotion.** Either
+  rewrite `const` to `static readonly` inside `module { … }` at SG
+  emit time, or ship a new analyzer (`UITKX0211`, info or warning)
+  recommending the change. Pure C# `const` will never participate in
+  HMR by language semantics; this closes the gap for the
+  most-frequently-edited primitive values (paddings, sizes, weights).
+
+**Why deferred.** Touches `UitkxHmrController`, the file watcher's
+event payload (needs path → declaring-modules-in-file index), and a
+new dep-scanner. Sizeable change with non-trivial test surface
+(transitive cascade, cycle detection, asmdef-scoping, USS-style
+coalescing inside the existing debounce window). Workaround for now:
+exit Play mode after editing `Theme.uitkx` / any module a tree of
+consumers reads at cctor time.
+
+**Files (estimated).**
+- `Editor/HMR/UitkxHmrController.cs` — new `_moduleDependents` field,
+  topological enqueue in the swap pipeline, mirror existing
+  `_ussDependents` lifecycle hooks (Start/Stop/Refresh).
+- `Editor/HMR/UitkxHmrFileWatcher.cs` — surface module-declaring-file
+  set so the controller can map a changed file to its declared module
+  names.
+- New `Editor/HMR/ModuleDependencyScanner.cs` — text-scan `.uitkx`
+  files for `<Module>.<Member>` references gated by known module names
+  from the workspace (or the SG's cross-file pass).
+- `SourceGenerator~/Emitter/ModuleEmitter.cs` (optional, for C) — emit
+  `static readonly` instead of `const` for primitive module values
+  marked for HMR, or analyzer-only.
+- Tests: dep-scanner unit tests, controller cascade tests (single
+  module, transitive chain, cycle, no-dependents no-op).
+
+**Surfaced by:** PrettyUi `Theme.uitkx` → `StatsPanel.style.uitkx` →
+`StatsPanel.uitkx` cascade (2026-05-17). Diagnosed in chat after the
+0.5.19 release.
+
+---
+
+## 21. LSP element index is one-to-one — folder copy+rename evicts the original
+
+**Status:** Open — **Priority: CRITICAL** (next-up).
+
+**Bug.** `WorkspaceIndex._elementInfo` is a `Dictionary<string, ElementInfo>`
+keyed by element name with a single `FilePath` per entry. When two
+`.uitkx` files declare the same `component <Name>` (e.g. a folder copy
+during refactoring) the second indexed file silently overwrites the
+first's entry. A subsequent rename of the copy then evicts the shared
+name entirely, breaking IntelliSense for every consumer of the
+original — until the user restarts the window.
+
+**Repro (PrettyUi, 2026-05-17).**
+1. Copy `Assets/UI/Pages/GamePage/components/PlayerHud/components/StatsPanel/components/Ammunition/`
+   to `Ammunition Copy/`. Both folders now contain `Ammunition.uitkx`
+   with `component Ammunition { ... }`.
+2. The LSP `WatchedFilesHandler.Refresh(copyPath)` indexes the copy →
+   `CommitElement("Ammunition", copyPath)` overwrites
+   `_elementInfo["Ammunition"].FilePath` to point at the copy.
+3. Edit the copy to `component Stats { ... }`, rename folder to `Stats/`.
+   `IndexUitkxFile` calls `EvictElementsFromFile(copyPath)`:
+   - Iterates `_elementsByFile[copyPath]` = `{ "Ammunition" }`.
+   - Checks `_elementInfo["Ammunition"].FilePath == copyPath` → **true**
+     (because of step 2).
+   - Removes `"Ammunition"` from `_elements` and `_elementInfo` entirely.
+4. Re-scan adds `"Stats"`. The original `Ammunition/Ammunition.uitkx`
+   is never re-indexed during this flow, so `_elementInfo["Ammunition"]`
+   stays missing.
+5. `StatsPanel.uitkx`'s analyzer queries `WorkspaceIndex.HasElement("Ammunition")`
+   → false → emits `UITKX0105` red squiggle on `<Ammunition>`.
+6. `Ctrl+Shift+P → Reload Window` triggers a full rescan; the original
+   file is re-discovered; the squiggle clears.
+
+**Compounding factor (VS Code watcher quirk on Windows).**
+`workspace/didChangeWatchedFiles` for `**/*.uitkx` does not reliably
+emit per-file Delete events for files inside a folder being renamed
+(VS Code tracks the rename as one event for the directory). Even if
+logic were "re-scan workspace on delete of original," the delete event
+we'd want never arrives. Defensive code must not rely on a Delete-of-
+the-original signal.
+
+**Fix approach.**
+
+- **A. Multi-valued index (proper fix).** Change `_elementInfo` from
+  `Dictionary<string, ElementInfo>` to
+  `Dictionary<string, Dictionary<string, ElementInfo>>` (keyed by
+  element name, then by file path), or to a `List<ElementInfo>` per
+  name. Update sites:
+  - `CommitElement` adds the entry keyed by `filePath` (idempotent).
+  - `EvictElementsFromFile` removes only the file-specific entry per
+    name, never the whole name unless its bucket goes empty.
+  - `HasElement(name)` returns true if any entry remains.
+  - `GetElementInfo(name)` picks one (first by path, deterministic
+    order) or aggregates props from all entries (caller's choice).
+  - Optional: expose `GetAllElementInfo(name)` for diagnostics that
+    want to surface ambiguity.
+  ~50–80 lines, immune to copies, ambiguous-name workflows, and
+  partial deletes.
+- **B. Mitigation (cheap, recommended as belt-and-braces).** When
+  `EvictElementsFromFile` would remove the last entry for a name,
+  scan the workspace (or query `_elementsByFile` reverse map) for any
+  other `.uitkx` declaring it and re-attach. Hides the symptom even
+  with the multi-valued index in place, e.g. if a future change
+  introduces a regression.
+- **C. UX warning.** Emit a workspace diagnostic (new `UITKX0107` or
+  similar) when two files declare the same `component <Name>` in the
+  same asmdef. Useful even after A — duplicate component declarations
+  are almost always a copy-paste mistake.
+
+**Recommendation: Option A** + a one-line `UITKX0107` warning for the
+ambiguity surfaced by A. The duplicate declaration is itself a
+user-visible problem; the goal of A is to keep the IDE honest about
+which files declare what, not to silently pick one.
+
+**Risk: Low.** All `_elementInfo` lookups are wrapped by
+`WorkspaceIndex` accessor methods (no external Dictionary leaks). The
+change is purely additive to those accessors; existing call sites get
+either a deterministic pick or an aggregate, both backwards
+compatible.
+
+**Files:**
+- `ide-extensions~/lsp-server/WorkspaceIndex.cs` — change
+  `_elementInfo` shape, update `CommitElement`,
+  `EvictElementsFromFile`, `HasElement`, any `GetElementInfo` /
+  `Iterator` paths.
+- `ide-extensions~/lsp-server/Tests/` — add regression test:
+  1. Index file A declaring `Foo` and file B declaring `Foo`.
+  2. Refresh file B (edit removes `Foo`).
+  3. Assert `HasElement("Foo")` is still `true` (covered by A).
+- Optionally a new diagnostic for the ambiguity (Option C).
+
+**Surfaced by:** PrettyUi folder copy
+`StatsPanel/components/Ammunition/` → `Ammunition Copy/` → rename to
+`Stats/`, in `StatsPanel.uitkx` consumers (2026-05-17). Workaround:
+`Ctrl+Shift+P → Reload Window`. Disrupts the copy-rename refactor
+workflow that's natural for adding sibling components.
+
+---
+
+## 22. HMR cannot resolve new sibling `.cs` types or cascading signature changes
+
+**Status:** Open — **Priority: CRITICAL** (next-up).
+
+**Bug class.** HMR compiles each changed `.uitkx` file in isolation
+against the *already-loaded* project assembly. While HMR is active it
+holds the assembly-reload lock (the whole point — Play-mode state must
+survive saves), so Unity cannot recompile the project DLL. This makes
+two adjacent edit patterns unrecoverable without stopping HMR:
+
+1. **New sibling `.cs` type referenced by a `.uitkx`.** Author adds
+   `Assets/.../GamePage/PlayerStats.cs` declaring a new `record
+   PlayerStats(...)` and saves `GamePage.uitkx` referencing it. HMR
+   compiles `GamePage.uitkx` against the stale project DLL which
+   doesn't contain `PlayerStats` → `CS0246: The type or namespace name
+   'PlayerStats' could not be found`. Every subsequent save loops on
+   the same error. Stopping HMR + letting Unity recompile is the only
+   path forward.
+2. **Cascading signature changes across multiple `.uitkx` files.**
+   Author refactors a tree: parent passes a new prop, child declares
+   it, grandchild forwards it. Each file is saved in turn. HMR
+   compiles each one against the stale project DLL which still has the
+   *old* shape of all the other components in the tree — so the parent
+   fails with `CS0117: 'ChildProps' does not contain a definition for
+   'newProp'` even after the child file is saved, because the child's
+   project-DLL `ChildProps` class is still the cold one. The new
+   child compiled to an HMR DLL, but the parent's compile references
+   the project-DLL `Child` type, not the HMR DLL.
+
+**Why this lands as a real bug not a known limitation.** The 0.5.10
+"trampoline" architecture made HMR almost-fully-transparent for body
+edits. Users now expect *any* edit cycle to be HMR-resolvable. The
+two patterns above are both natural — adding a sibling helper type is
+trivial in C# normally; refactoring a parent+child pair is a one-minute
+task in React. Hitting "CS0246 on a file you just created" or "CS0117
+on a prop you just added" reads as broken tooling, not as a documented
+edge case. Discord support burden is high because the error text
+points at the user's code, not at HMR's design.
+
+**Repro (PrettyUi, 2026-05-17).**
+1. HMR active, Play-mode running.
+2. Create `Assets/UI/Pages/GamePage/PlayerStats.cs` declaring `record
+   PlayerStats(...)`.
+3. Save `GamePage.uitkx` referencing `useState(new PlayerStats(...))`.
+4. Save 4 child `.uitkx` files (`PlayerHud`, `StatsPanel`, `TopRow`,
+   `BottomRow`) each with new typed props.
+5. Save 8 leaf `.uitkx` files now passing those props.
+6. Observe: every HMR compile of GamePage / PlayerHud / StatsPanel
+   fails with mixed `CS0246` (PlayerStats) and `CS0426`
+   (`StatsPanelProps` doesn't exist) and `CS0117`
+   (`StaminaBarProps does not contain Stamina`) — because the project
+   DLL is frozen at the pre-edit shape.
+7. Stop HMR → Unity recompiles → all errors clear → restart HMR works.
+
+**Root causes (overlapping).**
+
+- **(a) HMR's compile input is a single `.uitkx` plus the stale
+  project DLL.** It cannot see new sibling `.cs` files because they're
+  not in the project DLL yet and HMR has no `.cs` discovery pass.
+- **(b) Cross-`.uitkx` signature changes need a transitive recompile
+  of every consumer.** HMR compiles per-file; it has no dep graph
+  walker that, on a saved child, queues every parent that imports it.
+  Even if it did, the parent's compile would still bind against the
+  project DLL's child type, not the HMR DLL's — the HMR DLL would
+  need to be referenced from every dependent compile.
+- **(c) The trampoline architecture targets body-only edits.** Adding
+  a new prop is a "structural" edit that changes the generated
+  `ChildProps` class shape; the trampoline only swaps `__hmr_Render`
+  field values, not whole prop-class layouts.
+
+**Fix approaches (sketched, none cheap).**
+
+- **A. New-`.cs`-file pickup.** When HMR compiles a `.uitkx`, also
+  enumerate sibling `.cs` files under the same asmdef that aren't
+  already in the project DLL (file `Last Write Time` newer than the
+  loaded assembly's compile time, OR not present by type-name lookup).
+  Include them as additional `SyntaxTree`s in the HMR Roslyn compile.
+  ~80–120 lines; reuses `AsmdefResolver` already shipped in 0.5.12.
+  Closes case (1).
+- **B. Transitive recompile queue.** Build a `.uitkx` dep graph at
+  HMR `Start` (parse imports + JSX tag references). On every save,
+  enqueue all transitive consumers in topological order. The first
+  changed file's HMR DLL becomes a reference for the next file's
+  compile; the next file's compile sees the new prop shapes through
+  the HMR DLL, not the project DLL. The compile-against-stale-project-DLL
+  problem dissolves because each compile in the queue picks up the
+  prior compile's HMR DLLs explicitly. ~200–300 lines; requires
+  changes to `UitkxHmrCompiler.Compile` to accept extra `MetadataReference`s
+  and to `UitkxHmrController.ProcessFileChange` to drive the queue.
+  Closes case (2).
+- **C. UX fallback — "HMR can't handle this, want to recompile?"**
+  When an HMR compile fails with `CS0246` / `CS0117` / `CS0426`
+  patterns characteristic of stale-project-DLL bindings, surface a
+  one-click "Stop HMR + recompile + restart HMR" action. Already
+  doable manually but the user has to know to do it. Cheap (~30 lines)
+  but doesn't actually fix the underlying limitation. Belt-and-braces.
+
+**Recommendation: A + B together.** A is a near-trivial parser
+extension and closes the most common offender (new helper types).
+B is the structural fix that makes refactors work; without it,
+every multi-file structural change still requires an HMR stop.
+C is worth adding as a UX layer even after A+B, for the residual
+cases B can't catch (e.g. edits that change asmdef references).
+
+**Risk.** B is the heavy item. Building a dep graph means parsing
+imports + JSX tag references for every `.uitkx` on `Start`; cache
+invalidation has to track imports added/removed by every save. The
+2026-05-12 `HookContainerRegistry` (item closed in 0.5.12) is a good
+template — it already does async background indexing with watcher
+invalidation.
+
+**Files (A — new `.cs` pickup):**
+- `Editor/HMR/UitkxHmrCompiler.cs` — add `EnumerateNewSiblingCsFiles`
+  pass; call from `Compile` before invoking Roslyn.
+- `Editor/HMR/AsmdefResolver.cs` — already exposes the asmdef
+  boundary; reuse to scope the enumeration.
+
+**Files (B — transitive recompile):**
+- `Editor/HMR/UitkxDepGraph.cs` (new) — parse imports + JSX
+  references, maintain `{file → consumers}` map.
+- `Editor/HMR/UitkxHmrController.cs` — on `ProcessFileChange`, enqueue
+  topo-sorted consumers; on `Start`, seed graph; on watcher events,
+  invalidate per-file.
+- `Editor/HMR/UitkxHmrCompiler.cs` — accept additional
+  `MetadataReference[]` for prior HMR DLLs in the queue.
+
+**Files (C — UX fallback):**
+- `Editor/HMR/UitkxHmrController.cs` — `ProcessFileChange` failure
+  branch checks for `CS0246|CS0117|CS0426` + queues > 1, emits an
+  EditorWindow action.
+
+**Surfaced by:** PrettyUi `PlayerHud` numeric extraction refactor
+(2026-05-17) — added `PlayerStats.cs` + signature changes to 12
+`.uitkx` files in one go. Every HMR compile failed; Stop+Unity
+recompile+Start was the only recovery.
+
+---

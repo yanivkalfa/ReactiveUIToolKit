@@ -253,6 +253,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Remove the unused variable or use it in the component.</TableCell>
           </TableRow>
           <TableRow>
+            <TableCell><Chip label="UITKX0113" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Duplicate component declaration in the same asmdef</TableCell>
+            <TableCell>Two or more <code>.uitkx</code> files in the same asmdef declare a <code>component</code> with the same name. The source generator picks one deterministically (first by path), but consumers across the asmdef may bind to the wrong one. Rename one of the components, or move it to a different asmdef. Cross-asmdef collisions are legal and not flagged.</TableCell>
+          </TableRow>
+          <TableRow>
             <TableCell><Chip label="UITKX0120" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Asset path not found (language server)</TableCell>
@@ -275,6 +281,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Write to <code>[UitkxHmrSwap]</code> field outside type initializer</TableCell>
             <TableCell>The field is generator-managed for HMR re-initialization. Move the assignment into a <code>static</code> constructor or field initializer. The HMR pipeline will overwrite any external write on the next save. Suppress with <code>#pragma warning disable UITKX0210</code> if intentional.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0211" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell><code>const</code> field inside <code>module &#123; &#125;</code> body</TableCell>
+            <TableCell>Const fields are inlined into every consumer's IL at compile time and do not propagate under HMR — editing the value during a session leaves callers reading the cold-build constant until a full domain reload. Use <code>static readonly</code> instead; the source generator strips <code>readonly</code> on module fields and the HMR static-swapper refreshes the value on every save.</TableCell>
           </TableRow>
         </TableBody>
       </Table>

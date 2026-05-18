@@ -38,8 +38,23 @@ namespace ReactiveUITK.EditorSupport.HMR
         private float _lastSwapMs;
         private string _lastTimingBreakdown;
         private readonly List<string> _recentErrors = new();
-        private bool _compilationQueued;
-        private string _queuedPath;
+
+        // ── Compile queue ────────────────────────────────────────────────────
+        // Real FIFO queue (replaces the prior single-slot _queuedPath design,
+        // which was effectively dead code — _compilationQueued was never set
+        // to true and the single slot dropped concurrent saves). Used by the
+        // dep-graph cascade (Rank 3 / Rank 4) which can produce N-file batches
+        // that MUST drain in order so each consumer's cctor runs after its
+        // dependency cctor produced the new value.
+        //
+        // Invariants:
+        //   • At most one ProcessFileChange call is in flight (DrainQueue
+        //     re-enters via EditorApplication.delayCall, never recurses).
+        //   • Each path appears at most once in the queue at any time
+        //     (deduped via _enqueued set).
+        private readonly Queue<string> _compileQueue = new();
+        private readonly HashSet<string> _enqueued = new(StringComparer.OrdinalIgnoreCase);
+        private bool _compileInFlight;
 
         // Set the first time the compiler reports an infrastructure failure
         // (reflection signature mismatch, missing type/method, bad image, etc.).
@@ -208,6 +223,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             // gates briefly via TryWaitForSeed.
             HookContainerRegistry.Seed(assetsPath);
 
+            // Seed the workspace-wide .uitkx dependency graph. Used by the
+            // module-cascade walker (Rank 3) and the component/JSX-consumer
+            // cascade (Rank 4/5). Same async lifecycle as HookContainerRegistry.
+            UitkxFileDependencyIndex.Seed(assetsPath);
+
             // Build initial USS dependency map (only on first start;
             // subsequent starts reuse the map since .uitkx files haven't changed)
             if (_ussDependents.Count == 0)
@@ -262,8 +282,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Drop the workspace-wide hook-container index; a fresh seed runs
             // on the next Start.
             HookContainerRegistry.Reset();
+            UitkxFileDependencyIndex.Reset();
 
             _pendingRetryPaths.Clear();
+            _compileQueue.Clear();
+            _enqueued.Clear();
+            _compileInFlight = false;
             // Keep _ussDependents across start/stop cycles — it's rebuilt
             // incrementally and re-scanning all .uitkx files is expensive.
 
@@ -304,20 +328,88 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Keep the workspace-wide hook-container index in sync with disk so
             // a newly added or edited hook file is visible to the next recompile.
             HookContainerRegistry.Invalidate(uitkxPath);
-
-            // If a compilation is already in progress, queue this one
-            if (_compilationQueued)
-            {
-                _queuedPath = uitkxPath;
-                return;
-            }
+            UitkxFileDependencyIndex.Invalidate(uitkxPath);
 
             // If this is a companion .uitkx file (e.g. Foo.style.uitkx),
             // redirect to compile the parent component file (Foo.uitkx)
             // so the companion's module/hook members are included.
             uitkxPath = ResolveParentComponentFile(uitkxPath);
 
-            ProcessFileChange(uitkxPath);
+            // ── Cascade (Rank 3 + Rank 4) ─────────────────────────────────
+            // Pull every transitive consumer in the same asmdef. The walker
+            // returns dependents first, the changed file LAST, so each
+            // consumer's cctor re-runs against the freshly-recompiled module
+            // statics. CollectTransitiveDependents is cycle-safe.
+            //
+            // includeComponents=true (Rank 4): also follow JSX component
+            // consumption edges, so a save of <Child> enqueues every parent
+            // that renders <Child>. Body-only edits propagate immediately;
+            // prop-signature changes still require Rank 5 (per-SCC union
+            // compile) to avoid CS0117 against the project-DLL's old shape.
+            var batch = UitkxFileDependencyIndex.CollectTransitiveDependents(
+                uitkxPath, includeComponents: true);
+
+            foreach (var path in batch)
+                EnqueueCompile(path);
+
+            DrainCompileQueueIfIdle();
+        }
+
+        // ── Compile queue plumbing ────────────────────────────────────────────
+
+        private void EnqueueCompile(string uitkxPath)
+        {
+            if (string.IsNullOrEmpty(uitkxPath))
+                return;
+            if (_enqueued.Add(uitkxPath))
+                _compileQueue.Enqueue(uitkxPath);
+        }
+
+        private void DrainCompileQueueIfIdle()
+        {
+            if (_compileInFlight)
+                return; // a delayCall is already pumping
+            if (_compileQueue.Count == 0)
+                return;
+
+            _compileInFlight = true;
+            try
+            {
+                if (_compileQueue.Count == 1)
+                {
+                    // Fast path — single save, no cascade. Run the per-file
+                    // compile to keep behavior identical for the dominant case.
+                    string next = _compileQueue.Dequeue();
+                    _enqueued.Remove(next);
+                    ProcessFileChange(next);
+                }
+                else
+                {
+                    // Rank 5 — drain the WHOLE current queue into one batch
+                    // and union-compile. The cascade walker has already
+                    // ordered dependents-first / root-last and pruned across
+                    // asmdef boundaries, so the drained list is a single
+                    // SCC's worth of files within one asmdef.
+                    var batch = new List<string>(_compileQueue.Count);
+                    while (_compileQueue.Count > 0)
+                    {
+                        string p = _compileQueue.Dequeue();
+                        _enqueued.Remove(p);
+                        batch.Add(p);
+                    }
+                    ProcessBatch(batch);
+                }
+            }
+            finally
+            {
+                _compileInFlight = false;
+            }
+
+            // Continue draining on the next editor tick if new saves arrived
+            // while we were compiling (debounced file events route through
+            // OnUitkxFileChanged → EnqueueCompile → DrainCompileQueueIfIdle).
+            if (_compileQueue.Count > 0)
+                EditorApplication.delayCall += DrainCompileQueueIfIdle;
         }
 
         /// <summary>
@@ -378,129 +470,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             if (result.Success)
             {
-                // Sync asset references into cache (lightweight — no SO write)
-                SyncAssetCacheForHmr(uitkxPath);
-
-                // Update USS dependency map for this file
-                RegisterUssDependencies(uitkxPath);
-
-                // Re-bind `static readonly` module fields BEFORE delegate swap
-                // so the new render delegate sees the new field values on its
-                // first execution. Pre-fix, edits to a `module` declaration's
-                // field initializers (e.g. removing a Style entry) had no
-                // effect until the user exited Play mode and forced a full
-                // assembly reload. See UitkxHmrModuleStaticSwapper for design.
-                ModuleStaticSwapResult moduleStaticResult = ModuleStaticSwapResult.Empty;
-                try
-                {
-                    moduleStaticResult = UitkxHmrModuleStaticSwapper.SwapModuleStatics(
-                        result.LoadedAssembly
-                    );
-                }
-                catch (Exception ex)
-                {
-                    UnityEngine.Debug.LogWarning(
-                        $"[HMR] Module-static re-init failed: {ex.Message}"
-                    );
-                }
-                int reInitedFields = moduleStaticResult.Copied;
-                int addedFieldsDetected = moduleStaticResult.AddedFieldsDetected;
-
-                // Re-bind module static-method __hmr_* delegate fields. Mirrors
-                // the per-fiber render-delegate swap and the hook delegate swap,
-                // but operates type-wide on every module type in the HMR assembly.
-                int reInitedMethods = 0;
-                try
-                {
-                    reInitedMethods = UitkxHmrModuleMethodSwapper.SwapModuleMethods(
-                        result.LoadedAssembly
-                    );
-                }
-                catch (Exception ex)
-                {
-                    UnityEngine.Debug.LogWarning(
-                        $"[HMR] Module-method re-init failed: {ex.Message}"
-                    );
-                }
-
-                // Swap delegates (timed)
-                var swapSw = Stopwatch.StartNew();
-                int swapped;
-                if (result.IsHookModuleFile)
-                {
-                    // Hook/module files: update static delegate fields + global re-render
-                    string ns = null;
-                    try
-                    {
-                        // Extract namespace from the first type in the HMR assembly
-                        var firstType = result.LoadedAssembly.GetTypes().FirstOrDefault();
-                        if (firstType != null)
-                            ns = firstType.Namespace;
-                    }
-                    catch { }
-
-                    swapped = UitkxHmrDelegateSwapper.SwapHooks(
-                        result.LoadedAssembly,
-                        result.HookContainerClass,
-                        ns
-                    );
-                }
-                else
-                {
-                    // Component files: swap the per-component __hmr_Render
-                    // trampoline field. Single static-field write per
-                    // component type — no per-fiber tree walk.
-                    swapped = UitkxHmrComponentTrampolineSwapper.SwapAll(
-                        result.LoadedAssembly,
-                        result.ComponentName,
-                        uitkxPath
-                    );
-                }
-                swapSw.Stop();
-                result.SwapMs = swapSw.Elapsed.TotalMilliseconds;
-
-                _swapCount++;
-                _lastComponentName = result.ComponentName;
-                _lastSwapMs = (float)result.TotalMs;
-                _lastTimingBreakdown = result.TimingBreakdown;
-
-                if (ShowNotifications && swapped > 0)
-                    Debug.Log(
-                        $"[HMR] {result.ComponentName} updated ({result.TotalMs:F0}ms, "
-                            + $"{swapped} instance(s)) — {result.TimingBreakdown}"
-                            + (
-                                reInitedFields > 0
-                                    ? $" | Module statics re-init: {reInitedFields}"
-                                    : string.Empty
-                            )
-                            + (
-                                reInitedMethods > 0
-                                    ? $" | Module methods re-init: {reInitedMethods}"
-                                    : string.Empty
-                            )
-                    );
-
-                // Rude-edit handling: a newly-added `static readonly` field on
-                // a module type cannot be added to the project-loaded type
-                // (CLR seals type metadata). The swapper has already logged a
-                // once-per-session warning. If the user opted in, request a
-                // domain reload to materialise the new field everywhere.
-                // The request is routed through RequestDomainReloadSafe which
-                // defers the reload until Edit mode if we are currently in
-                // Play mode — firing RequestScriptReload during Play mode
-                // produces partial reloads that leave MonoBehaviours with
-                // missing script references.
-                if (addedFieldsDetected > 0 && AutoReloadOnRudeEdit)
-                {
-                    Debug.Log(
-                        "[HMR] AutoReloadOnRudeEdit enabled — scheduling domain "
-                            + $"reload to materialise {addedFieldsDetected} newly-added "
-                            + "module field(s) on the project-loaded type(s)."
-                    );
-                    RequestDomainReloadSafe(
-                        $"materialise {addedFieldsDetected} newly-added module field(s)"
-                    );
-                }
+                ApplySuccessfulCompileResult(result, uitkxPath);
 
                 // Remove from pending retries if this was a re-attempt
                 _pendingRetryPaths.Remove(uitkxPath);
@@ -512,73 +482,288 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
             else
             {
-                // Infrastructure failures (reflection signature mismatch, missing
-                // type/method, etc.) mean HMR plumbing itself is broken — retrying
-                // would fail forever. Log once with actionable text and self-disable.
-                if (result.IsInfrastructureError)
-                {
-                    if (!_loggedInfrastructureFailure)
-                    {
-                        _loggedInfrastructureFailure = true;
-                        _errorCount++;
-                        _recentErrors.Add(result.Error);
-                        if (_recentErrors.Count > 10)
-                            _recentErrors.RemoveAt(0);
-                        Debug.LogError(
-                            "[HMR] Infrastructure failure — the loaded language "
-                                + "library is incompatible with this HMR build. HMR has "
-                                + "been disabled for this session. Restart Unity (or click "
-                                + "Start in the HMR window) after rebuilding the language "
-                                + "library.\n\nDetails: "
-                                + result.Error
-                        );
-                    }
-                    Stop();
-                    return;
-                }
+                HandleCompileFailure(result, uitkxPath);
+            }
 
-                // Try to auto-discover and compile missing dependencies.
-                // CS0103 means an unresolved name — may be a .uitkx component
-                // the FileWatcher missed.
-                if (TryResolveMissingDependencies(result.Error, uitkxPath))
-                {
-                    // Dependencies were compiled — retry will happen via
-                    // the cascade mechanism on the next frame.
-                    return;
-                }
+            // The compile queue (set by OnUitkxFileChanged + cascade walker)
+            // is drained by DrainCompileQueueIfIdle on subsequent editor ticks;
+            // we don't re-queue from here. The historical single-slot
+            // _compilationQueued / _queuedPath fields were dead code and have
+            // been replaced by the real FIFO queue declared near the top of
+            // this class.
+        }
 
-                // During auto-retry, suppress duplicate error logging
-                if (!_retryingPending || !_pendingRetryPaths.ContainsKey(uitkxPath))
+        // ── Extracted swap pipeline (shared by single-file and batch flows) ──
+
+        /// <summary>
+        /// Run the post-compile swap pipeline for a single successful result:
+        /// module-static + module-method re-init, then component trampoline /
+        /// hook delegate swap. Extracted from the original single-file
+        /// ProcessFileChange so the Rank 5 batch path can reuse it for every
+        /// per-file result of a union compile.
+        /// </summary>
+        private void ApplySuccessfulCompileResult(
+            HmrCompileResult result, string uitkxPath)
+        {
+            // Sync asset references into cache (lightweight — no SO write)
+            SyncAssetCacheForHmr(uitkxPath);
+
+            // Update USS dependency map for this file
+            RegisterUssDependencies(uitkxPath);
+
+            // Re-bind `static readonly` module fields BEFORE delegate swap
+            // so the new render delegate sees the new field values on its
+            // first execution. Pre-fix, edits to a `module` declaration's
+            // field initializers (e.g. removing a Style entry) had no
+            // effect until the user exited Play mode and forced a full
+            // assembly reload. See UitkxHmrModuleStaticSwapper for design.
+            ModuleStaticSwapResult moduleStaticResult = ModuleStaticSwapResult.Empty;
+            try
+            {
+                moduleStaticResult = UitkxHmrModuleStaticSwapper.SwapModuleStatics(
+                    result.LoadedAssembly
+                );
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"[HMR] Module-static re-init failed: {ex.Message}"
+                );
+            }
+            int reInitedFields = moduleStaticResult.Copied;
+            int addedFieldsDetected = moduleStaticResult.AddedFieldsDetected;
+
+            // Re-bind module static-method __hmr_* delegate fields. Mirrors
+            // the per-fiber render-delegate swap and the hook delegate swap,
+            // but operates type-wide on every module type in the HMR assembly.
+            int reInitedMethods = 0;
+            try
+            {
+                reInitedMethods = UitkxHmrModuleMethodSwapper.SwapModuleMethods(
+                    result.LoadedAssembly
+                );
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"[HMR] Module-method re-init failed: {ex.Message}"
+                );
+            }
+
+            // Swap delegates (timed)
+            var swapSw = Stopwatch.StartNew();
+            int swapped;
+            if (result.IsHookModuleFile)
+            {
+                // Hook/module files: update static delegate fields + global re-render
+                string ns = null;
+                try
                 {
+                    var firstType = result.LoadedAssembly.GetTypes().FirstOrDefault();
+                    if (firstType != null)
+                        ns = firstType.Namespace;
+                }
+                catch { }
+
+                swapped = UitkxHmrDelegateSwapper.SwapHooks(
+                    result.LoadedAssembly,
+                    result.HookContainerClass,
+                    ns
+                );
+            }
+            else
+            {
+                // Component files: swap the per-component __hmr_Render
+                // trampoline field. Single static-field write per
+                // component type — no per-fiber tree walk.
+                swapped = UitkxHmrComponentTrampolineSwapper.SwapAll(
+                    result.LoadedAssembly,
+                    result.ComponentName,
+                    uitkxPath
+                );
+            }
+            swapSw.Stop();
+            result.SwapMs = swapSw.Elapsed.TotalMilliseconds;
+
+            _swapCount++;
+            _lastComponentName = result.ComponentName;
+            _lastSwapMs = (float)result.TotalMs;
+            _lastTimingBreakdown = result.TimingBreakdown;
+
+            if (ShowNotifications && swapped > 0)
+                Debug.Log(
+                    $"[HMR] {result.ComponentName} updated ({result.TotalMs:F0}ms, "
+                        + $"{swapped} instance(s)) — {result.TimingBreakdown}"
+                        + (
+                            reInitedFields > 0
+                                ? $" | Module statics re-init: {reInitedFields}"
+                                : string.Empty
+                        )
+                        + (
+                            reInitedMethods > 0
+                                ? $" | Module methods re-init: {reInitedMethods}"
+                                : string.Empty
+                        )
+                );
+
+            // Rude-edit handling: a newly-added `static readonly` field on
+            // a module type cannot be added to the project-loaded type
+            // (CLR seals type metadata). The swapper has already logged a
+            // once-per-session warning. If the user opted in, request a
+            // domain reload to materialise the new field everywhere.
+            if (addedFieldsDetected > 0 && AutoReloadOnRudeEdit)
+            {
+                Debug.Log(
+                    "[HMR] AutoReloadOnRudeEdit enabled — scheduling domain "
+                        + $"reload to materialise {addedFieldsDetected} newly-added "
+                        + "module field(s) on the project-loaded type(s)."
+                );
+                RequestDomainReloadSafe(
+                    $"materialise {addedFieldsDetected} newly-added module field(s)"
+                );
+            }
+        }
+
+        /// <summary>
+        /// Handle the failure branch of a per-file compile result (infrastructure
+        /// detection, dependency auto-resolve, retry-queue maintenance). Extracted
+        /// to keep ProcessFileChange small enough to reason about and so the
+        /// batch fallback flow can route failures uniformly through here.
+        /// </summary>
+        private void HandleCompileFailure(HmrCompileResult result, string uitkxPath)
+        {
+            // Infrastructure failures (reflection signature mismatch, missing
+            // type/method, etc.) mean HMR plumbing itself is broken — retrying
+            // would fail forever. Log once with actionable text and self-disable.
+            if (result.IsInfrastructureError)
+            {
+                if (!_loggedInfrastructureFailure)
+                {
+                    _loggedInfrastructureFailure = true;
                     _errorCount++;
                     _recentErrors.Add(result.Error);
                     if (_recentErrors.Count > 10)
                         _recentErrors.RemoveAt(0);
-                    Debug.LogWarning(result.Error);
+                    Debug.LogError(
+                        "[HMR] Infrastructure failure — the loaded language "
+                            + "library is incompatible with this HMR build. HMR has "
+                            + "been disabled for this session. Restart Unity (or click "
+                            + "Start in the HMR window) after rebuilding the language "
+                            + "library.\n\nDetails: "
+                            + result.Error
+                    );
                 }
-
-                // If the file no longer exists (renamed away or deleted while
-                // a stale event was in flight), don't enqueue a retry — it can
-                // never succeed and would spam FileNotFoundException on every
-                // RetryPendingCompilations pass. Belt-and-braces against the
-                // postprocessor missing the deletion event (e.g. user deletes
-                // via Explorer instead of the Project window).
-                if (!File.Exists(uitkxPath))
-                {
-                    _pendingRetryPaths.Remove(uitkxPath);
-                    return;
-                }
-                _pendingRetryPaths[uitkxPath] = result.Error;
+                Stop();
+                return;
             }
 
-            // Process queued file change
-            if (_queuedPath != null)
+            // Try to auto-discover and compile missing dependencies.
+            // CS0103 means an unresolved name — may be a .uitkx component
+            // the FileWatcher missed.
+            if (TryResolveMissingDependencies(result.Error, uitkxPath))
             {
-                string queued = _queuedPath;
-                _queuedPath = null;
-                // Use delayCall to avoid deep recursion
-                EditorApplication.delayCall += () => ProcessFileChange(queued);
+                // Dependencies were compiled — retry will happen via
+                // the cascade mechanism on the next frame.
+                return;
             }
+
+            // During auto-retry, suppress duplicate error logging
+            if (!_retryingPending || !_pendingRetryPaths.ContainsKey(uitkxPath))
+            {
+                _errorCount++;
+                _recentErrors.Add(result.Error);
+                if (_recentErrors.Count > 10)
+                    _recentErrors.RemoveAt(0);
+                Debug.LogWarning(result.Error);
+            }
+
+            // If the file no longer exists (renamed away or deleted while
+            // a stale event was in flight), don't enqueue a retry.
+            if (!File.Exists(uitkxPath))
+            {
+                _pendingRetryPaths.Remove(uitkxPath);
+                return;
+            }
+            _pendingRetryPaths[uitkxPath] = result.Error;
+        }
+
+        // ── Rank 5 — Batch dispatch ──────────────────────────────────────────
+
+        /// <summary>
+        /// Process a multi-file cascade batch via the union compile path. The
+        /// batch is built by <see cref="DrainCompileQueueIfIdle"/> when the
+        /// queue holds 2+ pending compiles. On guard or compile failure the
+        /// method falls back to per-file <see cref="ProcessFileChange"/> calls
+        /// so the user-facing error surface is preserved (see §5.2.1 of
+        /// TECH_DEBT_20_21_22_RESOLUTION_PLAN.md — "loud regression preferred
+        /// over silent wrong-IL").
+        /// </summary>
+        private void ProcessBatch(List<string> paths)
+        {
+            if (paths == null || paths.Count == 0)
+                return;
+
+            // Build companion-cs map per file (same logic as ProcessFileChange).
+            var companionsByPath = new Dictionary<string, string[]>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var path in paths)
+            {
+                var dir = Path.GetDirectoryName(path);
+                var baseName = Path.GetFileNameWithoutExtension(path);
+                if (dir == null) continue;
+                try
+                {
+                    string prefix = baseName + ".";
+                    companionsByPath[path] = Directory
+                        .GetFiles(dir, "*.cs")
+                        .Where(f =>
+                        {
+                            var fn = Path.GetFileName(f);
+                            return !f.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
+                                && fn.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+                        })
+                        .ToArray();
+                }
+                catch { /* ignore IO errors */ }
+            }
+
+            var batchResult = _compiler.CompileBatch(paths, companionsByPath);
+
+            if (batchResult.OverallSuccess)
+            {
+                // Apply each per-file swap. Order in batchResult.PerFileResults
+                // matches the input order, which the cascade walker established
+                // as dependencies-first / root-last. Swapping in that order means
+                // each consumer's trampoline is updated AFTER its dependency
+                // module statics have been re-bound for the same union assembly.
+                for (int i = 0; i < paths.Count; i++)
+                {
+                    var per = batchResult.PerFileResults[i];
+                    if (per != null && per.Success)
+                    {
+                        ApplySuccessfulCompileResult(per, paths[i]);
+                        _pendingRetryPaths.Remove(paths[i]);
+                    }
+                }
+
+                // A successful batch may unblock pending retries.
+                if (_pendingRetryPaths.Count > 0 && !_retryingPending)
+                    EditorApplication.delayCall += RetryPendingCompilations;
+                return;
+            }
+
+            // ── Loud fallback ──────────────────────────────────────────────
+            // Per the committed Rank-5 decision (§5.2.1): when a union compile
+            // fails any guard or Roslyn step, fall back to per-file Compile so
+            // the standard error surface (CS0117 / CS0246 / CS0433) reaches
+            // the user. We log the reason once and recommend Stop + Restart
+            // when the guard tripping suggests a structural mismatch.
+            string reason = batchResult.FallbackReason ?? batchResult.OverallError ?? "unknown";
+            Debug.LogWarning(
+                $"[HMR] Union compile of {paths.Count} files fell back to per-file: {reason}");
+
+            foreach (var path in paths)
+                ProcessFileChange(path);
         }
 
         // ── Deletion handler ──────────────────────────────────────────────────

@@ -1,4 +1,24 @@
-﻿## [0.5.19] - 2026-05-16
+﻿## [0.5.20] - 2026-05-18
+
+### HMR save cascade - one save propagates through the dependency graph
+
+**The "save twice" tax is gone.** Editing a child component used to update only that file - parents kept the cold body until you saved them too. Module value edits (`Theme.Accent`) updated the module but not derived fields like `StatsPanel.Container.BorderColor`. Saving a `.uitkx` now enqueues every transitive consumer in the same asmdef via a real FIFO queue + cascade walker and recompiles in topological order through `EditorApplication.delayCall`. The prior single-slot queue was dead code; concurrent saves were silently dropped. Fixed.
+
+**Per-SCC union compile (TD22B).** When a cascade pulls 2+ files in one asmdef, HMR compiles them as a single Roslyn union assembly so a refactored `ChildProps` shape resolves to one authoritative type across parent + child. Fenced by pre-compile uniqueness + post-compile assembly-identity checks; falls back to per-file compile on any failure so user-facing CS0117 / CS0246 / CS0433 stay loud. Telemetry: `[HMR] union: N files, M ms`.
+
+**New `.cs` pickup.** Helper `.cs` files referenced from a `.uitkx` are now picked up before Unity has recompiled the project DLL. Asmdef-scoped, mtime-gated, AppDomain-deduped to avoid CS0101.
+
+**Two new diagnostics.** `UITKX0113` flags duplicate `component` declarations in the same asmdef. `UITKX0211` flags `const` fields inside `module { }` bodies - consts inline at compile time and never propagate under HMR; use `static readonly` instead.
+
+**Dev quality of life.** SG csproj now writes to `SourceGenerator~/bin/` and copies into `Analyzers/` separately. Local `dotnet build` no longer hits `MSB3027` when Unity holds the analyzer DLL lock. CI unchanged.
+
+**Tests.** SG `1237/1237` passing. `+6` LSP `WorkspaceIndexDuplicateTests` pin the multi-valued index contract.
+
+VS Code **1.2.10 -> 1.2.11** | VS 2022 **1.2.10 -> 1.2.11**.
+
+---
+
+## [0.5.19] - 2026-05-16
 
 ### Unity 6.3 style types reachable by short name from .uitkx
 
