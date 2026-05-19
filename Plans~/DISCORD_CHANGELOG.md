@@ -1,4 +1,18 @@
-﻿## [0.5.20] - 2026-05-18
+﻿## [0.5.21] - 2026-05-19
+
+### HMR cascade-batch no longer re-fires mount effects on cascaded ancestors
+
+**Scene duplication on save is gone.** When the 0.5.20 cascade walker pulled transitive ancestors into a batch, `ApplySuccessfulCompileResult` ran per-file and `NotifyMatchingFibers` invoked `FullResetComponentState` on every matched fiber. That wiped `useEffect` cleanups and re-fired mount effects on the next render - in practice an additive `SceneManager.LoadSceneAsync` on a parent fired a second time when an unrelated sibling subtree was edited. The cascade walker already orders results dependents-first / originator-last, so the controller now threads `isOriginatingChange = (i == paths.Count - 1)` through `SwapAll` into `NotifyMatchingFibers` and gates the rude reset on it. Cascaded files still receive the cheap trampoline-field swap so their next render uses the new IL, but fiber state and effect cleanups stay intact. Single-file saves are unchanged.
+
+**Wrong-namespace warning spam fixed.** The hook-module branch resolved the assembly namespace via `LoadedAssembly.GetTypes().FirstOrDefault().Namespace`. Roslyn's embedded `Microsoft.CodeAnalysis.EmbeddedAttribute` materialises first in metadata order, so the probe returned `Microsoft.CodeAnalysis` and the swapper logged "type not found" on every save. The declared `@namespace` is now threaded through `HmrCompileResult.Namespace` and read directly with a name-filtered fallback.
+
+**Deferred.** `OPTIMIZATIONS.md` #1 (dep index over-links copy-rename files with leftover module tokens) is now an optimisation only after the gate above - cascaded near-clones get cheap trampoline swap, no rude reset.
+
+No extension release. VS Code / VS 2022 unchanged.
+
+---
+
+## [0.5.20] - 2026-05-18
 
 ### HMR save cascade - one save propagates through the dependency graph
 

@@ -124,7 +124,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         public static int SwapAll(
             Assembly hmrAssembly,
             string componentName,
-            string uitkxFilePath = null
+            string uitkxFilePath = null,
+            bool allowFullStateReset = true
         )
         {
             if (hmrAssembly == null || string.IsNullOrEmpty(componentName))
@@ -264,7 +265,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (fr?.Root?.Current == null)
                     continue;
                 NotifyMatchingFibers(
-                    fr.Root.Current, singleOldType, oldTypeSet, newType, ref notified
+                    fr.Root.Current, singleOldType, oldTypeSet, newType,
+                    allowFullStateReset, ref notified
                 );
             }
             foreach (var rootRenderer in RootRenderer.AllInstances)
@@ -274,7 +276,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                     continue;
                 NotifyMatchingFibers(
                     vhr.FiberRendererInternal.Root.Current,
-                    singleOldType, oldTypeSet, newType, ref notified
+                    singleOldType, oldTypeSet, newType,
+                    allowFullStateReset, ref notified
                 );
             }
 
@@ -446,11 +449,20 @@ namespace ReactiveUITK.EditorSupport.HMR
         // multiple types when prior HMR generations produced their own copies.
         // Per-fiber signature comparison ensures mixed-generation fibers each
         // get the correct compatible / force-reset treatment.
+        //
+        // allowFullStateReset gates the rude FullResetComponentState call.
+        // The controller passes false for cascade-pulled siblings/ancestors of
+        // a batch save (true only for the originating file). Without this gate,
+        // any whitespace-level drift between SG-emitted and HMR-emitted hook
+        // signatures on an unrelated cascaded ancestor would tear down its
+        // useEffect cleanups and re-fire mount effects (e.g. additive scene
+        // loads), even though the user's edit was in a sibling subtree.
         private static void NotifyMatchingFibers(
             FiberNode fiber,
             Type singleOldType,
             HashSet<Type> oldTypeSet,
             Type newType,
+            bool allowFullStateReset,
             ref int count
         )
         {
@@ -466,7 +478,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 if (isMatch)
                 {
-                    if (HasHookSignatureChanged(declaring, newType))
+                    if (allowFullStateReset && HasHookSignatureChanged(declaring, newType))
                         FullResetComponentState(fiber);
 
                     try
@@ -483,8 +495,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
             }
 
-            NotifyMatchingFibers(fiber.Child, singleOldType, oldTypeSet, newType, ref count);
-            NotifyMatchingFibers(fiber.Sibling, singleOldType, oldTypeSet, newType, ref count);
+            NotifyMatchingFibers(fiber.Child, singleOldType, oldTypeSet, newType, allowFullStateReset, ref count);
+            NotifyMatchingFibers(fiber.Sibling, singleOldType, oldTypeSet, newType, allowFullStateReset, ref count);
         }
 
         // ── Hook signature & state-reset helpers ─────────────────────────────

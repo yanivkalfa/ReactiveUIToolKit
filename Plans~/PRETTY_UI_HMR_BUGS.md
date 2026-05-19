@@ -9,6 +9,65 @@ Reproduction baseline: edit `Samples/UIs/PrettyUi/UI/AppRoot.style.uitkx`
 
 ---
 
+> ## 🛑 NEXT — DO THIS FIRST — Issue 0 (CRITICAL / P0)
+>
+> ### Copy-rename of a sibling component duplicates the entire scene + cascades wide compile failures
+>
+> **Status:** ACTIVE BLOCKER as of 0.5.20. Reproduced on the consumer project
+> (`C:\Users\neta\Pretty Ui`) on 2026-05-19. Disabling HMR is the only
+> workaround. **This must be fixed before any other HMR work.**
+>
+> **One-line:** the 0.5.20 cascade (`UitkxFileDependencyIndex`) + the
+> trampoline swapper's `FullResetComponentState` path conspire so that a
+> single CSS save against a copy-renamed subcomponent re-fires every
+> `useEffect` on its ancestors, additively duplicating any scene/object that
+> a `useEffect(() => Instantiate(...), [])` loaded.
+>
+> See **Issue 14** below for the full chain-of-failure analysis, file/line
+> citations, and a four-step fix proposal. Start there.
+
+---
+
+> ## 🛑 ALSO CRITICAL — Issue 0b (P0)
+>
+> ### Hook alias rewrite table is incomplete — `useTweenFloat` / `useAnimate` / `useSafeArea` / `useStable*` / `useImperativeHandle` are unresolved symbols
+>
+> **Status:** ACTIVE. Reproduced on consumer project on 2026-05-19 while
+> implementing the `InteractiveDrinkWater` chain animation. CS0103 at every
+> camelCase call site for the missing hooks.
+>
+> **One-line:** the SG's `s_hookAliases` rewrite table in
+> [`CSharpEmitter.cs:432-447`](../SourceGenerator~/Emitter/CSharpEmitter.cs)
+> ships only 14 of the public `Hooks.UseXxx` methods even though the
+> hook-signature scanner at [line 514](../SourceGenerator~/Emitter/CSharpEmitter.cs)
+> already recognizes the camelCase form of all of them — so users get
+> CS0103 instead of an auto-rewrite, and have to write `Hooks.UseTweenFloat(...)`
+> by hand.
+>
+> See **Issue 15** below for the full list of missing aliases, the contract
+> mismatch with the signature scanner, the HMR-emitter parity risk, and the
+> one-line fix.
+
+---
+
+> ## 🔬 DEEP AUDIT — Issue 0c (13 more bugs found)
+>
+> ### Forensic audit of the HMR pipeline turned up 13 additional bugs
+>
+> Triggered by the user's report "HMR is a total mess" on 2026-05-19. The
+> headline architectural finding: **at least three pairs of hand-copied
+> tables** exist (hook aliases, hook-signature regex, companion-source
+> emission rules) — one copy in `SourceGenerator~/Emitter/` and one in
+> `Editor/HMR/`. Every divergence between a pair is a class of "works at
+> cold-build, breaks at HMR" bug, including Issue 14's scene duplication.
+>
+> See **Issue 16** below for the full 13-bug catalogue, severity-ranked
+> fix order, recommended regression tests, and the four architectural
+> patterns of fragility that explain why HMR feels unreliable today.
+> Bug 16.13 sharpens Issue 14.1 — read both together when fixing.
+
+---
+
 ## Issue 1 — spurious "API drift" warnings on Roslyn calls (cosmetic)
 
 **Symptom (Unity Console, on HMR start / first compile):**
@@ -1263,3 +1322,759 @@ After all three: HMR's contract becomes
 clearly logged)"* — production-grade and predictable.
 
 **Status:** PROPOSAL — awaiting user approval before implementation.
+
+
+
+---
+
+# Issue 14 — CRITICAL: copy-rename cascade rude-resets effects + duplicates scene
+
+> **Priority: P0 � fix before any other HMR work.**
+> **Status:** ACTIVE BLOCKER on 0.5.20. Workaround: disable HMR.
+> **Discovered:** 2026-05-19 against consumer project `C:\Users\neta\Pretty Ui\`.
+> **Affected since:** 0.5.20 (cascade walker introduction) + 0.5.10 (trampoline
+> refactor's `FullResetComponentState`). The two pieces interact destructively.
+
+## Symptom matrix (all observed in one save)
+
+1. **Scene duplication.** A second `GameScene` hierarchy loads additively after
+   one Ctrl+S. Walking controls **both** characters (input bindings active on
+   both copies). Visible in Game view as a second player + duplicated cubes.
+2. **`error CS0103: The name 'Container' does not exist in the current context`**
+   at column 152 of generated HMR source, repeated for `Marker`, `Handle`,
+   `Bob` (the renamed subcomponent set).
+3. **`[HMR] Could not find hook container 'Microsoft.CodeAnalysis.HandleHooks'`**
+   (and `BobHooks`) � namespace `Microsoft.CodeAnalysis` is wrong; should be
+   the user's project namespace.
+4. **`FileNotFoundException` probing ancestor names** �
+   `�\Marker\components\Handle\Marker.uitkx`, `�\Marker\components\Bob\Marker.uitkx`
+   � filenames that do not exist on disk.
+
+## Reproduction (verified)
+
+1. Open consumer project, enter Play mode, click HMR Start.
+2. In `Assets/UI/Pages/GamePage/components/InteractiveDrinkWater/components/Marker/`:
+   - Create folders `Bob/` and `Handle/`.
+   - Copy `Marker.uitkx` and `Marker.style.uitkx` into each of the two new folders.
+   - Rename the copied files to `Bob.uitkx` / `Bob.style.uitkx` and
+     `Handle.uitkx` / `Handle.style.uitkx`.
+   - Inside each copy, rename `component Marker(...)` ? `component Bob(...)`
+     (or `Handle`) and `module Marker { � }` ? `module Bob { � }` (or `Handle`).
+3. Tab back to Unity, let it import.
+4. Make a tiny CSS edit to any `.style.uitkx` in the subtree and save.
+5. Observe: console log explosion (all four symptoms above) + duplicated
+   `GameScene` in Hierarchy + duplicate character in Game view.
+
+## Root cause � chain of failure
+
+The 0.5.20 changelog credits the cascade walker as a feature; the bug is in
+**how cascade interacts with the trampoline swapper's reset path**. Five steps:
+
+### Step 1 � index pollution (`UitkxFileDependencyIndex.cs`)
+
+`s_pascalDottedRegex` (line 62) matches every `PascalCase.Member` token after
+stripping strings and comments. It does **not** strip:
+
+- USS block bodies inside `.style.uitkx` (Style class literals, named colors).
+- Asset path strings that survive `s_stripRegex` because they're not quoted.
+- Cross-cutting comments-disguised-as-code.
+
+When the user copies `Marker.uitkx` ? `Bob.uitkx` and renames only the
+`component` and `module` declarations, **any leftover `Marker.X` token** in the
+body � including identifiers in module-static initializer expressions, JSX
+attribute values, or member-access chains � registers `Bob` as a referrer of
+`Marker`. After indexing, `s_moduleReverse["Marker"] = { Bob.uitkx,
+Handle.uitkx, �existing referrers� }`.
+
+`TryIndexFile` at line 297 + `CommitNode` at line 357 do the registration.
+No special handling for "near-clone" files.
+
+### Step 2 � cascade fan-out (`UitkxHmrController.cs:325-355`)
+
+`OnUitkxFileChanged(Bob.style.uitkx)` ? `ResolveParentComponentFile` ?
+`Bob.uitkx` ? `CollectTransitiveDependents(Bob.uitkx, includeComponents: true)`
+walks `s_moduleReverse["Marker"]` because `Bob.uitkx` declares module `Bob`
+*and* references module `Marker` (Step 1). The walker enqueues
+`{ Bob, Handle, Marker, InteractiveDrinkWater, GamePage� }` � any transitive
+consumer.
+
+`DrainCompileQueueIfIdle` sees = 2 entries ? switches to **union batch path**
+via `ProcessBatch` (line 730).
+
+### Step 3 � `Container` CS0103 (`UitkxHmrCompiler.cs:928-985`)
+
+`EmitCompanionUitkxSources` walks `<ComponentName>.*.uitkx` siblings and
+inlines their emitted module/hook C# into the compilation unit. The body
+references `Container.Field` (the wrapper-class partial that the SG emits at
+cold-build under the **original** name).
+
+For brand-new subcomponents `Bob`/`Handle` whose `partial class Container`
+hasn't been emitted into the project DLL yet, the symbol is missing. The
+HMR template emitter inlines a body that says `Container.Foo` but no
+`Container` exists in any compilation unit visible to Roslyn.
+
+`NewCsFileDiscovery` (0.5.20 escape hatch for new `.cs` files) does not help
+because the missing symbol is itself supposed to be HMR-emitted, not user-
+authored `.cs`.
+
+Result: `(109,152): error CS0103: The name 'Container' does not exist in the
+current context` � column 152 lands inside the inlined module-static
+initializer chain that dereferences `Container.X`.
+
+### Step 4 � fallback ? wrong namespace ? swap fails (`UitkxHmrController.cs:548-568`)
+
+Union compile fails ? per-file fallback (`ProcessBatch:766`). Some files
+succeed individually. For each success, `ApplySuccessfulCompileResult` runs.
+For hook/module files (line 548-568):
+
+```csharp
+var firstType = result.LoadedAssembly.GetTypes().FirstOrDefault();
+if (firstType != null) ns = firstType.Namespace;
+```
+
+`LoadedAssembly.GetTypes()` returns Roslyn's embedded compiler helpers FIRST
+(`Microsoft.CodeAnalysis.EmbeddedAttribute` and friends) because of metadata
+layout when `[EmbeddedAttribute]` is materialised. `firstType.Namespace` =
+`"Microsoft.CodeAnalysis"`. `SwapHooks` then probes for
+`Microsoft.CodeAnalysis.HandleHooks` ? not found ? warning + no swap.
+
+### Step 5 � scene duplication (`UitkxHmrComponentTrampolineSwapper.cs:466-549`)
+
+The successful per-file swaps that *do* go through call
+`UitkxHmrComponentTrampolineSwapper.SwapAll`. Its `NotifyMatchingFibers`
+(line 451) hits `HasHookSignatureChanged(declaring, newType)` ? returns true
+when the `HookSignatureAttribute.Signature` strings differ between the
+project-loaded type and the new HMR type.
+
+For cascade-included **sibling** components that weren't actually edited but
+got dragged into the union, the SG-emitted signature on the cold-built
+project type and the HMR-emitted signature on the freshly compiled type
+**can disagree on whitespace, identifier casing, or trailing-arg ordering**
+even when no real change happened � because the HMR emitter and the SG
+emitter are independent string-builders (per HMR_AUDIT.md "silent
+divergence" thesis).
+
+A signature mismatch triggers `FullResetComponentState(fiber)` (line 513).
+That:
+
+```csharp
+for (int i = 0; i < state.FunctionEffects.Count; i++)
+    try { state.FunctionEffects[i].cleanup?.Invoke(); } catch { }
+state.FunctionEffects.Clear();
+```
+
+� runs every `useEffect` cleanup then clears the effect list, so the next
+render re-mounts the effects from scratch.
+
+**If any ancestor component on the live tree has a
+`useEffect(() => { SceneManager.LoadSceneAsync(name, Additive); return null; }, [])`**
+the cleanup is a no-op (or doesn't undo the load) and the setup re-fires ?
+additive scene loads twice ? **duplicated `GameScene` in the Hierarchy +
+duplicated character GameObject + walking controls both**.
+
+The consumer's `App` / `MainStage` bootstrap on the affected project does
+exactly this. The framework cannot rely on every consumer's mount effects
+being idempotent � but the trampoline swapper assumes they are, by design.
+
+### Step bonus � `FileNotFoundException` ancestor paths
+
+`_pendingRetryPaths` (controller) stores `failedPath` as key. The failed
+path that gets stored is built from the cascade walker's index lookup, which
+under Step 1 pollution can return paths shaped like
+`<consumer-dir>\<ancestorComponentName>.uitkx`. When `RetryPendingCompilations`
+re-pumps the queue, `File.ReadAllText` blows up because the path is
+fabricated. Exact path-construction site needs one more trace � it is
+downstream of Step 1 and resolves itself once Step 1 stops over-linking.
+
+## Diff summary � what introduced this
+
+```
+0.5.10   trampoline refactor      ? FullResetComponentState as the rude-edit response
+0.5.17   live-create new component ? no-domain-reload path
+0.5.20   cascade walker           ? CollectTransitiveDependents fans out wide
+                                  ? union compile + per-file fallback
+```
+
+None of these is individually wrong. The destructive interaction is
+**cascade-pulling unrelated siblings into a union assembly + signature-mismatch
+heuristic interpreting cold-vs-HMR emitter divergence as "incompatible edit" +
+rude-reset assuming mount effects are idempotent**.
+
+## Fix plan (4 steps, do in order)
+
+### Fix 14.1 � Scope `FullResetComponentState` to actually-changed components only
+
+`UitkxHmrComponentTrampolineSwapper.SwapAll` receives the changed file's
+`componentName` from `ApplySuccessfulCompileResult` (line 562 of controller).
+Today the swapper iterates **every** component type in the HMR DLL and
+notifies every fiber whose declaring type matches. For cascade unions that's
+too broad.
+
+**Action:** in `NotifyMatchingFibers`, gate `FullResetComponentState` behind
+`declaring.Name == swapTargetComponentName`. Sibling types still get
+trampoline swapped (cheap, idempotent) but do **not** rude-reset. Audit
+every call site of `FullResetComponentState` for this property.
+
+**Why this fixes Bug 1 (scene duplication):** ancestor `App` / `MainStage`
+fibers will no longer get their `useEffect`s wiped just because a descendant
+subtree was edited. Their setup runs once at mount and stays running.
+
+### Fix 14.2 � Stricter cascade graph: don't cross-link near-clones
+
+`UitkxFileDependencyIndex.TryIndexFile` adds a `ReferencedModules` edge for
+**every** PascalCase-dot token in the stripped source. For a copy-with-rename
+this catches phantom edges.
+
+**Action:** require the token to appear in **executable position** � restrict
+the regex to right-of-`=`, inside argument lists, or right-of-`return`.
+Tokens inside Style class literal initializers (left-of-`=` like
+`Container = new Style {`) are not real consumption edges. Alternatively,
+strip the `module <Name> { ... }` body of all `<X>.<Y>` tokens that resolve
+to USS / Style member names by maintaining a known-non-module-member denylist.
+
+Cheaper interim: only treat a `Foo.Bar` token as a reference if `Foo` is
+**not** also one of the file's own `DeclaredModules` and `Foo` is **not** the
+component's class name. Today only self-module is skipped.
+
+### Fix 14.3 � Emit `Container` partial for HMR-only new components
+
+When a sub-component is brand new (no `partial class Container` in the
+project DLL), `EmitCompanionUitkxSources` must inline a `Container` partial
+into the HMR compilation unit, OR the body emitter must stop dereferencing
+`Container.` and route those member accesses through generated locals.
+
+**Action:** in `UitkxHmrCompiler.Compile`, detect "no project-DLL type exists
+for this component name" and emit a `partial class Container { � }` stub
+with the fields the body needs. Mirror the SG's `Container`-emitter from
+`SourceGenerator~/Emitter/ContainerEmitter.cs` (or equivalent).
+
+### Fix 14.4 � Fix `SwapHooks` namespace resolution (one-liner)
+
+`UitkxHmrController.cs:548-568`:
+
+```csharp
+// WRONG: picks Microsoft.CodeAnalysis.EmbeddedAttribute on per-file fallback
+var firstType = result.LoadedAssembly.GetTypes().FirstOrDefault();
+ns = firstType?.Namespace;
+```
+
+**Action:** resolve by container-class name:
+
+```csharp
+var containerType = result.LoadedAssembly.GetTypes()
+    .FirstOrDefault(t => t.Name == result.HookContainerClass);
+ns = containerType?.Namespace;
+```
+
+Or � preferred � have `HmrCompileResult` carry `Namespace` explicitly out of
+the compiler (it already knows it; line ~860 area of `UitkxHmrCompiler.cs`).
+
+## Regression tests required after fix
+
+1. **Copy-rename smoke test:** create `Samples/UIs/PrettyUi/UI/Pages/GamePage/
+   components/InteractiveDrinkWater/components/Marker/components/Bob/Bob.uitkx`
+   as a copy of `Marker.uitkx`. Save a `.style.uitkx` in the subtree.
+   Assert: no `Container` CS0103, no `Microsoft.CodeAnalysis.*Hooks` warning,
+   no `FileNotFoundException` retries, no second `GameScene` in Hierarchy.
+2. **Mount-effect idempotency probe:** add a regression scene with a
+   component whose `useEffect(() => { �Instantiate; return null }, [])`
+   spawns a tagged GameObject. After any cascade-triggering HMR cycle,
+   assert exactly one tagged GameObject exists.
+3. **Cascade scope test:** edit a leaf subcomponent. Assert ancestor
+   components on the live fiber tree did **not** have their effect cleanups
+   invoked (instrument `FullResetComponentState` with a `[HMR]` debug log
+   under verbose mode for this).
+4. **Index edge precision test:** unit test in
+   `Editor/HMR/Tests/UitkxFileDependencyIndexTests.cs` (create if missing):
+   copy-with-rename a fixture file, assert the new file does NOT show up in
+   `CollectTransitiveDependents` of the original.
+
+## Out of scope (for this fix; queue separately)
+
+- HMR/SG emitter parity audit (general HookSignature drift across all
+  components) � Issue 15 candidate.
+- USS-block-aware stripping in the dependency index � partial fix-12.2
+  but full coverage needs a USS lexer, out of scope.
+- Auto-restart on rude-edit when fix-12.1 still detects a real change in
+  the actually-changed component � orthogonal.
+
+## Owner / next action
+
+Owner: framework HMR maintainer.
+Next action: implement Fix 14.4 first (one-liner, unblocks log noise),
+then Fix 14.1 (largest user impact � kills scene duplication),
+then Fix 14.2 + 14.3 (cleanup).
+
+
+---
+
+# Issue 15 � CRITICAL: hook alias rewrite table is incomplete (CS0103 on `useTweenFloat` and friends)
+
+> **Priority: P0** � small fix, but breaks the documented camelCase contract for
+> half a dozen public hooks and forces consumers into manual `Hooks.UseXxx(...)`
+> qualification with zero compiler help.
+> **Status:** ACTIVE on 0.5.20. Reproduced 2026-05-19 by writing `useTweenFloat(...)`
+> in `Cover.uitkx` and `InteractionDialog.uitkx` in the consumer project.
+
+## Symptom
+
+```
+Assets\UI\.../Cover.uitkx(9,3): error CS0103: The name 'useTweenFloat' does not exist in the current context
+Assets\UI\.../InteractionDialog.uitkx(10,3): error CS0103: The name 'useTweenFloat' does not exist in the current context
+```
+
+Any of the following hooks, called in their natural camelCase form from a
+`.uitkx` setup block, produces CS0103:
+
+| Hook (camelCase user writes)   | Public method (`Shared/Core/Hooks.cs`) | Listed by signature scanner? | Listed in alias table? |
+|--------------------------------|----------------------------------------|------------------------------|------------------------|
+| `useTweenFloat`                | `Hooks.UseTweenFloat`                  | ? yes                       | ? **NO**              |
+| `useAnimate`                   | `Hooks.UseAnimate`                     | ? yes                       | ? **NO**              |
+| `useSafeArea`                  | `Hooks.UseSafeArea`                    | ? yes                       | ? **NO**              |
+| `useStableFunc`                | `Hooks.UseStableFunc`                  | ? yes                       | ? **NO**              |
+| `useStableAction`              | `Hooks.UseStableAction`                | ? yes                       | ? **NO**              |
+| `useStableCallback`            | `Hooks.UseStableCallback`              | ? yes                       | ? **NO**              |
+| `useImperativeHandle`          | `Hooks.UseImperativeHandle`            | ? yes                       | ? **NO**              |
+
+The 14 hooks that *do* round-trip correctly today (for reference): `useState`,
+`useEffect`, `useLayoutEffect`, `useRef`, `useCallback`, `useMemo`,
+`useContext`, `useReducer`, `useSignal`, `useDeferredValue`, `useTransition`,
+`useSfx`, `useUiDocumentRoot`, `provideContext`.
+
+## Workaround (forced on consumers today)
+
+```csharp
+component Cover(Action? onDone = null) {
+  var (h, setH) = useState<float>(0f);
+  Hooks.UseTweenFloat(0f, 100f, 1f, Ease.EaseInQuad, 0f, v => setH(v), () => onDone?.Invoke());
+  //   ^^^^^^^^^^^^^^^^^^^^^ user must write the full qualified form for any
+  //                         hook missing from s_hookAliases.
+  ...
+}
+```
+
+This is brittle, inconsistent (users get `useState` for free, then have to
+qualify the next line), and silently regresses the React-like ergonomics the
+framework advertises.
+
+## Root cause
+
+Two parallel tables in `SourceGenerator~/Emitter/CSharpEmitter.cs` enumerate
+the supported hooks, and they have **drifted**:
+
+### Table A � alias rewrite (`s_hookAliases`, line 432-447)
+
+```csharp
+private static readonly (string From, string To)[] s_hookAliases =
+{
+    ("useState(", "Hooks.UseState("),
+    ("useEffect(", "Hooks.UseEffect("),
+    ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
+    ("useRef(", "Hooks.UseRef("),
+    ("useCallback(", "Hooks.UseCallback("),
+    ("useMemo(", "Hooks.UseMemo("),
+    ("useContext(", "Hooks.UseContext("),
+    ("useReducer(", "Hooks.UseReducer("),
+    ("useSignal(", "Hooks.UseSignal("),
+    ("useDeferredValue(", "Hooks.UseDeferredValue("),
+    ("useTransition(", "Hooks.UseTransition("),
+    ("useSfx(", "Hooks.UseSfx("),
+    ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
+    ("provideContext(", "Hooks.ProvideContext("),
+};
+```
+
+14 entries. **No `useTweenFloat`, no `useAnimate`, no `useSafeArea`, no
+`useStable*`, no `useImperativeHandle`.**
+
+### Table B � signature scanner (`s_hookSignatureRe`, line 514)
+
+```csharp
+private static readonly Regex s_hookSignatureRe = new(
+    @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback
+       |useMemo|useContext|useReducer|useSignal|useDeferredValue
+       |useTransition|useSafeArea|useStableFunc|useStableAction
+       |useStableCallback|useImperativeHandle|useAnimate|useTweenFloat
+       |useUiDocumentRoot|useSfx|provideContext
+       |UseState|UseEffect|...|ProvideContext)(?:<[^>]*>)?\s*\(",
+    RegexOptions.Compiled);
+```
+
+20+ entries. **Includes `useTweenFloat`, `useAnimate`, `useSafeArea`,
+`useStable*`, `useImperativeHandle`.**
+
+### Why this is destructive
+
+`ExtractHookSignature` (line 526) builds the `[HookSignature]` attribute
+that lives on every component for HMR identity comparison. It *sees* the
+missing hooks (because Table B knows about them). The compiler does not
+(because Table A doesn't rewrite them).
+
+Consequences:
+
+1. **CS0103 at every user call site.** Documented in the symptom above.
+2. **HMR signature attribute claims hooks the cold-built binary doesn't
+   contain.** A consumer who works around with `Hooks.UseTweenFloat(...)`
+   gets a `[HookSignature("...,UseTweenFloat,...")]` from the SG. After an
+   HMR edit, the HMR emitter re-scans the same source and produces the same
+   signature � so they match � but if a consumer ever transitions code from
+   `Hooks.UseTweenFloat(` to a hypothetical lowercase form (or vice-versa)
+   the regex still matches in both cases yet the rewrite differs, opening
+   a window for "signature looks identical, generated body differs" drift
+   that the trampoline swapper would interpret as a rude edit.
+3. **Generic form silently works for the 11 hooks listed in
+   `s_genericHookAliasRe` (line 540), but NOT the 7 missing ones.** So
+   `useTweenFloat<T>(...)` (hypothetical) would also CS0103 even on Roslyn
+   error recovery.
+4. **Contract erosion.** README and Plans repeatedly say "hooks are written
+   camelCase, no `Hooks.` qualification needed". The codebase contradicts
+   itself for ~30% of the public hook surface.
+
+## Fix � one-line per missing hook
+
+### Fix 15.1 � Extend `s_hookAliases` (mandatory)
+
+`SourceGenerator~/Emitter/CSharpEmitter.cs:432-447`:
+
+```csharp
+private static readonly (string From, string To)[] s_hookAliases =
+{
+    ("useState(", "Hooks.UseState("),
+    ("useEffect(", "Hooks.UseEffect("),
+    ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
+    ("useRef(", "Hooks.UseRef("),
+    ("useCallback(", "Hooks.UseCallback("),
+    ("useMemo(", "Hooks.UseMemo("),
+    ("useContext(", "Hooks.UseContext("),
+    ("useReducer(", "Hooks.UseReducer("),
+    ("useSignal(", "Hooks.UseSignal("),
+    ("useDeferredValue(", "Hooks.UseDeferredValue("),
+    ("useTransition(", "Hooks.UseTransition("),
+    ("useSfx(", "Hooks.UseSfx("),
+    ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
+    ("provideContext(", "Hooks.ProvideContext("),
+    // -- MISSING (add these) -----------------------------------
+    ("useTweenFloat(", "Hooks.UseTweenFloat("),
+    ("useAnimate(", "Hooks.UseAnimate("),
+    ("useSafeArea(", "Hooks.UseSafeArea("),
+    ("useStableFunc(", "Hooks.UseStableFunc("),
+    ("useStableAction(", "Hooks.UseStableAction("),
+    ("useStableCallback(", "Hooks.UseStableCallback("),
+    ("useImperativeHandle(", "Hooks.UseImperativeHandle("),
+};
+```
+
+### Fix 15.2 � Extend `s_genericHookAliasRe` for the generic forms
+
+`SourceGenerator~/Emitter/CSharpEmitter.cs:540`:
+
+```csharp
+// Add: useStableFunc, useStableCallback, useImperativeHandle, useAnimate
+// (the others � useTweenFloat, useSafeArea, useStableAction � have no
+// generic overload today; verify before adding to the regex.)
+private static readonly Regex s_genericHookAliasRe = new(
+    @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo
+       |useContext|useReducer|useSignal|useDeferredValue|useTransition
+       |useStableFunc|useStableCallback|useImperativeHandle|useAnimate)
+       (<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+    RegexOptions.Compiled);
+```
+
+(Confirm against `Hooks.cs` which methods actually have a `<T>` overload
+before committing � don't over-include.)
+
+### Fix 15.3 � Single source of truth (preferred, slightly larger)
+
+The two tables MUST stay in lockstep. Refactor to derive both from one list:
+
+```csharp
+private static readonly string[] s_knownHooks = new[]
+{
+    "useState", "useEffect", "useLayoutEffect", "useRef", "useCallback",
+    "useMemo", "useContext", "useReducer", "useSignal", "useDeferredValue",
+    "useTransition", "useSafeArea", "useStableFunc", "useStableAction",
+    "useStableCallback", "useImperativeHandle", "useAnimate",
+    "useTweenFloat", "useUiDocumentRoot", "useSfx", "provideContext",
+};
+
+// Derive s_hookAliases from s_knownHooks at static init:
+private static readonly (string From, string To)[] s_hookAliases =
+    s_knownHooks
+        .Select(h => (h + "(", "Hooks." + ToPascal(h) + "("))
+        .ToArray();
+
+// Derive s_hookSignatureRe from s_knownHooks too � same source.
+```
+
+`ToPascal` already exists conceptually inside `NormalizeHookName` (line 552);
+extract it. After this refactor, **adding a new public hook to `Hooks.cs`
+requires only appending one string to `s_knownHooks`** � alias rewrite,
+signature attribute, validator, and HMR scanner all line up.
+
+### Fix 15.4 � HMR parity audit
+
+Search the HMR emitter (`UitkxHmrCompiler.cs`, `UitkxHmrController.cs`)
+for any independent hook-name list. If found, point it at the same
+`s_knownHooks` source. This was the root cause of multiple historical
+"HMR drift" bugs in Issues 5/6/7/8 of this file.
+
+## Regression tests required
+
+1. **Smoke test (consumer-facing):** add a `Samples/UIs/PrettyUi` micro-component
+   that calls every hook in `s_knownHooks` once in camelCase form. Assert it
+   compiles without CS0103. Place in
+   `Samples/Shared/AllHooksCompileTest.uitkx` or similar.
+2. **Parity test (framework-facing):** new test in
+   `SourceGenerator~/Tests/HmrEmitterParityContractTests.cs`:
+   ```csharp
+   [Test]
+   public void HookAliasTable_CoversEveryPublicHooksMethod()
+   {
+       var publicHookMethods = typeof(Hooks)
+           .GetMethods(BindingFlags.Public | BindingFlags.Static)
+           .Where(m => m.Name.StartsWith("Use") || m.Name.StartsWith("Provide"))
+           .Select(m => char.ToLower(m.Name[0]) + m.Name.Substring(1))
+           .Distinct();
+       foreach (var camel in publicHookMethods)
+           Assert.Contains(camel + "(", s_hookAliases.Select(x => x.From));
+   }
+   ```
+   This single test would have caught the drift on day one.
+3. **Signature-vs-alias parity test:** assert that
+   `s_hookSignatureRe.GetGroupNames()` (or the regex source string) covers
+   exactly the names in `s_hookAliases` plus the PascalCase mirror.
+
+## Owner / next action
+
+Owner: framework SG maintainer.
+Next action: implement Fix 15.1 (15 minutes), then Fix 15.3 to prevent
+recurrence. Fix 15.4 audit can run after.
+
+This fix is independent of Issue 14 (the HMR cascade bug) and can land in
+the same release.
+
+
+---
+
+# Issue 16 — Deep HMR pipeline audit (post-0.5.20): 13 additional bugs
+
+> **Priority: P0 set as a group.** Found by forensic audit of the HMR pipeline
+> after the consumer reported "HMR is a total mess" on 2026-05-19. This issue
+> documents 13 bugs that exist IN ADDITION to Issues 14 and 15. Some sharpen
+> the diagnoses in Issue 14; others are independent.
+>
+> **Headline finding:** the HMR codebase has at least **three pairs of
+> parallel hand-copied tables** (hook aliases, hook-signature regex,
+> companion-source emission rules) that the SG path and the HMR path each
+> own a copy of. Every divergence between a pair = a class of "works at
+> cold-build, breaks at HMR" bug. **The single most leveraged framework-side
+> fix is to extract one source of truth for each pair and have both paths
+> read from it.** See Bug 16.3 + Bug 16.5 + architectural observations.
+
+## Executive summary
+
+- **13 additional bugs** identified beyond Issues 1–15.
+- Severity: **4 P0/P1**, **7 P2**, **2 P3 (observability)**.
+- The four P0/P1 issues are: 16.1 (`GetTypes()` ordering), 16.3 (HMR alias
+  table drift from Issue 15's fix), 16.7 (duplicate-path silent drop), 16.9
+  (union-assembly missing-type silent no-op), 16.13 (cascade siblings
+  rude-reset — sharpens Issue 14.1).
+- Every bug below cites `file:line`.
+- The user-facing symptom "HMR is a total mess" is supported by the data:
+  silent failures dominate (5 of 13 bugs are "swap silently does nothing"
+  or "warning logged in a place users don't look"). Observability is the
+  single biggest deficit.
+
+## Bug 16.1 — `GetTypes()` ordering picks `Microsoft.CodeAnalysis` namespace non-deterministically
+
+- **Severity:** P1.
+- **Symptom:** `[HMR] Could not find hook container 'Microsoft.CodeAnalysis.HandleHooks'` appears on some runs and not others against identical source. Per-file fallback succeeds half the time.
+- **File:line:** `Editor/HMR/UitkxHmrController.cs:562-568`.
+- **Root cause:** Issue 14.4 documented the symptom but missed the deeper point — `LoadedAssembly.GetTypes().FirstOrDefault()` is non-deterministic by spec. The compiler already knows the namespace at parse time but never threads it through into `HmrCompileResult`.
+- **Why Issue 14.4 doesn't catch it:** Issue 14.4 proposes resolving by `t.Name == result.HookContainerClass`, which is correct but still relies on `GetTypes()`. The robust fix is to pass the namespace through `HmrCompileResult` from the compiler that already computed it.
+- **Proposed fix:** add `public string Namespace { get; set; }` to `HmrCompileResult`; set it in `Compile()` after the parse phase; consume it in `ApplySuccessfulCompileResult` and bypass reflection entirely. Reflection becomes the defensive fallback, not the primary path.
+- **Test:** `UitkxHmrControllerTests` — run `Compile()` twice on identical source, assert the resolved namespace is identical and is NOT `Microsoft.CodeAnalysis`.
+
+## Bug 16.2 — `CollectTransitiveDependents` returns paths for deleted files
+
+- **Severity:** P2.
+- **Symptom:** Bonus footnote in Issue 14 ("FileNotFoundException probing ancestor names") is partially explained by this — even with a clean cascade, file-deletion races leave stale reverse-map entries that resolve to non-existent paths.
+- **File:line:** `Editor/HMR/UitkxFileDependencyIndex.cs:225-260` (walker) and `:RemoveFile` (which leaves reverse-map values stale).
+- **Root cause:** `OnUitkxFileDeleted` → `RemoveFile` removes from `s_byPath` but does NOT scan every reverse map (`s_moduleReverse`, `s_componentReverse`) to purge the deleted path from referrer-sets. A subsequent cascade walk reads the stale reverse-map set and emits the deleted path as a dependent.
+- **Proposed fix (two options, apply both):**
+  1. In `CollectTransitiveDependents`, post-filter the result list with `File.Exists()` before returning.
+  2. In `RemoveFile`, iterate every `s_moduleReverse.Values` and `s_componentReverse.Values` set and remove the deleted path.
+- **Test:** index `Parent` → `Child`; delete `Child` on disk; save a sibling that triggers cascade; assert no `FileNotFoundException`.
+
+## Bug 16.3 — HMR hook alias table will diverge from SG table again (post-Issue 15)
+
+- **Severity:** P1 (regression risk).
+- **Symptom:** Issue 15's fix only updates `SourceGenerator~/Emitter/CSharpEmitter.cs`. The HMR pipeline has its OWN parallel hand-copied alias table in `Editor/HMR/HmrHookEmitter.cs` (or `Editor/HMR/HmrCSharpEmitter.cs` — see file). After Issue 15 lands, the SG will rewrite `useTweenFloat(...)` → `Hooks.UseTweenFloat(...)` but HMR will not, producing CS0103 ONLY on HMR-triggered compiles.
+- **File:line:** `Editor/HMR/HmrHookEmitter.cs:22-36` (and `HmrCSharpEmitter.cs:3034-3052` — confirm exact file in your tree).
+- **Root cause:** Two independent string-array tables. Same root cause as Issue 15's drift between alias table and signature regex.
+- **Proposed fix:** apply Issue 15.3 (single source of truth) AND ensure HMR's hook tables either reference it directly or have a unit test asserting structural equality. The test is one-line in `HmrEmitterParityContractTests.cs`:
+  ```csharp
+  Assert.Equal(sgAliasTable, hmrAliasTable);
+  ```
+- **Test:** the parity test above; plus a smoke test that compiles a component using all 21 hooks via HMR and asserts no CS0103.
+
+## Bug 16.4 — Empty `catch { }` blocks silence reflection and effect-cleanup failures
+
+- **Severity:** P2 (observability).
+- **Symptom:** HMR appears "stuck" or "ignored my edit" with no log line explaining why.
+- **File:line:** at minimum: `Editor/HMR/UitkxHmrController.cs:566`, `:645-650`; `Editor/HMR/UitkxHmrComponentTrampolineSwapper.cs:523` (`state.FunctionEffects[i].cleanup?.Invoke()`); likely several more — audit every `catch { }` in `Editor/HMR/`.
+- **Root cause:** Defensive try/catch around reflection and user-effect cleanups suppresses ALL exceptions including bugs (`BadImageFormatException`, `ReflectionTypeLoadException`, NPEs in cleanup closures that capture stale captures).
+- **Proposed fix:** every `catch { }` in HMR code becomes `catch (Exception ex) { Debug.LogWarning($"[HMR] <site-name> failed: {ex.Message}"); }`. The user can still filter `[HMR]` warnings if they're noisy, but silent failures stop being invisible.
+- **Test:** grep the HMR folder for `catch \{\s*\}` — should return zero matches.
+
+## Bug 16.5 — `ExtractHookSignature` is hand-copied in two files
+
+- **Severity:** P2 (drift risk, false-positive remounts).
+- **Symptom:** A whitespace-only edit (added blank line, comment) inside a hook body triggers a "real" signature change because the SG-emitted attribute and the HMR-extracted signature were built by different regex runs that captured different surrounding text. Result: `FullResetComponentState` runs unnecessarily, wiping `useEffect` state — exactly the scene-duplication mechanism in Issue 14.
+- **File:line:** `SourceGenerator~/Emitter/CSharpEmitter.cs:514-528` AND `Editor/HMR/HmrCSharpEmitter.cs:3034-3090` (or equivalent — confirm exact path).
+- **Root cause:** Two implementations of the same regex extraction. Same divergence class as Bug 16.3.
+- **Proposed fix:** extract a `Shared/Core/HookSignatureExtractor.cs` public static class. Both SG and HMR call `HookSignatureExtractor.Extract(setupCode)`. Add a unit test that fuzzes 20+ hook combinations and asserts SG/HMR signatures are byte-identical (now trivially true if the same function is called).
+- **Test:** parameterised — 20 setup-code snippets × call both `extractor` paths × assert equal.
+
+## Bug 16.6 — Cascade walker has no fan-out cap or warning
+
+- **Severity:** P2 (performance, debugging).
+- **Symptom:** A single CSS save can pull 50+ files into a union compile if module reference patterns form a near-clique. There is no warning to the user that the cascade has exploded — they just see "HMR is slow today".
+- **File:line:** `Editor/HMR/UitkxFileDependencyIndex.cs:225-250`.
+- **Root cause:** Cycle break (`visited` set) is correct, so no infinite loop, BUT no upper-bound check or telemetry. Hard to detect that Bug 16.2/16.3 of Issue 14 (index pollution) has triggered a cascade explosion until the symptoms cascade further.
+- **Proposed fix:** after walking, log a warning if `result.Count > 50` (configurable threshold) with the start path and the count. This gives users a single-line breadcrumb that something is wrong with the dependency graph.
+- **Test:** unit test that constructs a 100-file pseudo-cyclic graph and asserts the warning fires.
+
+## Bug 16.7 — `CompileBatch` does not deduplicate input batch paths
+
+- **Severity:** P1.
+- **Symptom:** If a path appears twice in the batch list (possible after Bug 16.2 or any normalization difference like trailing-backslash vs not), the union compile may emit duplicate type definitions → CS0101, OR Roslyn silently drops one and the swapper notifies stale fibers.
+- **File:line:** `Editor/HMR/UitkxHmrCompiler.cs:573-618`.
+- **Root cause:** `EnqueueCompile` deduplicates by string equality into `_enqueued`, but path normalization is not consistent (different code paths build paths differently — some `Path.GetFullPath`, some raw strings from the watcher).
+- **Proposed fix:** at the start of `ProcessBatch`/`CompileBatch`, normalize every input path with `Path.GetFullPath(path)` and dedupe into a `HashSet<string>(StringComparer.OrdinalIgnoreCase)` before compile. Log a `[HMR] Batch contained duplicate path` warning per dedupe-hit (because each one is a controller-side bug worth fixing).
+- **Test:** inject `["X.uitkx", "X.uitkx", "X.UITKX"]` into a batch; assert compile runs once and warning fires twice.
+
+## Bug 16.8 — `EmitCompanionUitkxSources` does not validate companion `@namespace`
+
+- **Severity:** P2.
+- **Symptom:** A user with a typo in `MyComponent.style.uitkx`'s `@namespace` directive causes CS0101 in HMR compile but NOT in cold build (because cold build keeps the partials in separate compilation units; HMR inlines them into one).
+- **File:line:** `Editor/HMR/UitkxHmrCompiler.cs:928-985`.
+- **Root cause:** Companion-source emitter inlines `partial class Container { ... }` from each `MyComponent.*.uitkx` sibling without checking that all siblings share the parent's `@namespace`. Cold build never had this problem because each file became its own compilation unit with its own namespace block.
+- **Proposed fix:** in `EmitCompanionUitkxSources`, extract the companion's `@namespace` directive via regex; if it disagrees with the parent's, log a warning and SKIP that companion (it'll still cold-build correctly, but HMR will refuse to inline). This converts the CS0101 confusion into an actionable warning.
+- **Test:** parent `@namespace A`, companion `@namespace B` → assert warning, no CS0101, HMR proceeds without that companion.
+
+## Bug 16.9 — Union compile succeeds but type-resolution silently skips missing components
+
+- **Severity:** P1.
+- **Symptom:** A 3-component union compile loads successfully, but `ResolveComponentType` returns `null` for one of them (perhaps the emitter wrote it to a different namespace, or the `[UitkxElement]` attribute was lost). The swap silently no-ops for that one component. The OLD body keeps running. User sees "my edit didn't take" with NO error message.
+- **File:line:** `Editor/HMR/UitkxHmrComponentTrampolineSwapper.cs:138-152` (returns null silently) and `Editor/HMR/UitkxHmrController.cs:770-786` (no post-compile validation).
+- **Root cause:** Optimistic compile-then-swap flow. No "did every component in this batch actually materialise in the assembly" assertion between compile and swap.
+- **Proposed fix:** after `Assembly.Load`, iterate the batch and call `ResolveComponentType(componentName, asm)` for each. If any returns null, log a `[HMR] ERROR: union assembly missing component '{name}'` and fall back to per-file compile (where the per-file path can still succeed for the resolvable subset).
+- **Test:** mock an emitter that drops one component from the union; assert error logged and per-file fallback runs.
+
+## Bug 16.10 — `HasHookSignatureChanged` uses ordinal string equality without normalization
+
+- **Severity:** P2.
+- **Symptom:** False-positive remounts when extracted signatures differ in ordering, whitespace, or attribute formatting.
+- **File:line:** `Editor/HMR/UitkxHmrComponentTrampolineSwapper.cs:497-502`.
+- **Root cause:** Bug 16.5's emitter divergence flows directly into this comparison. Even if Bug 16.5 is fixed, defensive normalization here prevents recurrences.
+- **Proposed fix:** before comparing, split by `,`, trim each token, sort, rejoin. Two signatures that name the same hooks in any order or with any whitespace will compare equal. (This may also need to be applied at the SG attribute-writing site to avoid backward-compat issues with already-cold-built consumers.)
+- **Test:** parameterised — `"useState,useEffect"` vs `" useEffect , useState"` → asserts equal after normalization.
+
+## Bug 16.11 — Per-file fallback discards union-compile error context
+
+- **Severity:** P2 (observability).
+- **Symptom:** Union compile fails with an informative Roslyn diagnostic. Per-file fallback succeeds. User has zero visibility into what the union error was, so they can't tell if their codebase has a latent cross-file issue that will bite them in cold build.
+- **File:line:** `Editor/HMR/UitkxHmrController.cs:766-790`.
+- **Root cause:** Fallback path discards `unionResult.Error` before invoking per-file path.
+- **Proposed fix:** log `Debug.LogWarning($"[HMR] Union compile failed, falling back to per-file. Union error: {unionResult.Error}")` before the fallback loop. One line.
+- **Test:** trigger a deliberate cross-file error; assert the union error appears in the log even if per-file succeeds.
+
+## Bug 16.12 — `HookContainerRegistry.Seed` stops early on `UnauthorizedAccessException`
+
+- **Severity:** P2.
+- **Symptom:** Consumer with any read-only subfolder under `Assets/` (common when sharing a project between editors, or with vendored packages) has the registry only partially seeded. Subsequent HMR compiles fail to resolve cross-folder hook references with CS0103.
+- **File:line:** `Editor/HMR/HookContainerRegistry.cs:85-103` (line numbers approximate — confirm).
+- **Root cause:** `Directory.EnumerateFiles(rootDir, "*.uitkx", SearchOption.AllDirectories)` is a single recursive call that throws on the first inaccessible subdirectory. The throw is caught at the outer task scope, so the loop stops early and the registry is incomplete.
+- **Proposed fix:** convert to explicit BFS over `Queue<string>` of directories; wrap each `Directory.EnumerateFiles(currentDir)` and `Directory.EnumerateDirectories(currentDir)` in a try/catch that logs and continues. Also log a summary `[HMR] HookContainerRegistry seeded: N files from M folders` at the end so users can spot incomplete seeding.
+- **Test:** create a fixture with a deliberately-locked subdirectory; assert seeding completes and the summary log fires.
+
+## Bug 16.13 — `FullResetComponentState` triggers on sibling components in a union batch (sharpens Issue 14.1)
+
+- **Severity:** P0 — this IS the root cause of Issue 14's scene duplication, stated more precisely.
+- **Symptom:** Same as Issue 14 symptom #1 (scene duplication). Sibling components in the same cascade batch get rude-reset even though only one was edited.
+- **File:line:** `Editor/HMR/UitkxHmrComponentTrampolineSwapper.cs:451-485`.
+- **Root cause (more precise than Issue 14.1):** `SwapAll(asm, componentName)` receives a single `componentName` but `FindAllSwapTargetTypes` may return types for ALL components in the batch (because the union assembly contains all of them and the type-finder may not filter by name). `NotifyMatchingFibers` then iterates the FULL fiber tree, matches against the (possibly-too-broad) `oldTypeSet`, and runs `HasHookSignatureChanged(declaringType, newType)`. Because `newType` is only the changed component's type but `declaringType` may be a sibling's old type, the signature comparison fits-but-doesn't-match the right pair, returning true (= "rude reset") for sibling fibers.
+- **Why Issue 14.1 doesn't catch it fully:** Issue 14.1 proposes `if (declaring.Name == swapTargetComponentName)` gating, which is correct in spirit, but the proposal didn't trace that `oldTypeSet` itself is over-broad in the union-batch case. The fix MUST narrow `oldTypeSet` to types matching `componentName` (e.g. by checking `[UitkxElement(ComponentName=...)]` attribute), not just gate the reset call.
+- **Proposed fix (stronger than Issue 14.1):**
+  1. Thread `componentName` through `NotifyMatchingFibers`.
+  2. Before calling `FullResetComponentState` OR comparing signatures, verify `declaring.GetCustomAttribute<UitkxElementAttribute>()?.ComponentName == targetComponentName`.
+  3. Sibling types still get trampoline-swapped (delegate slot updated to point at the new union-assembly body), but get NO state reset and NO signature comparison.
+- **Test:** integration — copy-rename Marker→Bob+Handle exactly as in Issue 14 repro, attach a `useEffect(() => Instantiate(...), [])` to an ancestor, save a `.style.uitkx`, assert exactly ONE Instantiate call (not two).
+
+## Architectural observations
+
+### Pattern 1 — Parallel hand-copied tables
+
+Bug 16.3 (alias table), Bug 16.5 (signature regex), and the original Issue 15 (alias table vs signature regex within SG) are all the same pattern: a list-of-strings exists in two places, the two copies drift, and the drift manifests as a class of bug rather than a single bug. **All three should be fixed by extracting one source-of-truth file in `Shared/Core/` and having both SG and HMR consume it.** This is the single highest-leverage refactor for HMR stability.
+
+### Pattern 2 — Optimistic flow without post-condition validation
+
+Bugs 16.7 (no dedupe), 16.9 (no post-compile resolve check), and 16.13 (no cross-check between `componentName` and `oldTypeSet`) share a shape: the HMR pipeline trusts intermediate stages to produce well-formed results. Adding cheap assertions between stages (one `Assert` or `LogWarning` each) would convert most current silent failures into actionable diagnostics.
+
+### Pattern 3 — Catch-and-swallow
+
+Bug 16.4 enumerates this — empty `catch { }` blocks are pervasive in `Editor/HMR/`. Recommend a static analyzer rule + grep-based CI check that rejects `catch \{\s*\}` in `Editor/HMR/**`.
+
+### Pattern 4 — Reverse-map invariants are not maintained on file deletion
+
+Bug 16.2 is one instance; if the codebase has other reverse-maps (`s_componentReverse`, `s_hookContainerReverse`, etc.), each is a candidate for the same bug. Audit every reverse-map structure for a corresponding `RemoveFile`/`RemoveEntry` that fully purges it.
+
+### Pattern 5 — Order-dependence on reflection APIs
+
+Bug 16.1 is one instance. Search the HMR folder for any other use of `GetTypes().First*`, `GetMethods().First*`, or `GetMembers().First*` and audit each for whether it's relying on undocumented ordering.
+
+## Recommended fix ordering
+
+1. **Bug 16.3 (P1)** — apply Issue 15 fix to HMR's alias table NOW. Tiny change. Unblocks any consumer who tries to use `useTweenFloat` and triggers an HMR cycle. **S complexity.**
+2. **Bug 16.13 + Issue 14.1 (P0)** — narrow `FullResetComponentState` by component name. Kills scene duplication. **M complexity** — needs careful threading of `targetComponentName` through the swapper.
+3. **Bug 16.1 (P1)** — thread `Namespace` through `HmrCompileResult`. Kills the `Microsoft.CodeAnalysis.*Hooks` warnings deterministically. **S complexity.**
+4. **Bug 16.4 (P2 but huge observability win)** — replace every `catch { }` in `Editor/HMR/` with `catch (Exception ex) { Debug.LogWarning($"[HMR] <site> failed: {ex.Message}"); }`. Mechanical. **S complexity.**
+5. **Bug 16.5 (P2)** — extract `HookSignatureExtractor` to `Shared/Core/`. Eliminates the SG/HMR drift root cause. **M complexity** — needs new shared file + both call sites updated + parity test.
+6. **Bug 16.7 (P1)** — dedupe batch paths at `CompileBatch` entry. **S complexity.**
+7. **Bug 16.9 (P1)** — post-compile type-resolution assertion. **S complexity.**
+8. **Bug 16.2 (P2)** — clean reverse-maps on `RemoveFile` + post-filter cascade results with `File.Exists`. **S complexity.**
+9. **Bug 16.8 (P2)** — companion namespace validation. **S complexity.**
+10. **Bug 16.10 (P2)** — signature normalization in `HasHookSignatureChanged`. **S complexity. Skip if Bug 16.5 fully solves drift.**
+11. **Bug 16.11 (P2)** — log union error before per-file fallback. **S complexity.** One line.
+12. **Bug 16.12 (P2)** — per-folder catch in `HookContainerRegistry.Seed`. **S complexity.**
+13. **Bug 16.6 (P2)** — cascade fan-out warning. **S complexity.** Cosmetic but useful for users.
+
+If the maintainer can land only ONE change, it is **Bug 16.13 + Issue 14.1 combined** (narrowing `FullResetComponentState`), because it kills the most user-visible symptom (scene duplication / state loss) immediately.
+
+## Tests we should add regardless of which fixes land first
+
+| Test | Lives in | Catches |
+|------|----------|---------|
+| `HmrHookAliasTable_MatchesSgTable` | `HmrEmitterParityContractTests.cs` | Bug 16.3 + future drift |
+| `HookSignature_SgAndHmrAreIdentical` (param 20×) | `HmrEmitterParityContractTests.cs` | Bug 16.5 + future drift |
+| `CopyRename_DoesNotDuplicateSceneFromAncestorUseEffect` (integration) | `Editor/HMR/Tests/CopyRenameRegressionTests.cs` (new) | Issue 14 + Bug 16.13 |
+| `Cascade_AfterFileDelete_NoFileNotFoundException` | `UitkxFileDependencyIndexTests.cs` (new) | Bug 16.2 |
+| `CompileBatch_DeduplicatesInputPaths` | `UitkxHmrCompilerTests.cs` | Bug 16.7 |
+| `UnionCompile_MissingComponent_FallsBackToPerFile` | `UitkxHmrControllerTests.cs` | Bug 16.9 |
+| `HookContainerRegistry_LockedSubfolder_DoesNotAbortSeed` | `HookContainerRegistryTests.cs` | Bug 16.12 |
+| `NoEmptyCatchBlocksInHmrFolder` (grep-based CI check, not a unit test) | `Editor/HMR/Tests/StaticAnalysisTests.cs` (new) | Bug 16.4 + future regressions |
+| `HasHookSignatureChanged_IgnoresWhitespaceAndOrder` | `UitkxHmrComponentTrampolineSwapperTests.cs` | Bug 16.10 |
+| `CompanionNamespaceMismatch_LogsWarning_SkipsCompanion` | `UitkxHmrCompilerTests.cs` | Bug 16.8 |
+| `ResolveNamespace_IsDeterministic_AcrossRuns` | `UitkxHmrControllerTests.cs` | Bug 16.1 |
+
+## Open questions for the maintainer
+
+1. **Is the HMR DLL ever unloaded?** Static review couldn't confirm — if `Assembly.Load` is used without an `AssemblyLoadContext`, every HMR cycle adds a permanent type to the process. Over a long dev session this might explain the "HMR gets slower over time" anecdotes worth checking.
+2. **Does `[HookSignature]` attribute use a stable hash, or just the raw extracted string?** If raw string, every emitter divergence is a potential remount. If a stable hash, only semantic divergence matters. Recommend verifying.
+3. **Is there a CI job that compiles `Samples/UIs/PrettyUi` via HMR end-to-end?** If not, the per-bug regression tests above are local-only and the parity tests catch nothing in PR. Consider adding `automation~/hmr-smoke.ps1`.
+4. **What's the contract for `useEffect` cleanup idempotency?** Today's `FullResetComponentState` assumes cleanups are pure inverses of setups. If documented, point users to it. If not, decide: either document the contract or stop calling `FullResetComponentState` on edits that don't strictly require it (Bug 16.13 / Issue 14.1).
+
+> **Audit truncated.** This audit was produced under a token budget. The deepest sub-investigation deferred: a side-by-side line-diff of every emitter method shared between `SourceGenerator~/Emitter/CSharpEmitter.cs` and the HMR mirror in `Editor/HMR/HmrCSharpEmitter.cs` (if that file exists in your tree under that name) — that diff likely surfaces 2–4 additional drift bugs in the same family as 16.3 and 16.5.
+
+
