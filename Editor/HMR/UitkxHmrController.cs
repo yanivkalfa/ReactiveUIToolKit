@@ -470,7 +470,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             if (result.Success)
             {
-                ApplySuccessfulCompileResult(result, uitkxPath);
+                ApplySuccessfulCompileResult(result, uitkxPath, isOriginatingChange: true);
 
                 // Remove from pending retries if this was a re-attempt
                 _pendingRetryPaths.Remove(uitkxPath);
@@ -503,7 +503,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// per-file result of a union compile.
         /// </summary>
         private void ApplySuccessfulCompileResult(
-            HmrCompileResult result, string uitkxPath)
+            HmrCompileResult result, string uitkxPath, bool isOriginatingChange)
         {
             // Sync asset references into cache (lightweight — no SO write)
             SyncAssetCacheForHmr(uitkxPath);
@@ -555,15 +555,23 @@ namespace ReactiveUITK.EditorSupport.HMR
             int swapped;
             if (result.IsHookModuleFile)
             {
-                // Hook/module files: update static delegate fields + global re-render
-                string ns = null;
-                try
+                // Hook/module files: update static delegate fields + global re-render.
+                // Namespace is carried through HmrCompileResult so we don't probe via
+                // GetTypes().FirstOrDefault() (which picks Roslyn's embedded
+                // Microsoft.CodeAnalysis.EmbeddedAttribute due to metadata ordering).
+                string ns = result.Namespace;
+                if (string.IsNullOrEmpty(ns))
                 {
-                    var firstType = result.LoadedAssembly.GetTypes().FirstOrDefault();
-                    if (firstType != null)
-                        ns = firstType.Namespace;
+                    try
+                    {
+                        var containerType = result.LoadedAssembly.GetTypes()
+                            .FirstOrDefault(t =>
+                                t.Name == result.HookContainerClass
+                                || t.Name == result.ComponentName);
+                        ns = containerType?.Namespace;
+                    }
+                    catch { }
                 }
-                catch { }
 
                 swapped = UitkxHmrDelegateSwapper.SwapHooks(
                     result.LoadedAssembly,
@@ -576,10 +584,19 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Component files: swap the per-component __hmr_Render
                 // trampoline field. Single static-field write per
                 // component type — no per-fiber tree walk.
+                //
+                // allowFullStateReset is gated to the originating file of a
+                // cascade batch (the walker orders dependents-first, originator
+                // last). Cascade-pulled siblings/ancestors still receive the new
+                // IL via the trampoline field swap, but their fiber state and
+                // useEffect cleanups are preserved — preventing re-fire of mount
+                // effects (e.g. additive scene loads) when an unrelated edit
+                // pulls them into the batch.
                 swapped = UitkxHmrComponentTrampolineSwapper.SwapAll(
                     result.LoadedAssembly,
                     result.ComponentName,
-                    uitkxPath
+                    uitkxPath,
+                    allowFullStateReset: isOriginatingChange
                 );
             }
             swapSw.Stop();
@@ -741,7 +758,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                     var per = batchResult.PerFileResults[i];
                     if (per != null && per.Success)
                     {
-                        ApplySuccessfulCompileResult(per, paths[i]);
+                        // CollectTransitiveDependents orders dependents-first
+                        // with the originating file appended LAST. Only that
+                        // file gets the rude FullResetComponentState semantics;
+                        // cascade-pulled siblings/ancestors keep their fiber
+                        // state and useEffect cleanups intact across the swap.
+                        bool isOriginator = (i == paths.Count - 1);
+                        ApplySuccessfulCompileResult(per, paths[i], isOriginator);
                         _pendingRetryPaths.Remove(paths[i]);
                     }
                 }
