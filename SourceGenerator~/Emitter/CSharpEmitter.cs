@@ -443,6 +443,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             ("useTransition(", "Hooks.UseTransition("),
             ("useSfx(", "Hooks.UseSfx("),
             ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
+            ("useSafeArea(", "Hooks.UseSafeArea("),
+            ("useStableFunc(", "Hooks.UseStableFunc("),
+            ("useStableAction(", "Hooks.UseStableAction("),
+            ("useStableCallback(", "Hooks.UseStableCallback("),
+            ("useImperativeHandle(", "Hooks.UseImperativeHandle("),
+            ("useAnimate(", "Hooks.UseAnimate("),
+            ("useTweenFloat(", "Hooks.UseTweenFloat("),
             ("provideContext(", "Hooks.ProvideContext("),
         };
 
@@ -453,7 +460,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         // The non-generic form is handled by s_hookAliases simple replacements above.
         private static readonly System.Text.RegularExpressions.Regex s_genericHookAliasRe =
             new System.Text.RegularExpressions.Regex(
-                @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+                @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useStableFunc|useStableAction|useImperativeHandle)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 

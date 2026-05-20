@@ -188,6 +188,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 string componentName = (string)GetProp(directives, "ComponentName");
                 string ns = (string)GetProp(directives, "Namespace");
+                result.Namespace = ns ?? string.Empty;
 
                 if (string.IsNullOrEmpty(componentName))
                 {
@@ -747,6 +748,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     {
                         Success = true,
                         ComponentName = art.ComponentName,
+                        Namespace = art.Namespace ?? string.Empty,
                         LoadedAssembly = asm,
                         ParseMs = art.ParseMs,
                         EmitMs = art.EmitMs,
@@ -2374,6 +2376,17 @@ namespace ReactiveUITK.EditorSupport.HMR
         public bool Success;
         public string Error;
         public string ComponentName;
+
+        /// <summary>
+        /// Declared namespace from the .uitkx file's <c>@namespace</c> directive
+        /// (empty string when omitted). Threaded from <see cref="ComponentBuildArtifacts.Namespace"/>
+        /// so swappers can FQN-resolve types without a non-deterministic
+        /// <c>GetTypes().FirstOrDefault().Namespace</c> probe (which picks Roslyn's
+        /// embedded <c>Microsoft.CodeAnalysis.EmbeddedAttribute</c> based on metadata
+        /// ordering).
+        /// </summary>
+        public string Namespace;
+
         public Assembly LoadedAssembly;
 
         /// <summary>
