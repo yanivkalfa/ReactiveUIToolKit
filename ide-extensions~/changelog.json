@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-19",
+      "versions": {
+        "vscode": "1.2.12",
+        "vs2022": "1.2.12"
+      },
+      "shared": [
+        "Ships the library 0.5.21 fixes via the bundled analyzer DLL. Three changes, all on the SG / HMR side; no LSP, language-lib, or per-IDE plumbing was touched, so consumer behaviour in the editor is unchanged - this release exists to deliver the new analyzer build.\n\nHMR cascade-batch no longer re-fires mount effects on cascaded ancestors. When a `.uitkx` save pulled transitive dependents into a batch compile, `UitkxHmrController.ApplySuccessfulCompileResult` ran per-file and `UitkxHmrComponentTrampolineSwapper.SwapAll` -> `NotifyMatchingFibers` unconditionally invoked `FullResetComponentState` on every matched fiber whenever the `[HookSignature]` byte-differed between the SG-emitted and HMR-emitted attributes. For cascade-pulled ancestors that wiped `useEffect` cleanups and re-fired mount effects on the next render - observed in the wild as additive `SceneManager.LoadSceneAsync` calls on a parent firing a second time when an unrelated sibling subtree was edited. `SwapAll` now takes an `allowFullStateReset` parameter (default `true`, preserving single-file semantics); the controller threads `isOriginatingChange = (i == paths.Count - 1)` from the cascade walker's dependents-first / originator-last ordering. Cascaded files still receive the cheap trampoline-field swap (so their next render uses the new IL) but retain their fiber state and effect cleanups intact.\n\nHMR wrong-namespace warning spam eliminated. The hook-module branch resolved the assembly's namespace via `LoadedAssembly.GetTypes().FirstOrDefault().Namespace`. Roslyn's embedded `Microsoft.CodeAnalysis.EmbeddedAttribute` materialises first in metadata order, so the probe returned `Microsoft.CodeAnalysis` and the swapper logged \"type not found\" warnings on every save. The declared `@namespace` is now threaded through `HmrCompileResult.Namespace` (set in `Compile`, populated in `CompileBatch` per-file results from `ComponentBuildArtifacts.Namespace`) and read directly with a name-filtered `GetTypes()` fallback for defensive resolution.\n\ncamelCase hook aliases now work for 7 more public hooks. `useTweenFloat`, `useAnimate`, `useSafeArea`, `useStableFunc`, `useStableAction`, `useStableCallback`, and `useImperativeHandle` were listed in every layer's `s_hookSignatureRe` (signature scanner) but missing from every layer's `s_hookAliases` rewrite table and from `s_genericHookAliasRe` for the 3 generic ones. Writing them in their natural camelCase form in a `.uitkx` setup block produced `CS0103: The name 'useTweenFloat' does not exist in the current context`, forcing consumers into manual `Hooks.UseXxx(...)` qualification with no compiler help. Fix: 7 alias entries plus 3 generic-regex entries added in lockstep to `SourceGenerator~/Emitter/CSharpEmitter.cs`, `Editor/HMR/HmrCSharpEmitter.cs`, and `Editor/HMR/HmrHookEmitter.cs`. Locked in by 7 new `Sg_Use*_AliasRewritten` parity-contract tests in `HmrEmitterParityContractTests.cs` so future hook additions cannot silently drift again.\n\nSG suite `1244/1244` passing (+7 alias-rewrite tests, +0 regressions)."
+      ]
+    },
+    {
       "date": "2026-05-18",
       "versions": {
         "vscode": "1.2.11",
