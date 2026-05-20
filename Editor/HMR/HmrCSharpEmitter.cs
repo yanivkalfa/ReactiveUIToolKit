@@ -2597,12 +2597,19 @@ namespace ReactiveUITK.EditorSupport.HMR
             ("useTransition(", "Hooks.UseTransition("),
             ("useSfx(", "Hooks.UseSfx("),
             ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
+            ("useSafeArea(", "Hooks.UseSafeArea("),
+            ("useStableFunc(", "Hooks.UseStableFunc("),
+            ("useStableAction(", "Hooks.UseStableAction("),
+            ("useStableCallback(", "Hooks.UseStableCallback("),
+            ("useImperativeHandle(", "Hooks.UseImperativeHandle("),
+            ("useAnimate(", "Hooks.UseAnimate("),
+            ("useTweenFloat(", "Hooks.UseTweenFloat("),
             ("provideContext(", "Hooks.ProvideContext("),
         };
 
         // Matches generic hook calls: useRef<VisualElement?>(, useState<int>( etc.
         private static readonly Regex s_genericHookAliasRe = new Regex(
-            @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+            @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useStableFunc|useStableAction|useImperativeHandle)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
             RegexOptions.Compiled
         );
 

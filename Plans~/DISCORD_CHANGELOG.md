@@ -1,12 +1,14 @@
 ﻿## [0.5.21] - 2026-05-19
 
-### HMR cascade-batch no longer re-fires mount effects on cascaded ancestors
+### HMR cascade-batch no longer re-fires mount effects, plus 7 hook aliases unlocked
 
-**Scene duplication on save is gone.** When the 0.5.20 cascade walker pulled transitive ancestors into a batch, `ApplySuccessfulCompileResult` ran per-file and `NotifyMatchingFibers` invoked `FullResetComponentState` on every matched fiber. That wiped `useEffect` cleanups and re-fired mount effects on the next render - in practice an additive `SceneManager.LoadSceneAsync` on a parent fired a second time when an unrelated sibling subtree was edited. The cascade walker already orders results dependents-first / originator-last, so the controller now threads `isOriginatingChange = (i == paths.Count - 1)` through `SwapAll` into `NotifyMatchingFibers` and gates the rude reset on it. Cascaded files still receive the cheap trampoline-field swap so their next render uses the new IL, but fiber state and effect cleanups stay intact. Single-file saves are unchanged.
+**Scene duplication on save is gone.** When the 0.5.20 cascade walker pulled transitive ancestors into a batch, `NotifyMatchingFibers` invoked `FullResetComponentState` on every matched fiber - wiping `useEffect` cleanups and re-firing mount effects on the next render. In the wild: an additive `SceneManager.LoadSceneAsync` on a parent fired a second time when an unrelated sibling was edited. The cascade walker orders results dependents-first / originator-last, so the controller now threads `isOriginatingChange = (i == paths.Count - 1)` into `SwapAll` and gates the rude reset on it. Cascaded files still get the cheap trampoline-field swap (next render uses new IL), but fiber state and effect cleanups stay intact.
 
-**Wrong-namespace warning spam fixed.** The hook-module branch resolved the assembly namespace via `LoadedAssembly.GetTypes().FirstOrDefault().Namespace`. Roslyn's embedded `Microsoft.CodeAnalysis.EmbeddedAttribute` materialises first in metadata order, so the probe returned `Microsoft.CodeAnalysis` and the swapper logged "type not found" on every save. The declared `@namespace` is now threaded through `HmrCompileResult.Namespace` and read directly with a name-filtered fallback.
+**Wrong-namespace warning spam fixed.** The hook-module branch resolved the assembly namespace via `LoadedAssembly.GetTypes().FirstOrDefault().Namespace`. Roslyn's embedded `EmbeddedAttribute` materialises first in metadata order, so the probe returned `Microsoft.CodeAnalysis` and the swapper logged "type not found" on every save. Declared `@namespace` is now threaded through `HmrCompileResult.Namespace` and read directly.
 
-**Deferred.** `OPTIMIZATIONS.md` #1 (dep index over-links copy-rename files with leftover module tokens) is now an optimisation only after the gate above - cascaded near-clones get cheap trampoline swap, no rude reset.
+**7 more hooks usable in camelCase.** `useTweenFloat`, `useAnimate`, `useSafeArea`, `useStableFunc`, `useStableAction`, `useStableCallback`, `useImperativeHandle` were in every signature scanner but missing from every rewrite table - CS0103 in `.uitkx` setup blocks. Added 7 entries to `s_hookAliases` and 3 to `s_genericHookAliasRe` in lockstep across SG + 2 HMR layers; 7 new parity-contract tests added so future hook additions cannot silently drift. SG suite `1244/1244` green.
+
+**Deferred.** `OPTIMIZATIONS.md` #1 (dep index over-links copy-rename files) is now an optimisation only after the cascade gate above.
 
 No extension release. VS Code / VS 2022 unchanged.
 

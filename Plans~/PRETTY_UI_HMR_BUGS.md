@@ -1613,8 +1613,11 @@ then Fix 14.2 + 14.3 (cleanup).
 > **Priority: P0** � small fix, but breaks the documented camelCase contract for
 > half a dozen public hooks and forces consumers into manual `Hooks.UseXxx(...)`
 > qualification with zero compiler help.
-> **Status:** ACTIVE on 0.5.20. Reproduced 2026-05-19 by writing `useTweenFloat(...)`
-> in `Cover.uitkx` and `InteractionDialog.uitkx` in the consumer project.
+> **Status:** RESOLVED in 0.5.21 (2026-05-19). Added 7 entries to `s_hookAliases`
+> and 3 entries to `s_genericHookAliasRe` in all 3 emission layers
+> (`CSharpEmitter`, `HmrCSharpEmitter`, `HmrHookEmitter`). Verified by 7 new
+> `Sg_Use*_AliasRewritten` tests in `HmrEmitterParityContractTests.cs`; full SG
+> suite 1244/1244 green.
 
 ## Symptom
 
