@@ -923,4 +923,135 @@ public class HmrEmitterParityContractTests
         // signature regex must still detect it.
         Assert.Contains("UseSfx", output.GeneratedSource);
     }
+
+    // -- Issue 15 coverage: hooks added in earlier releases whose camelCase
+    // alias forms were never wired into s_hookAliases / s_genericHookAliasRe.
+    // Without these tests, future hook additions that forget to update the
+    // alias tables would silently produce CS0103 in consumer .uitkx files.
+
+    [Fact]
+    public void Sg_UseSafeAreaHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component SafeAreaUser {
+                var insets = useSafeArea();
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseSafeArea(", output.GeneratedSource);
+        Assert.Contains("UseSafeArea", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseStableFuncHook_GenericAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component StableFuncUser {
+                var f = useStableFunc<int>(() => 42);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseStableFunc<int>(", output.GeneratedSource);
+        Assert.Contains("UseStableFunc", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseStableActionHook_GenericAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component StableActionUser {
+                var a = useStableAction<int>(v => { });
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseStableAction<int>(", output.GeneratedSource);
+        Assert.Contains("UseStableAction", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseStableCallbackHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component StableCallbackUser {
+                var cb = useStableCallback(() => { });
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseStableCallback(", output.GeneratedSource);
+        Assert.Contains("UseStableCallback", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseImperativeHandleHook_GenericAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component ImperativeHandleUser {
+                var h = useImperativeHandle<object>(() => null);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseImperativeHandle<object>(", output.GeneratedSource);
+        Assert.Contains("UseImperativeHandle", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseAnimateHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component AnimateUser {
+                useAnimate(null, false);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseAnimate(", output.GeneratedSource);
+        Assert.Contains("UseAnimate", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseTweenFloatHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component TweenFloatUser {
+                useTweenFloat(0f, 1f, 1f, default, 0f, v => { }, null);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseTweenFloat(", output.GeneratedSource);
+        Assert.Contains("UseTweenFloat", output.GeneratedSource);
+    }
 }

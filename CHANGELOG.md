@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
-## [0.5.21] - Unreleased
+## [0.5.21] - 2026-05-19
 
 ### Fixed
 
@@ -41,6 +41,23 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   `ComponentBuildArtifacts.Namespace`); the controller reads it
   directly with a name-filtered `GetTypes()` fallback for defensive
   resolution. See `Plans~/ISSUE_14_FIX_PLAN.md` Patch 14.4.
+
+- **camelCase hook aliases work for 7 more public hooks (Issue 15).**
+  `useTweenFloat`, `useAnimate`, `useSafeArea`, `useStableFunc`,
+  `useStableAction`, `useStableCallback`, and `useImperativeHandle`
+  were listed in every layer's `s_hookSignatureRe` (signature
+  scanner) but missing from every layer's `s_hookAliases` rewrite
+  table and from `s_genericHookAliasRe` for the 3 generic ones.
+  Result: writing them in their natural camelCase form in a `.uitkx`
+  setup block produced `CS0103: The name 'useTweenFloat' does not
+  exist in the current context`, forcing consumers into manual
+  `Hooks.UseXxx(...)` qualification with no compiler help. Fix: 7
+  alias entries + 3 generic-regex entries added in lockstep to
+  `SourceGenerator~/Emitter/CSharpEmitter.cs`,
+  `Editor/HMR/HmrCSharpEmitter.cs`, and
+  `Editor/HMR/HmrHookEmitter.cs`. Locked in by 7 new
+  `Sg_Use*_AliasRewritten` parity-contract tests; full SG suite
+  `1244/1244` green.
 
 ### Deferred
 
