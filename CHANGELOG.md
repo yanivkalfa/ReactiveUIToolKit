@@ -6,6 +6,83 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.5.22] - 2026-05-20
+
+### Added
+
+- **`Hooks.UseTransition()` — React-compatible no-op transition hook.**
+  Returns `(bool isPending, Action<Action> startTransition)`. UITKX has
+  no concurrent renderer, so `isPending` is always `false` and
+  `startTransition(action)` runs `action` synchronously; the start
+  delegate is a cached `static readonly` field so per-call allocation
+  is zero. Provided for source compatibility with React-targeted code
+  being ported to UITKX, and so the SG / HMR alias rewrite from
+  `useTransition(...)` to `Hooks.UseTransition(...)` (added in 0.5.21's
+  `s_hookAliases`) now resolves at runtime instead of failing with
+  `CS0117: 'Hooks' does not contain a definition for 'UseTransition'`.
+
+### Fixed
+
+- **IDE: JSX inside attribute-lambda bodies is now type-checked.** The
+  virtual document generator's `EmitMappedExpressionStrippingJsx`
+  (`ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs`
+  L736) replaced JSX subtrees inside attribute values — e.g.
+  `onClick={e => <Inner badProp={42} />}` or ternaries returning JSX
+  from an inline expression — with `(VirtualNode)null!`, dropping the
+  entire subtree from Roslyn's view. Result: bad props, undefined
+  components, and type mismatches inside attribute-lambda JSX produced
+  zero diagnostics in VS Code / VS 2022 even though the SG and cold
+  build flagged them correctly. Fix: extended the strip helper with an
+  optional `deferredJsxRanges` list that records every stripped
+  subtree position; a new `EmitDeferredJsxAttributeChecks` helper
+  parses each subtree with `UitkxParser.Parse` and wraps the
+  node-check code in a Pattern-B
+  `dynamic __uitkx_jsxattr{pos}() { ... return default!; }` local
+  function so Roslyn sees the full type-check graph without affecting
+  the runtime emission. Thread-static `t_jsxAttrContext` (set in a
+  try/finally around `EmitFunctionStyleBodyCore`) publishes the
+  source + directives context to the three deferred sites
+  (`EmitExpressionStatement`, `EmitTypedPropsCheck`,
+  `EmitBodyWithReturnFix`) without threading two nullable parameters
+  through six method signatures. Locked in by
+  `AttributeLambda_JsxBody_DeferredPatternBEmitted` +
+  `AttributeLambda_WithJsxSubtree_GeneratesVirtualDoc` in
+  `RoslynHostTests`.
+
+- **IDE: 10 more hooks resolve in the virtual document.** The VDG's
+  static + component stub blocks were missing per-component shadow
+  declarations for `useReducer`, `useDeferredValue`,
+  `useImperativeHandle`, `useStableFunc`, `useStableAction`,
+  `useStableCallback`, `useTweenFloat`, `useAnimate`, `useSafeArea`,
+  and `useTransition`. The SG alias-rewrite layer in 0.5.21 sent the
+  camelCase forms through to `Hooks.UseXxx(...)`, but the IDE's
+  per-component scope shadowed the unqualified call sites so
+  hovering / go-to-definition / signature-help silently failed. Both
+  stub blocks now mirror the SG's hook-shadow set 1:1 (20 hooks × both
+  invocation forms = 40 stubs each side).
+
+- **`UITKX0013` (hook-in-conditional) now covers 10 additional hooks.**
+  `HooksValidator.s_hookPatterns` (SG) and
+  `DiagnosticsAnalyzer.s_hookPatterns` (language-lib mirror for live
+  diagnostics) grew from 30 to 60 strings — 20 public hooks × 3 forms
+  (`Hooks.UseX(`, `UseX(`, `useX(`) — so the diagnostic now fires for
+  `UseImperativeHandle`, `UseSafeArea`, `UseStableFunc`,
+  `UseStableAction`, `UseStableCallback`, `UseAnimate`,
+  `UseTweenFloat`, `UseSfx`, `UseUiDocumentRoot`, and `ProvideContext`
+  (previously these 10 silently broke React's rules-of-hooks
+  contract). `HoverHandler.s_hookDocs` grew from 16 to 40 entries so
+  hover over the 12 newer hooks produces the documented signature,
+  params, and a UITKX-specific note where the runtime semantics
+  diverge from React (e.g. `useTransition`'s synchronous behaviour).
+
+### Tests
+
+- SG suite `1245/1245` passing
+  (+1 `Sg_UseTransitionHook_LowercaseAliasRewritten` parity test).
+- LSP suite gains 2 new `RoslynHostTests` for the attribute-lambda
+  fix (`AttributeLambda_WithJsxSubtree_GeneratesVirtualDoc`,
+  `AttributeLambda_JsxBody_DeferredPatternBEmitted`).
+
 ## [0.5.21] - 2026-05-19
 
 ### Fixed

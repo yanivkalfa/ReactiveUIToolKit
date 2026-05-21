@@ -1054,4 +1054,21 @@ public class HmrEmitterParityContractTests
         Assert.Contains("Hooks.UseTweenFloat(", output.GeneratedSource);
         Assert.Contains("UseTweenFloat", output.GeneratedSource);
     }
+
+    [Fact]
+    public void Sg_UseTransitionHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component TransitionUser {
+                var (isPending, startTransition) = useTransition();
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseTransition(", output.GeneratedSource);
+    }
 }

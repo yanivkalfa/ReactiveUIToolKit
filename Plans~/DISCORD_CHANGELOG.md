@@ -1,4 +1,26 @@
-﻿## [0.5.21] - 2026-05-19
+﻿## [0.5.22] - 2026-05-20
+
+### IDE finally type-checks JSX inside attribute lambdas, plus UseTransition lands
+
+**The silent IDE blind spot is gone.** The virtual document generator's `EmitMappedExpressionStrippingJsx` replaced JSX subtrees inside attribute values with `(VirtualNode)null!` - so `onClick={e => <Inner badProp={42} />}` and ternaries returning JSX from inline expressions produced zero diagnostics in VS Code / VS 2022, even though the SG and cold build flagged them correctly. The strip helper now records each stripped range; a new `EmitDeferredJsxAttributeChecks` re-parses the subtree and emits Pattern-B `dynamic __uitkx_jsxattr{pos}() { ... }` locals so Roslyn sees the full type-check graph without touching runtime emission. Thread-static `t_jsxAttrContext` carries source + directives to the 3 deferred sites.
+
+**New runtime hook `Hooks.UseTransition()`.** Returns `(bool isPending, Action<Action> startTransition)`. UITKX has no concurrent renderer: `isPending` is always `false`, `startTransition(action)` runs synchronously, start delegate is `static readonly` (zero alloc). 0.5.21's `useTransition` alias rewrite now resolves at runtime instead of failing with `CS0117`.
+
+**10 hooks now resolve in the IDE.** The VDG's stub blocks were missing shadow decls for `useReducer`, `useDeferredValue`, `useImperativeHandle`, `useStableFunc/Action/Callback`, `useTweenFloat`, `useAnimate`, `useSafeArea`, `useTransition`. Per-component scope shadowed the unqualified call sites so hover / go-to-def / signature-help silently failed. Both stub blocks now mirror the SG hook-shadow set 1:1.
+
+**Validator + hover widened.** Pattern tables (SG + language-lib mirror) grew 30 -> 60 strings so `UITKX0013` now fires for 10 more hooks. Hover docs grew 16 -> 40 entries; `useTransition` calls out the synchronous UITKX semantics.
+
+**Tests.** SG `1245/1245` (+1 alias parity); +2 LSP `RoslynHostTests`.
+
+VS Code **1.2.12 -> 1.2.13** | VS 2022 **1.2.12 -> 1.2.13**.
+
+---
+
+## [0.5.21] - 2026-05-19
+
+---
+
+## [0.5.21] - 2026-05-19
 
 ### HMR cascade-batch no longer re-fires mount effects, plus 7 hook aliases unlocked
 
