@@ -19,34 +19,15 @@ namespace ReactiveUITK.EditorSupport.HMR
     internal static class HmrHookEmitter
     {
         // ── Hook alias substitution (mirrors HmrCSharpEmitter) ───────────────
+        //
+        // Sourced from ReactiveUITK.Core.HookRegistry — the single source of
+        // truth shared by SG, HMR, IDE diagnostics, hover docs, and VDG stubs.
 
         private static readonly (string From, string To)[] s_hookAliases =
-        {
-            ("useState(", "Hooks.UseState("),
-            ("useEffect(", "Hooks.UseEffect("),
-            ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
-            ("useRef(", "Hooks.UseRef("),
-            ("useCallback(", "Hooks.UseCallback("),
-            ("useMemo(", "Hooks.UseMemo("),
-            ("useContext(", "Hooks.UseContext("),
-            ("useReducer(", "Hooks.UseReducer("),
-            ("useSignal(", "Hooks.UseSignal("),
-            ("useDeferredValue(", "Hooks.UseDeferredValue("),
-            ("useTransition(", "Hooks.UseTransition("),
-            ("useSfx(", "Hooks.UseSfx("),
-            ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
-            ("useSafeArea(", "Hooks.UseSafeArea("),
-            ("useStableFunc(", "Hooks.UseStableFunc("),
-            ("useStableAction(", "Hooks.UseStableAction("),
-            ("useStableCallback(", "Hooks.UseStableCallback("),
-            ("useImperativeHandle(", "Hooks.UseImperativeHandle("),
-            ("useAnimate(", "Hooks.UseAnimate("),
-            ("useTweenFloat(", "Hooks.UseTweenFloat("),
-            ("provideContext(", "Hooks.ProvideContext("),
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetAliasTable();
 
         private static readonly Regex s_genericHookAliasRe = new Regex(
-            @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useStableFunc|useStableAction|useImperativeHandle)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+            global::ReactiveUITK.Core.HookRegistry.GetGenericHookPattern(),
             RegexOptions.Compiled
         );
 
