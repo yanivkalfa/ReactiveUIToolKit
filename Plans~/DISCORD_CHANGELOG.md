@@ -1,4 +1,22 @@
-﻿## [0.6.0] - 2026-05-22
+﻿## [0.6.1] - 2026-05-23
+
+### Unified hook metadata registry - drift bugs cannot ship again, `useLayoutEffect` now diagnosed + documented
+
+**Eight hand-maintained hook tables collapsed into one source of truth.** Every public hook had its name, signature regex, alias rewrite, validation pattern, hover doc, and Roslyn-only stub block copied across 5 files (SG `CSharpEmitter` / `HooksValidator`, both HMR emitters, `DiagnosticsAnalyzer`, `HoverHandler`, two `VirtualDocumentGenerator` stub blocks). Every release between 0.5.18 and 0.6.0 shipped at least one bug that was one table missing an entry the others had (7 camelCase aliases in 0.5.21; 10 hover docs in 0.5.22). Replaced with `ReactiveUITK.Core.HookRegistry` - `#if UNITY_EDITOR` static class with cached accessors all 5 consumers read from. Zero player cost. Linked into language-lib via `<Compile Include Link>`; SG inherits transitively via existing `ProjectReference`, avoiding `CS0436`.
+
+**Fix - `useLayoutEffect` is now a real hook to the IDE.** Shipped runtime-side and SG-aliased several releases ago, but the validator and hover layers were never updated. Calling it inside an `if` silently passed `UITKX0013` (rules-of-hooks); hovering returned no docs. Registry adds the 3 missing validation patterns and 2 missing hover entries - pure additive coverage.
+
+**Tests.** SG `1264/1264` passing. New `HookRegistryTests.cs` (16 tests) covers internal invariants (count, cardinality, accessor-reference caching for the per-keystroke hot path), runtime reflection parity against `Hooks`, and byte-for-byte golden equality against 8 snapshots captured at the 0.6.0 baseline. The validation-patterns golden asserts the diff is exactly the 3 `useLayoutEffect` entries - future drift fails a test naming the specific table.
+
+VS Code **1.2.14 -> 1.2.15** | VS 2022 **1.2.14 -> 1.2.15** ship the new analyzer DLL.
+
+---
+
+## [0.6.0] - 2026-05-22
+
+---
+
+## [0.6.0] - 2026-05-22
 
 ### HMR ported to React Fast Refresh - zero player cost, custom-hook edits invalidate consumers
 

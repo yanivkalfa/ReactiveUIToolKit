@@ -6,6 +6,74 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.6.1] - 2026-05-23
+
+### Changed
+
+- **Unified hook metadata into a single source of truth
+  (`ReactiveUITK.Core.HookRegistry`).** Eight hand-maintained tables
+  describing the 20 public hooks lived in parallel across five files
+  and consistently drifted from each other after every hook
+  addition: `CSharpEmitter.s_hookAliases` /
+  `s_genericHookAliasRe` / `s_hookSignatureRe` (SG),
+  `HooksValidator.s_hookPatterns` (SG), the two HMR mirrors in
+  `HmrCSharpEmitter` + `HmrHookEmitter`, `DiagnosticsAnalyzer.s_hookPatterns`
+  (IDE live diagnostics), `HoverHandler.s_hookDocs` (IDE hover), and
+  the two verbatim Roslyn-only stub blocks in
+  `VirtualDocumentGenerator` (static + instance forms). Every
+  release between 0.5.18 and 0.6.0 shipped at least one bug that was
+  a `s_hook*` table missing an entry the other tables already had
+  (camelCase aliases for 7 hooks in 0.5.21, hover docs for 10 hooks
+  in 0.5.22, etc.). Consolidated into a new `public static class
+  HookRegistry` (`Shared/Core/HookRegistry.cs`, wrapped in
+  `#if UNITY_EDITOR` so it adds zero player-build cost) with three
+  private orderings (`s_signatureOrder`, `s_aliasOrder`,
+  `s_genericOrder`), cached accessors (`GetAliasTable`,
+  `GetSignatureRegexPattern`, `GetGenericHookPattern`,
+  `GetValidationPatterns`, `GetDocMap`,
+  `GenerateVirtualDocStubs(bool staticForm)`), and adds-once
+  semantics: every accessor returns the same cached reference so
+  per-keystroke hot paths in `DiagnosticsAnalyzer` retain their
+  zero-allocation contract. The registry is linked into
+  `UitkxLanguage.csproj` (`<Compile Include Link>`); the SG inherits
+  it transitively via its existing `ProjectReference` to language-
+  lib, avoiding CS0436 duplicate-type. All five consumer files now
+  read from the registry instead of declaring their own copy. Net
+  diff: ~470 LOC added (registry + 16 golden-snapshot tests + 8
+  golden files), ~290 LOC of duplicated tables removed.
+
+### Fixed
+
+- **`useLayoutEffect` is now covered by rules-of-hooks diagnostics
+  and IDE hover docs.** The hook shipped in the runtime several
+  releases ago and had a SG alias-rewrite entry, but the validator
+  and hover layers' `s_hookPatterns` / `s_hookDocs` tables were
+  never updated, so calling `useLayoutEffect` inside an `if` block
+  silently passed `UITKX0013` (rules-of-hooks) and hovering over the
+  call site returned no documentation. The registry adds the missing
+  three validation patterns (`Hooks.UseLayoutEffect(`,
+  `UseLayoutEffect(`, `useLayoutEffect(`) and the two hover entries
+  (camelCase + qualified) â€” pure additive coverage, no existing
+  diagnostic behaviour changes.
+
+### Tests
+
+- SG `1264/1264` passing. New `SourceGenerator~/Tests/HookRegistryTests.cs`
+  adds 16 tests across three layers: internal invariants
+  (`Registry_HookCount_IsExpected`, `Registry_AliasTable_HasOneEntryPerHook`,
+  `Registry_ValidationPatterns_HaveThreeFormsPerHook`,
+  `Registry_Accessors_ReturnSameReferenceOnRepeatedCalls`), runtime
+  reflection parity (`Registry_CanonicalNames_MatchHooksType`,
+  `Registry_SignaturePattern_MatchesAllFormsOfEveryHook`,
+  `Registry_GenericPattern_MatchesGenericFormsOnly`), and byte-for-
+  byte golden-file equality against `SourceGenerator~/Tests/Golden/HookRegistry/`
+  (alias table, signature regex, generic alias regex, validation
+  patterns, hover docs, both VDG stub blocks). The validation-
+  patterns golden test explicitly asserts the diff between registry
+  output and the pre-refactor baseline is exactly the three
+  `useLayoutEffect` entries, so any future drift surfaces as a test
+  failure naming the specific table that drifted.
+
 ## [0.6.0] - 2026-05-22
 
 ### Changed

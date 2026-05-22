@@ -340,48 +340,10 @@ namespace ReactiveUITK.Language.Roslyn
             // (see component-document scaffold for details).
 
             // ── Hook stubs (same as component stubs) ──────────────────────────
-            b.Scaffold(
-                "\n"
-                    + "        // ── Roslyn-only hook stubs (never called at runtime) ──────────\n"
-                    + "#pragma warning disable CS8603, CS8625, CS1998, CS0246\n"
-                    + "        private delegate void __StateSetter__<T>(global::System.Func<T, T> updater);\n"
-                    + "        private static (T value, __StateSetter__<T> set)\n"
-                    + "            useState<T>(T initial = default) => (initial, null!);\n"
-                    + "        private static T useMemo<T>(global::System.Func<T> factory, params object[] deps)\n"
-                    + "            => factory != null ? factory() : default!;\n"
-                    + "        private static void useEffect(\n"
-                    + "            global::System.Func<global::System.Action> effectFactory,\n"
-                    + "            params object[] deps) { }\n"
-                    + "        private static global::ReactiveUITK.Core.Ref<T> useRef<T>(T initial = default) => new();\n"
-                    + "        private static global::UnityEngine.UIElements.VisualElement useRef() => null!;\n"
-                    + "        private static global::System.Func<T> useCallback<T>(\n"
-                    + "            global::System.Func<T> callback, params object[] deps) => callback!;\n"
-                    + "        private static T useSignal<T>(object signal) => default!;\n"
-                    + "        private static T useSignal<T>(string key, T initialValue = default) => initialValue;\n"
-                    + "        private static T useContext<T>(string key) => default!;\n"
-                    + "        private static void provideContext<T>(string key, T value) { }\n"
-                    + "        private static void provideContext(string key, object value) { }\n"
-                    + "        private static void useLayoutEffect(\n"
-                    + "            global::System.Func<global::System.Action> effectFactory,\n"
-                    + "            params object[] deps) { }\n"
-                    + "        private static global::System.Action<global::UnityEngine.AudioClip, float>\n"
-                    + "            useSfx(global::UnityEngine.Audio.AudioMixerGroup mixer = null) => (_, __) => { };\n"
-                    + "        private static global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(global::UnityEngine.UIElements.UIDocument doc) => default!;\n"
-                    + "        private static global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(string contextKey) => default!;\n"
-                    + "        private static (TState state, global::System.Action<TAction> dispatch) useReducer<TState, TAction>(global::System.Func<TState, TAction, TState> reducer, TState initialState) => (initialState, _ => { });\n"
-                    + "        private static T useDeferredValue<T>(T value, params object[] deps) => value;\n"
-                    + "        private static THandle useImperativeHandle<THandle>(global::System.Func<THandle> factory, params object[] deps) where THandle : class => factory();\n"
-                    + "        private static global::System.Func<T> useStableFunc<T>(global::System.Func<T> function) => function;\n"
-                    + "        private static global::System.Action<T> useStableAction<T>(global::System.Action<T> action) => action;\n"
-                    + "        private static global::System.Action useStableCallback(global::System.Action callback) => callback;\n"
-                    + "        private static void useTweenFloat(float from, float to, float duration, global::ReactiveUITK.Core.Animation.Ease ease, float delay, global::System.Action<float> onUpdate, global::System.Action onComplete, params object[] deps) { }\n"
-                    + "        private static void useAnimate(global::System.Collections.Generic.IReadOnlyList<global::ReactiveUITK.Core.Animation.AnimateTrack> tracks, bool autoplay = true, params object[] deps) { }\n"
-                    + "        private static global::ReactiveUITK.Core.SafeAreaInsets useSafeArea(float tolerance = 0.5f) => default!;\n"
-                    + "        private static (bool isPending, global::System.Action<global::System.Action> startTransition) useTransition() => (false, _ => { });\n"
-                    + "        private static T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
-                    + "        private static T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
-                    + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
-            );
+            // Sourced from ReactiveUITK.Core.HookRegistry so the IDE stubs
+            // stay byte-identical with the (former) hand-maintained block here
+            // and the matching instance-form block emitted below.
+            b.Scaffold(global::ReactiveUITK.Core.HookRegistry.GenerateVirtualDocStubs(staticForm: true));
 
             // ── Emit each hook as a method ────────────────────────────────────
             foreach (var hook in d.HookDeclarations)
@@ -543,48 +505,14 @@ namespace ReactiveUITK.Language.Roslyn
             // useRef<T>() returns the workspace-shared global::ReactiveUITK.Core.Ref<T>
             //   (real DLL when loaded, polyfill stub otherwise) so cross-document
             //   calls bind to one nominal type and .Current completions work.
-            b.Scaffold(
-                "\n"
-                    + "        // ── Roslyn-only hook stubs (never called at runtime) ──────────────\n"
-                    + "#pragma warning disable CS8603, CS8625, CS1998, CS0246\n"
-                    + "        private delegate void __StateSetter__<T>(global::System.Func<T, T> updater);\n"
-                    + "        private (T value, __StateSetter__<T> set)\n"
-                    + "            useState<T>(T initial = default) => (initial, null!);\n"
-                    + "        private T useMemo<T>(global::System.Func<T> factory, params object[] deps)\n"
-                    + "            => factory != null ? factory() : default!;\n"
-                    + "        private void useEffect(\n"
-                    + "            global::System.Func<global::System.Action> effectFactory,\n"
-                    + "            params object[] deps) { }\n"
-                    + "        private global::ReactiveUITK.Core.Ref<T> useRef<T>(T initial = default) => new();\n"
-                    + "        private global::UnityEngine.UIElements.VisualElement useRef() => null!;\n"
-                    + "        private global::System.Func<T> useCallback<T>(\n"
-                    + "            global::System.Func<T> callback, params object[] deps) => callback!;\n"
-                    + "        private T useSignal<T>(object signal) => default!;\n"
-                    + "        private T useSignal<T>(string key, T initialValue = default) => initialValue;\n"
-                    + "        private T useContext<T>(string key) => default!;\n"
-                    + "        private void provideContext<T>(string key, T value) { }\n"
-                    + "        private void provideContext(string key, object value) { }\n"
-                    + "        private void useLayoutEffect(\n"
-                    + "            global::System.Func<global::System.Action> effectFactory,\n"
-                    + "            params object[] deps) { }\n"
-                    + "        private global::System.Action<global::UnityEngine.AudioClip, float>\n"
-                    + "            useSfx(global::UnityEngine.Audio.AudioMixerGroup mixer = null) => (_, __) => { };\n"
-                    + "        private global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(global::UnityEngine.UIElements.UIDocument doc) => default!;\n"
-                    + "        private global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(string contextKey) => default!;\n"
-                    + "        private (TState state, global::System.Action<TAction> dispatch) useReducer<TState, TAction>(global::System.Func<TState, TAction, TState> reducer, TState initialState) => (initialState, _ => { });\n"
-                    + "        private T useDeferredValue<T>(T value, params object[] deps) => value;\n"
-                    + "        private THandle useImperativeHandle<THandle>(global::System.Func<THandle> factory, params object[] deps) where THandle : class => factory();\n"
-                    + "        private global::System.Func<T> useStableFunc<T>(global::System.Func<T> function) => function;\n"
-                    + "        private global::System.Action<T> useStableAction<T>(global::System.Action<T> action) => action;\n"
-                    + "        private global::System.Action useStableCallback(global::System.Action callback) => callback;\n"
-                    + "        private void useTweenFloat(float from, float to, float duration, global::ReactiveUITK.Core.Animation.Ease ease, float delay, global::System.Action<float> onUpdate, global::System.Action onComplete, params object[] deps) { }\n"
-                    + "        private void useAnimate(global::System.Collections.Generic.IReadOnlyList<global::ReactiveUITK.Core.Animation.AnimateTrack> tracks, bool autoplay = true, params object[] deps) { }\n"
-                    + "        private global::ReactiveUITK.Core.SafeAreaInsets useSafeArea(float tolerance = 0.5f) => default!;\n"
-                    + "        private (bool isPending, global::System.Action<global::System.Action> startTransition) useTransition() => (false, _ => { });\n"
-                    + "        private T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
-                    + "        private T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
-                    + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
-            );
+            //
+            // Stub block sourced from ReactiveUITK.Core.HookRegistry; see the
+            // matching static-form emission in GenerateHookContainerDocument
+            // for the design rationale (single source of truth across SG / HMR
+            // / IDE / VDG).  The instance form differs only in the method
+            // modifier (private vs private static) and the header-comment
+            // box-drawing tail length — both encoded inside the registry.
+            b.Scaffold(global::ReactiveUITK.Core.HookRegistry.GenerateVirtualDocStubs(staticForm: false));
 
             // Collect markup nodes — skip non-rendering nodes.
             var markupOnlyNodes = ImmutableArray.CreateBuilder<AstNode>(

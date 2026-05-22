@@ -147,71 +147,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         // Patterns that indicate a hook call. We match on the call site name only —
         // the leading `Hooks.` prefix is optional so hand-written using-aliases work too.
+        //
+        // Sourced from ReactiveUITK.Core.HookRegistry so this list cannot drift
+        // from the source generator's alias table and the IDE diagnostics
+        // analyzer's scanner.  This is also where useLayoutEffect coverage
+        // arrives — pre-0.5.23 this table was missing it entirely.
         private static readonly string[] s_hookPatterns =
-        {
-            "Hooks.UseState(",
-            "Hooks.UseEffect(",
-            "Hooks.UseRef(",
-            "Hooks.UseCallback(",
-            "Hooks.UseMemo(",
-            "Hooks.UseContext(",
-            "Hooks.UseReducer(",
-            "Hooks.UseSignal(",
-            "Hooks.UseDeferredValue(",
-            "Hooks.UseTransition(",
-            "Hooks.UseImperativeHandle(",
-            "Hooks.UseSafeArea(",
-            "Hooks.UseStableFunc(",
-            "Hooks.UseStableAction(",
-            "Hooks.UseStableCallback(",
-            "Hooks.UseAnimate(",
-            "Hooks.UseTweenFloat(",
-            "Hooks.UseSfx(",
-            "Hooks.UseUiDocumentRoot(",
-            "Hooks.ProvideContext(",
-            // Also catch bare names (when imported via `using static ReactiveUITK.Core.Hooks`)
-            "UseState(",
-            "UseEffect(",
-            "UseRef(",
-            "UseCallback(",
-            "UseMemo(",
-            "UseContext(",
-            "UseReducer(",
-            "UseSignal(",
-            "UseDeferredValue(",
-            "UseTransition(",
-            "UseImperativeHandle(",
-            "UseSafeArea(",
-            "UseStableFunc(",
-            "UseStableAction(",
-            "UseStableCallback(",
-            "UseAnimate(",
-            "UseTweenFloat(",
-            "UseSfx(",
-            "UseUiDocumentRoot(",
-            "ProvideContext(",
-            // React-style camelCase shorthand aliases supported by the emitter
-            "useState(",
-            "useEffect(",
-            "useRef(",
-            "useCallback(",
-            "useMemo(",
-            "useContext(",
-            "useReducer(",
-            "useSignal(",
-            "useDeferredValue(",
-            "useTransition(",
-            "useImperativeHandle(",
-            "useSafeArea(",
-            "useStableFunc(",
-            "useStableAction(",
-            "useStableCallback(",
-            "useAnimate(",
-            "useTweenFloat(",
-            "useSfx(",
-            "useUiDocumentRoot(",
-            "provideContext(",
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetValidationPatterns();
 
         // ── UITKX0016 — hook inside attribute expression ─────────────────────
 

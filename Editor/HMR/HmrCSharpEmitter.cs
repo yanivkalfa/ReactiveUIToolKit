@@ -2719,35 +2719,18 @@ namespace ReactiveUITK.EditorSupport.HMR
         // ── Tag resolution types ──────────────────────────────────────────────
 
         // ── Hook alias substitution (mirrors CSharpEmitter.ApplyHookAliases) ──
+        //
+        // Sourced from ReactiveUITK.Core.HookRegistry — the single source of
+        // truth for hook metadata.  This eliminates the previous hand-mirrored
+        // copy of the alias table and generic regex that could drift from the
+        // source generator's copy without detection.
 
         private static readonly (string From, string To)[] s_hookAliases =
-        {
-            ("useState(", "Hooks.UseState("),
-            ("useEffect(", "Hooks.UseEffect("),
-            ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
-            ("useRef(", "Hooks.UseRef("),
-            ("useCallback(", "Hooks.UseCallback("),
-            ("useMemo(", "Hooks.UseMemo("),
-            ("useContext(", "Hooks.UseContext("),
-            ("useReducer(", "Hooks.UseReducer("),
-            ("useSignal(", "Hooks.UseSignal("),
-            ("useDeferredValue(", "Hooks.UseDeferredValue("),
-            ("useTransition(", "Hooks.UseTransition("),
-            ("useSfx(", "Hooks.UseSfx("),
-            ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
-            ("useSafeArea(", "Hooks.UseSafeArea("),
-            ("useStableFunc(", "Hooks.UseStableFunc("),
-            ("useStableAction(", "Hooks.UseStableAction("),
-            ("useStableCallback(", "Hooks.UseStableCallback("),
-            ("useImperativeHandle(", "Hooks.UseImperativeHandle("),
-            ("useAnimate(", "Hooks.UseAnimate("),
-            ("useTweenFloat(", "Hooks.UseTweenFloat("),
-            ("provideContext(", "Hooks.ProvideContext("),
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetAliasTable();
 
         // Matches generic hook calls: useRef<VisualElement?>(, useState<int>( etc.
         private static readonly Regex s_genericHookAliasRe = new Regex(
-            @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useStableFunc|useStableAction|useImperativeHandle)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+            global::ReactiveUITK.Core.HookRegistry.GetGenericHookPattern(),
             RegexOptions.Compiled
         );
 
@@ -3175,9 +3158,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// Matches any hook call in setup code — both user-written camelCase
         /// (useState, useEffect) and fully-qualified PascalCase (Hooks.UseState).
         /// Captures the hook name (without "Hooks." prefix) in group 1.
+        /// Pattern is sourced from HookRegistry.
         /// </summary>
         private static readonly Regex s_hookSignatureRe = new Regex(
-            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useUiDocumentRoot|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseUiDocumentRoot|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
+            global::ReactiveUITK.Core.HookRegistry.GetSignatureRegexPattern(),
             RegexOptions.Compiled
         );
 
