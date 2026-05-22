@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-05-23",
+      "versions": {
+        "vscode": "1.2.15",
+        "vs2022": "1.2.15"
+      },
+      "shared": [
+        "Ships library 0.6.1: unified hook metadata into a single source of truth (`ReactiveUITK.Core.HookRegistry`). Eight hand-maintained tables describing the 20 public hooks - `CSharpEmitter.s_hookAliases` / `s_genericHookAliasRe` / `s_hookSignatureRe`, `HooksValidator.s_hookPatterns`, the two HMR mirrors, `DiagnosticsAnalyzer.s_hookPatterns` (live IDE diagnostics), `HoverHandler.s_hookDocs` (IDE hover), and the two `VirtualDocumentGenerator` Roslyn-only stub blocks (static + instance forms) - lived in parallel across 5 files and consistently drifted from each other after every hook addition (7 missing camelCase aliases in 0.5.21; 10 missing hover docs in 0.5.22). All 5 consumers now read from `HookRegistry` accessors (`GetAliasTable`, `GetSignatureRegexPattern`, `GetGenericHookPattern`, `GetValidationPatterns`, `GetDocMap`, `GenerateVirtualDocStubs(bool staticForm)`); the registry is `#if UNITY_EDITOR`-wrapped so it adds zero player-build cost. Linked into `UitkxLanguage.csproj` via `<Compile Include Link>`; the SG inherits transitively via its existing `ProjectReference`, avoiding CS0436 duplicate-type. Per-keystroke hot paths retain their zero-allocation contract via cached-reference accessors.\n\nFix: `useLayoutEffect` is now covered by `UITKX0013` (rules-of-hooks) live diagnostics and the IDE hover layer. The hook shipped runtime-side several releases ago and had a SG alias-rewrite entry, but the validator's `s_hookPatterns` and `HoverHandler.s_hookDocs` were never updated, so calling `useLayoutEffect` inside an `if` block silently passed the validator and hovering over the call site returned no documentation. Registry adds the missing 3 validation patterns (`Hooks.UseLayoutEffect(`, `UseLayoutEffect(`, `useLayoutEffect(`) and the 2 hover entries (camelCase + qualified) as pure additive coverage - no existing diagnostic behaviour changes.\n\nSG suite `1264/1264` passing (+16 new `HookRegistryTests` covering internal invariants, runtime reflection parity against the `Hooks` type, and byte-for-byte golden-file equality against 8 pre-refactor snapshots)."
+      ]
+    },
+    {
       "date": "2026-05-22",
       "versions": {
         "vscode": "1.2.14",

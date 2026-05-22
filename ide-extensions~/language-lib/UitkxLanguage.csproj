@@ -6,7 +6,22 @@
     <RootNamespace>ReactiveUITK.Language</RootNamespace>
     <AssemblyName>ReactiveUITK.Language</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!--
+      Define UNITY_EDITOR so the linked HookRegistry.cs (wrapped in
+      #if UNITY_EDITOR to be stripped from Unity player builds) compiles
+      into ReactiveUITK.Language.dll.  The language library only runs in
+      editor / LSP contexts, so this constant is unconditionally true here.
+    -->
+    <DefineConstants>$(DefineConstants);UNITY_EDITOR</DefineConstants>
   </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Single-source-of-truth hook metadata registry.  Linked from Shared/Core
+      so the IDE diagnostics analyzer, LSP hover handler, and virtual-document
+      generator share the same table as the Unity-side source generator.
+    -->
+    <Compile Include="..\..\Shared\Core\HookRegistry.cs" Link="HookRegistry.cs" />
+  </ItemGroup>
   <ItemGroup>
     <!--
       System.Collections.Immutable is the only NuGet dependency.
