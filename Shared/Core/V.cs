@@ -498,6 +498,45 @@ namespace ReactiveUITK
             return v;
         }
 
+        // ── Family-based overloads (UITKX Fast Refresh, editor-only) ────────
+        //
+        // The SG emits these in Editor builds. The Family carries a stable
+        // reference identity that survives HMR DLL recompiles; its Current
+        // delegate is mutated in place by RefreshRuntime.Register. The vnode
+        // captures BOTH the Family (for reconciler identity matching) AND a
+        // snapshot of family.Current at call time (so a Family.Current swap
+        // mid-render-pass doesn't produce inconsistent results within the
+        // pass -- the next pass picks up the new body).
+        //
+        // These overloads do not exist in player compilation. The SG emits
+        // direct V.Func(delegate, ...) calls under #if !UNITY_EDITOR so
+        // player builds have zero Family-related code or types.
+
+        /// <summary>
+        /// Family-based typed function component overload. SG-emitted in
+        /// Editor builds. See Plans~/HMR_FAST_REFRESH_PLAN.md for the
+        /// architecture.
+        /// </summary>
+#if UNITY_EDITOR
+        public static VirtualNode Func<TProps>(
+            Refresh.Family family,
+            TProps typedProps,
+            string key = null,
+            params VirtualNode[] children
+        )
+            where TProps : class, Core.IProps
+        {
+            var v = VirtualNode.__Rent();
+            v._nodeType = VirtualNodeType.FunctionComponent;
+            v._key = key;
+            v._children = children ?? EmptyChildren();
+            v._typedFunctionRender = family?.Current;
+            v._typedProps = (Core.IProps)typedProps ?? Core.EmptyProps.Instance;
+            v._family = family;
+            return v;
+        }
+#endif // UNITY_EDITOR
+
         /// <summary>
         /// Creates an untyped IProps function component VirtualNode.
         /// Use this when no strongly-typed props class is needed (no-props components or
@@ -518,6 +557,29 @@ namespace ReactiveUITK
             v._typedProps = props ?? Core.EmptyProps.Instance;
             return v;
         }
+
+        /// <summary>
+        /// Family-based untyped (no-props) function component overload.
+        /// SG-emitted in Editor builds for components with no typed props.
+        /// </summary>
+#if UNITY_EDITOR
+        public static VirtualNode Func(
+            Refresh.Family family,
+            Core.IProps props = null,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            var v = VirtualNode.__Rent();
+            v._nodeType = VirtualNodeType.FunctionComponent;
+            v._key = key;
+            v._children = children ?? EmptyChildren();
+            v._typedFunctionRender = family?.Current;
+            v._typedProps = props ?? Core.EmptyProps.Instance;
+            v._family = family;
+            return v;
+        }
+#endif // UNITY_EDITOR
 
         // ═══════════════════════════════════════════════════════════════════
         //  Structural nodes

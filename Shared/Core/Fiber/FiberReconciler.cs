@@ -492,23 +492,27 @@ namespace ReactiveUITK.Core.Fiber
             catch (Exception ex)
             {
 #if UNITY_EDITOR
-                // HMR rollback: if the per-component __hmr_Render trampoline
-                // was just swapped and the new body crashed, ask the Editor
-                // side to revert the trampoline field to its previous value
-                // and retry the render once before falling through to the
-                // nearest error boundary.
+                // HMR rollback: if the component's Family.Current was just
+                // swapped to a new body and that body crashed, ask the
+                // Editor side to revert Family.Current to its previous
+                // value and retry the render once before falling through to
+                // the nearest error boundary.
                 //
-                // The TryRollbackComponent hook is wired by
-                // UitkxHmrComponentTrampolineSwapper.InstallRollbackHook (the
+                // The TryRollbackFamily hook is wired by RefreshRuntime when
+                // the Editor registers its root-renderer provider (the
                 // Shared assembly cannot reference the Editor asmdef
                 // directly). Returns false in player builds (hook is null).
                 if (HmrState.IsActive
-                    && HmrState.TryRollbackComponent != null
-                    && fiber.Tag == FiberTag.FunctionComponent)
+                    && HmrState.TryRollbackFamily != null
+                    && fiber.Tag == FiberTag.FunctionComponent
+                    && fiber.Family != null)
                 {
-                    var declType = fiber.TypedRender?.Method?.DeclaringType;
-                    if (declType != null && HmrState.TryRollbackComponent(declType))
+                    if (HmrState.TryRollbackFamily(fiber.Family))
                     {
+                        // Refresh the fiber's delegate from the rolled-back
+                        // Family so the retry uses the previous body.
+                        fiber.TypedRender = fiber.Family.Current;
+
                         // Reset hook state — partially-executed hooks from
                         // the crashing delegate may have corrupted slot
                         // values.
@@ -516,7 +520,7 @@ namespace ReactiveUITK.Core.Fiber
 
                         UnityEngine.Debug.LogWarning(
                             $"[HMR] Render crashed — rolled back component " +
-                            $"'{declType.Name}' to previous version: {ex.Message}"
+                            $"'{fiber.Family.Id}' to previous version: {ex.Message}"
                         );
 
                         try
@@ -1043,7 +1047,9 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             if (fiber.HostElement == null)
+            {
                 return;
+            }
 
             // Find parent host fiber
             var parentFiber = fiber.Parent;
@@ -1166,7 +1172,9 @@ namespace ReactiveUITK.Core.Fiber
                         || node.Parent.Tag == FiberTag.HostComponent
                         || node.Parent.Tag == FiberTag.HostPortal
                     )
+                    {
                         return null; // no DOM sibling exists before the host parent boundary
+                    }
                     node = node.Parent;
                 }
                 node = node.Sibling;
@@ -1177,10 +1185,14 @@ namespace ReactiveUITK.Core.Fiber
                 while (node.Tag != FiberTag.HostComponent)
                 {
                     if ((node.EffectTag & EffectFlags.Placement) != 0)
+                    {
                         break; // this container is also new — try its sibling next
+                    }
 
                     if (node.Tag == FiberTag.HostPortal || node.Child == null)
+                    {
                         break; // can't descend further — try next sibling
+                    }
 
                     node = node.Child; // descend into Fragment / FunctionComponent
                 }
@@ -1191,7 +1203,9 @@ namespace ReactiveUITK.Core.Fiber
                     && (node.EffectTag & EffectFlags.Placement) == 0
                     && node.HostElement != null
                 )
+                {
                     return node.HostElement;
+                }
 
                 // Otherwise `node` is wherever we stopped.  The next outer loop
                 // iteration will advance to node.Sibling (or walk up if null).
@@ -1696,8 +1710,13 @@ namespace ReactiveUITK.Core.Fiber
                 fiber.TypedProps = fiber.TypedPendingProps;
             }
 
-            // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
+            // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check).
+            // EffectTag MUST be cleared here: GetHostSibling skips any fiber whose
+            // EffectTag has Placement set (treats it as "not yet committed"). If we leave
+            // stale Placement flags on committed fibers, subsequent reorder commits cannot
+            // find a stable anchor and fall back to AppendChild, producing wrong DOM order.
             fiber.SubtreeHasUpdates = false;
+            fiber.EffectTag = EffectFlags.None;
 
             // Recursively process children
             var child = fiber.Child;

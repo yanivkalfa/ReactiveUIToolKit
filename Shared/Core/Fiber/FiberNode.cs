@@ -40,6 +40,20 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> TypedRender;
 
+        /// <summary>
+        /// UITKX Fast Refresh Family handle. Non-null when this fiber was
+        /// created from a vnode produced by a <c>V.Func(Family,...)</c>
+        /// overload. The reconciler compares Family identity in
+        /// <c>CanReuseFiber</c>, eliminating the cross-DLL
+        /// <c>Method.DeclaringType</c> mismatch the legacy trampoline
+        /// architecture was vulnerable to. Editor-only -- player builds
+        /// receive direct <c>V.Func(MyComp.Render,...)</c> calls and the
+        /// <c>Refresh.Family</c> type does not exist outside the Editor.
+        /// </summary>
+#if UNITY_EDITOR
+        public Refresh.Family Family;
+#endif
+
         /// <summary>Pending typed props for the next render (typed path only).</summary>
         public IProps TypedPendingProps;
 

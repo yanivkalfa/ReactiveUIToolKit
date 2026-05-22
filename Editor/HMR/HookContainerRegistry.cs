@@ -34,9 +34,14 @@ namespace ReactiveUITK.EditorSupport.HMR
     // brief (one Add/Remove per file); reads return immutable snapshots.
     internal static class HookContainerRegistry
     {
-        // Single-line @namespace directive, e.g.  @namespace Foo.Bar;
+        // Single-line @namespace directive, e.g.  @namespace Foo.Bar  or  @namespace Foo.Bar;
+        // DirectiveParser.TryReadFunctionStyleNamespaceDirective accepts the
+        // trailing ';' as optional; this regex must mirror that grammar or
+        // every .uitkx in the codebase (which conventionally omits the ';')
+        // will be skipped by the registry and cross-folder peer-hook
+        // resolution will silently fail in HMR.
         private static readonly Regex s_nsRegex = new Regex(
-            @"^\s*@namespace\s+([A-Za-z_][\w.]*)\s*;",
+            @"^\s*@namespace\s+([A-Za-z_][\w.]*)\s*;?\s*$",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
         // Top-level `hook NameOfHook(...)` declaration.

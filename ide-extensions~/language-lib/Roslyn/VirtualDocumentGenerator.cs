@@ -368,6 +368,16 @@ namespace ReactiveUITK.Language.Roslyn
                     + "            useSfx(global::UnityEngine.Audio.AudioMixerGroup mixer = null) => (_, __) => { };\n"
                     + "        private static global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(global::UnityEngine.UIElements.UIDocument doc) => default!;\n"
                     + "        private static global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(string contextKey) => default!;\n"
+                    + "        private static (TState state, global::System.Action<TAction> dispatch) useReducer<TState, TAction>(global::System.Func<TState, TAction, TState> reducer, TState initialState) => (initialState, _ => { });\n"
+                    + "        private static T useDeferredValue<T>(T value, params object[] deps) => value;\n"
+                    + "        private static THandle useImperativeHandle<THandle>(global::System.Func<THandle> factory, params object[] deps) where THandle : class => factory();\n"
+                    + "        private static global::System.Func<T> useStableFunc<T>(global::System.Func<T> function) => function;\n"
+                    + "        private static global::System.Action<T> useStableAction<T>(global::System.Action<T> action) => action;\n"
+                    + "        private static global::System.Action useStableCallback(global::System.Action callback) => callback;\n"
+                    + "        private static void useTweenFloat(float from, float to, float duration, global::ReactiveUITK.Core.Animation.Ease ease, float delay, global::System.Action<float> onUpdate, global::System.Action onComplete, params object[] deps) { }\n"
+                    + "        private static void useAnimate(global::System.Collections.Generic.IReadOnlyList<global::ReactiveUITK.Core.Animation.AnimateTrack> tracks, bool autoplay = true, params object[] deps) { }\n"
+                    + "        private static global::ReactiveUITK.Core.SafeAreaInsets useSafeArea(float tolerance = 0.5f) => default!;\n"
+                    + "        private static (bool isPending, global::System.Action<global::System.Action> startTransition) useTransition() => (false, _ => { });\n"
                     + "        private static T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "        private static T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
@@ -472,6 +482,33 @@ namespace ReactiveUITK.Language.Roslyn
         {
             var d = parseResult.Directives;
 
+            // Issue 1 (UITKX0112): publish source + directives in a thread-static
+            // context so leaf emitters (EmitExpressionStatement / EmitTypedPropsCheck /
+            // EmitBodyWithReturnFix) can produce deferred Pattern-B JSX type-check
+            // blocks for attribute-lambda JSX subtrees that would otherwise be silently
+            // dropped. Restored in finally so nested / sequential calls aren't disturbed.
+            var __savedJsxCtx = t_jsxAttrContext;
+            t_jsxAttrContext = new JsxAttrCheckContext { Source = source, Directives = d };
+            try
+            {
+                EmitFunctionStyleBodyCore(b, parseResult, source, escapedPath, propsTypes);
+            }
+            finally
+            {
+                t_jsxAttrContext = __savedJsxCtx;
+            }
+        }
+
+        private static void EmitFunctionStyleBodyCore(
+            VirtualDocBuilder b,
+            ParseResult parseResult,
+            string source,
+            string escapedPath,
+            IPropsTypeProvider? propsTypes
+        )
+        {
+            var d = parseResult.Directives;
+
             // Typed parameters become private fields so the render method can access them.
             if (!d.FunctionParams.IsDefaultOrEmpty)
             {
@@ -534,6 +571,16 @@ namespace ReactiveUITK.Language.Roslyn
                     + "            useSfx(global::UnityEngine.Audio.AudioMixerGroup mixer = null) => (_, __) => { };\n"
                     + "        private global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(global::UnityEngine.UIElements.UIDocument doc) => default!;\n"
                     + "        private global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(string contextKey) => default!;\n"
+                    + "        private (TState state, global::System.Action<TAction> dispatch) useReducer<TState, TAction>(global::System.Func<TState, TAction, TState> reducer, TState initialState) => (initialState, _ => { });\n"
+                    + "        private T useDeferredValue<T>(T value, params object[] deps) => value;\n"
+                    + "        private THandle useImperativeHandle<THandle>(global::System.Func<THandle> factory, params object[] deps) where THandle : class => factory();\n"
+                    + "        private global::System.Func<T> useStableFunc<T>(global::System.Func<T> function) => function;\n"
+                    + "        private global::System.Action<T> useStableAction<T>(global::System.Action<T> action) => action;\n"
+                    + "        private global::System.Action useStableCallback(global::System.Action callback) => callback;\n"
+                    + "        private void useTweenFloat(float from, float to, float duration, global::ReactiveUITK.Core.Animation.Ease ease, float delay, global::System.Action<float> onUpdate, global::System.Action onComplete, params object[] deps) { }\n"
+                    + "        private void useAnimate(global::System.Collections.Generic.IReadOnlyList<global::ReactiveUITK.Core.Animation.AnimateTrack> tracks, bool autoplay = true, params object[] deps) { }\n"
+                    + "        private global::ReactiveUITK.Core.SafeAreaInsets useSafeArea(float tolerance = 0.5f) => default!;\n"
+                    + "        private (bool isPending, global::System.Action<global::System.Action> startTransition) useTransition() => (false, _ => { });\n"
                     + "        private T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "        private T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
@@ -631,6 +678,30 @@ namespace ReactiveUITK.Language.Roslyn
         // ── Expression wrappers / statements ─────────────────────────────────
 
         /// <summary>
+        /// Issue 1 (UITKX0112) — thread-static context that lets leaf expression
+        /// emitters (<see cref="EmitExpressionStatement"/>, <see cref="EmitTypedPropsCheck"/>,
+        /// <see cref="EmitBodyWithReturnFix"/>) recover the source text and
+        /// <see cref="DirectiveSet"/> needed to emit deferred Pattern-B JSX
+        /// type-check blocks for stripped attribute-lambda JSX subtrees.
+        ///
+        /// <para>Set by the top-level entry methods (<see cref="EmitFunctionStyleBody"/>,
+        /// <see cref="EmitInlineExprChecks"/>) inside a try/finally pair so the
+        /// previous value is always restored. Avoids threading two extra optional
+        /// parameters through six intermediate methods.</para>
+        ///
+        /// <para>Marked <c>[ThreadStatic]</c> so concurrent LSP document workers
+        /// don't observe each other's state.</para>
+        /// </summary>
+        private sealed class JsxAttrCheckContext
+        {
+            public string Source = string.Empty;
+            public DirectiveSet Directives = null!;
+        }
+
+        [ThreadStatic]
+        private static JsxAttrCheckContext? t_jsxAttrContext;
+
+        /// <summary>
         /// Phase 1 — emit expression text into the virtual document, replacing
         /// any embedded JSX literals with a <c>(VirtualNode)null!</c> stub so
         /// Roslyn can parse and type-check the surrounding C# without seeing
@@ -652,7 +723,8 @@ namespace ReactiveUITK.Language.Roslyn
             string text,
             int uitkxOffset,
             SourceRegionKind kind,
-            int uitkxLine
+            int uitkxLine,
+            List<(int SrcStart, int SrcEnd)>? deferredJsxRanges = null
         )
         {
             if (string.IsNullOrEmpty(text))
@@ -720,6 +792,9 @@ namespace ReactiveUITK.Language.Roslyn
                     // both ternary branches return `VirtualNode` and the outer
                     // expression's type stays well-defined.
                     b.Scaffold("? ((global::ReactiveUITK.Core.VirtualNode)null!) : null");
+                    // Also defer JSX subtree type-checking so diagnostics inside
+                    // the `<Tag/>` body are not silently dropped.
+                    deferredJsxRanges?.Add((uitkxOffset + s, uitkxOffset + e));
                     prev = e;
                     continue;
                 }
@@ -734,6 +809,11 @@ namespace ReactiveUITK.Language.Roslyn
                 // and flow into both VirtualNode-typed and object-typed
                 // contexts. Same pattern as EmitDirectiveBodyCode line 1244.
                 b.Scaffold("((global::ReactiveUITK.Core.VirtualNode)null!)");
+                // Record source-space range so callers (when source/directives
+                // are available) can emit a deferred Pattern-B JSX-subtree
+                // type-check block — preserves squiggles inside the dropped
+                // attribute-lambda JSX body.
+                deferredJsxRanges?.Add((uitkxOffset + s, uitkxOffset + e));
 
                 prev = e;
             }
@@ -766,6 +846,78 @@ namespace ReactiveUITK.Language.Roslyn
         }
 
         /// <summary>
+        /// Issue 1 (UITKX0112) — emits a deferred Pattern-B JSX-subtree type-check
+        /// block for a JSX literal that was stripped (replaced with a typed-null
+        /// stub) inside an attribute-lambda body, an inline expression, a typed
+        /// props expression, or a body-with-return-fix segment.
+        ///
+        /// <para>Without this helper, JSX literals embedded inside expressions
+        /// (e.g. <c>onClick={e =&gt; &lt;Inner /&gt;}</c>) were silently dropped
+        /// and never type-checked, so users got no diagnostics for typos, missing
+        /// props, or invalid expressions inside those JSX subtrees.</para>
+        ///
+        /// <para>The block is wrapped in a <c>dynamic __uitkx_jsxattr{pos}()</c>
+        /// local function (same shape as <see cref="EmitInlineExprChecks"/>) so
+        /// any <c>return</c> statements in the JSX subtree return from the local
+        /// function and not from <c>__uitkx_render()</c>.</para>
+        /// </summary>
+        private static void EmitDeferredJsxAttributeChecks(
+            VirtualDocBuilder b,
+            string source,
+            DirectiveSet directives,
+            string escapedPath,
+            int srcJsxStart,
+            int srcJsxEnd,
+            string indent
+        )
+        {
+            if (string.IsNullOrEmpty(source) || directives == null)
+                return;
+            if (srcJsxStart < 0 || srcJsxEnd <= srcJsxStart || srcJsxEnd > source.Length)
+                return;
+
+            // Compute 1-based source line of srcJsxStart.
+            int srcLine = 1;
+            for (int i = 0; i < srcJsxStart && i < source.Length; i++)
+                if (source[i] == '\n')
+                    srcLine++;
+
+            var jsxDirectives = directives with
+            {
+                MarkupStartIndex = srcJsxStart,
+                MarkupEndIndex = srcJsxEnd,
+                MarkupStartLine = srcLine,
+            };
+            var diags = new List<ParseDiagnostic>();
+            var nodes = UitkxParser.Parse(source, escapedPath, jsxDirectives, diags);
+            if (nodes.Length == 0)
+                return;
+
+            int exprCtr = 0;
+            int attrCtr = 0;
+            string funcName = $"__uitkx_jsxattr{b.CurrentPos}";
+            b.Scaffold("#line hidden\n");
+            b.Scaffold($"{indent}{{\n");
+            b.Scaffold($"{indent}    dynamic {funcName}() {{\n");
+            b.Scaffold("#pragma warning disable 0162, 0219\n");
+            EmitNodeExpressionsScoped(
+                nodes,
+                b,
+                escapedPath,
+                indent: indent + "        ",
+                ref exprCtr,
+                ref attrCtr
+            );
+            b.Scaffold("#pragma warning restore 0162, 0219\n");
+            b.Scaffold("#pragma warning disable CS0162\n");
+            b.Scaffold($"{indent}        return default!;\n");
+            b.Scaffold("#pragma warning restore CS0162\n");
+            b.Scaffold($"{indent}    }}\n");
+            b.Scaffold($"{indent}    _ = {funcName}();\n");
+            b.Scaffold($"{indent}}}\n");
+        }
+
+        /// <summary>
         /// Emits a block-statement expression check.
         /// Used inside a render method (function-style context).
         /// </summary>
@@ -777,6 +929,15 @@ namespace ReactiveUITK.Language.Roslyn
         )
         {
             b.Scaffold($"#line {expr.UitkxLine} \"{escapedPath}\"\n");
+
+            // Issue 1 (UITKX0112): collect JSX subtree ranges that get stripped
+            // by EmitMappedExpressionStrippingJsx so we can type-check them in a
+            // deferred Pattern-B block (preserves diagnostics on attribute-lambda
+            // bodies like onClick={e => <Tag/>}). Source + directives come from
+            // a thread-static context set by the top-level entry methods
+            // (EmitFunctionStyleBody, EmitInlineExprChecks).
+            var ctx = t_jsxAttrContext;
+            List<(int SrcStart, int SrcEnd)>? deferred = ctx != null ? new List<(int, int)>() : null;
 
             // Lambdas (`expr =>` / `_ =>` / `(x, y) =>`) cannot be stored as
             // `object` — Roslyn emits CS1660 and a secondary "delegate type could
@@ -810,7 +971,7 @@ namespace ReactiveUITK.Language.Roslyn
                         ? "global::System.Action"
                         : "global::System.Action<dynamic>";
                     b.Scaffold($"{indent}{{ (({castType})(");
-                    EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+                    EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine, deferred);
                     b.Scaffold(")); }\n");
                 }
             }
@@ -823,11 +984,21 @@ namespace ReactiveUITK.Language.Roslyn
                 // Attribute expressions also use object since their type varies.
                 string checkType = "object";
                 b.Scaffold($"{indent}{{ {checkType} __uitkx_{expr.Label} = (");
-                EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+                EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine, deferred);
                 b.Scaffold("); }\n");
             }
 
             b.Scaffold("#line hidden\n");
+
+            // Emit deferred Pattern-B blocks for any JSX subtrees that were
+            // stripped above. Done after the wrapping `{ ... }` so the deferred
+            // local function lives in the surrounding render-method scope and
+            // can capture the same locals the original JSX subtree would have.
+            if (deferred != null && deferred.Count > 0 && ctx != null)
+            {
+                foreach (var (s, e) in deferred)
+                    EmitDeferredJsxAttributeChecks(b, ctx.Source, ctx.Directives, escapedPath, s, e, indent);
+            }
         }
 
         /// <summary>
@@ -871,16 +1042,27 @@ namespace ReactiveUITK.Language.Roslyn
             // For reference types under #nullable-enable, the extra ? is just an annotation.
             b.Scaffold($"{indent}{{ {propType}? __uitkx_check = (");
 
+            // Issue 1 (UITKX0112): collect stripped JSX subtree ranges for deferred
+            // type-checking — see comment in EmitExpressionStatement.
+            var ctx = t_jsxAttrContext;
+            List<(int SrcStart, int SrcEnd)>? deferred = ctx != null ? new List<(int, int)>() : null;
+
             // Mapped region: the expression text itself (source-map preserved).
             // Phase 1: any embedded JSX literals are replaced with stub
             // (VirtualNode)null! so Roslyn parses the surrounding C#
             // without seeing JSX it can't understand.
-            EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+            EmitMappedExpressionStrippingJsx(b, expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine, deferred);
 
             // Scaffold: close assignment + block
             b.Scaffold("); }\n");
             b.Scaffold("#pragma warning restore CS0246\n");
             b.Scaffold("#line hidden\n");
+
+            if (deferred != null && deferred.Count > 0 && ctx != null)
+            {
+                foreach (var (s, e) in deferred)
+                    EmitDeferredJsxAttributeChecks(b, ctx.Source, ctx.Directives, escapedPath, s, e, indent);
+            }
         }
 
         // ── AST expression collector ──────────────────────────────────────────
@@ -2697,6 +2879,13 @@ namespace ReactiveUITK.Language.Roslyn
                 return;
             }
 
+            // Issue 1 (UITKX0112): aggregate stripped JSX subtree ranges from
+            // every segment so the deferred Pattern-B blocks can be flushed
+            // after the body is fully emitted (avoids interleaving statements
+            // mid-expression).
+            var ctx = t_jsxAttrContext;
+            List<(int SrcStart, int SrcEnd)>? deferred = ctx != null ? new List<(int, int)>() : null;
+
             int segStart = 0;
             int currentLine = uitkxLine;
 
@@ -2707,7 +2896,7 @@ namespace ReactiveUITK.Language.Roslyn
                 {
                     string seg = bodyText.Substring(segStart, m.Index - segStart);
                     b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
-                    EmitMappedExpressionStrippingJsx(b, seg, bodyUitkxOffset + segStart, kind, currentLine);
+                    EmitMappedExpressionStrippingJsx(b, seg, bodyUitkxOffset + segStart, kind, currentLine, deferred);
                     b.Scaffold("\n#line hidden\n");
                     currentLine += CountNewlines(seg);
                 }
@@ -2725,8 +2914,16 @@ namespace ReactiveUITK.Language.Roslyn
             {
                 string seg = bodyText.Substring(segStart);
                 b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
-                EmitMappedExpressionStrippingJsx(b, seg, bodyUitkxOffset + segStart, kind, currentLine);
+                EmitMappedExpressionStrippingJsx(b, seg, bodyUitkxOffset + segStart, kind, currentLine, deferred);
                 b.Scaffold("\n#line hidden\n");
+            }
+
+            if (deferred != null && deferred.Count > 0 && ctx != null)
+            {
+                // Emitted at the body's outer indent — still inside the lambda's
+                // local function, before its sentinel `return default!`.
+                foreach (var (s, e) in deferred)
+                    EmitDeferredJsxAttributeChecks(b, ctx.Source, ctx.Directives, escapedPath, s, e, "        ");
             }
         }
 

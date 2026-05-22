@@ -360,6 +360,13 @@ namespace ReactiveUITK.Core
         private const string HookIdMutableRef = "UseMutableRef";
         private const string HookIdSignal = "UseSignal";
         private const string HookIdSfx = "UseSfx";
+        private const string HookIdTransition = "UseTransition";
+
+        private static readonly Action<Action> s_noOpStartTransition = a =>
+        {
+            if (a != null)
+                a();
+        };
 
         private static FunctionComponentState EnsureState(NodeMetadata metadata)
         {
@@ -1045,6 +1052,20 @@ namespace ReactiveUITK.Core
             SyncState(metadata, state);
             var latest = ((T val, object[] d))state.HookStates[state.HookIndex - 1];
             return latest.val;
+        }
+
+        public static (bool isPending, Action<Action> startTransition) UseTransition()
+        {
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (state == null)
+            {
+                return (false, s_noOpStartTransition);
+            }
+            RecordHook(metadata, state, HookIdTransition);
+            state.HookIndex++;
+            SyncState(metadata, state);
+            return (false, s_noOpStartTransition);
         }
 
         public static Func<T> UseCallback<T>(Func<T> callback, params object[] dependencies)
