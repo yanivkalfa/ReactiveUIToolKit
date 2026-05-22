@@ -85,6 +85,56 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private readonly StringBuilder _hoistedStyleFields = new StringBuilder();
         private int _hoistCounter;
 
+        // ── UITKX Fast Refresh (always emitted) ────────────────────────────
+        // Collects distinct child-component FQNs referenced at
+        // function-component call sites in the rendered tree. After the
+        // class body is built we emit one
+        //   private static readonly Family __fam_<SanitizedFqn> =
+        //       RefreshRuntime.GetFamily("<FQN>");
+        // field per entry, plus a [ModuleInitializer] that registers THIS
+        // component's own body under its fully-qualified name. The system
+        // is active in both Editor and player builds; in player builds
+        // Family.Current is never mutated, so the cost is one Family
+        // allocation per component type plus one delegate indirection per
+        // render call.
+        //
+        // FQN keys (not simple names) are critical: two components named
+        // `Button` in different namespaces must NOT alias to the same
+        // Family handle, or one would silently overwrite the other in the
+        // registry.
+        private readonly HashSet<string> _familyChildRefs = new HashSet<string>(System.StringComparer.Ordinal);
+
+        // Build the FQN used as the Family registry key for THIS component.
+        private string SelfFamilyKey() =>
+            string.IsNullOrEmpty(_directives.Namespace)
+                ? _directives.ComponentName
+                : $"{_directives.Namespace}.{_directives.ComponentName}";
+
+        // Sanitize an FQN like "global::MyApp.Foo.Bar" into a valid C#
+        // identifier suffix ("global_MyApp_Foo_Bar") for use as the
+        // __fam_* field name. Two distinct FQNs map to distinct
+        // identifiers (we replace each non-identifier char with '_').
+        private static string SanitizeFqnToIdent(string fqn)
+        {
+            if (string.IsNullOrEmpty(fqn)) return "_";
+            var sb = new StringBuilder(fqn.Length);
+            foreach (char c in fqn)
+            {
+                if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
+                else sb.Append('_');
+            }
+            return sb.ToString();
+        }
+
+        // Strip a leading "global::" from an FQN, so the Family registry
+        // key matches what the owning component emits in its own Register
+        // call (which never includes "global::").
+        private static string NormalizeFamilyKey(string fqn)
+        {
+            const string g = "global::";
+            return fqn.StartsWith(g, System.StringComparison.Ordinal) ? fqn.Substring(g.Length) : fqn;
+        }
+
         // Indent constants
         private const string I2 = "        "; // 8sp — class member level
         private const string I3 = "            "; // 12sp — method body level
@@ -189,8 +239,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             // Emit hook signature for proactive HMR state-reset detection
             string hookSig = ExtractHookSignature(_directives.FunctionSetupCode);
-            if (hookSig.Length > 0)
-                L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
+            string[] customHookKeys = ExtractCustomHookFamilyKeys(_directives.FunctionSetupCode);
+            if (hookSig.Length > 0 || customHookKeys.Length > 0)
+            {
+                if (customHookKeys.Length > 0)
+                {
+                    L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\", {RenderCustomHookFamilyKeysLiteral(customHookKeys)})]");
+                }
+                else
+                {
+                    L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
+                }
+            }
 
             L($"    public partial class {_directives.ComponentName}");
             L("    {");
@@ -271,41 +331,29 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 L("");
             }
 
-            // ── HMR trampoline (component-level) ──────────────────────────────
-            // Mirrors the per-hook / per-module-method trampoline pattern so the
-            // public Render method's identity is stable across HMR cycles. This
-            // gives parent components a single, stable method-group target
-            // (cached by the Roslyn compiler in a static delegate slot per call
-            // site) — restoring `ReferenceEquals(fiber.TypedRender,
-            // vnode.TypedFunctionRender)` after hot-reloads and turning HMR
-            // swaps into a single FieldInfo.SetValue per changed component
-            // type instead of a per-fiber tree walk.
-            //
-            // The field, the IsActive guard, and the body invocation are all
-            // wrapped in `#if UNITY_EDITOR` — in player builds the trampoline
-            // collapses to a thin `return __Render_body(...)` shim that the
-            // JIT/IL2CPP inlines.
-            L($"#if UNITY_EDITOR");
-            L($"{I2}[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-            L($"{I2}internal static global::System.Func<global::ReactiveUITK.Core.IProps, IReadOnlyList<{QVNode}>, {QVNode}> __hmr_Render = __Render_body;");
-            L($"#endif");
-            L("");
-
+            // ── Public Render entry point ─────────────────────────────────────
+            // Stable, public method-group target for hand-written
+            // V.Func(MyComp.Render, ...) consumers and for the SG-emitted
+            // player-build call sites. Editor-build SG call sites instead
+            // reference the per-component Family handle (see __fam_* field
+            // emission below), so HMR delegate identity flows through the
+            // Family.Current cell rather than this method.
             L($"{I2}public static {QVNode} Render(");
             L($"{I2}    global::ReactiveUITK.Core.IProps __rawProps,");
             L($"{I2}    IReadOnlyList<{QVNode}> __children)");
             L($"{I2}{{");
-            L($"#if UNITY_EDITOR");
-            L($"{I3}if (global::ReactiveUITK.Core.HmrState.IsActive)");
-            L($"{I3}    return __hmr_Render(__rawProps, __children);");
-            L($"#endif");
             L($"{I3}return __Render_body(__rawProps, __children);");
             L($"{I2}}}");
             L("");
 
             // ── Render body (the actual user code) ────────────────────────────
+            // Visibility is `internal` rather than `private` so the editor-only
+            // companion class `{ComponentName}__UitkxRefresh` (emitted below)
+            // can reference it via a `() => __Render_body` factory passed to
+            // RefreshRuntime.Register. The companion lives in the same
+            // assembly, so `internal` suffices.
             L($"{I2}[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-            L($"{I2}private static {QVNode} __Render_body(");
+            L($"{I2}internal static {QVNode} __Render_body(");
             L($"{I2}    global::ReactiveUITK.Core.IProps __rawProps,");
             L($"{I2}    IReadOnlyList<{QVNode}> __children)");
             L($"{I2}{{");
@@ -420,7 +468,88 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.Append(_hoistedStyleFields.ToString());
             }
 
+            // ── UITKX Fast Refresh: family fields + module-initializer Register ──
+            // Editor-only. The entire block is wrapped in #if UNITY_EDITOR so
+            // player builds carry zero Family / RefreshRuntime trace — no
+            // family fields, no ModuleInitializer Register call, no static
+            // .cctor side effects. This mirrors React Fast Refresh's
+            // $RefreshReg$ injection model: dev injects, production does not.
+            // The matching V.Func emission site emits the direct-delegate
+            // form under #if !UNITY_EDITOR.
+            //
+            // The __fam_* fields live on the component class because the SG
+            // emits `V.Func<P>(__fam_X, ...)` from inside the render body
+            // and the field is read at render time (long after editor init
+            // hooks have run, so triggering the component .cctor at first
+            // render is safe).
+            //
+            // The [ModuleInitializer] Register call is NOT on the component
+            // class. On Mono, calling a static method on a beforefieldinit
+            // class triggers that class's .cctor anyway, which would run
+            // user static field initializers (e.g.
+            // `static readonly Texture2D bg = Asset<T>(...)`) before
+            // Unity's [InitializeOnLoadMethod] hooks populate
+            // UitkxAssetRegistry. To avoid this we emit the
+            // ModuleInitializer on a companion class
+            // `{ComponentName}__UitkxRefresh` outside the partial class --
+            // calling a method on the companion never triggers the
+            // component .cctor, and the `() => __Render_body` factory
+            // uses `ldftn` (which also doesn't trigger cctor) so the
+            // component .cctor only runs when Family.Current is first
+            // read at first render.
+            L("");
+            L($"#if UNITY_EDITOR");
+            L($"{I2}// ── UITKX Fast Refresh (editor-only) ──");
+            if (_familyChildRefs.Count > 0)
+            {
+                foreach (var childFqn in _familyChildRefs.OrderBy(s => s, System.StringComparer.Ordinal))
+                {
+                    string famField = "__fam_" + SanitizeFqnToIdent(childFqn);
+                    string famKey = NormalizeFamilyKey(childFqn);
+                    // Fallback factory: `() => Child.Render`. For SG-emitted
+                    // children the companion's [ModuleInitializer] Register
+                    // runs first and the fallback is ignored. For hand-written
+                    // children (e.g. router types in the ReactiveUITK
+                    // package) the fallback is what Family.Current resolves
+                    // to at first render. The `ldftn Child.Render`
+                    // instruction inside the lambda does NOT trigger the
+                    // child's .cctor (per ECMA-335 §I.8.9.5 ldftn does not
+                    // require type init; Mono honors this for ldftn -- the
+                    // beforefieldinit divergence is on `call`, not ldftn).
+                    L($"{I2}private static readonly global::ReactiveUITK.Refresh.Family {famField} = global::ReactiveUITK.Refresh.RefreshRuntime.GetFamily(\"{famKey}\", () => {childFqn}.Render);");
+                }
+            }
+            L($"#endif // UNITY_EDITOR");
+
             L("    }"); // close class
+
+            // ── Companion class with [ModuleInitializer] -----------------
+            // See the long comment above for why this is a SEPARATE type.
+            // Lives in the same namespace as the component, fully-qualified
+            // reference to {ComponentName}.__Render_body (internal) keeps
+            // the factory closure free of any access that would trigger
+            // the component .cctor.
+            L($"#if UNITY_EDITOR");
+            string companionName = _directives.ComponentName + "__UitkxRefresh";
+            string componentRef = string.IsNullOrEmpty(_directives.Namespace)
+                ? "global::" + _directives.ComponentName
+                : "global::" + _directives.Namespace + "." + _directives.ComponentName;
+            L($"    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            L($"    [global::System.Runtime.CompilerServices.CompilerGenerated]");
+            L($"    internal static class {companionName}");
+            L($"    {{");
+            L($"        [global::System.Runtime.CompilerServices.ModuleInitializer]");
+            L($"        internal static void __Register()");
+            L($"        {{");
+            L($"            global::ReactiveUITK.Refresh.RefreshRuntime.Register(");
+            L($"                \"{SelfFamilyKey()}\",");
+            L($"                () => {componentRef}.__Render_body,");
+            L($"                \"{hookSig}\",");
+            L($"                {RenderCustomHookFamilyKeysLiteral(customHookKeys)});");
+            L($"        }}");
+            L($"    }}");
+            L($"#endif // UNITY_EDITOR");
+
             L("}"); // close namespace
 
             return _sb.ToString();
@@ -532,7 +661,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (string.IsNullOrWhiteSpace(setupCode))
                 return string.Empty;
 
-            var matches = s_hookSignatureRe.Matches(setupCode);
+            // Strip comments and string literals before scanning so commented-out
+            // hook calls (e.g. `// useEffect(...)`) and hook-name substrings inside
+            // strings don't pollute the signature. Without this scrub a comment
+            // toggle would leave the signature identical, sigChanged stays false,
+            // and FullResetComponentState never runs -- so the now-removed
+            // useEffect's cleanup never fires and any pending Timer / subscription
+            // it captured leaks until domain reload.
+            string scrubbed = ScrubCommentsAndStrings(setupCode);
+
+            var matches = s_hookSignatureRe.Matches(scrubbed);
             if (matches.Count == 0)
                 return string.Empty;
 
@@ -563,6 +701,247 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 return "Provide" + char.ToUpper(name[7]) + name.Substring(8);
 
             return name;
+        }
+
+        // ── Phase 2: custom hook discovery ──────────────────────────────────
+
+        /// <summary>
+        /// Matches any hook-shaped call (custom or built-in): identifiers
+        /// starting with <c>use[A-Z]</c> / <c>Use[A-Z]</c> /
+        /// <c>provide[A-Z]</c> / <c>Provide[A-Z]</c>, optionally preceded by
+        /// a <c>Hooks.</c> qualifier, optionally with generic type args, then
+        /// an opening paren. The capture group is the bare identifier — we
+        /// filter against <see cref="s_builtinHookNames"/> to keep only
+        /// CUSTOM hooks (those the SG/HMR registered via <c>RegisterHook</c>).
+        /// </summary>
+        private static readonly System.Text.RegularExpressions.Regex s_anyHookCallRe =
+            new System.Text.RegularExpressions.Regex(
+                @"(?:Hooks\.)?\b((?:use|Use|provide|Provide)[A-Z][A-Za-z0-9_]*)(?:<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)?\s*\(",
+                System.Text.RegularExpressions.RegexOptions.Compiled
+            );
+
+        /// <summary>
+        /// PascalCase canonical names of every built-in hook recognised by
+        /// the runtime. Used by
+        /// <see cref="ExtractCustomHookFamilyKeys"/> to subtract built-ins
+        /// from the broader hook-shaped-call match set.
+        /// </summary>
+        private static readonly HashSet<string> s_builtinHookNames = new HashSet<string>(
+            StringComparer.Ordinal)
+        {
+            "UseState", "UseEffect", "UseLayoutEffect", "UseRef", "UseCallback",
+            "UseMemo", "UseContext", "UseReducer", "UseSignal", "UseDeferredValue",
+            "UseTransition", "UseSafeArea", "UseStableFunc", "UseStableAction",
+            "UseStableCallback", "UseImperativeHandle", "UseAnimate", "UseTweenFloat",
+            "UseUiDocumentRoot", "UseSfx", "ProvideContext",
+        };
+
+        /// <summary>
+        /// Scans raw body / setup code and returns the distinct, source-order
+        /// list of custom hook names called at first level. Built-ins are
+        /// filtered out. The returned names are the LITERAL identifiers as
+        /// they appear in source (e.g. <c>useUiDocumentSlot</c>), which is
+        /// also the family key used by both the consumer (Phase 2) and the
+        /// hook author (Phase 1 <c>RegisterHook</c>). Empty when no custom
+        /// hooks are called.
+        /// </summary>
+        internal static string[] ExtractCustomHookFamilyKeys(string setupCode)
+        {
+            if (string.IsNullOrWhiteSpace(setupCode))
+                return Array.Empty<string>();
+
+            string scrubbed = ScrubCommentsAndStrings(setupCode);
+            var matches = s_anyHookCallRe.Matches(scrubbed);
+            if (matches.Count == 0)
+                return Array.Empty<string>();
+
+            List<string> ordered = null;
+            HashSet<string> seen = null;
+            for (int i = 0; i < matches.Count; i++)
+            {
+                string name = matches[i].Groups[1].Value;
+                if (s_builtinHookNames.Contains(NormalizeHookName(name)))
+                    continue;
+                if (seen == null)
+                {
+                    ordered = new List<string>();
+                    seen = new HashSet<string>(StringComparer.Ordinal);
+                }
+                if (seen.Add(name))
+                    ordered.Add(name);
+            }
+            return ordered?.ToArray() ?? Array.Empty<string>();
+        }
+
+        /// <summary>
+        /// Renders a <c>string[]</c> as a C# array initializer literal:
+        /// empty → <c>null</c>, non-empty → <c>new string[] { "a", "b" }</c>.
+        /// Used by both the <c>[HookSignature(...)]</c> attribute and the
+        /// <c>RefreshRuntime.Register(...)</c> call to emit the
+        /// customHookFamilyKeys argument in a single canonical form.
+        /// </summary>
+        internal static string RenderCustomHookFamilyKeysLiteral(string[] keys)
+        {
+            if (keys == null || keys.Length == 0)
+                return "null";
+            var sb = new StringBuilder("new string[] { ");
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                sb.Append('"');
+                sb.Append(EscapeStringLiteralForCSharp(keys[i]));
+                sb.Append('"');
+            }
+            sb.Append(" }");
+            return sb.ToString();
+        }
+
+        internal static string EscapeStringLiteralForCSharp(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
+        /// <summary>
+        /// Replaces comment and string-literal contents with spaces so that
+        /// hook-name regex matches don't land inside neutralised text. Preserves
+        /// positions (length is unchanged) and newlines (so any positional
+        /// diagnostics remain accurate). Handles `//` line comments, `/* */`
+        /// block comments, `"..."` strings (with `\"` escapes), `@"..."`
+        /// verbatim strings (with `""` escapes), `$"..."` interpolated strings
+        /// (treated opaquely — hooks inside ${} holes are not counted, which is
+        /// an acceptable false-negative; nobody calls hooks inside string
+        /// interpolation), and `'.'` char literals.
+        /// </summary>
+        internal static string ScrubCommentsAndStrings(string code)
+        {
+            if (string.IsNullOrEmpty(code))
+                return code;
+
+            var sb = new StringBuilder(code.Length);
+            int i = 0;
+            int n = code.Length;
+            while (i < n)
+            {
+                char c = code[i];
+
+                // Line comment
+                if (c == '/' && i + 1 < n && code[i + 1] == '/')
+                {
+                    while (i < n && code[i] != '\n')
+                    {
+                        sb.Append(code[i] == '\r' ? '\r' : ' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Block comment
+                if (c == '/' && i + 1 < n && code[i + 1] == '*')
+                {
+                    sb.Append("  ");
+                    i += 2;
+                    while (i < n && !(code[i] == '*' && i + 1 < n && code[i + 1] == '/'))
+                    {
+                        sb.Append(code[i] == '\n' || code[i] == '\r' ? code[i] : ' ');
+                        i++;
+                    }
+                    if (i < n)
+                    {
+                        sb.Append("  ");
+                        i += 2;
+                    }
+                    continue;
+                }
+
+                // Char literal
+                if (c == '\'')
+                {
+                    sb.Append(' ');
+                    i++;
+                    while (i < n && code[i] != '\'')
+                    {
+                        if (code[i] == '\\' && i + 1 < n)
+                        {
+                            sb.Append("  ");
+                            i += 2;
+                            continue;
+                        }
+                        sb.Append(' ');
+                        i++;
+                    }
+                    if (i < n)
+                    {
+                        sb.Append(' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Verbatim or interpolated-verbatim string: @"...", $@"...", @$"..."
+                bool atVerbatim = c == '@' && i + 1 < n && code[i + 1] == '"';
+                bool dollarAtVerbatim =
+                    (c == '$' && i + 2 < n && code[i + 1] == '@' && code[i + 2] == '"')
+                    || (c == '@' && i + 2 < n && code[i + 1] == '$' && code[i + 2] == '"');
+                if (atVerbatim || dollarAtVerbatim)
+                {
+                    int prefix = dollarAtVerbatim ? 3 : 2;
+                    for (int k = 0; k < prefix; k++)
+                        sb.Append(' ');
+                    i += prefix;
+                    while (i < n)
+                    {
+                        if (code[i] == '"')
+                        {
+                            if (i + 1 < n && code[i + 1] == '"')
+                            {
+                                sb.Append("  ");
+                                i += 2;
+                                continue;
+                            }
+                            sb.Append(' ');
+                            i++;
+                            break;
+                        }
+                        sb.Append(code[i] == '\n' || code[i] == '\r' ? code[i] : ' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Regular string (possibly interpolated single-quote-dollar): "..." or $"..."
+                bool dollarString = c == '$' && i + 1 < n && code[i + 1] == '"';
+                if (c == '"' || dollarString)
+                {
+                    int prefix = dollarString ? 2 : 1;
+                    for (int k = 0; k < prefix; k++)
+                        sb.Append(' ');
+                    i += prefix;
+                    while (i < n && code[i] != '"')
+                    {
+                        if (code[i] == '\\' && i + 1 < n)
+                        {
+                            sb.Append("  ");
+                            i += 2;
+                            continue;
+                        }
+                        sb.Append(
+                            code[i] == '\n' ? '\n' : (code[i] == '\r' ? '\r' : ' ')
+                        );
+                        i++;
+                    }
+                    if (i < n)
+                    {
+                        sb.Append(' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                sb.Append(c);
+                i++;
+            }
+            return sb.ToString();
         }
 
         private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes = new(
@@ -1267,9 +1646,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (res.FuncPropsTypeName != null)
             {
-                // ── Typed path: V.Func<PropsType>(TypeName.Render, new PropsType { ... }) ──
+                // ── Typed path: dual-shape V.Func<PropsType>(...) ──
+                // Editor: V.Func<P>(__fam_X, new P { ... }) -- threads the
+                // per-component Family handle so the reconciler can identify
+                // fibers by stable Family reference (delegate identity
+                // breaks across HMR DLL generations).
+                // Player: V.Func<P>(global::Foo.X.Render, new P { ... }) --
+                // direct delegate, zero Family / RefreshRuntime trace,
+                // identical shape to 0.5.x.
+                _familyChildRefs.Add(typeName);
                 string propsTypeName = res.FuncPropsTypeName;
-                _sb.Append($"V.Func<{propsTypeName}>({typeName}.Render, new {propsTypeName} {{");
+                _sb.Append($"V.Func<{propsTypeName}>(\n#if UNITY_EDITOR\n                    __fam_{SanitizeFqnToIdent(typeName)},\n#else\n                    {typeName}.Render,\n#endif\n                    new {propsTypeName} {{");
 
                 bool first = true;
                 foreach (var attr in attrs)
@@ -1333,7 +1720,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
             else
             {
-                // ── No-props path: V.Func(TypeName.Render, ...) ──
+                // ── No-props path: dual-shape V.Func(...) ──
+                // Editor: V.Func(__fam_X, null, ...); Player: V.Func(global::Foo.X.Render, null, ...).
                 // ref={x} on a no-props component has no route — emit UITKX0020.
                 if (refAttr != null)
                 {
@@ -1351,7 +1739,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Required for C# 7.2+ non-trailing-named-argument rules when
                 // children follow positionally (Phase-A fast-path).  Without this,
                 // `V.Func(R, key: K, c1, c2)` triggers CS8323.
-                _sb.Append($"V.Func({typeName}.Render, null");
+                _familyChildRefs.Add(typeName);
+                _sb.Append($"V.Func(\n#if UNITY_EDITOR\n                    __fam_{SanitizeFqnToIdent(typeName)},\n#else\n                    {typeName}.Render,\n#endif\n                    null");
             }
 
             _sb.Append($", key: {keyExpr}");

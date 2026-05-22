@@ -299,29 +299,27 @@ public class HmrEmitterParityContractTests
         Assert.DoesNotContain("__Rent", output.GeneratedSource);
     }
 
-    // ── Component-level HMR trampoline ────────────────────────────────────────
+    // ── Component-level Fast Refresh Family emission ─────────────────────────
 
     /// <summary>
-    /// Every function-component must compile into the per-component HMR
-    /// trampoline triplet — mirroring the per-hook and per-module-method
-    /// patterns:
+    /// Every function-component must compile into the Fast Refresh shape:
     /// <list type="bullet">
-    ///   <item><c>__hmr_Render</c> static delegate field (initialised to the
-    ///         body method) inside <c>#if UNITY_EDITOR</c>.</item>
-    ///   <item>Public <c>Render</c> trampoline that, when
-    ///         <c>HmrState.IsActive</c>, dispatches via the field.</item>
-    ///   <item>Private <c>__Render_body</c> method that holds the user code
-    ///         and is always invoked in player builds (the trampoline check
-    ///         is preprocessor-stripped).</item>
+    ///   <item>Public <c>Render</c> that forwards directly to
+    ///         <c>__Render_body</c> (no preprocessor branch, no trampoline
+    ///         field).</item>
+    ///   <item>Private <c>__Render_body</c> holding the user code, marked
+    ///         <c>[EditorBrowsable(Never)]</c>.</item>
+    ///   <item>A <c>[ModuleInitializer]</c> that publishes the body and the
+    ///         hook signature to <c>RefreshRuntime.Register</c> so the
+    ///         component's Family handle is canonical from assembly load
+    ///         onwards.</item>
     /// </list>
-    /// This shape lets the HMR controller swap a single static field per
-    /// changed component type instead of walking every fiber tree, and keeps
-    /// the public <c>Render</c> method's identity stable across HMR cycles
-    /// — which restores the <c>ReferenceEquals(fiber.TypedRender,
-    /// vnode.TypedFunctionRender)</c> short-circuit in the reconciler.
+    /// Reconciler identity now comes from the Family handle threaded into
+    /// the VNode by parents - not from <c>ReferenceEquals</c> on the public
+    /// render delegate - so the public method needs no special shape.
     /// </summary>
     [Fact]
-    public void Sg_FunctionComponent_GeneratesRenderTrampoline()
+    public void Sg_FunctionComponent_GeneratesFamilyRegistration()
     {
         var output = GeneratorTestHelper.Run(
             """
@@ -336,40 +334,41 @@ public class HmrEmitterParityContractTests
         Assert.NotNull(output.GeneratedSource);
         var src = output.GeneratedSource;
 
-        // Field exists, internal-static, EditorBrowsable-suppressed, and
-        // initialised to the body method (so the field is never null when the
-        // first HMR swap arrives).
-        Assert.Contains("internal static global::System.Func<global::ReactiveUITK.Core.IProps", src);
-        Assert.Contains("__hmr_Render = __Render_body;", src);
-
-        // Field/trampoline guarded by #if UNITY_EDITOR — zero player overhead.
-        Assert.Contains("#if UNITY_EDITOR", src);
-
-        // Trampoline dispatches via __hmr_Render when HmrState.IsActive.
-        Assert.Contains("global::ReactiveUITK.Core.HmrState.IsActive", src);
-        Assert.Contains("__hmr_Render(__rawProps, __children)", src);
-
-        // Public Render signature unchanged — parent components keep
-        // referencing MyComponent.Render exactly as before.
+        // Public Render forwards plainly to the body - no HmrState branch,
+        // no __hmr_Render field.
         Assert.Contains("public static global::ReactiveUITK.Core.VirtualNode Render(", src);
+        Assert.DoesNotContain("__hmr_Render", src);
+        Assert.DoesNotContain("global::ReactiveUITK.Core.HmrState.IsActive", src);
 
-        // Body method exists and carries [EditorBrowsable(Never)].
-        Assert.Contains("private static global::ReactiveUITK.Core.VirtualNode __Render_body(", src);
+        // Body method exists and is EditorBrowsable-suppressed.
+        // Emitted as `internal` so the editor-only companion class
+        // `{ComponentName}__UitkxRefresh` (which holds [ModuleInitializer])
+        // can reference it via `() => Component.__Render_body` without
+        // triggering the component .cctor on Mono.
+        Assert.Contains("internal static global::ReactiveUITK.Core.VirtualNode __Render_body(", src);
         Assert.Contains(
             "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]",
             src);
+
+        // ModuleInitializer publishes body + signature to RefreshRuntime so
+        // the Family handle's Current slot is populated at assembly load.
+        Assert.Contains(
+            "[global::System.Runtime.CompilerServices.ModuleInitializer]",
+            src);
+        Assert.Contains("global::ReactiveUITK.Refresh.RefreshRuntime.Register(", src);
+        Assert.Contains("\"MyComponent\"", src);
+        Assert.Contains("__Render_body", src);
     }
 
     /// <summary>
-    /// Real-world component shape regression: hooks + function-style props +
-    /// markup must all live inside <c>__Render_body</c>, NOT inside the
-    /// public trampoline. Prevents accidental regressions where the props
-    /// binding or the setup code leaks into the public Render method (which
-    /// would re-introduce the per-fiber-walk problem because hook state would
-    /// be re-initialised on every dispatch).
+    /// Real-world component shape regression: hooks and setup must live
+    /// inside <c>__Render_body</c>, never inside the public <c>Render</c>
+    /// forwarder, and the component must still publish a hook signature so
+    /// <c>RefreshRuntime.PerformRefresh</c> can decide between compatible
+    /// (state-preserving) and incompatible (force-remount) edits.
     /// </summary>
     [Fact]
-    public void Sg_FunctionComponent_BodyContainsHooksAndSetup_TrampolineStaysThin()
+    public void Sg_FunctionComponent_BodyContainsHooksAndSetup_RenderStaysThin()
     {
         var output = GeneratorTestHelper.Run(
             """
@@ -387,27 +386,25 @@ public class HmrEmitterParityContractTests
         Assert.NotNull(output.GeneratedSource);
         var src = output.GeneratedSource;
 
-        // Trampoline + body both present.
-        Assert.Contains("__hmr_Render = __Render_body;", src);
         Assert.Contains("__Render_body(", src);
 
-        // Hooks must live in the body method, not the trampoline. We assert
-        // structurally by checking that the user code (UseState call) appears
-        // AFTER the body method's opening line in the generated source.
-        int bodyOpen = src.IndexOf("__Render_body(", System.StringComparison.Ordinal);
-        Assert.True(bodyOpen > 0);
-        // The body method's signature appears twice (once in field
-        // initialiser, once as the method itself). Skip past both to land
-        // inside the method body proper.
-        int afterFirst = src.IndexOf("__Render_body(", bodyOpen + 1, System.StringComparison.Ordinal);
-        int searchFrom = afterFirst > 0 ? afterFirst : bodyOpen;
+        // Hooks live in the body method, not the public forwarder. Land
+        // past the first reference (forwarder call site) to inspect the
+        // method definition itself.
+        int firstRef = src.IndexOf("__Render_body(", System.StringComparison.Ordinal);
+        Assert.True(firstRef > 0);
+        int afterFirst = src.IndexOf("__Render_body(", firstRef + 1, System.StringComparison.Ordinal);
+        int searchFrom = afterFirst > 0 ? afterFirst : firstRef;
         int useStateAt = src.IndexOf("UseState", searchFrom, System.StringComparison.Ordinal);
         Assert.True(useStateAt > 0,
-            "UseState call must be inside __Render_body, not in the trampoline.");
+            "UseState call must be inside __Render_body, not in the public forwarder.");
 
-        // The component still emits a [HookSignature] attribute so HMR can
-        // detect compatible vs incompatible edits.
+        // Hook signature still emitted - PerformRefresh reads it to gate
+        // FullResetComponentState on shape-changing edits.
         Assert.Contains("HookSignature", src);
+
+        // Signature is published to the runtime via the registration call.
+        Assert.Contains("global::ReactiveUITK.Refresh.RefreshRuntime.Register(", src);
     }
 
     // ── Module static-method HMR rewrite (v0.4.20, Issue (a)) ───────────────────
@@ -1053,5 +1050,22 @@ public class HmrEmitterParityContractTests
         Assert.NotNull(output.GeneratedSource);
         Assert.Contains("Hooks.UseTweenFloat(", output.GeneratedSource);
         Assert.Contains("UseTweenFloat", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseTransitionHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component TransitionUser {
+                var (isPending, startTransition) = useTransition();
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseTransition(", output.GeneratedSource);
     }
 }

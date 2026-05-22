@@ -74,8 +74,10 @@ namespace ReactiveUITK.Language.Formatter
             // ── Hook/module files: dedicated path ─────────────────────────────
             // Must be checked BEFORE IsFunctionStyle because the parser sets that
             // flag for hook/module files too.
-            if (!directives.HookDeclarations.IsDefaultOrEmpty
-                || !directives.ModuleDeclarations.IsDefaultOrEmpty)
+            if (
+                !directives.HookDeclarations.IsDefaultOrEmpty
+                || !directives.ModuleDeclarations.IsDefaultOrEmpty
+            )
             {
                 FormatHookModuleFile(source, directives);
             }
@@ -136,11 +138,13 @@ namespace ReactiveUITK.Language.Formatter
             string paramList = "";
             if (!directives.FunctionParams.IsDefaultOrEmpty)
             {
-                var parts = directives.FunctionParams.Select(p =>
-                    p.DefaultValue != null
-                        ? $"{p.Type} {p.Name} = {p.DefaultValue}"
-                        : $"{p.Type} {p.Name}"
-                ).ToList();
+                var parts = directives
+                    .FunctionParams.Select(p =>
+                        p.DefaultValue != null
+                            ? $"{p.Type} {p.Name} = {p.DefaultValue}"
+                            : $"{p.Type} {p.Name}"
+                    )
+                    .ToList();
                 paramList = $"({string.Join(", ", parts)})";
             }
 
@@ -199,14 +203,16 @@ namespace ReactiveUITK.Language.Formatter
             if (!string.IsNullOrWhiteSpace(beforeReturnCode))
             {
                 string tabExp = new string(' ', _opts.IndentSize);
-                string codeToFormat = NormalizeBareJsx(beforeReturnCode!, out var insertedPositions);
+                string codeToFormat = NormalizeBareJsx(
+                    beforeReturnCode!,
+                    out var insertedPositions
+                );
 
                 // Check for JSX paren blocks OR bare JSX in the before-return portion only.
                 bool hasJsxInSetup = false;
                 int gapSrcOffset =
                     directives.FunctionSetupStartOffset >= 0
-                        ? directives.FunctionSetupStartOffset
-                            + directives.FunctionSetupGapOffset
+                        ? directives.FunctionSetupStartOffset + directives.FunctionSetupGapOffset
                         : int.MaxValue;
                 if (!directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
                 {
@@ -299,7 +305,8 @@ namespace ReactiveUITK.Language.Formatter
             {
                 for (int i = 0; i < directives.HookDeclarations.Length; i++)
                 {
-                    if (i > 0) _sb.Append('\n');
+                    if (i > 0)
+                        _sb.Append('\n');
                     var hook = directives.HookDeclarations[i];
                     EmitHookHeader(hook);
                     _indent++;
@@ -371,9 +378,10 @@ namespace ReactiveUITK.Language.Formatter
                 for (int i = 0; i < hook.Params.Length; i++)
                 {
                     var p = hook.Params[i];
-                    string paramText = p.DefaultValue != null
-                        ? $"{p.Type} {p.Name} = {p.DefaultValue}"
-                        : $"{p.Type} {p.Name}";
+                    string paramText =
+                        p.DefaultValue != null
+                            ? $"{p.Type} {p.Name} = {p.DefaultValue}"
+                            : $"{p.Type} {p.Name}";
                     bool isLast = i == hook.Params.Length - 1;
                     Ln(isLast ? paramText : paramText + ",");
                 }
@@ -427,7 +435,8 @@ namespace ReactiveUITK.Language.Formatter
             {
                 for (int p = 0; p < hook.Params.Length; p++)
                 {
-                    if (p > 0) sb.Append(", ");
+                    if (p > 0)
+                        sb.Append(", ");
                     var param = hook.Params[p];
                     sb.Append(param.Type).Append(' ').Append(param.Name);
                     if (param.DefaultValue != null)
@@ -449,8 +458,10 @@ namespace ReactiveUITK.Language.Formatter
         {
             // Strip outer parens
             string inner = tupleType.Trim();
-            if (inner.StartsWith("(")) inner = inner.Substring(1);
-            if (inner.EndsWith(")")) inner = inner.Substring(0, inner.Length - 1);
+            if (inner.StartsWith("("))
+                inner = inner.Substring(1);
+            if (inner.EndsWith(")"))
+                inner = inner.Substring(0, inner.Length - 1);
             inner = inner.Trim();
 
             // Split on commas, respecting nested generics/tuples
@@ -478,8 +489,10 @@ namespace ReactiveUITK.Language.Formatter
             for (int i = 0; i < text.Length; i++)
             {
                 char c = text[i];
-                if (c == '<' || c == '(' || c == '[') depth++;
-                else if (c == '>' || c == ')' || c == ']') depth--;
+                if (c == '<' || c == '(' || c == '[')
+                    depth++;
+                else if (c == '>' || c == ')' || c == ']')
+                    depth--;
                 else if (c == ',' && depth == 0)
                 {
                     result.Add(text.Substring(start, i - start));
@@ -1073,6 +1086,12 @@ namespace ReactiveUITK.Language.Formatter
                 // JSX placeholder) also needs to be tracked.
                 // Similarly, pop for net unmatched '}' (e.g. `*/}` closing a
                 // `{/*` comment block) so depth returns to the correct level.
+                // Single-line comments are skipped entirely: `{` and `}` chars
+                // inside `//` text are not real syntax and must not push
+                // phantom blocks (regression: a commented-out
+                // `useEffect(() => {` block drifted indent deeper on every save).
+                if (stripped.StartsWith("//"))
+                    continue;
                 int midOpens = 0,
                     midCloses = 0;
                 for (int ci = leadClose; ci < stripped.Length; ci++)
@@ -1231,9 +1250,9 @@ namespace ReactiveUITK.Language.Formatter
             // preserved RELATIVE to the opener line's input indent (e.g. `&&`
             // arms of a multi-line `if (...)` stay at +4sp from the `if`).
             int parenDepth = 0;
-            int parenOpenLineEmitted = -1;     // emitted-column anchor of opener line
+            int parenOpenLineEmitted = -1; // emitted-column anchor of opener line
             int parenOpenLineInputIndent = -1; // input lead-spaces of opener line
-            int parenOpenAtBlockDepth = -1;    // blockStack.Count when opener fired
+            int parenOpenAtBlockDepth = -1; // blockStack.Count when opener fired
 
             for (int li = 0; li <= lastMeaningful; li++)
             {
@@ -1361,6 +1380,16 @@ namespace ReactiveUITK.Language.Formatter
                 // line which both opens a `(` and ends with `{` correctly anchors
                 // future inside-block continuations (the `(` becomes the block's
                 // own base paren-depth, NOT a continuation context).
+                // Single-line comments are skipped entirely: `(`, `)` and `{`
+                // inside `//` text are not real syntax and must not push phantom
+                // blocks or shift paren depth (regression: a commented-out
+                // `useEffect(() => {` block drifted indent deeper on every save).
+                bool isLineComment = stripped.StartsWith("//");
+                if (isLineComment)
+                {
+                    prevWasStatementStarter = false;
+                    continue;
+                }
                 ScanParens(stripped, out int opens, out int closes);
                 int prevParenDepth = parenDepth;
                 parenDepth = System.Math.Max(0, parenDepth + opens - closes);
@@ -1398,9 +1427,8 @@ namespace ReactiveUITK.Language.Formatter
                     // need the logical-column re-anchor; bare braces always
                     // anchor to their own emitted column.
                     bool isBareBrace = stripped == "{";
-                    int pushBase = (isParenContinuation && !isBareBrace)
-                        ? blockTargetForPush
-                        : emittedTotal;
+                    int pushBase =
+                        (isParenContinuation && !isBareBrace) ? blockTargetForPush : emittedTotal;
                     blockStack.Push(pushBase + _opts.IndentSize);
                     // The new block's "base paren depth" is the current
                     // parenDepth (post-update). Parens opened inside the block
@@ -1564,11 +1592,7 @@ namespace ReactiveUITK.Language.Formatter
                         i++;
                         continue;
                     }
-                    if (
-                        line[i + 1] == '@'
-                        && i + 2 < line.Length
-                        && line[i + 2] == '"'
-                    )
+                    if (line[i + 1] == '@' && i + 2 < line.Length && line[i + 2] == '"')
                     {
                         inStr = true;
                         verbatim = true;
@@ -1833,9 +1857,13 @@ namespace ReactiveUITK.Language.Formatter
 
                 _indent++;
                 FormatDirectiveBody(
-                    branch.BodyCode, branch.BodyCodeOffset,
-                    branch.BodyMarkupRanges, branch.BodyBareJsxRanges,
-                    branch.Body, tabExp);
+                    branch.BodyCode,
+                    branch.BodyCodeOffset,
+                    branch.BodyMarkupRanges,
+                    branch.BodyBareJsxRanges,
+                    branch.Body,
+                    tabExp
+                );
                 _indent--;
                 Ln("}");
             }
@@ -1847,9 +1875,13 @@ namespace ReactiveUITK.Language.Formatter
             Ln($"@foreach ({node.IteratorDeclaration} in {node.CollectionExpression}) {{");
             _indent++;
             FormatDirectiveBody(
-                node.BodyCode, node.BodyCodeOffset,
-                node.BodyMarkupRanges, node.BodyBareJsxRanges,
-                node.Body, tabExp);
+                node.BodyCode,
+                node.BodyCodeOffset,
+                node.BodyMarkupRanges,
+                node.BodyBareJsxRanges,
+                node.Body,
+                tabExp
+            );
             _indent--;
             Ln("}");
         }
@@ -1860,9 +1892,13 @@ namespace ReactiveUITK.Language.Formatter
             Ln($"@for ({node.ForExpression}) {{");
             _indent++;
             FormatDirectiveBody(
-                node.BodyCode, node.BodyCodeOffset,
-                node.BodyMarkupRanges, node.BodyBareJsxRanges,
-                node.Body, tabExp);
+                node.BodyCode,
+                node.BodyCodeOffset,
+                node.BodyMarkupRanges,
+                node.BodyBareJsxRanges,
+                node.Body,
+                tabExp
+            );
             _indent--;
             Ln("}");
         }
@@ -1873,9 +1909,13 @@ namespace ReactiveUITK.Language.Formatter
             Ln($"@while ({node.Condition}) {{");
             _indent++;
             FormatDirectiveBody(
-                node.BodyCode, node.BodyCodeOffset,
-                node.BodyMarkupRanges, node.BodyBareJsxRanges,
-                node.Body, tabExp);
+                node.BodyCode,
+                node.BodyCodeOffset,
+                node.BodyMarkupRanges,
+                node.BodyBareJsxRanges,
+                node.Body,
+                tabExp
+            );
             _indent--;
             Ln("}");
         }
@@ -1897,9 +1937,13 @@ namespace ReactiveUITK.Language.Formatter
                 // Body is indented under the case label
                 _indent++;
                 FormatDirectiveBody(
-                    sc.BodyCode, sc.BodyCodeOffset,
-                    sc.BodyMarkupRanges, sc.BodyBareJsxRanges,
-                    sc.Body, tabExp);
+                    sc.BodyCode,
+                    sc.BodyCodeOffset,
+                    sc.BodyMarkupRanges,
+                    sc.BodyBareJsxRanges,
+                    sc.Body,
+                    tabExp
+                );
                 _indent--;
             }
 
@@ -1914,11 +1958,13 @@ namespace ReactiveUITK.Language.Formatter
         /// <c>);</c>.  Falls back to raw code output when no parsed body is available.
         /// </summary>
         private void FormatDirectiveBody(
-            string? bodyCode, int bodyCodeOffset,
+            string? bodyCode,
+            int bodyCodeOffset,
             ImmutableArray<(int Start, int End, int Line)> markupRanges,
             ImmutableArray<(int Start, int End, int Line)> bareRanges,
             ImmutableArray<AstNode> body,
-            string tabExp)
+            string tabExp
+        )
         {
             if (string.IsNullOrEmpty(bodyCode) && body.IsDefaultOrEmpty)
                 return;
@@ -1928,12 +1974,20 @@ namespace ReactiveUITK.Language.Formatter
             if (!body.IsDefaultOrEmpty)
             {
                 // Extract setup code: C# statements before the depth-0 'return'
-                if (!string.IsNullOrEmpty(bodyCode)
+                if (
+                    !string.IsNullOrEmpty(bodyCode)
                     && ReturnFinder.TryFindTopLevelReturn(
-                        bodyCode!, 0, bodyCode!.Length,
-                        out int returnStart, out _, out _, out _,
-                        useLastReturn: false)
-                    && returnStart > 0)
+                        bodyCode!,
+                        0,
+                        bodyCode!.Length,
+                        out int returnStart,
+                        out _,
+                        out _,
+                        out _,
+                        useLastReturn: false
+                    )
+                    && returnStart > 0
+                )
                 {
                     string setupCode = bodyCode!.Substring(0, returnStart).TrimEnd();
                     if (!string.IsNullOrWhiteSpace(setupCode))
@@ -2072,8 +2126,11 @@ namespace ReactiveUITK.Language.Formatter
         /// element / attribute layout as markup inside <c>return (…)</c>.
         /// </summary>
         private void EmitSetupCodeWithJsx(
-            string setupCode, DirectiveSet directives, string tabExp,
-            HashSet<int> insertedPositions)
+            string setupCode,
+            DirectiveSet directives,
+            string tabExp,
+            HashSet<int> insertedPositions
+        )
         {
             // setupCode is already normalised by NormalizeBareJsx; insertedPositions
             // tracks which '(' were inserted so we can distinguish synthetic vs original.
@@ -2100,7 +2157,8 @@ namespace ReactiveUITK.Language.Formatter
             // Single-line paren blocks are left as-is (they don't break brace
             // context and EmitCSharpLines handles them fine).
             const string PLACEHOLDER_PREFIX = "___UITKX_JSX_PLACEHOLDER_";
-            var multiLineBlocks = new List<(int OrigMarkupIndex, int Start, int End, bool IsSynthetic)>();
+            var multiLineBlocks =
+                new List<(int OrigMarkupIndex, int Start, int End, bool IsSynthetic)>();
 
             var csBuilder = new System.Text.StringBuilder(setupCode.Length);
             int pos = 0;
@@ -2129,7 +2187,8 @@ namespace ReactiveUITK.Language.Formatter
 
                 if (!isMultiLine && !hasContainerClose)
                 {
-                    if (!isSynthetic) origMarkupIdx++;
+                    if (!isSynthetic)
+                        origMarkupIdx++;
                     continue; // simple single-line self-closing blocks stay in the C# text
                 }
 
@@ -2164,7 +2223,8 @@ namespace ReactiveUITK.Language.Formatter
                     pos = jE;
                 }
 
-                if (!isSynthetic) origMarkupIdx++;
+                if (!isSynthetic)
+                    origMarkupIdx++;
             }
 
             // Append remaining C# after the last block.
@@ -2233,7 +2293,9 @@ namespace ReactiveUITK.Language.Formatter
                     continue;
                 }
 
-                var (origBlockIdx, origStart, origEnd, blockIsSynthetic) = multiLineBlocks[placeholderIdx];
+                var (origBlockIdx, origStart, origEnd, blockIsSynthetic) = multiLineBlocks[
+                    placeholderIdx
+                ];
 
                 // Everything before the placeholder is the C# prefix (e.g. "    var oneTest = ").
                 string prefix = line.Substring(0, phIdx);
@@ -2311,7 +2373,7 @@ namespace ReactiveUITK.Language.Formatter
                 if (!jsxEmitted && blockIsSynthetic)
                 {
                     int contentStart = origStart + 1; // skip '('
-                    int contentEnd = origEnd - 1;     // skip ')'
+                    int contentEnd = origEnd - 1; // skip ')'
                     int contentLen = contentEnd - contentStart;
                     if (contentLen > 0)
                     {
@@ -2326,11 +2388,18 @@ namespace ReactiveUITK.Language.Formatter
                                 MarkupStartLine = 1,
                             };
                             var synthNodes = UitkxParser.Parse(
-                                jsxText, _filePath, synthDirectives, synthDiags);
+                                jsxText,
+                                _filePath,
+                                synthDirectives,
+                                synthDiags
+                            );
                             bool hasErrors = false;
                             foreach (var d in synthDiags)
                                 if (d.Severity == ParseSeverity.Error)
-                                { hasErrors = true; break; }
+                                {
+                                    hasErrors = true;
+                                    break;
+                                }
 
                             if (!hasErrors && synthNodes.Length > 0)
                             {
@@ -2338,7 +2407,9 @@ namespace ReactiveUITK.Language.Formatter
                                 jsxEmitted = true;
                             }
                         }
-                        catch { /* best-effort */ }
+                        catch
+                        { /* best-effort */
+                        }
                     }
                 }
 
@@ -2423,7 +2494,8 @@ namespace ReactiveUITK.Language.Formatter
         private void EmitBodySetupCodeWithJsx(
             string normalizedCode,
             string tabExp,
-            HashSet<int> insertedPositions)
+            HashSet<int> insertedPositions
+        )
         {
             var blocks = ScanJsxParenBlocks(normalizedCode);
             if (blocks.Count == 0)
@@ -2451,7 +2523,11 @@ namespace ReactiveUITK.Language.Formatter
                 bool hasContainerClose = false;
                 for (int k = jS; k < jE; k++)
                 {
-                    if (normalizedCode[k] == '\n') { isMultiLine = true; break; }
+                    if (normalizedCode[k] == '\n')
+                    {
+                        isMultiLine = true;
+                        break;
+                    }
                     if (normalizedCode[k] == '<' && k + 1 < jE && normalizedCode[k + 1] == '/')
                         hasContainerClose = true;
                 }
@@ -2578,7 +2654,7 @@ namespace ReactiveUITK.Language.Formatter
                 bool jsxEmitted = false;
 
                 int contentStart = origStart + 1; // skip '('
-                int contentEnd = origEnd - 1;     // skip ')'
+                int contentEnd = origEnd - 1; // skip ')'
                 int contentLen = contentEnd - contentStart;
                 if (contentLen > 0)
                 {
@@ -2593,10 +2669,18 @@ namespace ReactiveUITK.Language.Formatter
                             MarkupStartLine = 1,
                         };
                         var synthNodes = UitkxParser.Parse(
-                            jsxText, _filePath, synthDirectives, synthDiags);
+                            jsxText,
+                            _filePath,
+                            synthDirectives,
+                            synthDiags
+                        );
                         bool hasErrors = false;
                         foreach (var d in synthDiags)
-                            if (d.Severity == ParseSeverity.Error) { hasErrors = true; break; }
+                            if (d.Severity == ParseSeverity.Error)
+                            {
+                                hasErrors = true;
+                                break;
+                            }
 
                         if (!hasErrors && synthNodes.Length > 0)
                         {
@@ -2604,7 +2688,9 @@ namespace ReactiveUITK.Language.Formatter
                             jsxEmitted = true;
                         }
                     }
-                    catch { /* best-effort */ }
+                    catch
+                    { /* best-effort */
+                    }
                 }
 
                 if (!jsxEmitted)
@@ -2735,7 +2821,8 @@ namespace ReactiveUITK.Language.Formatter
         /// </summary>
         private static string NormalizeBareJsx(
             string code,
-            out HashSet<int> insertedOpenParenPositions)
+            out HashSet<int> insertedOpenParenPositions
+        )
         {
             var insertions = new List<(int Position, char Char)>();
             int i = 0;
@@ -2750,10 +2837,16 @@ namespace ReactiveUITK.Language.Formatter
                 }
 
                 // Skip string and char literals
-                if (i < code.Length && (code[i] == '"' || code[i] == '\'' ||
-                    (code[i] == '@' && i + 1 < code.Length && code[i + 1] == '"') ||
-                    (code[i] == '$' && i + 1 < code.Length && code[i + 1] == '"') ||
-                    (code[i] == '$' && i + 1 < code.Length && code[i + 1] == '@')))
+                if (
+                    i < code.Length
+                    && (
+                        code[i] == '"'
+                        || code[i] == '\''
+                        || (code[i] == '@' && i + 1 < code.Length && code[i + 1] == '"')
+                        || (code[i] == '$' && i + 1 < code.Length && code[i + 1] == '"')
+                        || (code[i] == '$' && i + 1 < code.Length && code[i + 1] == '@')
+                    )
+                )
                 {
                     int saved = i;
                     if (DirectiveParser.TrySkipStringOrCharLiteral(code, code.Length, ref i))
@@ -2762,19 +2855,35 @@ namespace ReactiveUITK.Language.Formatter
                 }
 
                 // ── return <Tag ─────────────────────────────────────────
-                if (code[i] == 'r' && i + 5 < code.Length
+                if (
+                    code[i] == 'r'
+                    && i + 5 < code.Length
                     && code.Substring(i, 6) == "return"
                     && (i == 0 || !(char.IsLetterOrDigit(code[i - 1]) || code[i - 1] == '_'))
-                    && (i + 6 >= code.Length || !(char.IsLetterOrDigit(code[i + 6]) || code[i + 6] == '_')))
+                    && (
+                        i + 6 >= code.Length
+                        || !(char.IsLetterOrDigit(code[i + 6]) || code[i + 6] == '_')
+                    )
+                )
                 {
                     int peek = i + 6;
-                    while (peek < code.Length &&
-                           (code[peek] == ' ' || code[peek] == '\t' ||
-                            code[peek] == '\r' || code[peek] == '\n'))
+                    while (
+                        peek < code.Length
+                        && (
+                            code[peek] == ' '
+                            || code[peek] == '\t'
+                            || code[peek] == '\r'
+                            || code[peek] == '\n'
+                        )
+                    )
                         peek++;
 
-                    if (peek < code.Length && code[peek] == '<'
-                        && peek + 1 < code.Length && char.IsLetter(code[peek + 1]))
+                    if (
+                        peek < code.Length
+                        && code[peek] == '<'
+                        && peek + 1 < code.Length
+                        && char.IsLetter(code[peek + 1])
+                    )
                     {
                         int jsxEnd = FindJsxElementEnd(code, peek, code.Length);
                         if (jsxEnd > peek)
@@ -2794,17 +2903,31 @@ namespace ReactiveUITK.Language.Formatter
                 }
 
                 // ── ? <Tag  (ternary true, but NOT ?. or ??) ────────────
-                if (code[i] == '?' && i + 1 < code.Length
-                    && code[i + 1] != '.' && code[i + 1] != '?')
+                if (
+                    code[i] == '?'
+                    && i + 1 < code.Length
+                    && code[i + 1] != '.'
+                    && code[i + 1] != '?'
+                )
                 {
                     int peek = i + 1;
-                    while (peek < code.Length &&
-                           (code[peek] == ' ' || code[peek] == '\t' ||
-                            code[peek] == '\r' || code[peek] == '\n'))
+                    while (
+                        peek < code.Length
+                        && (
+                            code[peek] == ' '
+                            || code[peek] == '\t'
+                            || code[peek] == '\r'
+                            || code[peek] == '\n'
+                        )
+                    )
                         peek++;
 
-                    if (peek < code.Length && code[peek] == '<'
-                        && peek + 1 < code.Length && char.IsLetter(code[peek + 1]))
+                    if (
+                        peek < code.Length
+                        && code[peek] == '<'
+                        && peek + 1 < code.Length
+                        && char.IsLetter(code[peek + 1])
+                    )
                     {
                         int jsxEnd = FindJsxElementEnd(code, peek, code.Length);
                         if (jsxEnd > peek)
@@ -2821,13 +2944,23 @@ namespace ReactiveUITK.Language.Formatter
                 if (code[i] == ':' && i + 1 < code.Length && code[i + 1] != ':')
                 {
                     int peek = i + 1;
-                    while (peek < code.Length &&
-                           (code[peek] == ' ' || code[peek] == '\t' ||
-                            code[peek] == '\r' || code[peek] == '\n'))
+                    while (
+                        peek < code.Length
+                        && (
+                            code[peek] == ' '
+                            || code[peek] == '\t'
+                            || code[peek] == '\r'
+                            || code[peek] == '\n'
+                        )
+                    )
                         peek++;
 
-                    if (peek < code.Length && code[peek] == '<'
-                        && peek + 1 < code.Length && char.IsLetter(code[peek + 1]))
+                    if (
+                        peek < code.Length
+                        && code[peek] == '<'
+                        && peek + 1 < code.Length
+                        && char.IsLetter(code[peek + 1])
+                    )
                     {
                         int jsxEnd = FindJsxElementEnd(code, peek, code.Length);
                         if (jsxEnd > peek)
@@ -2936,7 +3069,7 @@ namespace ReactiveUITK.Language.Formatter
         /// Handles self-closing (<c>/&gt;</c>) and container elements with
         /// nested children.  Skips over string literals and <c>{expr}</c> blocks.
         /// </summary>
-        private static int FindJsxElementEnd(string text, int start, int limit)
-            => ReturnFinder.FindJsxElementEnd(text, start, limit);
+        private static int FindJsxElementEnd(string text, int start, int limit) =>
+            ReturnFinder.FindJsxElementEnd(text, start, limit);
     }
 }
