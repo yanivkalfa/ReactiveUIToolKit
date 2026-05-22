@@ -59,6 +59,19 @@ namespace ReactiveUITK.Core
         internal IProps _typedProps;
         internal BaseProps _hostProps;
 
+        // ── Family handle (UITKX Fast Refresh, editor-only) ────────────────
+        // Non-null when the vnode was produced by a V.Func(Family,...) overload
+        // emitted by the source generator under #if UNITY_EDITOR. The fiber
+        // reconciler compares Family identity in CanReuseFiber, eliminating
+        // the cross-DLL Method.DeclaringType inequality that the old
+        // trampoline architecture was vulnerable to. Player builds receive
+        // direct V.Func(MyComp.Render, ...) calls and never produce vnodes
+        // with a Family handle — the field, property, and Refresh.Family
+        // type itself do not exist in player compilation.
+#if UNITY_EDITOR
+        internal Refresh.Family _family;
+#endif
+
         // ═══════════════════════════════════════════════════════════════════
         //  Public read-only properties
         // ═══════════════════════════════════════════════════════════════════
@@ -95,6 +108,18 @@ namespace ReactiveUITK.Core
         /// <c>ToDictionary()</c> allocation on the hot path.
         /// </summary>
         public BaseProps HostProps => _hostProps;
+
+        /// <summary>
+        /// UITKX Fast Refresh family handle. Non-null when the vnode was
+        /// produced by a <c>V.Func(Family,...)</c> overload (which the SG
+        /// emits in Editor builds). Lets the reconciler match fibers by
+        /// Family reference instead of by render-delegate identity, which
+        /// breaks across HMR DLL generations. Editor-only — in player
+        /// builds neither this property nor <c>Refresh.Family</c> exists.
+        /// </summary>
+#if UNITY_EDITOR
+        public Refresh.Family Family => _family;
+#endif
 
         /// <summary>
         /// Public constructor for backward compatibility and user-created VNodes.
@@ -235,6 +260,9 @@ namespace ReactiveUITK.Core
             _typedFunctionRender = null;
             _typedProps = null;
             _hostProps = null;
+#if UNITY_EDITOR
+            _family = null;
+#endif
         }
 
         /// <summary>

@@ -1225,3 +1225,183 @@ invalidation.
 recompile+Start was the only recovery.
 
 ---
+
+
+---
+
+## 99. Dual-arg V.Func editor overload (collapse Family-only resolution path)
+
+**Status:** Not started — captured for future cleanup
+
+**Summary:** Today the editor branch of the SG-emitted `V.Func` call passes
+only the `Family` handle; the body delegate is resolved indirectly via
+`Family.Current`. This indirection caused two distinct production-blocking
+bugs in 0.6.0:
+
+1. `[ModuleInitializer]` on the component class triggered Mono's
+   `BeforeFieldInit` divergence (cctor fired on `call` from
+   `<Module>::.cctor`), running user `static readonly` asset
+   initializers before `UitkxAssetRegistry` was populated → cold-open
+   crash. Worked around by emitting a separate `{Component}__UitkxRefresh`
+   companion class.
+
+2. Hand-written children (`ReactiveUITK.Router.Route`, `Router`,
+   `Outlet`, `Routes` — not `.uitkx`) have no companion → no Register
+   call → `Family.Current` returned `PlaceholderRender` and the very
+   first playmode render threw. Worked around by emitting a fallback
+   factory `GetFamily("X", () => global::X.Render)` from every parent.
+
+**Cleaner long-term shape:** make the editor overload accept BOTH the Family
+AND a direct render delegate, e.g.
+
+`csharp
+V.Func<P>(Family family, Func<IProps, IReadOnlyList<VNode>, VNode> render,
+         P props, string key = null, params VNode[] children)
+`
+
+Body resolution becomes `family.Current ?? render` (with HMR-published
+`Family.Current` taking precedence after the first recompile). This makes
+the editor path almost shape-identical to the player path; eliminates the
+fallback-factory machinery in `GetFamily`; and the companion class can be
+kept (HMR-only need) or collapsed depending on whether we can prove the
+Mono cctor case is unreachable when the Register call lives elsewhere.
+
+**Not done now because:**
+- Current shape is shipping (1245/1245 tests green, two clean Unity
+  validations: cold-open + playmode).
+- Refactor doesn't simplify the HMR DLL recompile path (those still need
+  Register to swap `Family.Current`).
+- The fragility surface shrinks but does not disappear; companion class
+  may still be needed for HMR DLLs.
+
+**Files to touch (estimated):**
+- `Shared/Core/V.cs` — add `render` parameter to both editor Family
+  overloads; switch `_typedFunctionRender = family?.Current ?? render`.
+- `Shared/Core/Refresh/RefreshRuntime.cs` — remove fallback-factory
+  `GetFamily` overload + `Family.TrySetFallbackFactory` if unused.
+- `SourceGenerator~/Emitter/CSharpEmitter.cs` — drop the `() =>
+  {Type}.Render` arg from `GetFamily` emission; add `{Type}.Render`
+  as second arg to `V.Func` editor branch.
+- `Editor/HMR/HmrCSharpEmitter.cs` — mirror.
+- `SourceGenerator~/Tests/EmitterTests.cs` — update fallback-factory
+  assertions to the new shape.
+
+**Surfaced by:** PrettyUi 0.6.0 cold-open crash (Asset registry race) +
+playmode placeholder exception (Router family unresolved) — 2026-05-21.
+
+---
+
+## 23. HMR `HookSignature` regex misses composed hooks (silent state corruption on add/remove)
+
+**Status:** Not started — **CRITICAL, next**
+
+**Summary:** `s_hookSignatureRe` in
+`SourceGenerator~/Emitter/CSharpEmitter.cs` (mirrored in
+`Editor/HMR/HmrCSharpEmitter.cs` after the 0.5.23 comment-scrubber fix)
+matches a hard-coded allow-list of hook names: `useState`, `useEffect`,
+`useReducer`, `useContext`, `useRef`, `useMemo`, `useCallback`,
+`useLayoutEffect`, `useSignal`, `useAnimate`, etc. **Any hook the user
+calls whose name is not on that list is invisible to the signature.**
+
+PrettyUi's GamePage runtime logs (2026-05-22) showed 11 entries in
+`state.FunctionEffects` while `HookSignature` reported only 7 entries —
+the gap is `UseNavigate` (RouterHooks), `useUiDocumentSlot`
+(PrettyUi.UIHooks), and other higher-level hooks that compose internally
+on `useEffect`. The regex was authored before custom-hook composition
+became common and never updated.
+
+**Concrete failure mode (latent, not yet user-reported but
+reproducible):**
+
+1. Component body contains `var slot = useUiDocumentSlot("PlayerHud");`
+   between two `useState` calls.
+2. User comments out the `useUiDocumentSlot` line. Saves.
+3. SG emits new `HookSignature` — **identical** to the old one (regex
+   ignored both before and after). `sigChanged == false`.
+4. `PerformRefresh` does NOT call `FullResetComponentState`.
+5. The new IL re-walks hooks: `useState` (slot 0) → `useState` (slot 1).
+   But the *runtime* still has 3+ slots from before, and the slot
+   indices for the internal effects/state from `useUiDocumentSlot` are
+   now read as `useState` slots. Type-cast crash inside `Hooks.UseState`,
+   or worse — wrong cached value read with no crash.
+
+The current "soft" symptom is a `HookOrderMismatch` warning from
+`RecordHook`'s priming check; the hard symptom is undefined behavior
+once the user's reset-mismatch state leaks across hook types.
+
+**Why it didn't bite the timer-comment-out bug (0.5.23):** that edit
+toggled a plain `useEffect`, which **is** on the regex allow-list, so
+the signature did change correctly. The user's pain point (full scene
+reset on every hook toggle) is a separate concern — that's React-Refresh's
+documented "incompatible signature → fresh mount" semantics
+(`HMR_FAST_REFRESH_PLAN.md` §10 PR-D), not a bug. **This item is about
+the cases where the regex is silently wrong.**
+
+**Fix shape — do it the React way:**
+
+React Fast Refresh doesn't use a static allow-list. It computes the
+signature from the actual hook calls discovered at compile time:
+
+```
+// React's signature for a component that calls useState, useEffect,
+// useMyCustomHook (which internally uses useReducer):
+//   "useState{[]}useEffect{[]}useMyCustomHook{[customHookSignature]}"
+// where customHookSignature is recursively computed from the custom hook
+```
+
+Translate to UITKX:
+
+1. **SG-time analysis** (`SourceGenerator~/Emitter`): instead of a
+   name-list regex on the raw body text, walk the Roslyn syntax tree
+   for the component body and:
+   - Collect every method-invocation expression whose target type
+     resolves to a method annotated `[Hook]` (or whose containing type
+     ends in `Hooks` — flag whichever is more reliable in the codebase),
+     OR whose name begins with `use`/`Use`.
+   - For each such call, emit its fully-qualified-name into the
+     signature.
+   - For dependency lists, follow react-refresh's convention: emit
+     `{}` for an empty deps array, `{*}` for a non-literal array, or the
+     literal expression text for inline literals.
+2. **Custom-hook transitivity** (already in PR-D plan, `HMR_FAST_REFRESH_PLAN.md`
+   L820): SG emits a `customHookFamilies` array alongside `HookSignature`;
+   `RefreshRuntime.HaveEqualSignatures` walks transitively so editing a
+   shared custom hook remounts every consumer.
+3. **HMR parity**: mirror in `Editor/HMR/HmrCSharpEmitter.cs` — same
+   syntax-tree walker, same FQN emission. Cold and HMR signatures must
+   agree byte-for-byte or every first HMR cycle after a Unity recompile
+   misfires.
+4. **Migration**: existing components carry the old short signatures.
+   First-ever recompile after this lands will produce a different
+   signature for every component → one cycle of forced remount on every
+   open scene. Document in the changelog.
+
+**Tests required:**
+
+- SG snapshot: component with `useState`, `useEffect`, custom
+  `useThing()`, `Hooks.useState(...)` (fully-qualified form) — assert
+  all four appear in `HookSignature`.
+- SG snapshot: component with `useUiDocumentSlot("x")` — assert the
+  call appears in signature.
+- SG snapshot: comment out one hook with `//`, recompile — signature
+  differs from uncommented version.
+- HMR end-to-end: comment out `useUiDocumentSlot` line in a live
+  component, observe `sigChanged=true` log, observe
+  `FullResetComponentState` runs. (Should be added to the Editor
+  test in `HMR_FAST_REFRESH_PLAN.md` §12 validation contract.)
+
+**Surfaced by:** PrettyUi 0.5.23 investigation, GamePage HMR log analysis
+— `effects=11 hookStates=15` while `HookSignature` reported 7 entries.
+2026-05-22.
+
+**Files to touch (estimated):**
+- `SourceGenerator~/Emitter/CSharpEmitter.cs` — replace `ExtractHookSignature`
+  regex with Roslyn syntax-tree walker. Keep `ScrubCommentsAndStrings` as a
+  helper for the legacy code path until removed.
+- `Editor/HMR/HmrCSharpEmitter.cs` — mirror.
+- `SourceGenerator~/Emitter/HookEmitter.cs` — passes through to
+  `EmitContext.ExtractHookSignature`; verify behavior unchanged.
+- `SourceGenerator~/Tests/EmitterTests.cs` + new snapshots under
+  `SourceGenerator~/Tests/Snapshots/`.
+
+---

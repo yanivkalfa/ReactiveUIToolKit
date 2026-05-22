@@ -1,4 +1,20 @@
-﻿## [0.5.22] - 2026-05-20
+﻿## [0.6.0] - 2026-05-22
+
+### HMR ported to React Fast Refresh - zero player cost, custom-hook edits invalidate consumers
+
+**Cascade-drift bug gone.** The old trampoline compared `MethodInfo.DeclaringType` at the reconciler; after a cascade compile, parent and child delegates came from different DLLs, the reconciler saw a type mismatch and tore down state in components the user never edited (saving a leaf re-mounted the page root). Replaced with React Fast Refresh's Family indirection - a `Family` handle with a mutable `Current` slot. The SG emits one `__fam_<Child>` per child type plus a `[ModuleInitializer]` Register on a `*__UitkxRefresh` companion (keeps the component's `.cctor` cold on Mono). Reconciliation compares Family references - one identity per child type regardless of depth. Render crash -> `Family.Current` reverts to the previous body.
+
+**Zero player cost.** `Family`, `RefreshRuntime`, the `V.Func(Family, ...)` overloads, and the identity/rollback paths are all wrapped in `#if UNITY_EDITOR`. The SG emits dual-shape `V.Func` per child site, so player builds compile down to direct delegate calls identical to 0.5.x. Mirrors React's `$RefreshReg$` model.
+
+**Custom-hook edits invalidate consumers.** A hook in a separate `.uitkx` was a black box - adding or removing `useEffect` left the consumer's signature unchanged, so HMR re-rendered without resetting hook state. Ported `customHooks`: `[HookSignature]` now takes a `string[] customHookFamilyKeys`. Hook authors get `RefreshRuntime.RegisterHook(...)` on a `*__UitkxHookRefresh` companion. Every Register builds a `hookId -> consumerIds` reverse map; `PerformRefresh` fans out from dirty hooks (re-render, plus force-remount when the hook signature itself changed). Editor-only.
+
+**Tests.** 1245/1245 SG passing. New invariant tests lock in the GetFamily fallback-factory and ModuleInitializer-on-companion-only contracts.
+
+VS Code **1.2.13 -> 1.2.14** | VS 2022 **1.2.13 -> 1.2.14** ship separately.
+
+---
+
+## [0.5.22] - 2026-05-20
 
 ### IDE finally type-checks JSX inside attribute lambdas, plus UseTransition lands
 

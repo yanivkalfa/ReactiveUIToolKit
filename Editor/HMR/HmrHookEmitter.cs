@@ -146,9 +146,65 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             sb.AppendLine("    }");
+
+            // ── HMR companion ────────────────────────────────────────────────
+            // [ModuleInitializer] that re-registers each hook with
+            // RefreshRuntime under the FRESH signature derived from the
+            // recompiled body source. Mirrors HookEmitter.EmitHookRefreshCompanion
+            // on the source-gen side. The SG-emitted [HookSignature]
+            // attribute on the trampoline cannot detect HMR-time changes
+            // because it lives in the original project assembly; we must
+            // re-publish the signature here so Phase 3's transitive walk
+            // sees the new value.
+            EmitHookRefreshCompanion(sb, hookList, containerClassName, ns);
+
             sb.AppendLine("}");
 
             return sb.ToString();
+        }
+
+        private static void EmitHookRefreshCompanion(
+            StringBuilder sb,
+            List<object> hookList,
+            string containerClassName,
+            string ns)
+        {
+            if (hookList.Count == 0)
+                return;
+
+            string companionName = containerClassName + "__UitkxHookRefresh";
+
+            sb.AppendLine();
+            sb.AppendLine($"    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            sb.AppendLine($"    [global::System.Runtime.CompilerServices.CompilerGenerated]");
+            sb.AppendLine($"    internal static class {companionName}");
+            sb.AppendLine("    {");
+            sb.AppendLine($"        [global::System.Runtime.CompilerServices.ModuleInitializer]");
+            sb.AppendLine($"        internal static void __Register()");
+            sb.AppendLine("        {");
+            foreach (var hook in hookList)
+            {
+                // Family key = literal hook name (bare). See HookEmitter for rationale.
+                string hookName = (string)GetProp(hook, "Name");
+                string hookBody = (string)GetProp(hook, "Body") ?? string.Empty;
+                string sig = HmrCSharpEmitter.ExtractHookSignature(hookBody) ?? string.Empty;
+                string[] hookCustomKeys = HmrCSharpEmitter.ExtractCustomHookFamilyKeys(hookBody);
+                string familyKey = hookName;
+                string keysLit = HmrCSharpEmitter.RenderCustomHookFamilyKeysLiteral(hookCustomKeys);
+                sb.AppendLine(
+                    $"            global::ReactiveUITK.Refresh.RefreshRuntime.RegisterHook(" +
+                    $"\"{EscapeStringLiteral(familyKey)}\", " +
+                    $"\"{EscapeStringLiteral(sig)}\", " +
+                    $"{keysLit});");
+            }
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+        }
+
+        private static string EscapeStringLiteral(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         /// <summary>

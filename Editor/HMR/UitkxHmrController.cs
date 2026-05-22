@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Fiber;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -223,10 +224,13 @@ namespace ReactiveUITK.EditorSupport.HMR
             // gates briefly via TryWaitForSeed.
             HookContainerRegistry.Seed(assetsPath);
 
-            // Seed the workspace-wide .uitkx dependency graph. Used by the
-            // module-cascade walker (Rank 3) and the component/JSX-consumer
-            // cascade (Rank 4/5). Same async lifecycle as HookContainerRegistry.
-            UitkxFileDependencyIndex.Seed(assetsPath);
+            // UITKX Fast Refresh: wire the renderer-walk callback the
+            // Refresh runtime needs to dispatch PerformRefresh. Doing it
+            // here (instead of [InitializeOnLoadMethod]) keeps the editor
+            // load path lazy — the provider is only set when HMR actually
+            // starts.
+            global::ReactiveUITK.Refresh.RefreshRuntime.RegisterRootRendererProvider(
+                EnumerateRootFibers);
 
             // Build initial USS dependency map (only on first start;
             // subsequent starts reuse the map since .uitkx files haven't changed)
@@ -282,7 +286,6 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Drop the workspace-wide hook-container index; a fresh seed runs
             // on the next Start.
             HookContainerRegistry.Reset();
-            UitkxFileDependencyIndex.Reset();
 
             _pendingRetryPaths.Clear();
             _compileQueue.Clear();
@@ -328,34 +331,47 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Keep the workspace-wide hook-container index in sync with disk so
             // a newly added or edited hook file is visible to the next recompile.
             HookContainerRegistry.Invalidate(uitkxPath);
-            UitkxFileDependencyIndex.Invalidate(uitkxPath);
 
             // If this is a companion .uitkx file (e.g. Foo.style.uitkx),
             // redirect to compile the parent component file (Foo.uitkx)
             // so the companion's module/hook members are included.
             uitkxPath = ResolveParentComponentFile(uitkxPath);
 
-            // ── Cascade (Rank 3 + Rank 4) ─────────────────────────────────
-            // Pull every transitive consumer in the same asmdef. The walker
-            // returns dependents first, the changed file LAST, so each
-            // consumer's cctor re-runs against the freshly-recompiled module
-            // statics. CollectTransitiveDependents is cycle-safe.
-            //
-            // includeComponents=true (Rank 4): also follow JSX component
-            // consumption edges, so a save of <Child> enqueues every parent
-            // that renders <Child>. Body-only edits propagate immediately;
-            // prop-signature changes still require Rank 5 (per-SCC union
-            // compile) to avoid CS0117 against the project-DLL's old shape.
-            var batch = UitkxFileDependencyIndex.CollectTransitiveDependents(
-                uitkxPath, includeComponents: true);
-
-            foreach (var path in batch)
-                EnqueueCompile(path);
-
+            // ── UITKX Fast Refresh ─────────────────────────────────────────
+            // No cascade walker, no transitive consumer compile. The Family
+            // handle indirection means a single Register call — emitted by
+            // the [ModuleInitializer] in the freshly compiled assembly —
+            // reaches every consumer regardless of whether their IL was
+            // recompiled in this round. See Plans~/HMR_FAST_REFRESH_PLAN.md.
+            EnqueueCompile(uitkxPath);
             DrainCompileQueueIfIdle();
         }
 
         // ── Compile queue plumbing ────────────────────────────────────────────
+
+        // ── UITKX Fast Refresh: root-fiber enumeration ───────────────────────
+        // Supplied to RefreshRuntime.RegisterRootRendererProvider in Start().
+        // Walks the two registries that hold every live FiberRenderer:
+        //   • EditorRootRendererUtility.GetAllRenderers — editor-window hosts
+        //   • RootRenderer.AllInstances — runtime MonoBehaviour hosts
+        // Mirrors the iteration the (now deleted) component trampoline
+        // swapper used. Cheap to call: O(renderers); RefreshRuntime calls
+        // it once per HMR cycle.
+        private static IEnumerable<FiberNode> EnumerateRootFibers()
+        {
+            foreach (var renderer in EditorRootRendererUtility.GetAllRenderers())
+            {
+                var fr = renderer?.FiberRendererInternal;
+                if (fr?.Root?.Current != null)
+                    yield return fr.Root.Current;
+            }
+            foreach (var rootRenderer in RootRenderer.AllInstances)
+            {
+                var vhr = rootRenderer?.VNodeHostRendererInternal;
+                if (vhr?.FiberRendererInternal?.Root?.Current != null)
+                    yield return vhr.FiberRendererInternal.Root.Current;
+            }
+        }
 
         private void EnqueueCompile(string uitkxPath)
         {
@@ -375,29 +391,16 @@ namespace ReactiveUITK.EditorSupport.HMR
             _compileInFlight = true;
             try
             {
-                if (_compileQueue.Count == 1)
+                // UITKX Fast Refresh — every save is a single-file compile.
+                // The cascade walker and union-compile batch path were
+                // removed when Family-handle indirection eliminated the
+                // cross-DLL identity bug that those mechanisms existed to
+                // work around (see Plans~/HMR_FAST_REFRESH_PLAN.md).
+                while (_compileQueue.Count > 0)
                 {
-                    // Fast path — single save, no cascade. Run the per-file
-                    // compile to keep behavior identical for the dominant case.
                     string next = _compileQueue.Dequeue();
                     _enqueued.Remove(next);
                     ProcessFileChange(next);
-                }
-                else
-                {
-                    // Rank 5 — drain the WHOLE current queue into one batch
-                    // and union-compile. The cascade walker has already
-                    // ordered dependents-first / root-last and pruned across
-                    // asmdef boundaries, so the drained list is a single
-                    // SCC's worth of files within one asmdef.
-                    var batch = new List<string>(_compileQueue.Count);
-                    while (_compileQueue.Count > 0)
-                    {
-                        string p = _compileQueue.Dequeue();
-                        _enqueued.Remove(p);
-                        batch.Add(p);
-                    }
-                    ProcessBatch(batch);
                 }
             }
             finally
@@ -470,7 +473,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             if (result.Success)
             {
-                ApplySuccessfulCompileResult(result, uitkxPath, isOriginatingChange: true);
+                ApplySuccessfulCompileResult(result, uitkxPath);
 
                 // Remove from pending retries if this was a re-attempt
                 _pendingRetryPaths.Remove(uitkxPath);
@@ -497,13 +500,11 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         /// <summary>
         /// Run the post-compile swap pipeline for a single successful result:
-        /// module-static + module-method re-init, then component trampoline /
-        /// hook delegate swap. Extracted from the original single-file
-        /// ProcessFileChange so the Rank 5 batch path can reuse it for every
-        /// per-file result of a union compile.
+        /// module-static + module-method re-init, then component-family
+        /// PerformRefresh (or hook delegate swap for hook/module files).
         /// </summary>
         private void ApplySuccessfulCompileResult(
-            HmrCompileResult result, string uitkxPath, bool isOriginatingChange)
+            HmrCompileResult result, string uitkxPath)
         {
             // Sync asset references into cache (lightweight — no SO write)
             SyncAssetCacheForHmr(uitkxPath);
@@ -578,26 +579,39 @@ namespace ReactiveUITK.EditorSupport.HMR
                     result.HookContainerClass,
                     ns
                 );
+
+                // Drain Phase 1/3 dirty + force-remount queues populated by
+                // the hook's RegisterHook ModuleInitializer (just kicked by
+                // ForceRunModuleInitializers). PropagateHookSignatureChanges
+                // walks s_reverseEdges to fan force-remount out to every
+                // consumer; without this call, hook signature changes never
+                // remount their consumers and useRef / useState state from
+                // before the edit lingers across a signature change. The
+                // delegate-swap re-render (TriggerGlobalReRender) is what
+                // picks up body-only edits; PerformRefresh is what enforces
+                // the state-reset for signature edits. Both run; the second
+                // call is cheap when nothing is dirty.
+                int refreshed = global::ReactiveUITK.Refresh.RefreshRuntime.PerformRefresh();
+                if (refreshed > swapped)
+                    swapped = refreshed;
             }
             else
             {
-                // Component files: swap the per-component __hmr_Render
-                // trampoline field. Single static-field write per
-                // component type — no per-fiber tree walk.
-                //
-                // allowFullStateReset is gated to the originating file of a
-                // cascade batch (the walker orders dependents-first, originator
-                // last). Cascade-pulled siblings/ancestors still receive the new
-                // IL via the trampoline field swap, but their fiber state and
-                // useEffect cleanups are preserved — preventing re-fire of mount
-                // effects (e.g. additive scene loads) when an unrelated edit
-                // pulls them into the batch.
-                swapped = UitkxHmrComponentTrampolineSwapper.SwapAll(
-                    result.LoadedAssembly,
-                    result.ComponentName,
-                    uitkxPath,
-                    allowFullStateReset: isOriginatingChange
-                );
+                // Component files: under the Family architecture, the
+                // freshly compiled assembly's [ModuleInitializer] has
+                // already run -- forced deterministically by
+                // ForceRunModuleInitializers right after Assembly.LoadFrom
+                // (the CLR fires <Module>.cctor lazily on first member
+                // access, which never happens for the synthetic companion
+                // type that carries [ModuleInitializer], so we kick it
+                // explicitly via RuntimeHelpers.RunModuleConstructor).
+                // Register has therefore atomically updated the Family's
+                // Current delegate. PerformRefresh now walks live renderer
+                // trees once, schedules a re-render for every fiber whose
+                // Family was just updated, and resets state for fibers
+                // whose hook signature changed. Single tree walk -- not
+                // per-component-type.
+                swapped = global::ReactiveUITK.Refresh.RefreshRuntime.PerformRefresh();
             }
             swapSw.Stop();
             result.SwapMs = swapSw.Elapsed.TotalMilliseconds;
@@ -702,91 +716,6 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return;
             }
             _pendingRetryPaths[uitkxPath] = result.Error;
-        }
-
-        // ── Rank 5 — Batch dispatch ──────────────────────────────────────────
-
-        /// <summary>
-        /// Process a multi-file cascade batch via the union compile path. The
-        /// batch is built by <see cref="DrainCompileQueueIfIdle"/> when the
-        /// queue holds 2+ pending compiles. On guard or compile failure the
-        /// method falls back to per-file <see cref="ProcessFileChange"/> calls
-        /// so the user-facing error surface is preserved (see §5.2.1 of
-        /// TECH_DEBT_20_21_22_RESOLUTION_PLAN.md — "loud regression preferred
-        /// over silent wrong-IL").
-        /// </summary>
-        private void ProcessBatch(List<string> paths)
-        {
-            if (paths == null || paths.Count == 0)
-                return;
-
-            // Build companion-cs map per file (same logic as ProcessFileChange).
-            var companionsByPath = new Dictionary<string, string[]>(
-                StringComparer.OrdinalIgnoreCase);
-            foreach (var path in paths)
-            {
-                var dir = Path.GetDirectoryName(path);
-                var baseName = Path.GetFileNameWithoutExtension(path);
-                if (dir == null) continue;
-                try
-                {
-                    string prefix = baseName + ".";
-                    companionsByPath[path] = Directory
-                        .GetFiles(dir, "*.cs")
-                        .Where(f =>
-                        {
-                            var fn = Path.GetFileName(f);
-                            return !f.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
-                                && fn.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-                        })
-                        .ToArray();
-                }
-                catch { /* ignore IO errors */ }
-            }
-
-            var batchResult = _compiler.CompileBatch(paths, companionsByPath);
-
-            if (batchResult.OverallSuccess)
-            {
-                // Apply each per-file swap. Order in batchResult.PerFileResults
-                // matches the input order, which the cascade walker established
-                // as dependencies-first / root-last. Swapping in that order means
-                // each consumer's trampoline is updated AFTER its dependency
-                // module statics have been re-bound for the same union assembly.
-                for (int i = 0; i < paths.Count; i++)
-                {
-                    var per = batchResult.PerFileResults[i];
-                    if (per != null && per.Success)
-                    {
-                        // CollectTransitiveDependents orders dependents-first
-                        // with the originating file appended LAST. Only that
-                        // file gets the rude FullResetComponentState semantics;
-                        // cascade-pulled siblings/ancestors keep their fiber
-                        // state and useEffect cleanups intact across the swap.
-                        bool isOriginator = (i == paths.Count - 1);
-                        ApplySuccessfulCompileResult(per, paths[i], isOriginator);
-                        _pendingRetryPaths.Remove(paths[i]);
-                    }
-                }
-
-                // A successful batch may unblock pending retries.
-                if (_pendingRetryPaths.Count > 0 && !_retryingPending)
-                    EditorApplication.delayCall += RetryPendingCompilations;
-                return;
-            }
-
-            // ── Loud fallback ──────────────────────────────────────────────
-            // Per the committed Rank-5 decision (§5.2.1): when a union compile
-            // fails any guard or Roslyn step, fall back to per-file Compile so
-            // the standard error surface (CS0117 / CS0246 / CS0433) reaches
-            // the user. We log the reason once and recommend Stop + Restart
-            // when the guard tripping suggests a structural mismatch.
-            string reason = batchResult.FallbackReason ?? batchResult.OverallError ?? "unknown";
-            Debug.LogWarning(
-                $"[HMR] Union compile of {paths.Count} files fell back to per-file: {reason}");
-
-            foreach (var path in paths)
-                ProcessFileChange(path);
         }
 
         // ── Deletion handler ──────────────────────────────────────────────────
