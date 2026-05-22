@@ -278,4 +278,53 @@ public sealed class RoslynHostTests : IAsyncLifetime
                 )
         );
     }
+
+    // ── Issue 1 (0.5.22) — JSX subtree inside attribute lambda is type-checked ──
+
+    [Fact]
+    public async Task AttributeLambda_WithJsxSubtree_GeneratesVirtualDoc()
+    {
+        // Sanity: ensure the virtual document scaffolds successfully (no exceptions
+        // in the deferred Pattern-B emission path) when an attribute lambda body
+        // contains a JSX literal that gets stripped by EmitMappedExpressionStrippingJsx.
+        var source =
+            "component Test {\n"
+            + "  var (n, setN) = useState(0);\n"
+            + "  return (\n"
+            + "    <Button text=\"+\" onClick={e => setN(n + 1)} />\n"
+            + "  );\n"
+            + "}";
+        await EnsureReady(source);
+
+        var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
+        Assert.NotNull(vdoc);
+        Assert.False(string.IsNullOrEmpty(vdoc!.Text));
+    }
+
+    [Fact]
+    public async Task AttributeLambda_JsxBody_DeferredPatternBEmitted()
+    {
+        // When an attribute lambda body contains JSX (e.g. ternary returning JSX
+        // from inside an inline expression), the virtual document MUST emit a
+        // deferred Pattern-B (__uitkx_jsxattr...) local function so the JSX
+        // subtree is type-checked rather than silently dropped.
+        //
+        // Repro: ternary with two JSX branches inside an inline expression check.
+        var source =
+            "component Test {\n"
+            + "  var cond = true;\n"
+            + "  return (\n"
+            + "    <VisualElement>\n"
+            + "      {cond ? <Label text=\"A\" /> : <Label text=\"B\" />}\n"
+            + "    </VisualElement>\n"
+            + "  );\n"
+            + "}";
+        await EnsureReady(source);
+
+        var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
+        Assert.NotNull(vdoc);
+        Assert.Contains(
+            "__uitkx_jsxattr",
+            vdoc!.Text);
+    }
 }

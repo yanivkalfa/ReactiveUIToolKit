@@ -100,9 +100,66 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
 
             sb.AppendLine("    }"); // close class
+
+            // ── HMR companion ────────────────────────────────────────────────
+            // Editor-only [ModuleInitializer] that registers each hook with
+            // RefreshRuntime so the Phase 3 transitive walk can propagate
+            // hook signature changes to consumer components. Hooks have no
+            // render body — they are invoked through the static trampoline
+            // emitted above — so we use the signature-only RegisterHook
+            // entry point.
+            EmitHookRefreshCompanion(sb, directives, containerClass, ns);
+
             sb.AppendLine("}"); // close namespace
 
             return sb.ToString();
+        }
+
+        private static void EmitHookRefreshCompanion(
+            StringBuilder sb,
+            DirectiveSet directives,
+            string containerClass,
+            string ns)
+        {
+            if (directives.HookDeclarations.IsDefaultOrEmpty)
+                return;
+
+            string companionName = containerClass + "__UitkxHookRefresh";
+
+            sb.AppendLine();
+            sb.AppendLine("#if UNITY_EDITOR");
+            sb.AppendLine($"    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            sb.AppendLine($"    [global::System.Runtime.CompilerServices.CompilerGenerated]");
+            sb.AppendLine($"    internal static class {companionName}");
+            sb.AppendLine("    {");
+            sb.AppendLine($"        [global::System.Runtime.CompilerServices.ModuleInitializer]");
+            sb.AppendLine($"        internal static void __Register()");
+            sb.AppendLine("        {");
+            foreach (var hook in directives.HookDeclarations)
+            {
+                // Family key = literal hook name (bare). Consumer components emit
+                // `customHookFamilyKeys = new[] { "useFoo" }` from a syntactic scan
+                // of their setup code; matching here on the same bare name avoids
+                // the cross-asmdef container-FQN resolution problem.
+                string sig = EmitContext.ExtractHookSignature(hook.Body) ?? string.Empty;
+                string[] hookCustomKeys = EmitContext.ExtractCustomHookFamilyKeys(hook.Body);
+                string familyKey = hook.Name;
+                string keysLit = EmitContext.RenderCustomHookFamilyKeysLiteral(hookCustomKeys);
+                sb.AppendLine(
+                    $"            global::ReactiveUITK.Refresh.RefreshRuntime.RegisterHook(" +
+                    $"\"{EscapeStringLiteral(familyKey)}\", " +
+                    $"\"{EscapeStringLiteral(sig)}\", " +
+                    $"{keysLit});");
+            }
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("#endif // UNITY_EDITOR");
+        }
+
+        private static string EscapeStringLiteral(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         private static void EmitSingleHook(StringBuilder sb, HookDeclaration hook, string linePath, IList<Diagnostic> diagnostics)

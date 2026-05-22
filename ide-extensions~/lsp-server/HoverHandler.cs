@@ -588,6 +588,54 @@ public sealed class HoverHandler : IHoverHandler
             "## `useReducer<TState, TAction>(reducer, initialState)`\n\n**Shorthand for `Hooks.UseReducer`.** Returns `(state, dispatch)`. Calls `reducer(state, action)` on each `dispatch(action)`.",
         ["Hooks.UseReducer"] =
             "## `Hooks.UseReducer<TState, TAction>(reducer, initialState)`\n\nReturns `(state, dispatch)`. Calls `reducer(state, action)` on each `dispatch(action)`.",
+        ["useDeferredValue"] =
+            "## `useDeferredValue<T>(value, deps?)`\n\n**Shorthand for `Hooks.UseDeferredValue`.** Returns the value, deferred via batched effect when deps change. UITKX renders synchronously, so the value is returned immediately and tracked for dependency validation.\n\n```csharp\nvar deferred = useDeferredValue(searchTerm, new object[] { searchTerm });\n```",
+        ["Hooks.UseDeferredValue"] =
+            "## `Hooks.UseDeferredValue<T>(value, deps?)`\n\nReturns the value, deferred via batched effect when deps change. UITKX renders synchronously, so the value is returned immediately and tracked for dependency validation.\n\n```csharp\nvar deferred = Hooks.UseDeferredValue(searchTerm, new object[] { searchTerm });\n```",
+        ["useTransition"] =
+            "## `useTransition()`\n\n**Shorthand for `Hooks.UseTransition`.** Returns `(isPending, startTransition)`.\n\n> **UITKX note:** UITKX has no concurrent renderer. `isPending` is **always `false`** and `startTransition(action)` runs `action` synchronously. Provided for source compatibility with React.\n\n```csharp\nvar (isPending, startTransition) = useTransition();\nstartTransition(() => setSlowValue(newValue));\n```",
+        ["Hooks.UseTransition"] =
+            "## `Hooks.UseTransition()`\n\nReturns `(isPending, startTransition)` matching React's API surface.\n\n> **UITKX note:** synchronous rendering only. `isPending` is always `false` and the callback runs synchronously.",
+        ["useImperativeHandle"] =
+            "## `useImperativeHandle<THandle>(factory, deps?)`\n\n**Shorthand for `Hooks.UseImperativeHandle`.** Returns the handle produced by `factory()`, re-created only when `deps` change. Useful for exposing imperative APIs to a parent component via a `Ref`.\n\n```csharp\nuseImperativeHandle(() => new MyHandle(...), new object[] { dep });\n```",
+        ["Hooks.UseImperativeHandle"] =
+            "## `Hooks.UseImperativeHandle<THandle>(factory, deps?)`\n\nReturns the handle produced by `factory()`, re-created only when `deps` change. Useful for exposing imperative APIs to a parent component via a `Ref`.",
+        ["useSafeArea"] =
+            "## `useSafeArea(tolerance?)`\n\n**Shorthand for `Hooks.UseSafeArea`.** Returns the current `SafeAreaInsets` (top, bottom, left, right). Re-renders when the safe area changes by more than `tolerance` pixels.\n\n```csharp\nvar insets = useSafeArea();\n```",
+        ["Hooks.UseSafeArea"] =
+            "## `Hooks.UseSafeArea(tolerance?)`\n\nReturns the current `SafeAreaInsets` (top, bottom, left, right). Re-renders when the safe area changes by more than `tolerance` pixels.",
+        ["useStableFunc"] =
+            "## `useStableFunc<T>(function)`\n\n**Shorthand for `Hooks.UseStableFunc`.** Returns a `Func<T>` whose identity is stable across renders, while always invoking the latest `function` body. Use for callbacks passed to dependent components without busting their memoisation.",
+        ["Hooks.UseStableFunc"] =
+            "## `Hooks.UseStableFunc<T>(function)`\n\nReturns a `Func<T>` whose identity is stable across renders, while always invoking the latest `function` body.",
+        ["useStableAction"] =
+            "## `useStableAction<T>(action)`\n\n**Shorthand for `Hooks.UseStableAction`.** Returns an `Action<T>` whose identity is stable across renders, while always invoking the latest `action` body.",
+        ["Hooks.UseStableAction"] =
+            "## `Hooks.UseStableAction<T>(action)`\n\nReturns an `Action<T>` whose identity is stable across renders, while always invoking the latest `action` body.",
+        ["useStableCallback"] =
+            "## `useStableCallback(callback)`\n\n**Shorthand for `Hooks.UseStableCallback`.** Returns an `Action` whose identity is stable across renders, while always invoking the latest `callback` body.",
+        ["Hooks.UseStableCallback"] =
+            "## `Hooks.UseStableCallback(callback)`\n\nReturns an `Action` whose identity is stable across renders, while always invoking the latest `callback` body.",
+        ["useAnimate"] =
+            "## `useAnimate(tracks, autoplay?, deps?)`\n\n**Shorthand for `Hooks.UseAnimate`.** Plays a sequence of animation tracks on the component's host element. `autoplay` controls whether playback starts immediately.\n\n```csharp\nuseAnimate(tracks, autoplay: true);\n```",
+        ["Hooks.UseAnimate"] =
+            "## `Hooks.UseAnimate(tracks, autoplay?, deps?)`\n\nPlays a sequence of animation tracks on the component's host element. `autoplay` controls whether playback starts immediately.",
+        ["useTweenFloat"] =
+            "## `useTweenFloat(from, to, duration, ease, delay, onUpdate, onComplete, deps?)`\n\n**Shorthand for `Hooks.UseTweenFloat`.** Animates a float from `from` to `to` over `duration` seconds. Calls `onUpdate(value)` each frame and `onComplete()` when finished.\n\n```csharp\nuseTweenFloat(0f, 1f, 0.3f, Ease.OutCubic, 0f, v => style.opacity = v, null);\n```",
+        ["Hooks.UseTweenFloat"] =
+            "## `Hooks.UseTweenFloat(from, to, duration, ease, delay, onUpdate, onComplete, deps?)`\n\nAnimates a float from `from` to `to` over `duration` seconds. Calls `onUpdate(value)` each frame and `onComplete()` when finished.",
+        ["useSfx"] =
+            "## `useSfx(mixer?)`\n\n**Shorthand for `Hooks.UseSfx`.** Returns a stable `Action<AudioClip, float>` for one-shot sound effects. Pass an optional `AudioMixerGroup` to route playback.\n\n```csharp\nvar play = useSfx();\nplay(clickSound, 1.0f);\n```",
+        ["Hooks.UseSfx"] =
+            "## `Hooks.UseSfx(mixer?)`\n\nReturns a stable `Action<AudioClip, float>` for one-shot sound effects. Pass an optional `AudioMixerGroup` to route playback.",
+        ["useUiDocumentRoot"] =
+            "## `useUiDocumentRoot(doc | contextKey)`\n\n**Shorthand for `Hooks.UseUiDocumentRoot`.** Returns the current `rootVisualElement` of a `UIDocument`, re-rendering when it rebuilds (undo, asset swap, playmode toggle). Designed for portal targeting.",
+        ["Hooks.UseUiDocumentRoot"] =
+            "## `Hooks.UseUiDocumentRoot(doc | contextKey)`\n\nReturns the current `rootVisualElement` of a `UIDocument`, re-rendering when it rebuilds (undo, asset swap, playmode toggle).",
+        ["provideContext"] =
+            "## `provideContext<T>(key, value)`\n\n**Shorthand for `Hooks.ProvideContext`.** Provides a context value to all descendant components. Children read it via `useContext<T>(key)`.\n\n```csharp\nprovideContext(\"theme\", new ThemeData { ... });\n```",
+        ["Hooks.ProvideContext"] =
+            "## `Hooks.ProvideContext<T>(key, value)`\n\nProvides a context value to all descendant components. Children read it via `Hooks.UseContext<T>(key)`.",
     };
 
     private static readonly Regex s_hookTupleRegex = new Regex(

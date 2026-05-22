@@ -20,12 +20,12 @@ namespace ReactiveUITK.EditorSupport.HMR
     /// </para>
     ///
     /// <para>
-    /// Component swaps used to live here too (<c>SwapAll</c> + per-fiber
-    /// <c>WalkAndSwap</c>). They were retired by the trampoline refactor: the
-    /// SG now emits a per-component <c>__hmr_Render</c> trampoline and
-    /// <see cref="UitkxHmrComponentTrampolineSwapper"/> performs the swap as
-    /// a single <c>FieldInfo.SetValue</c> per changed component type. See
-    /// <c>Plans~/HMR_COMPONENT_TRAMPOLINE_REFACTOR.md</c>.
+    /// Component swaps no longer live here. As of 0.6.0 component identity
+    /// is carried by <c>ReactiveUITK.Refresh.Family</c> handles published
+    /// from each component's <c>[ModuleInitializer]</c>; the HMR controller
+    /// calls <c>RefreshRuntime.PerformRefresh()</c> after a successful
+    /// compile to drive the reconciler. See
+    /// <c>Plans~/HMR_FAST_REFRESH_PLAN.md</c>.
     /// </para>
     /// </summary>
     internal static class UitkxHmrDelegateSwapper

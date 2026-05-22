@@ -281,7 +281,16 @@ namespace ReactiveUITK.Core.Fiber
                     if (fiber.Tag != FiberTag.FunctionComponent)
                         return false;
 
-                    // All function components now use TypedRender.
+                    // Family-based identity (UITKX Fast Refresh, editor-only):
+                    // see FiberChildReconciliation.CanReuseFiber for the
+                    // design rationale -- these two copies must stay in
+                    // lockstep. Player builds compile this branch out.
+#if UNITY_EDITOR
+                    if (fiber.Family != null && vnode._family != null)
+                        return ReferenceEquals(fiber.Family, vnode._family);
+#endif
+
+                    // Legacy delegate path.
                     if (fiber.TypedRender == null || vnode.TypedFunctionRender == null)
                         return false;
                     if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender))
@@ -291,15 +300,6 @@ namespace ReactiveUITK.Core.Fiber
                         && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target
                     )
                         return true;
-
-                    // Cross-assembly HMR fallback was deleted by the
-                    // per-component __hmr_Render trampoline refactor: parent IL
-                    // continues to issue method-group references to the live
-                    // project type's stable Render trampoline (Roslyn caches
-                    // the conversion in a static slot per call site), so the
-                    // ReferenceEquals/Method-equality short-circuits above
-                    // hold across HMR cycles and no name-based fallback is
-                    // needed. See Plans~/HMR_COMPONENT_TRAMPOLINE_REFACTOR.md.
                     return false;
 
                 case VirtualNodeType.Suspense:

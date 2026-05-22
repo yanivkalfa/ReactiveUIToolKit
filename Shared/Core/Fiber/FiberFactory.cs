@@ -52,6 +52,9 @@ namespace ReactiveUITK.Core.Fiber
                     fiber.Tag = FiberTag.FunctionComponent;
                     fiber.TypedRender = vnode.TypedFunctionRender;
                     fiber.TypedPendingProps = vnode.TypedProps;
+#if UNITY_EDITOR
+                    fiber.Family = vnode._family;
+#endif
                     break;
 
                 case VirtualNodeType.Suspense:
@@ -138,7 +141,43 @@ namespace ReactiveUITK.Core.Fiber
             // so stale values from a previous fiber type are impossible.
             if (current.Tag != FiberTag.HostComponent)
             {
+                // Family-mode (editor-only): the Family slot is mutated
+                // in-place by HMR Register, so Family.Current is the live
+                // source of truth for the render delegate. Both
+                // newVNode.TypedFunctionRender and current.TypedRender are
+                // snapshots that go stale the moment Register publishes a
+                // new body:
+                //   - newVNode.TypedFunctionRender was captured by V.Func
+                //     at the parent's last render. When the parent bails
+                //     out and host-container children are reconciled
+                //     against current.Children, those vnodes pre-date
+                //     Register and carry the OLD delegate.
+                //   - current.TypedRender is refreshed by PerformRefresh
+                //     on every dirty fiber, but only on the Current side;
+                //     a CloneForReuse with a vnode would otherwise
+                //     overwrite that fresh value with a stale snapshot.
+                // Reading Family.Current here closes both holes: the
+                // clone's render delegate always matches the most recently
+                // Register-published body, regardless of which side of
+                // the alternate pair we are working on. In player builds
+                // the entire branch is compiled out; clone.TypedRender
+                // simply copies current.TypedRender.
+#if UNITY_EDITOR
+                if (newVNode != null && newVNode._family != null)
+                {
+                    clone.Family = newVNode._family;
+                    clone.TypedRender =
+                        newVNode._family.Current ?? newVNode.TypedFunctionRender;
+                }
+                else
+                {
+                    clone.Family = current.Family;
+                    clone.TypedRender =
+                        current.Family?.Current ?? current.TypedRender;
+                }
+#else
                 clone.TypedRender = current.TypedRender;
+#endif
                 clone.TypedProps = current.TypedProps;
                 clone.TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps;
                 clone.ComponentState = current.ComponentState; // CRITICAL: Share, don't clone!

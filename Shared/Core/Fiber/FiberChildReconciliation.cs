@@ -262,25 +262,39 @@ namespace ReactiveUITK.Core.Fiber
                     if (fiber.Tag != FiberTag.FunctionComponent)
                         return false;
 
-                    // All function components use TypedRender.
+                    // Family-based identity (UITKX Fast Refresh, editor-only):
+                    // the SG emits a stable per-component Family handle that
+                    // survives HMR DLL recompiles. Reference equality on
+                    // the Family object guarantees correct fiber reuse
+                    // even when the underlying render delegates are
+                    // distinct instances from different DLL generations.
+                    // Player builds compile this branch out and fall
+                    // through to the delegate-equality path below.
+#if UNITY_EDITOR
+                    if (fiber.Family != null && vnode._family != null)
+                    {
+                        bool eq = ReferenceEquals(fiber.Family, vnode._family);
+                        return eq;
+                    }
+#endif
+
+                    // Legacy delegate path -- hand-written V.Func(delegate,
+                    // ...) call sites and player builds.
                     if (fiber.TypedRender == null || vnode.TypedFunctionRender == null)
+                    {
                         return false;
+                    }
                     if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender))
+                    {
                         return true;
+                    }
                     if (
                         fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
                         && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target
                     )
+                    {
                         return true;
-
-                    // Cross-assembly HMR fallback was deleted by the
-                    // per-component __hmr_Render trampoline refactor: parent IL
-                    // continues to issue method-group references to the live
-                    // project type's stable Render trampoline (Roslyn caches
-                    // the conversion in a static slot per call site), so the
-                    // ReferenceEquals/Method-equality short-circuits above
-                    // hold across HMR cycles and no name-based fallback is
-                    // needed. See Plans~/HMR_COMPONENT_TRAMPOLINE_REFACTOR.md.
+                    }
                     return false;
 
                 case VirtualNodeType.Suspense:
@@ -336,6 +350,13 @@ namespace ReactiveUITK.Core.Fiber
                     fiber.Tag = FiberTag.FunctionComponent;
                     fiber.TypedRender = vnode.TypedFunctionRender;
                     fiber.TypedPendingProps = vnode.TypedProps;
+#if UNITY_EDITOR
+                    // Wire the Family slot on every fresh function-component
+                    // fiber. Without this, PerformRefresh's tree walk skips
+                    // the fiber (fiber.Family == null) and HMR Register updates
+                    // never reach it. Mirrors FiberFactory.CreateNew.
+                    fiber.Family = vnode._family;
+#endif
                     break;
 
                 case VirtualNodeType.Suspense:

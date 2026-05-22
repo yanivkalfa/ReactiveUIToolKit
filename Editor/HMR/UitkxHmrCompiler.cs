@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,6 +23,80 @@ namespace ReactiveUITK.EditorSupport.HMR
     /// </summary>
     internal sealed class UitkxHmrCompiler : IDisposable
     {
+        // ── File-read retry policy ───────────────────────────────────────────
+        // When a .uitkx (or .cs) save fires the FileSystemWatcher, the
+        // originating editor often still holds the file with an exclusive
+        // write lock for a few milliseconds. A naive File.ReadAllText then
+        // throws IOException ("Sharing violation"), the compile is aborted
+        // and the user's edit silently never reaches Roslyn — visible in
+        // logs as repeated edits to a child component having zero effect
+        // while edits to the parent (whose save happens to land after the
+        // lock release) work fine.
+        //
+        // ReadTextWithRetry opens with FileShare.ReadWrite|Delete (so we
+        // cooperate with the editor instead of fighting it) and retries
+        // with a short exponential-ish backoff on IOException /
+        // UnauthorizedAccessException. Total worst-case wait ~480ms which
+        // is well under the FileWatcher debounce window.
+        private const int FileReadMaxAttempts = 8;
+
+        internal static string ReadTextWithRetry(string path)
+        {
+            int delayMs = 5;
+            IOException lastIo = null;
+            UnauthorizedAccessException lastUa = null;
+            for (int attempt = 1; attempt <= FileReadMaxAttempts; attempt++)
+            {
+                try
+                {
+                    using (
+                        var fs = new FileStream(
+                            path,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.ReadWrite | FileShare.Delete,
+                            bufferSize: 4096,
+                            useAsync: false
+                        )
+                    )
+                    using (var sr = new StreamReader(fs, detectEncodingFromByteOrderMarks: true))
+                    {
+                        var text = sr.ReadToEnd();
+                        if (attempt > 1)
+                        {
+                            Debug.Log(
+                                $"[HMR] ReadTextWithRetry: succeeded on attempt {attempt}/{FileReadMaxAttempts} for '{path}' (editor lock cleared)."
+                            );
+                        }
+                        return text;
+                    }
+                }
+                catch (IOException ex)
+                {
+                    lastIo = ex;
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    lastUa = ex;
+                }
+                System.Threading.Thread.Sleep(delayMs);
+                if (delayMs < 120)
+                    delayMs *= 2;
+            }
+            // Out of retries — surface the original exception so the caller's
+            // try/catch path (HandleCompileFailure → re-queue) still runs.
+            Debug.LogWarning(
+                $"[HMR] ReadTextWithRetry: gave up after {FileReadMaxAttempts} attempts for '{path}'. Editor lock did not release in time; compile will be re-queued."
+            );
+            if (lastIo != null)
+                throw lastIo;
+            if (lastUa != null)
+                throw lastUa;
+            // Defensive — both null shouldn't be reachable but keep the
+            // contract: caller always gets a string or an exception.
+            throw new IOException($"ReadTextWithRetry exhausted attempts for '{path}'.");
+        }
+
         // ── Loaded pipeline assembly ──────────────────────────────────────────
         private Assembly _languageAsm;
 
@@ -92,6 +166,28 @@ namespace ReactiveUITK.EditorSupport.HMR
         // Cached MetadataReference per cross-component DLL path
         private readonly Dictionary<string, object> _crossRefCache = new(
             StringComparer.OrdinalIgnoreCase
+        );
+
+        // ── Per-asmdef reference filtering ────────────────────────────────
+        // _referenceLocations is built once from AppDomain.GetAssemblies() and
+        // therefore contains EVERY loaded assembly. Handing that whole set to
+        // Roslyn for an HMR compile of a file owned by asmdef X causes CS0433
+        // duplicate-type errors whenever the project legitimately defines the
+        // same type name in two non-cross-referencing asmdefs (e.g. a user
+        // component `AppButton` in Assembly-CSharp and a sample `AppButton`
+        // in ReactiveUITK.Samples — Unity's normal compile never sees both
+        // because Assembly-CSharp.csproj does not reference Samples). The
+        // fix mirrors Unity's per-asmdef reference closure via
+        // CompilationPipeline.GetAssemblies(...).allReferences. Caches are
+        // populated lazily on first use per asmdef and cleared in Reset().
+        private readonly Dictionary<string, HashSet<string>> _allowedRefsByAsmdef = new(
+            StringComparer.Ordinal
+        );
+        private readonly Dictionary<string, object[]> _filteredMetaRefsByAsmdef = new(
+            StringComparer.Ordinal
+        );
+        private readonly Dictionary<string, List<string>> _filteredRefLocsByAsmdef = new(
+            StringComparer.Ordinal
         );
 
         // Map of loaded Roslyn dependency DLLs for AssemblyResolve
@@ -169,7 +265,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             try
             {
-                string source = File.ReadAllText(uitkxPath);
+                string source = ReadTextWithRetry(uitkxPath);
 
                 // ── 1. Parse directives ──────────────────────────────────────
                 var stepSw = Stopwatch.StartNew();
@@ -177,7 +273,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var directives = InvokeWithDefaults(
                     _directiveParse,
                     null,
-                    source, uitkxPath, diagList, true
+                    source,
+                    uitkxPath,
+                    diagList,
+                    true
                 );
 
                 if (directives == null)
@@ -208,7 +307,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var astNodes = InvokeWithDefaults(
                     _uitkxParse,
                     null,
-                    source, uitkxPath, directives, diagList, false, 0
+                    source,
+                    uitkxPath,
+                    directives,
+                    diagList,
+                    false,
+                    0
                 );
                 stepSw.Stop();
                 result.ParseMs = stepSw.Elapsed.TotalMilliseconds;
@@ -218,7 +322,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var lowered = InvokeWithDefaults(
                     _canonicalLower,
                     null,
-                    directives, astNodes, uitkxPath
+                    directives,
+                    astNodes,
+                    uitkxPath
                 );
 
                 // Build a delegate that can parse standalone JSX fragments.
@@ -228,9 +334,23 @@ namespace ReactiveUITK.EditorSupport.HMR
                     string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
                     var miniDiags = CreateDiagnosticList();
                     var miniDir = InvokeWithDefaults(
-                        _directiveParse, null, synthetic, path, miniDiags, false);
+                        _directiveParse,
+                        null,
+                        synthetic,
+                        path,
+                        miniDiags,
+                        false
+                    );
                     var nodes = InvokeWithDefaults(
-                        _uitkxParse, null, synthetic, path, miniDir, miniDiags, false, 0);
+                        _uitkxParse,
+                        null,
+                        synthetic,
+                        path,
+                        miniDir,
+                        miniDiags,
+                        false,
+                        0
+                    );
                     return GetItems(nodes);
                 };
 
@@ -242,21 +362,27 @@ namespace ReactiveUITK.EditorSupport.HMR
                 HmrCSharpEmitter.FindJsxRangesFunc findJsxBlockRanges =
                     _findJsxBlockRanges == null
                         ? null
-                        : (src, s, e) => (System.Collections.IEnumerable)
-                            _findJsxBlockRanges.Invoke(null, new object[] { src, s, e });
+                        : (src, s, e) =>
+                            (System.Collections.IEnumerable)
+                                _findJsxBlockRanges.Invoke(null, new object[] { src, s, e });
                 HmrCSharpEmitter.FindJsxRangesFunc findBareJsxRanges =
                     _findBareJsxRanges == null
                         ? null
-                        : (src, s, e) => (System.Collections.IEnumerable)
-                            _findBareJsxRanges.Invoke(null, new object[] { src, s, e });
+                        : (src, s, e) =>
+                            (System.Collections.IEnumerable)
+                                _findBareJsxRanges.Invoke(null, new object[] { src, s, e });
 
                 // Phase 1.5: LHS walker for `cond && <Tag/>` desugar. Same
                 // null-fallback pattern as the range scanners above.
                 HmrCSharpEmitter.FindLhsStartFunc findLhsStartForLogicalAnd =
                     _findLhsStartForLogicalAnd == null
                         ? null
-                        : (src, ss, ae) => (int)
-                            _findLhsStartForLogicalAnd.Invoke(null, new object[] { src, ss, ae });
+                        : (src, ss, ae) =>
+                            (int)
+                                _findLhsStartForLogicalAnd.Invoke(
+                                    null,
+                                    new object[] { src, ss, ae }
+                                );
 
                 string csharp = HmrCSharpEmitter.Emit(
                     directives,
@@ -298,7 +424,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     foreach (var csFile in companionCsFiles)
                     {
                         if (File.Exists(csFile))
-                            sources.Add(File.ReadAllText(csFile));
+                            sources.Add(ReadTextWithRetry(csFile));
                     }
                 }
 
@@ -312,7 +438,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // CS0101 against the project DLL.
                 TryIncludeNewAsmdefCsFiles(uitkxPath, companionCsFiles, sources);
 
-                var asm = CompileSources(sources.ToArray(), componentName, out string compileError);
+                var asm = CompileSources(sources.ToArray(), componentName, uitkxPath, out string compileError);
                 stepSw.Stop();
                 result.CompileMs = stepSw.Elapsed.TotalMilliseconds;
 
@@ -348,35 +474,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             return result;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  RANK 5 — Per-SCC union compile
-        //
-        //  CompileBatch emits N component files into a SINGLE Roslyn
-        //  compilation. The resulting assembly carries the new shape of every
-        //  type in the batch, so when the parent's render is swapped to its
-        //  union-DLL delegate the new ChildProps shape resolves to a SINGLE
-        //  authoritative type within the union assembly — closing failure mode
-        //  #22B (cascading prop signatures across parent+child saves).
-        //
-        //  Type identity is preserved at the IProps interface boundary
-        //  (UitkxHmrComponentTrampolineSwapper binds via Func<IProps,...,...>),
-        //  so the project-DLL Child trampoline and the union-DLL Child
-        //  trampoline both produce VirtualNodes carrying IProps that the
-        //  matching peer renders unbox via cast.
-        //
-        //  Guards (per §5.2.1 of TECH_DEBT_20_21_22_RESOLUTION_PLAN.md):
-        //    • Pre-compile: every component in the batch must have a unique
-        //      (Namespace, ComponentName) tuple. Conflict → fall back per-file.
-        //    • Post-compile: every batch component's expected type FQN must
-        //      load from the union assembly. Mismatch → fall back per-file.
-        //  On either guard failure the controller is expected to invoke the
-        //  per-file path so the user still sees the (real) compile error.
-        // ═══════════════════════════════════════════════════════════════════
-
         /// <summary>
         /// Per-file build artifacts collected by <see cref="BuildComponentArtifacts"/>.
-        /// Shared between single-file Compile and batched CompileBatch flows so
-        /// the parse/lower/emit pipeline is implemented once.
         /// </summary>
         private sealed class ComponentBuildArtifacts
         {
@@ -388,8 +487,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             public List<string> CompanionUitkxSources = new();
             public List<string> CompanionCsSources = new();
             public List<string> HookContainerFqns = new();
-            public HashSet<string> CompanionUitkxPathsConsumed =
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            public HashSet<string> CompanionUitkxPathsConsumed = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase
+            );
             public double ParseMs;
             public double EmitMs;
             public string Error;
@@ -405,19 +505,28 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// — callers must route them through <see cref="CompileHookModuleFile"/>.
         /// </summary>
         private ComponentBuildArtifacts BuildComponentArtifacts(
-            string uitkxPath, string[] companionCsFiles, out string error)
+            string uitkxPath,
+            string[] companionCsFiles,
+            out string error
+        )
         {
             error = null;
             var artifacts = new ComponentBuildArtifacts { UitkxPath = uitkxPath };
 
             try
             {
-                string source = File.ReadAllText(uitkxPath);
+                string source = ReadTextWithRetry(uitkxPath);
                 var stepSw = Stopwatch.StartNew();
 
                 var diagList = CreateDiagnosticList();
                 var directives = InvokeWithDefaults(
-                    _directiveParse, null, source, uitkxPath, diagList, true);
+                    _directiveParse,
+                    null,
+                    source,
+                    uitkxPath,
+                    diagList,
+                    true
+                );
                 if (directives == null)
                 {
                     error = "DirectiveParser returned null";
@@ -441,15 +550,26 @@ namespace ReactiveUITK.EditorSupport.HMR
                     : ns + "." + componentName;
 
                 var astNodes = InvokeWithDefaults(
-                    _uitkxParse, null,
-                    source, uitkxPath, directives, diagList, false, 0);
+                    _uitkxParse,
+                    null,
+                    source,
+                    uitkxPath,
+                    directives,
+                    diagList,
+                    false,
+                    0
+                );
                 stepSw.Stop();
                 artifacts.ParseMs = stepSw.Elapsed.TotalMilliseconds;
 
                 stepSw = Stopwatch.StartNew();
                 var lowered = InvokeWithDefaults(
-                    _canonicalLower, null,
-                    directives, astNodes, uitkxPath);
+                    _canonicalLower,
+                    null,
+                    directives,
+                    astNodes,
+                    uitkxPath
+                );
 
                 // Build the parse delegates that the emitter needs for JSX
                 // splice handling. Identical to the per-file path; the
@@ -461,31 +581,56 @@ namespace ReactiveUITK.EditorSupport.HMR
                     string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
                     var miniDiags = CreateDiagnosticList();
                     var miniDir = InvokeWithDefaults(
-                        _directiveParse, null, synthetic, path, miniDiags, false);
+                        _directiveParse,
+                        null,
+                        synthetic,
+                        path,
+                        miniDiags,
+                        false
+                    );
                     var nodes = InvokeWithDefaults(
-                        _uitkxParse, null, synthetic, path, miniDir, miniDiags, false, 0);
+                        _uitkxParse,
+                        null,
+                        synthetic,
+                        path,
+                        miniDir,
+                        miniDiags,
+                        false,
+                        0
+                    );
                     return GetItems(nodes);
                 };
                 HmrCSharpEmitter.FindJsxRangesFunc findJsxBlockRanges =
                     _findJsxBlockRanges == null
                         ? null
-                        : (src, s, e) => (System.Collections.IEnumerable)
-                            _findJsxBlockRanges.Invoke(null, new object[] { src, s, e });
+                        : (src, s, e) =>
+                            (System.Collections.IEnumerable)
+                                _findJsxBlockRanges.Invoke(null, new object[] { src, s, e });
                 HmrCSharpEmitter.FindJsxRangesFunc findBareJsxRanges =
                     _findBareJsxRanges == null
                         ? null
-                        : (src, s, e) => (System.Collections.IEnumerable)
-                            _findBareJsxRanges.Invoke(null, new object[] { src, s, e });
+                        : (src, s, e) =>
+                            (System.Collections.IEnumerable)
+                                _findBareJsxRanges.Invoke(null, new object[] { src, s, e });
                 HmrCSharpEmitter.FindLhsStartFunc findLhsStartForLogicalAnd =
                     _findLhsStartForLogicalAnd == null
                         ? null
-                        : (src, ss, ae) => (int)
-                            _findLhsStartForLogicalAnd.Invoke(null, new object[] { src, ss, ae });
+                        : (src, ss, ae) =>
+                            (int)
+                                _findLhsStartForLogicalAnd.Invoke(
+                                    null,
+                                    new object[] { src, ss, ae }
+                                );
 
                 string csharp = HmrCSharpEmitter.Emit(
-                    directives, lowered, uitkxPath,
-                    parseMarkup, findJsxBlockRanges, findBareJsxRanges,
-                    findLhsStartForLogicalAnd);
+                    directives,
+                    lowered,
+                    uitkxPath,
+                    parseMarkup,
+                    findJsxBlockRanges,
+                    findBareJsxRanges,
+                    findLhsStartForLogicalAnd
+                );
 
                 // Companion .uitkx pickup. EmitCompanionUitkxSources writes
                 // into the (sources, fqns) lists; we tee into our per-file
@@ -493,12 +638,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // the batch can dedupe shared style/hook files across members.
                 var companionInline = new List<string>();
                 EmitCompanionUitkxSources(
-                    uitkxPath, componentName, ns, companionInline, artifacts.HookContainerFqns);
+                    uitkxPath,
+                    componentName,
+                    ns,
+                    companionInline,
+                    artifacts.HookContainerFqns
+                );
 
                 // Track which companion paths were inlined. The companion file
                 // discovery is path-based (same dir, prefix match) so the same
-                // path appears once per parent component file. Across-batch
-                // dedupe happens in CompileBatch.
+                // path appears once per parent component file.
                 var compDir = Path.GetDirectoryName(uitkxPath);
                 if (compDir != null)
                 {
@@ -529,7 +678,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     foreach (var csFile in companionCsFiles)
                     {
                         if (File.Exists(csFile))
-                            artifacts.CompanionCsSources.Add(File.ReadAllText(csFile));
+                            artifacts.CompanionCsSources.Add(ReadTextWithRetry(csFile));
                     }
                 }
 
@@ -562,12 +711,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         public HmrBatchCompileResult CompileBatch(
             IReadOnlyList<string> uitkxPaths,
-            IReadOnlyDictionary<string, string[]> companionCsByPath = null)
+            IReadOnlyDictionary<string, string[]> companionCsByPath = null
+        )
         {
-            var result = new HmrBatchCompileResult
-            {
-                BatchSize = uitkxPaths?.Count ?? 0,
-            };
+            var result = new HmrBatchCompileResult { BatchSize = uitkxPaths?.Count ?? 0 };
 
             if (uitkxPaths == null || uitkxPaths.Count == 0)
             {
@@ -582,9 +729,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (uitkxPaths.Count == 1)
             {
                 string only = uitkxPaths[0];
-                string[] companions = companionCsByPath != null
-                    && companionCsByPath.TryGetValue(only, out var c)
-                        ? c : null;
+                string[] companions =
+                    companionCsByPath != null && companionCsByPath.TryGetValue(only, out var c)
+                        ? c
+                        : null;
                 var single = Compile(only, companions);
                 result.PerFileResults.Add(single);
                 result.OverallSuccess = single.Success;
@@ -600,14 +748,17 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 // ── 1. Per-file build (parse + lower + emit) ───────────────
                 var artifactsByPath = new Dictionary<string, ComponentBuildArtifacts>(
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.OrdinalIgnoreCase
+                );
                 foreach (var path in uitkxPaths)
                 {
                     var art = BuildComponentArtifacts(
                         path,
-                        companionCsByPath != null
-                            && companionCsByPath.TryGetValue(path, out var c) ? c : null,
-                        out string artErr);
+                        companionCsByPath != null && companionCsByPath.TryGetValue(path, out var c)
+                            ? c
+                            : null,
+                        out string artErr
+                    );
                     if (art == null)
                     {
                         // One file can't be union-compiled (parse error or
@@ -626,18 +777,15 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string guardError = ValidateBatchUniqueness(artifactsByPath.Values);
                 if (guardError != null)
                 {
-                    result.FallbackReason =
-                        $"Pre-compile guard failed: {guardError}";
+                    result.FallbackReason = $"Pre-compile guard failed: {guardError}";
                     result.OverallError = result.FallbackReason;
                     return result;
                 }
 
                 // ── 3. Aggregate sources (with companion dedupe) ───────────
                 var allSources = new List<string>();
-                var consumedCompanionPaths =
-                    new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var consumedCompanionCsTexts =
-                    new HashSet<string>(StringComparer.Ordinal);
+                var consumedCompanionPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var consumedCompanionCsTexts = new HashSet<string>(StringComparer.Ordinal);
 
                 foreach (var art in artifactsByPath.Values)
                 {
@@ -648,22 +796,28 @@ namespace ReactiveUITK.EditorSupport.HMR
                     // batch). We track BY PATH on the parent companion
                     // file rather than by emitted text because the emit
                     // is path-bound (file headers, line directives).
-                    if (art.CompanionUitkxSources.Count > 0
-                        && art.CompanionUitkxPathsConsumed.Count > 0)
+                    if (
+                        art.CompanionUitkxSources.Count > 0
+                        && art.CompanionUitkxPathsConsumed.Count > 0
+                    )
                     {
                         var newOnes = new List<string>(art.CompanionUitkxSources.Count);
                         int idx = 0;
                         foreach (var compPath in art.CompanionUitkxPathsConsumed)
                         {
-                            if (idx >= art.CompanionUitkxSources.Count) break;
+                            if (idx >= art.CompanionUitkxSources.Count)
+                                break;
                             if (consumedCompanionPaths.Add(compPath))
                                 newOnes.Add(art.CompanionUitkxSources[idx]);
                             idx++;
                         }
                         // Defensive fallback: if the path/source order
                         // assumption above is off, fall back to text dedupe.
-                        if (newOnes.Count == 0 && art.CompanionUitkxPathsConsumed.Count
-                            < art.CompanionUitkxSources.Count)
+                        if (
+                            newOnes.Count == 0
+                            && art.CompanionUitkxPathsConsumed.Count
+                                < art.CompanionUitkxSources.Count
+                        )
                         {
                             foreach (var s in art.CompanionUitkxSources)
                                 if (consumedCompanionCsTexts.Add(s))
@@ -690,15 +844,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // .cs files. Same best-effort wrapping as single-file path.
                 TryIncludeNewAsmdefCsFiles(
                     uitkxPaths[0],
-                    /* alreadyIncluded */ null,
-                    allSources);
+                    /* alreadyIncluded */null,
+                    allSources
+                );
 
                 // ── 5. Roslyn compile ──────────────────────────────────────
                 // Use a deterministic batch key derived from the LAST file in
                 // the batch (which is the "root" save per the cascade walker's
                 // dependents-first / root-last ordering).
                 string rootBase = Path.GetFileNameWithoutExtension(
-                    uitkxPaths[uitkxPaths.Count - 1]);
+                    uitkxPaths[uitkxPaths.Count - 1]
+                );
                 string batchKey = $"batch_{rootBase}_{uitkxPaths.Count}";
 
                 // Invalidate cached compilations for every batch member —
@@ -711,8 +867,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 var compileSw = Stopwatch.StartNew();
-                var asm = CompileSources(
-                    allSources.ToArray(), batchKey, out string compileError);
+                var asm = CompileSources(allSources.ToArray(), batchKey, uitkxPaths[0], out string compileError);
                 compileSw.Stop();
                 double compileMs = compileSw.Elapsed.TotalMilliseconds;
 
@@ -726,8 +881,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 // ── 6. Post-compile guard: assembly identity ───────────────
-                string postGuardError =
-                    ValidateBatchAssemblyIdentity(asm, artifactsByPath.Values);
+                string postGuardError = ValidateBatchAssemblyIdentity(asm, artifactsByPath.Values);
                 if (postGuardError != null)
                 {
                     result.UnionAssembly = asm;
@@ -735,8 +889,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                     result.FallbackReason =
                         $"Post-compile assembly-identity guard failed: {postGuardError}";
                     Debug.LogWarning(
-                        "[HMR] union-compile sanity check failed — falling back. "
-                        + postGuardError);
+                        "[HMR] union-compile sanity check failed — falling back. " + postGuardError
+                    );
                     return result;
                 }
 
@@ -759,11 +913,19 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     // Register the union DLL under every batch component's
                     // name so future single-file cross-refs see it.
-                    if (_hmrAssemblyPaths.TryGetValue(art.ComponentName, out var oldDll)
+                    if (
+                        _hmrAssemblyPaths.TryGetValue(art.ComponentName, out var oldDll)
                         && !string.Equals(oldDll, asm.Location, StringComparison.OrdinalIgnoreCase)
-                        && File.Exists(oldDll))
+                        && File.Exists(oldDll)
+                    )
                     {
-                        try { File.Delete(oldDll); } catch { /* may be locked */ }
+                        try
+                        {
+                            File.Delete(oldDll);
+                        }
+                        catch
+                        { /* may be locked */
+                        }
                     }
                     _hmrAssemblyPaths[art.ComponentName] = asm.Location;
 
@@ -774,8 +936,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 result.UnionAssembly = asm;
                 result.OverallSuccess = true;
 
-                Debug.Log(
-                    $"[HMR] union: {uitkxPaths.Count} files, {sw.ElapsedMilliseconds} ms");
+                Debug.Log($"[HMR] union: {uitkxPaths.Count} files, {sw.ElapsedMilliseconds} ms");
             }
             catch (Exception ex)
             {
@@ -804,7 +965,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// static method — unit-testable without Roslyn/Unity dependencies.
         /// </summary>
         internal static string ValidateBatchUniquenessImpl(
-            IEnumerable<(string Namespace, string ComponentName, string FilePath)> components)
+            IEnumerable<(string Namespace, string ComponentName, string FilePath)> components
+        )
         {
             var seen = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var (ns, name, path) in components)
@@ -822,10 +984,12 @@ namespace ReactiveUITK.EditorSupport.HMR
         }
 
         private static string ValidateBatchUniqueness(
-            IEnumerable<ComponentBuildArtifacts> artifacts)
+            IEnumerable<ComponentBuildArtifacts> artifacts
+        )
         {
-            return ValidateBatchUniquenessImpl(artifacts.Select(
-                a => (a.Namespace, a.ComponentName, a.UitkxPath)));
+            return ValidateBatchUniquenessImpl(
+                artifacts.Select(a => (a.Namespace, a.ComponentName, a.UitkxPath))
+            );
         }
 
         /// <summary>
@@ -837,7 +1001,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         private static string ValidateBatchAssemblyIdentity(
             Assembly unionAssembly,
-            IEnumerable<ComponentBuildArtifacts> artifacts)
+            IEnumerable<ComponentBuildArtifacts> artifacts
+        )
         {
             foreach (var art in artifacts)
             {
@@ -857,7 +1022,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// compiles it the same way as component files.
         /// </summary>
         private HmrCompileResult CompileHookModuleFile(
-            object directives, string uitkxPath, Stopwatch sw, HmrCompileResult result)
+            object directives,
+            string uitkxPath,
+            Stopwatch sw,
+            HmrCompileResult result
+        )
         {
             try
             {
@@ -890,7 +1059,12 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 // ── Compile ──────────────────────────────────────────────
                 stepSw = Stopwatch.StartNew();
-                var asm = CompileSources(sources.ToArray(), containerClass, out string compileError);
+                var asm = CompileSources(
+                    sources.ToArray(),
+                    containerClass,
+                    uitkxPath,
+                    out string compileError
+                );
                 stepSw.Stop();
                 result.CompileMs = stepSw.Elapsed.TotalMilliseconds;
 
@@ -928,11 +1102,16 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// so the caller can inject <c>using static</c> directives into the component source.
         /// </summary>
         private void EmitCompanionUitkxSources(
-            string uitkxPath, string componentName, string componentNs,
-            List<string> sources, List<string> hookContainerFqns)
+            string uitkxPath,
+            string componentName,
+            string componentNs,
+            List<string> sources,
+            List<string> hookContainerFqns
+        )
         {
             var dir = Path.GetDirectoryName(uitkxPath);
-            if (dir == null) return;
+            if (dir == null)
+                return;
 
             // Track which companion paths we emit inline so the registry pass
             // below doesn't add a duplicate `using static` for the same FQN.
@@ -948,21 +1127,62 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 try
                 {
-                    string companionSource = File.ReadAllText(file);
+                    string companionSource = ReadTextWithRetry(file);
                     var diagList = CreateDiagnosticList();
                     var companionDir = InvokeWithDefaults(
-                        _directiveParse, null, companionSource, file, diagList, true);
-                    if (companionDir == null) continue;
+                        _directiveParse,
+                        null,
+                        companionSource,
+                        file,
+                        diagList,
+                        true
+                    );
+                    if (companionDir == null)
+                        continue;
 
                     // Emit module bodies (style constants, utility methods, etc.)
                     string moduleCSharp = HmrHookEmitter.EmitModules(companionDir, file);
                     if (!string.IsNullOrEmpty(moduleCSharp))
+                    {
                         sources.Add(moduleCSharp);
+                    }
+                    else
+                    {
+                        // Defensive diagnostic: the file name matched the
+                        // companion glob (ComponentName.*.uitkx) but emitted
+                        // no module body. This can mask cascade-compile bugs
+                        // where Container/Image/Label etc. fail to resolve in
+                        // the component because the partial class fragment
+                        // never made it into the compilation. Surface it so
+                        // future copy-rename or new-file races are diagnosable
+                        // from a single log line (see also: TexasOne
+                        // creation race tracked in HMR_DETERMINISM_REPORT.md).
+                        var moduleDecls = GetProp(companionDir, "ModuleDeclarations");
+                        int moduleCount = 0;
+                        if (moduleDecls is IEnumerable enumerable)
+                            foreach (var _m in enumerable) moduleCount++;
+                        if (moduleCount == 0)
+                        {
+                            Debug.LogWarning(
+                                $"[HMR] Companion {Path.GetFileName(file)} matched the "
+                                + $"'{componentName}.*.uitkx' glob but its directives "
+                                + "contain no module declarations -- the parent's "
+                                + "static member references (e.g. style identifiers "
+                                + "like 'Container') will fail to resolve. This "
+                                + "usually means the file was caught mid-write by "
+                                + "the watcher; re-save the .uitkx to retry."
+                            );
+                        }
+                    }
 
                     // Emit hook bodies if the companion also defines custom hooks
                     string containerClass = HmrHookEmitter.DeriveContainerClassName(file);
                     string hookCSharp = HmrHookEmitter.Emit(
-                        companionDir, file, containerClass, withTrampoline: true);
+                        companionDir,
+                        file,
+                        containerClass,
+                        withTrampoline: true
+                    );
                     if (!string.IsNullOrEmpty(hookCSharp))
                     {
                         sources.Add(hookCSharp);
@@ -973,13 +1193,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                             hookNs = componentNs ?? "ReactiveUITK.Generated";
                         hookContainerFqns.Add($"{hookNs}.{containerClass}");
 
-                        try { inlinePaths.Add(Path.GetFullPath(file)); }
-                        catch { /* ignore unfullable */ }
+                        try
+                        {
+                            inlinePaths.Add(Path.GetFullPath(file));
+                        }
+                        catch
+                        { /* ignore unfullable */
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[HMR] Failed to process companion {Path.GetFileName(file)}: {ex.Message}");
+                    Debug.LogWarning(
+                        $"[HMR] Failed to process companion {Path.GetFileName(file)}: {ex.Message}"
+                    );
                 }
             }
 
@@ -1001,8 +1228,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                     _warnedSeedTimeout = true;
                     Debug.LogWarning(
                         "[HMR] HookContainerRegistry seed exceeded 100 ms; "
-                        + "first recompile may miss cross-directory hooks. "
-                        + "Subsequent recompiles will pick them up.");
+                            + "first recompile may miss cross-directory hooks. "
+                            + "Subsequent recompiles will pick them up."
+                    );
                 }
             }
 
@@ -1030,6 +1258,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             _crossRefCache.Clear();
             _hmrAssemblyPaths.Clear();
             _genuinelyNewComponents.Clear();
+            _allowedRefsByAsmdef.Clear();
+            _filteredMetaRefsByAsmdef.Clear();
+            _filteredRefLocsByAsmdef.Clear();
             _lastGenuineComponentCount = 0;
             _swapCounter = 0;
 
@@ -1040,8 +1271,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 {
                     foreach (var file in Directory.GetFiles(_tempDir))
                     {
-                        try { File.Delete(file); }
-                        catch { /* locked by LoadFrom — will be cleaned next time */ }
+                        try
+                        {
+                            File.Delete(file);
+                        }
+                        catch
+                        { /* locked by LoadFrom — will be cleaned next time */
+                        }
                     }
                 }
                 catch { }
@@ -1059,7 +1295,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Try to remove the temp directory itself (succeeds only if empty)
             if (_tempDir != null && Directory.Exists(_tempDir))
             {
-                try { Directory.Delete(_tempDir, false); }
+                try
+                {
+                    Directory.Delete(_tempDir, false);
+                }
                 catch { }
             }
         }
@@ -1072,8 +1311,13 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 foreach (var file in Directory.GetFiles(_tempDir))
                 {
-                    try { File.Delete(file); }
-                    catch { /* still locked — leave for next time */ }
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch
+                    { /* still locked — leave for next time */
+                    }
                 }
             }
             catch { }
@@ -1181,6 +1425,320 @@ namespace ReactiveUITK.EditorSupport.HMR
                     continue;
                 _referenceLocations.Add(asm.Location);
             }
+        }
+
+        // ── Per-asmdef reference filtering ────────────────────────────────
+        //
+        // Returns the full set of DLL paths (case-insensitive, normalized)
+        // that the target asmdef is allowed to reference, computed from
+        // UnityEditor.Compilation.CompilationPipeline. Includes the asmdef's
+        // own output DLL so types defined in that asmdef but not part of the
+        // HMR compilation unit still resolve.
+        //
+        // Returns null when the asmdef is unknown to Unity or when the
+        // pipeline API fails — caller must fall back to the unfiltered
+        // reference list (preserving pre-fix behavior in degraded cases).
+        private HashSet<string> GetAllowedRefsForAsmdef(string asmdefName)
+        {
+            if (string.IsNullOrEmpty(asmdefName))
+                return null;
+            if (_allowedRefsByAsmdef.TryGetValue(asmdefName, out var cached))
+                return cached;
+
+            HashSet<string> allowed = null;
+            try
+            {
+                var asms = UnityEditor.Compilation.CompilationPipeline.GetAssemblies(
+                    UnityEditor.Compilation.AssembliesType.Editor
+                );
+
+                UnityEditor.Compilation.Assembly target = null;
+                if (asms != null)
+                {
+                    for (int i = 0; i < asms.Length; i++)
+                    {
+                        if (
+                            asms[i] != null
+                            && string.Equals(asms[i].name, asmdefName, StringComparison.Ordinal)
+                        )
+                        {
+                            target = asms[i];
+                            break;
+                        }
+                    }
+                }
+
+                if (target != null)
+                {
+                    allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    if (!string.IsNullOrEmpty(target.outputPath))
+                        allowed.Add(NormalizePath(target.outputPath));
+
+                    if (target.allReferences != null)
+                    {
+                        for (int i = 0; i < target.allReferences.Length; i++)
+                        {
+                            var r = target.allReferences[i];
+                            if (string.IsNullOrEmpty(r))
+                                continue;
+                            allowed.Add(NormalizePath(r));
+                        }
+                    }
+
+                    // ── CS0433 shadow-rule ─────────────────────────────────
+                    // Normal Unity compile of asmdef X has X's types as
+                    // in-source (current compilation) and ref DLLs as
+                    // references; Roslyn silently prefers current-compilation
+                    // types over referenced ones, so duplicate FQNs across
+                    // X.dll and a referenced DLL never raise CS0433 in normal
+                    // compile.
+                    //
+                    // HMR compiles only the changed .uitkx into a fresh tiny
+                    // assembly and references X.dll itself — so the duplicate
+                    // suddenly lives across two referenced DLLs and CS0433
+                    // fires. To preserve parity with normal compile we drop
+                    // any non-owning ref whose public type FQN set intersects
+                    // the owning DLL's. The owning asmdef wins, matching the
+                    // same-assembly-shadows-referenced rule.
+                    if (!string.IsNullOrEmpty(target.outputPath))
+                    {
+                        string ownPath = NormalizePath(target.outputPath);
+                        var ownTypes = ReadPublicTypeFqns(ownPath);
+                        if (ownTypes != null && ownTypes.Count > 0)
+                        {
+                            var toRemove = new List<string>();
+                            foreach (var path in allowed)
+                            {
+                                if (string.Equals(path, ownPath, StringComparison.OrdinalIgnoreCase))
+                                    continue;
+                                var refTypes = ReadPublicTypeFqns(path);
+                                if (refTypes == null || refTypes.Count == 0)
+                                    continue;
+                                bool collides = false;
+                                foreach (var t in refTypes)
+                                {
+                                    if (ownTypes.Contains(t)) { collides = true; break; }
+                                }
+                                if (collides)
+                                    toRemove.Add(path);
+                            }
+                            foreach (var r in toRemove)
+                            {
+                                allowed.Remove(r);
+                                Debug.Log(
+                                    $"[HMR] Excluding reference '{SafeFileName(r)}' from asmdef "
+                                    + $"'{asmdefName}' compile — public type FQN conflict with "
+                                    + $"owning DLL (mirrors Unity normal-compile shadowing)."
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning(
+                    $"[HMR] Could not compute allowed references for asmdef '{asmdefName}' "
+                        + $"via CompilationPipeline; falling back to unfiltered references. "
+                        + $"({ex.Message})"
+                );
+            }
+
+            _allowedRefsByAsmdef[asmdefName] = allowed; // null => no filtering
+            return allowed;
+        }
+
+        private static string NormalizePath(string p)
+        {
+            try
+            {
+                return Path.GetFullPath(p);
+            }
+            catch
+            {
+                return p;
+            }
+        }
+
+        // Returns the per-asmdef MetadataReference[] for an HMR compilation
+        // whose source file lives at <paramref name="uitkxPath"/>. Mirrors
+        // exactly the reference set Unity itself uses to compile the owning
+        // asmdef (CompilationPipeline.GetAssemblies(...).allReferences plus
+        // the asmdef's own output DLL). Falls back to the unfiltered
+        // _metadataReferences when the asmdef is unknown to Unity.
+        //
+        // CRITICAL: we materialize MetadataReferences directly from Unity's
+        // allReferences paths rather than intersecting with
+        // AppDomain.CurrentDomain.GetAssemblies() locations, because the
+        // AppDomain location for core BCL DLLs (mscorlib at
+        // MonoBleedingEdge/...) differs from the path Unity advertises in
+        // allReferences (netstandard.dll under Data/NetStandard/...). A path
+        // intersection silently drops every BCL ref and the compile fails
+        // with CS0518 ("Predefined type 'System.Object' is not defined").
+        private object[] GetFilteredMetaRefs(string uitkxPath)
+        {
+            string asmdef = AsmdefResolver.OwningAsmdefName(uitkxPath);
+            if (string.IsNullOrEmpty(asmdef))
+                return _metadataReferences;
+
+            if (_filteredMetaRefsByAsmdef.TryGetValue(asmdef, out var cached))
+                return cached;
+
+            var allowed = GetAllowedRefsForAsmdef(asmdef);
+            object[] result;
+            if (allowed == null || allowed.Count == 0)
+            {
+                result = _metadataReferences;
+            }
+            else
+            {
+                var refs = new List<object>(allowed.Count);
+                foreach (var loc in allowed)
+                {
+                    if (string.IsNullOrEmpty(loc) || !File.Exists(loc))
+                        continue;
+                    try
+                    {
+                        refs.Add(InvokeWithDefaults(_createFromFile, null, loc));
+                    }
+                    catch
+                    {
+                        // Skip assemblies Roslyn can't read (native, corrupt, etc.)
+                    }
+                }
+                result = refs.ToArray();
+            }
+            _filteredMetaRefsByAsmdef[asmdef] = result;
+            return result;
+        }
+
+        // Per-asmdef reference DLL paths for an external csc.dll compilation.
+        // Same source-of-truth as GetFilteredMetaRefs: Unity's allReferences.
+        private List<string> GetFilteredRefLocations(string uitkxPath)
+        {
+            string asmdef = AsmdefResolver.OwningAsmdefName(uitkxPath);
+            if (string.IsNullOrEmpty(asmdef))
+                return _referenceLocations;
+
+            if (_filteredRefLocsByAsmdef.TryGetValue(asmdef, out var cached))
+                return cached;
+
+            var allowed = GetAllowedRefsForAsmdef(asmdef);
+            List<string> result;
+            if (allowed == null || allowed.Count == 0)
+            {
+                result = _referenceLocations;
+            }
+            else
+            {
+                result = new List<string>(allowed.Count);
+                foreach (var loc in allowed)
+                {
+                    if (string.IsNullOrEmpty(loc) || !File.Exists(loc))
+                        continue;
+                    result.Add(loc);
+                }
+            }
+            _filteredRefLocsByAsmdef[asmdef] = result;
+            return result;
+        }
+
+        private static string SafeFileName(string p)
+        {
+            try { return Path.GetFileName(p); }
+            catch { return p; }
+        }
+
+        // ── Public type FQN scanner (CS0433 shadow rule) ──────────────────
+        // Returns the set of public top-level type FQNs exported by the
+        // assembly at <paramref name="dllPath"/>. We resolve via the already-
+        // loaded AppDomain assembly that matches the DLL's filename (simple
+        // name) — every asmdef DLL Unity references for editor compilation
+        // is already loaded into the editor's AppDomain by definition, so
+        // this avoids needing System.Reflection.Metadata (which is not in
+        // the editor asmdef reference closure) or Mono.Cecil.
+        //
+        // Returns null when the assembly cannot be located or enumerated;
+        // callers MUST treat null as "could not classify" and skip filtering
+        // (better to leave a ref in than wrongly drop one). Cache keyed by
+        // path + assembly identity so a Unity rebuild (new Assembly instance)
+        // invalidates naturally.
+        private static readonly Dictionary<string, (Assembly asm, HashSet<string> fqns)> s_typeFqnCache =
+            new Dictionary<string, (Assembly, HashSet<string>)>(StringComparer.OrdinalIgnoreCase);
+
+        private static HashSet<string> ReadPublicTypeFqns(string dllPath)
+        {
+            if (string.IsNullOrEmpty(dllPath))
+                return null;
+
+            string simpleName;
+            try
+            {
+                string fn = Path.GetFileName(dllPath);
+                simpleName = fn.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                    ? fn.Substring(0, fn.Length - 4)
+                    : fn;
+            }
+            catch { return null; }
+            if (string.IsNullOrEmpty(simpleName))
+                return null;
+
+            Assembly match = null;
+            try
+            {
+                var loaded = AppDomain.CurrentDomain.GetAssemblies();
+                for (int i = 0; i < loaded.Length; i++)
+                {
+                    var a = loaded[i];
+                    if (a == null) continue;
+                    var name = a.GetName().Name;
+                    if (string.Equals(name, simpleName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        match = a;
+                        break;
+                    }
+                }
+            }
+            catch { /* fall through */ }
+
+            if (match == null)
+                return null;
+
+            lock (s_typeFqnCache)
+            {
+                if (s_typeFqnCache.TryGetValue(dllPath, out var entry) && ReferenceEquals(entry.asm, match))
+                    return entry.fqns;
+            }
+
+            HashSet<string> set = null;
+            try
+            {
+                set = new HashSet<string>(StringComparer.Ordinal);
+                // GetExportedTypes() returns public top-level + public-nested.
+                // Filter to top-level only (nested types cannot collide as
+                // standalone identifiers in CS0433 contexts).
+                var types = match.GetExportedTypes();
+                for (int i = 0; i < types.Length; i++)
+                {
+                    var t = types[i];
+                    if (t == null || t.IsNested) continue;
+                    string fqn = t.FullName;
+                    if (string.IsNullOrEmpty(fqn)) continue;
+                    set.Add(fqn);
+                }
+            }
+            catch
+            {
+                // Reflection-load issues — leave set null so caller skips.
+                set = null;
+            }
+
+            lock (s_typeFqnCache)
+            {
+                s_typeFqnCache[dllPath] = (match, set);
+            }
+            return set;
         }
 
         private void CheckIfGenuinelyNew(string componentName, string expectedNamespace)
@@ -1349,18 +1907,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             _parseOptions = defaultProp.GetValue(null);
 
             // ── Define UNITY_EDITOR (and Unity's full editor-define list when
-            //    available) so the SG / HmrCSharpEmitter trampoline blocks
-            //    guarded by `#if UNITY_EDITOR` survive compilation. Without
-            //    this, every HMR-compiled DLL has its `__hmr_Render` field
-            //    AND the `if (HmrState.IsActive) return __hmr_Render(...)`
-            //    branch stripped from `Render`, which means:
-            //    (a) we can't write a fresh delegate into prior HMR DLLs'
-            //        types (they have no field), so brand-new components
-            //        created live can never trampoline-swap; and
-            //    (b) any companion .cs `#if UNITY_EDITOR` blocks compile with
-            //        opposite semantics to the project's Unity-Editor build,
-            //        producing latent correctness bugs.
-            //    See Plans~/HMR_NEW_COMPONENT_LIVE_SWAP_PLAN.md.
+            //    available) so companion .cs `#if UNITY_EDITOR` blocks compile
+            //    with the same semantics as the project's Unity-Editor build.
             string[] preprocessorSymbols = ResolveEditorPreprocessorSymbols();
             var withSymbolsMethod = parseOptionsType.GetMethod(
                 "WithPreprocessorSymbols",
@@ -1511,7 +2059,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Compilation.RemoveSyntaxTrees(params SyntaxTree[])
             _compilationRemoveSyntaxTrees = baseCompilationType
                 .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .FirstOrDefault(m => m.Name == "RemoveSyntaxTrees" && m.GetParameters().Length == 1);
+                .FirstOrDefault(m =>
+                    m.Name == "RemoveSyntaxTrees" && m.GetParameters().Length == 1
+                );
 
             // Compilation.AddSyntaxTrees(params SyntaxTree[])
             _compilationAddSyntaxTrees = baseCompilationType
@@ -1576,15 +2126,59 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         // ── Compilation ───────────────────────────────────────────────────────
 
-        private Assembly CompileSources(string[] sources, string componentName, out string error)
+        // Local polyfill for ModuleInitializerAttribute. Required because the
+        // HMR DLL emits `[ModuleInitializer]` (see HmrCSharpEmitter companion
+        // class emission) and references the project's main asmdef which only
+        // exposes the SG-emitted polyfill as `internal` -- so the HMR DLL's
+        // attribute reference fails with CS0122 "inaccessible due to its
+        // protection level". Adding a local copy in the HMR compilation unit
+        // makes Roslyn bind the attribute to the in-compilation type (same
+        // FQN) before consulting referenced assemblies, sidestepping the
+        // visibility issue without changing the main-asmdef polyfill's
+        // accessibility (which would risk ambiguity once Unity moves to a
+        // TFM that ships the real attribute).
+        //
+        // Guarded by #if !NET5_0_OR_GREATER so a future Unity TFM that ships
+        // the real attribute does not produce a duplicate type error.
+        private const string ModuleInitializerPolyfillSource =
+            "// <auto-generated — HMR ModuleInitializerAttribute polyfill />\n"
+            + "#if !NET5_0_OR_GREATER\n"
+            + "namespace System.Runtime.CompilerServices\n"
+            + "{\n"
+            + "    [global::System.AttributeUsage(global::System.AttributeTargets.Method, Inherited = false)]\n"
+            + "    internal sealed class ModuleInitializerAttribute : global::System.Attribute { }\n"
+            + "}\n"
+            + "#endif\n";
+
+        private static string[] PrependPolyfills(string[] sources)
+        {
+            var combined = new string[sources.Length + 1];
+            combined[0] = ModuleInitializerPolyfillSource;
+            System.Array.Copy(sources, 0, combined, 1, sources.Length);
+            return combined;
+        }
+
+        private Assembly CompileSources(
+            string[] sources,
+            string componentName,
+            string ownerUitkxPath,
+            out string error
+        )
         {
             _swapCounter++;
             error = null;
 
+            // Inject the ModuleInitializerAttribute polyfill into every HMR
+            // compile so `[ModuleInitializer]` resolves against an in-compilation
+            // type (visible from this assembly) instead of the referenced main
+            // asmdef's `internal` copy. See ModuleInitializerPolyfillSource for
+            // the full rationale.
+            sources = PrependPolyfills(sources);
+
             // ── Fast path: in-process Roslyn ──────────────────────────────────
             if (_roslynLoaded)
             {
-                var asm = InProcessCompile(sources, componentName, out error);
+                var asm = InProcessCompile(sources, componentName, ownerUitkxPath, out error);
                 if (asm != null || error == null)
                     return asm;
                 // If in-process failed with an error, fall through to external
@@ -1593,10 +2187,15 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             // ── Slow path: external dotnet csc.dll ────────────────────────────
-            return ExternalCompile(sources, componentName, out error);
+            return ExternalCompile(sources, componentName, ownerUitkxPath, out error);
         }
 
-        private Assembly InProcessCompile(string[] sources, string componentName, out string error)
+        private Assembly InProcessCompile(
+            string[] sources,
+            string componentName,
+            string ownerUitkxPath,
+            out string error
+        )
         {
             error = null;
 
@@ -1618,11 +2217,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string asmName = $"hmr_{componentName}_{_swapCounter}";
 
                 // ── Try incremental compilation first ─────────────────────────
-                object compilation = TryBuildIncremental(componentName, newTrees, crossRefs, asmName);
+                object compilation = TryBuildIncremental(
+                    componentName,
+                    newTrees,
+                    crossRefs,
+                    asmName
+                );
 
                 // ── Fallback: fresh Compilation.Create ────────────────────────
                 if (compilation == null)
-                    compilation = BuildFreshCompilation(newTrees, crossRefs, asmName);
+                    compilation = BuildFreshCompilation(newTrees, crossRefs, asmName, ownerUitkxPath);
 
                 // Emit to MemoryStream and write DLL to disk
                 string outputDll = Path.Combine(
@@ -1647,14 +2251,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                         {
                             _cachedCompilations.Remove(componentName);
                             _cachedSyntaxTrees.Remove(componentName);
-                            compilation = BuildFreshCompilation(newTrees, crossRefs, asmName);
+                            compilation = BuildFreshCompilation(newTrees, crossRefs, asmName, ownerUitkxPath);
 
                             ms.SetLength(0);
                             emitResult = InvokeWithDefaults(_emitToStream, compilation, ms);
                             success = (bool)
                                 emitResult
                                     .GetType()
-                                    .GetProperty("Success", BindingFlags.Public | BindingFlags.Instance)
+                                    .GetProperty(
+                                        "Success",
+                                        BindingFlags.Public | BindingFlags.Instance
+                                    )
                                     .GetValue(emitResult);
                         }
 
@@ -1707,21 +2314,38 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 // Register on disk for cross-component references; replace previous version
                 string oldDll = null;
-                if (
-                    _hmrAssemblyPaths.TryGetValue(componentName, out oldDll)
-                    && oldDll != outputDll
-                )
+                if (_hmrAssemblyPaths.TryGetValue(componentName, out oldDll) && oldDll != outputDll)
                 {
                     // Invalidate cached cross-ref for the old DLL
                     _crossRefCache.Remove(componentName);
-                    try { File.Delete(oldDll); }
-                    catch { /* may be locked by LoadFrom — cleaned on next session */ }
+                    try
+                    {
+                        File.Delete(oldDll);
+                    }
+                    catch
+                    { /* may be locked by LoadFrom — cleaned on next session */
+                    }
                 }
                 _hmrAssemblyPaths[componentName] = outputDll;
 
                 // Use LoadFrom (memory-mapped) instead of Load(byte[]) to avoid
                 // copying the PE image into the managed heap
                 var loadedAsm = Assembly.LoadFrom(outputDll);
+
+                // Force every module's [ModuleInitializer] to run NOW. The CLR
+                // only fires <Module>.cctor lazily on first member access from
+                // the loaded module, and the downstream swap pipeline only
+                // touches member-bearing /module/ types — never the synthetic
+                // companion class that carries [ModuleInitializer]. Result
+                // before this call: a freshly compiled component whose render
+                // body never gets published to its Family (Register never
+                // fires) so the parent renders the fallback placeholder and
+                // the user sees nothing change on screen. See
+                // ApplySuccessfulCompileResult's comment claiming
+                // "the freshly compiled assembly's [ModuleInitializer] has
+                // already run during the Roslyn-emit Assembly.Load above" --
+                // that assumption is what this call now upholds.
+                ForceRunModuleInitializers(loadedAsm);
 
                 // Force GC to reclaim dead SyntaxTrees, EmitResult, MemoryStream etc.
                 // before Mono's lazy GC decides to expand the heap
@@ -1786,12 +2410,15 @@ namespace ReactiveUITK.EditorSupport.HMR
             string componentName,
             object[] newTrees,
             List<object> crossRefs,
-            string asmName)
+            string asmName
+        )
         {
             // Incremental API handles must all be available
-            if (_compilationRemoveSyntaxTrees == null
+            if (
+                _compilationRemoveSyntaxTrees == null
                 || _compilationAddSyntaxTrees == null
-                || _compilationWithAssemblyName == null)
+                || _compilationWithAssemblyName == null
+            )
                 return null;
 
             // Must have a cached compilation for this component
@@ -1810,7 +2437,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             try
             {
                 // Remove old syntax trees
-                if (_cachedSyntaxTrees.TryGetValue(componentName, out var oldTrees) && oldTrees.Length > 0)
+                if (
+                    _cachedSyntaxTrees.TryGetValue(componentName, out var oldTrees)
+                    && oldTrees.Length > 0
+                )
                 {
                     var syntaxTreeBaseType = _roslynCommonAsm.GetType(
                         "Microsoft.CodeAnalysis.SyntaxTree"
@@ -1818,7 +2448,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                     var oldArray = Array.CreateInstance(syntaxTreeBaseType, oldTrees.Length);
                     for (int i = 0; i < oldTrees.Length; i++)
                         oldArray.SetValue(oldTrees[i], i);
-                    cached = _compilationRemoveSyntaxTrees.Invoke(cached, new object[] { oldArray });
+                    cached = _compilationRemoveSyntaxTrees.Invoke(
+                        cached,
+                        new object[] { oldArray }
+                    );
                 }
 
                 // Add new syntax trees
@@ -1852,21 +2485,22 @@ namespace ReactiveUITK.EditorSupport.HMR
         private object BuildFreshCompilation(
             object[] newTrees,
             List<object> crossRefs,
-            string asmName)
+            string asmName,
+            string ownerUitkxPath
+        )
         {
-            var allRefs = new List<object>(_metadataReferences);
+            var baseRefs = GetFilteredMetaRefs(ownerUitkxPath);
+            var allRefs = new List<object>(baseRefs.Length + crossRefs.Count);
+            for (int i = 0; i < baseRefs.Length; i++)
+                allRefs.Add(baseRefs[i]);
             allRefs.AddRange(crossRefs);
 
-            var syntaxTreeBaseType = _roslynCommonAsm.GetType(
-                "Microsoft.CodeAnalysis.SyntaxTree"
-            );
+            var syntaxTreeBaseType = _roslynCommonAsm.GetType("Microsoft.CodeAnalysis.SyntaxTree");
             var treesArray = Array.CreateInstance(syntaxTreeBaseType, newTrees.Length);
             for (int i = 0; i < newTrees.Length; i++)
                 treesArray.SetValue(newTrees[i], i);
 
-            var metaRefType = _roslynCommonAsm.GetType(
-                "Microsoft.CodeAnalysis.MetadataReference"
-            );
+            var metaRefType = _roslynCommonAsm.GetType("Microsoft.CodeAnalysis.MetadataReference");
             var refsArray = Array.CreateInstance(metaRefType, allRefs.Count);
             for (int i = 0; i < allRefs.Count; i++)
                 refsArray.SetValue(allRefs[i], i);
@@ -1877,7 +2511,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
         }
 
-        private Assembly ExternalCompile(string[] sources, string componentName, out string error)
+        private Assembly ExternalCompile(
+            string[] sources,
+            string componentName,
+            string ownerUitkxPath,
+            out string error
+        )
         {
             error = null;
 
@@ -1903,7 +2542,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 rsp.WriteLine("-nullable:enable");
                 rsp.WriteLine("-deterministic");
                 rsp.WriteLine("-optimize+");
-                foreach (var loc in _referenceLocations)
+                foreach (var loc in GetFilteredRefLocations(ownerUitkxPath))
                     rsp.WriteLine($"-reference:\"{loc}\"");
                 // Add previously HMR-compiled assemblies for cross-component resolution (new components only)
                 foreach (var kvp in _hmrAssemblyPaths)
@@ -1969,18 +2608,71 @@ namespace ReactiveUITK.EditorSupport.HMR
             )
             {
                 _crossRefCache.Remove(componentName);
-                try { File.Delete(oldDll); }
-                catch { /* may be locked by LoadFrom */ }
+                try
+                {
+                    File.Delete(oldDll);
+                }
+                catch
+                { /* may be locked by LoadFrom */
+                }
             }
             _hmrAssemblyPaths[componentName] = outputDll;
 
             // Use LoadFrom (memory-mapped) instead of Load(byte[])
             var loadedAsm = Assembly.LoadFrom(outputDll);
 
+            // Same rationale as the in-process path -- force module
+            // initializers to run so per-component Register calls publish
+            // the new render body to its Family before the swap pipeline
+            // touches the assembly.
+            ForceRunModuleInitializers(loadedAsm);
+
             // Force GC to reclaim dead allocations before Mono expands the heap
             GC.Collect(2, GCCollectionMode.Optimized);
 
             return loadedAsm;
+        }
+
+        // Explicitly fire <Module>.cctor for every module in the loaded HMR
+        // assembly. RuntimeHelpers.RunModuleConstructor is the documented way
+        // to deterministically execute a module's initializer; the CLR
+        // de-duplicates internally so calling this when the cctor already ran
+        // is a no-op. Without this call, Assembly.LoadFrom defers <Module>.cctor
+        // until the first reflection access that touches a member of a type
+        // in the module -- which never happens for synthetic companion types
+        // that exist solely to carry [ModuleInitializer] for Family.Register.
+        private static void ForceRunModuleInitializers(Assembly asm)
+        {
+            if (asm == null) return;
+            Module[] modules;
+            try { modules = asm.GetModules(); }
+            catch (Exception ex)
+            {
+                Debug.LogWarning(
+                    "[HMR] Could not enumerate modules of HMR assembly to force "
+                    + $"ModuleInitializer execution: {ex.Message}"
+                );
+                return;
+            }
+            foreach (var mod in modules)
+            {
+                if (mod == null) continue;
+                try
+                {
+                    System.Runtime.CompilerServices.RuntimeHelpers
+                        .RunModuleConstructor(mod.ModuleHandle);
+                }
+                catch (Exception ex)
+                {
+                    // A ModuleInitializer throwing should surface so the user
+                    // can fix it; swallow only the meta-failure of "could not
+                    // run cctor" itself, which is virtually never recoverable.
+                    Debug.LogWarning(
+                        $"[HMR] Failed to run ModuleInitializer for '{mod.Name}': "
+                        + $"{ex.Message}"
+                    );
+                }
+            }
         }
 
         // ── Utility ───────────────────────────────────────────────────────────
@@ -2076,8 +2768,10 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         private static void RegisterSilentDrift(MethodInfo m)
         {
-            if (m == null) return;
-            lock (_silentDriftMethodsLock) _silentDriftMethods.Add(m);
+            if (m == null)
+                return;
+            lock (_silentDriftMethodsLock)
+                _silentDriftMethods.Add(m);
         }
 
         /// <summary>
@@ -2120,7 +2814,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 {
                     foreach (var asm in asms)
                     {
-                        if (asm?.defines == null) continue;
+                        if (asm?.defines == null)
+                            continue;
                         for (int i = 0; i < asm.defines.Length; i++)
                             symbols.Add(asm.defines[i]);
                     }
@@ -2156,7 +2851,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             BindingFlags flags
         )
         {
-            if (declaringType == null) return null;
+            if (declaringType == null)
+                return null;
 
             MethodInfo allOptionalBest = null;
             int allOptionalBestLen = int.MaxValue;
@@ -2165,10 +2861,13 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             foreach (var m in declaringType.GetMethods(flags))
             {
-                if (m.Name != name) continue;
+                if (m.Name != name)
+                    continue;
                 var ps = m.GetParameters();
-                if (ps.Length == 0) continue;
-                if (ps[0].ParameterType != firstParamType) continue;
+                if (ps.Length == 0)
+                    continue;
+                if (ps[0].ParameterType != firstParamType)
+                    continue;
 
                 if (ps.Length < anyMatchBestLen)
                 {
@@ -2185,7 +2884,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                         break;
                     }
                 }
-                if (!tailAllOptional) continue;
+                if (!tailAllOptional)
+                    continue;
                 if (ps.Length < allOptionalBestLen)
                 {
                     allOptionalBest = m;
@@ -2217,9 +2917,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         private static object InvokeWithDefaults(
             MethodInfo method,
             object target,
-            params object[] args)
+            params object[] args
+        )
         {
-            if (method == null) throw new ArgumentNullException(nameof(method));
+            if (method == null)
+                throw new ArgumentNullException(nameof(method));
             args ??= Array.Empty<object>();
 
             var parameters = method.GetParameters();
@@ -2229,9 +2931,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (args.Length > parameters.Length)
             {
                 throw new ArgumentException(
-                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed " +
-                    $"{args.Length} args but the loaded language library declares " +
-                    $"{parameters.Length} parameter(s). The HMR compiler must be updated.");
+                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed "
+                        + $"{args.Length} args but the loaded language library declares "
+                        + $"{parameters.Length} parameter(s). The HMR compiler must be updated."
+                );
             }
 
             // args.Length < parameters.Length — pad missing tail with defaults.
@@ -2243,9 +2946,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (!p.HasDefaultValue)
                 {
                     throw new ArgumentException(
-                        $"[HMR] {method.DeclaringType?.Name}.{method.Name}: missing " +
-                        $"required argument '{p.Name}' (position {i}). The HMR compiler " +
-                        $"is out of sync with the loaded language library.");
+                        $"[HMR] {method.DeclaringType?.Name}.{method.Name}: missing "
+                            + $"required argument '{p.Name}' (position {i}). The HMR compiler "
+                            + $"is out of sync with the loaded language library."
+                    );
                 }
                 padded[i] = p.DefaultValue;
             }
@@ -2259,11 +2963,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (firstWarning && !isSilent)
             {
                 Debug.LogWarning(
-                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed " +
-                    $"{args.Length} args but the loaded language library declares " +
-                    $"{parameters.Length} parameter(s); padded missing tail with " +
-                    $"compile-time defaults. Update the HMR compiler to pass the " +
-                    $"new arguments explicitly.");
+                    $"[HMR] {method.DeclaringType?.Name}.{method.Name}: HMR passed "
+                        + $"{args.Length} args but the loaded language library declares "
+                        + $"{parameters.Length} parameter(s); padded missing tail with "
+                        + $"compile-time defaults. Update the HMR compiler to pass the "
+                        + $"new arguments explicitly."
+                );
             }
 
             return method.Invoke(target, padded);
@@ -2278,7 +2983,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         internal static bool IsInfrastructureException(Exception ex)
         {
-            if (ex == null) return false;
+            if (ex == null)
+                return false;
             // Unwrap reflection wrapper.
             if (ex is TargetInvocationException tie && tie.InnerException != null)
                 ex = tie.InnerException;
@@ -2295,8 +3001,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         // Cache: asmdef name → last-known project DLL mtime. Used to filter
         // .cs files older than the DLL (already compiled into AppDomain).
         // Refreshed every Compile call cheaply via File.GetLastWriteTimeUtc.
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime>
-            s_asmdefDllMtimeCache = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<
+            string,
+            DateTime
+        > s_asmdefDllMtimeCache = new();
 
         /// <summary>
         /// Rank 2 helper: appends fresh asmdef-scoped .cs files (whose primary
@@ -2305,7 +3013,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// proceeds without the extra trees, matching pre-Rank-2 behavior.
         /// </summary>
         private void TryIncludeNewAsmdefCsFiles(
-            string uitkxPath, string[] alreadyIncludedCs, List<string> sources)
+            string uitkxPath,
+            string[] alreadyIncludedCs,
+            List<string> sources
+        )
         {
             try
             {
@@ -2313,8 +3024,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (string.IsNullOrEmpty(asmdef))
                     return;
 
-                string projectRoot = Path.GetFullPath(
-                    Path.Combine(Application.dataPath, ".."));
+                string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
 
                 // Resolve the project DLL mtime for this asmdef. If we can't
                 // find it (e.g. first cold compile), use DateTime.MinValue so
@@ -2324,12 +3034,21 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 ICollection<string> already = alreadyIncludedCs ?? Array.Empty<string>();
                 var extra = NewCsFileDiscovery.FindForAsmdef(
-                    asmdef, projectRoot, dllMtime, already);
+                    asmdef,
+                    projectRoot,
+                    dllMtime,
+                    already
+                );
 
                 foreach (var path in extra)
                 {
-                    try { sources.Add(File.ReadAllText(path)); }
-                    catch { /* per-file IO error — skip silently */ }
+                    try
+                    {
+                        sources.Add(ReadTextWithRetry(path));
+                    }
+                    catch
+                    { /* per-file IO error — skip silently */
+                    }
                 }
             }
             catch
@@ -2344,7 +3063,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 // Refresh if the DLL has been updated since we cached.
                 string dllPathCached = Path.Combine(
-                    projectRoot, "Library", "ScriptAssemblies", asmdef + ".dll");
+                    projectRoot,
+                    "Library",
+                    "ScriptAssemblies",
+                    asmdef + ".dll"
+                );
                 try
                 {
                     var fresh = File.GetLastWriteTimeUtc(dllPathCached);
@@ -2355,14 +3078,27 @@ namespace ReactiveUITK.EditorSupport.HMR
                     }
                     return cached;
                 }
-                catch { return cached; }
+                catch
+                {
+                    return cached;
+                }
             }
 
             string dllPath = Path.Combine(
-                projectRoot, "Library", "ScriptAssemblies", asmdef + ".dll");
+                projectRoot,
+                "Library",
+                "ScriptAssemblies",
+                asmdef + ".dll"
+            );
             DateTime mtime;
-            try { mtime = File.GetLastWriteTimeUtc(dllPath); }
-            catch { mtime = DateTime.MinValue; }
+            try
+            {
+                mtime = File.GetLastWriteTimeUtc(dllPath);
+            }
+            catch
+            {
+                mtime = DateTime.MinValue;
+            }
 
             s_asmdefDllMtimeCache[asmdef] = mtime;
             return mtime;

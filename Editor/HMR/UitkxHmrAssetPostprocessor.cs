@@ -40,7 +40,8 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         public static void Register(UitkxHmrFileWatcher watcher)
         {
-            if (watcher == null) return;
+            if (watcher == null)
+                return;
             lock (s_watchers)
             {
                 if (!s_watchers.Contains(watcher))
@@ -50,7 +51,8 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         public static void Unregister(UitkxHmrFileWatcher watcher)
         {
-            if (watcher == null) return;
+            if (watcher == null)
+                return;
             lock (s_watchers)
             {
                 s_watchers.Remove(watcher);
@@ -75,9 +77,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 snapshot = s_watchers.ToArray();
             }
 
-            string projectRoot = Path.GetDirectoryName(
-                Path.GetFullPath(Application.dataPath)
-            );
+            string projectRoot = Path.GetDirectoryName(Path.GetFullPath(Application.dataPath));
 
             void Forward(string assetPath)
             {
@@ -119,9 +119,12 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         private static bool HasInterestingExtension(string assetPath)
         {
-            if (assetPath.EndsWith(".uitkx", System.StringComparison.OrdinalIgnoreCase)) return true;
-            if (assetPath.EndsWith(".uss", System.StringComparison.OrdinalIgnoreCase)) return true;
-            if (assetPath.EndsWith(".cs", System.StringComparison.OrdinalIgnoreCase)) return true;
+            if (assetPath.EndsWith(".uitkx", System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (assetPath.EndsWith(".uss", System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (assetPath.EndsWith(".cs", System.StringComparison.OrdinalIgnoreCase))
+                return true;
             return false;
         }
     }

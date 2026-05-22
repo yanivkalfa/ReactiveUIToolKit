@@ -1,4 +1,42 @@
-﻿## [0.5.21] - 2026-05-19
+﻿## [0.6.0] - 2026-05-22
+
+### HMR ported to React Fast Refresh - zero player cost, custom-hook edits invalidate consumers
+
+**Cascade-drift bug gone.** The old trampoline compared `MethodInfo.DeclaringType` at the reconciler; after a cascade compile, parent and child delegates came from different DLLs, the reconciler saw a type mismatch and tore down state in components the user never edited (saving a leaf re-mounted the page root). Replaced with React Fast Refresh's Family indirection - a `Family` handle with a mutable `Current` slot. The SG emits one `__fam_<Child>` per child type plus a `[ModuleInitializer]` Register on a `*__UitkxRefresh` companion (keeps the component's `.cctor` cold on Mono). Reconciliation compares Family references - one identity per child type regardless of depth. Render crash -> `Family.Current` reverts to the previous body.
+
+**Zero player cost.** `Family`, `RefreshRuntime`, the `V.Func(Family, ...)` overloads, and the identity/rollback paths are all wrapped in `#if UNITY_EDITOR`. The SG emits dual-shape `V.Func` per child site, so player builds compile down to direct delegate calls identical to 0.5.x. Mirrors React's `$RefreshReg$` model.
+
+**Custom-hook edits invalidate consumers.** A hook in a separate `.uitkx` was a black box - adding or removing `useEffect` left the consumer's signature unchanged, so HMR re-rendered without resetting hook state. Ported `customHooks`: `[HookSignature]` now takes a `string[] customHookFamilyKeys`. Hook authors get `RefreshRuntime.RegisterHook(...)` on a `*__UitkxHookRefresh` companion. Every Register builds a `hookId -> consumerIds` reverse map; `PerformRefresh` fans out from dirty hooks (re-render, plus force-remount when the hook signature itself changed). Editor-only.
+
+**Tests.** 1245/1245 SG passing. New invariant tests lock in the GetFamily fallback-factory and ModuleInitializer-on-companion-only contracts.
+
+VS Code **1.2.13 -> 1.2.14** | VS 2022 **1.2.13 -> 1.2.14** ship separately.
+
+---
+
+## [0.5.22] - 2026-05-20
+
+### IDE finally type-checks JSX inside attribute lambdas, plus UseTransition lands
+
+**The silent IDE blind spot is gone.** The virtual document generator's `EmitMappedExpressionStrippingJsx` replaced JSX subtrees inside attribute values with `(VirtualNode)null!` - so `onClick={e => <Inner badProp={42} />}` and ternaries returning JSX from inline expressions produced zero diagnostics in VS Code / VS 2022, even though the SG and cold build flagged them correctly. The strip helper now records each stripped range; a new `EmitDeferredJsxAttributeChecks` re-parses the subtree and emits Pattern-B `dynamic __uitkx_jsxattr{pos}() { ... }` locals so Roslyn sees the full type-check graph without touching runtime emission. Thread-static `t_jsxAttrContext` carries source + directives to the 3 deferred sites.
+
+**New runtime hook `Hooks.UseTransition()`.** Returns `(bool isPending, Action<Action> startTransition)`. UITKX has no concurrent renderer: `isPending` is always `false`, `startTransition(action)` runs synchronously, start delegate is `static readonly` (zero alloc). 0.5.21's `useTransition` alias rewrite now resolves at runtime instead of failing with `CS0117`.
+
+**10 hooks now resolve in the IDE.** The VDG's stub blocks were missing shadow decls for `useReducer`, `useDeferredValue`, `useImperativeHandle`, `useStableFunc/Action/Callback`, `useTweenFloat`, `useAnimate`, `useSafeArea`, `useTransition`. Per-component scope shadowed the unqualified call sites so hover / go-to-def / signature-help silently failed. Both stub blocks now mirror the SG hook-shadow set 1:1.
+
+**Validator + hover widened.** Pattern tables (SG + language-lib mirror) grew 30 -> 60 strings so `UITKX0013` now fires for 10 more hooks. Hover docs grew 16 -> 40 entries; `useTransition` calls out the synchronous UITKX semantics.
+
+**Tests.** SG `1245/1245` (+1 alias parity); +2 LSP `RoslynHostTests`.
+
+VS Code **1.2.12 -> 1.2.13** | VS 2022 **1.2.12 -> 1.2.13**.
+
+---
+
+## [0.5.21] - 2026-05-19
+
+---
+
+## [0.5.21] - 2026-05-19
 
 ### HMR cascade-batch no longer re-fires mount effects, plus 7 hook aliases unlocked
 

@@ -3173,6 +3173,43 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(result, Format(result));
     }
 
+    // ── C.16b  Commented-out block: braces inside `//` must NOT push a
+    //          phantom block onto the formatter's block stack (idempotency
+    //          regression — repeated formatting drifted indent deeper).
+    [Fact]
+    public void C16b_CommentedOutHookBlock_TrailingBraceInComment_DoesNotShiftIndent()
+    {
+        var source = N(
+            """
+            component Foo {
+              var x = 1;
+              // useEffect(() => {
+              //   var rng = new System.Random();
+              //   var timer = new Timer(_ => {
+              //     setStats(prev => PlayerStatsJitter.Tick(prev, rng));
+              //   }, null, 1000, 1000);
+              //   return () => timer.Dispose();
+              // }, new object[] { });
+              var y = 2;
+              return (<Box />);
+            }
+            """
+        );
+
+        var formatted = Format(source);
+
+        Assert.Contains("\n  // useEffect(() => {", formatted);
+        Assert.Contains("\n  //   var rng = new System.Random();", formatted);
+        Assert.Contains("\n  //   var timer = new Timer(_ => {", formatted);
+        Assert.Contains("\n  //     setStats(prev => PlayerStatsJitter.Tick(prev, rng));", formatted);
+        Assert.Contains("\n  //   }, null, 1000, 1000);", formatted);
+        Assert.Contains("\n  //   return () => timer.Dispose();", formatted);
+        Assert.Contains("\n  // }, new object[] { });", formatted);
+        Assert.Contains("\n  var y = 2;", formatted);
+        // Idempotency: repeated formatting must not drift indent deeper.
+        Assert.Equal(formatted, Format(formatted));
+    }
+
     // ── C.17  Multi-line Style initializers ──────────────────────────────────
 
     [Fact]
