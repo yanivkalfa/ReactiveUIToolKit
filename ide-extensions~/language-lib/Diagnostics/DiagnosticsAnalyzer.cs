@@ -470,71 +470,18 @@ namespace ReactiveUITK.Language.Diagnostics
         //  RULES OF HOOKS (UITKX0013–0016)
         // ═══════════════════════════════════════════════════════════════════════
 
-        // Patterns that indicate a hook call.  Matches the SourceGenerator's
-        // HooksValidator.s_hookPatterns — qualified, bare, and camelCase forms.
+        // Patterns that indicate a hook call.  Sourced from
+        // ReactiveUITK.Core.HookRegistry so this analyzer cannot drift from
+        // the SourceGenerator's HooksValidator.s_hookPatterns.  Pre-0.5.23
+        // both tables were missing useLayoutEffect entries; the registry
+        // includes them, expanding UITKX0013-0016 to also catch
+        // conditional/looping useLayoutEffect calls (pure coverage win, no
+        // legitimate code breaks).
+        //
+        // This is a per-keystroke hot path; the registry guarantees a single
+        // cached array reference and never reallocates per call.
         private static readonly string[] s_hookPatterns =
-        {
-            "Hooks.UseState(",
-            "Hooks.UseEffect(",
-            "Hooks.UseRef(",
-            "Hooks.UseCallback(",
-            "Hooks.UseMemo(",
-            "Hooks.UseContext(",
-            "Hooks.UseReducer(",
-            "Hooks.UseSignal(",
-            "Hooks.UseDeferredValue(",
-            "Hooks.UseTransition(",
-            "Hooks.UseImperativeHandle(",
-            "Hooks.UseSafeArea(",
-            "Hooks.UseStableFunc(",
-            "Hooks.UseStableAction(",
-            "Hooks.UseStableCallback(",
-            "Hooks.UseAnimate(",
-            "Hooks.UseTweenFloat(",
-            "Hooks.UseSfx(",
-            "Hooks.UseUiDocumentRoot(",
-            "Hooks.ProvideContext(",
-            "UseState(",
-            "UseEffect(",
-            "UseRef(",
-            "UseCallback(",
-            "UseMemo(",
-            "UseContext(",
-            "UseReducer(",
-            "UseSignal(",
-            "UseDeferredValue(",
-            "UseTransition(",
-            "UseImperativeHandle(",
-            "UseSafeArea(",
-            "UseStableFunc(",
-            "UseStableAction(",
-            "UseStableCallback(",
-            "UseAnimate(",
-            "UseTweenFloat(",
-            "UseSfx(",
-            "UseUiDocumentRoot(",
-            "ProvideContext(",
-            "useState(",
-            "useEffect(",
-            "useRef(",
-            "useCallback(",
-            "useMemo(",
-            "useContext(",
-            "useReducer(",
-            "useSignal(",
-            "useDeferredValue(",
-            "useTransition(",
-            "useImperativeHandle(",
-            "useSafeArea(",
-            "useStableFunc(",
-            "useStableAction(",
-            "useStableCallback(",
-            "useAnimate(",
-            "useTweenFloat(",
-            "useSfx(",
-            "useUiDocumentRoot(",
-            "provideContext(",
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetValidationPatterns();
 
         /// <summary>
         /// Returns the end offset within <paramref name="bodyCode"/> marking the

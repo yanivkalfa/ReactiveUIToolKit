@@ -556,31 +556,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         }
 
         // ── Hook alias substitution ───────────────────────────────────────────
+        //
+        // The alias table and the generic-hook regex are sourced from
+        // ReactiveUITK.Core.HookRegistry (Shared/Core/HookRegistry.cs) so
+        // CSharpEmitter, HmrCSharpEmitter, HmrHookEmitter, HooksValidator,
+        // the IDE DiagnosticsAnalyzer, the LSP HoverHandler, and the virtual
+        // document generator all stay in lockstep automatically.  Local
+        // Regex objects below are kept compiled and instance-static so cold-
+        // start performance is identical to the pre-0.5.23 hard-coded form.
 
         private static readonly (string From, string To)[] s_hookAliases =
-        {
-            ("useState(", "Hooks.UseState("),
-            ("useEffect(", "Hooks.UseEffect("),
-            ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
-            ("useRef(", "Hooks.UseRef("),
-            ("useCallback(", "Hooks.UseCallback("),
-            ("useMemo(", "Hooks.UseMemo("),
-            ("useContext(", "Hooks.UseContext("),
-            ("useReducer(", "Hooks.UseReducer("),
-            ("useSignal(", "Hooks.UseSignal("),
-            ("useDeferredValue(", "Hooks.UseDeferredValue("),
-            ("useTransition(", "Hooks.UseTransition("),
-            ("useSfx(", "Hooks.UseSfx("),
-            ("useUiDocumentRoot(", "Hooks.UseUiDocumentRoot("),
-            ("useSafeArea(", "Hooks.UseSafeArea("),
-            ("useStableFunc(", "Hooks.UseStableFunc("),
-            ("useStableAction(", "Hooks.UseStableAction("),
-            ("useStableCallback(", "Hooks.UseStableCallback("),
-            ("useImperativeHandle(", "Hooks.UseImperativeHandle("),
-            ("useAnimate(", "Hooks.UseAnimate("),
-            ("useTweenFloat(", "Hooks.UseTweenFloat("),
-            ("provideContext(", "Hooks.ProvideContext("),
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetAliasTable();
 
         // Matches generic hook calls including up to 3 levels of nested type args:
         //   useContext<Color>(                         → level 1
@@ -589,7 +575,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         // The non-generic form is handled by s_hookAliases simple replacements above.
         private static readonly System.Text.RegularExpressions.Regex s_genericHookAliasRe =
             new System.Text.RegularExpressions.Regex(
-                @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useStableFunc|useStableAction|useImperativeHandle)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+                global::ReactiveUITK.Core.HookRegistry.GetGenericHookPattern(),
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
@@ -644,10 +630,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// Matches any hook call in setup code — both user-written camelCase
         /// (useState, useEffect) and fully-qualified PascalCase (Hooks.UseState).
         /// Captures the hook name (without "Hooks." prefix) in group 1.
+        /// Pattern is sourced from HookRegistry so it stays in lockstep with
+        /// the alias table above.
         /// </summary>
         private static readonly System.Text.RegularExpressions.Regex s_hookSignatureRe =
             new System.Text.RegularExpressions.Regex(
-                @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useUiDocumentRoot|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseUiDocumentRoot|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
+                global::ReactiveUITK.Core.HookRegistry.GetSignatureRegexPattern(),
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 

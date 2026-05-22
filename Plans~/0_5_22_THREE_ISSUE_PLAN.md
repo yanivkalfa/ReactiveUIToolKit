@@ -576,60 +576,103 @@ graph — no link needed there.
 
 **File:** `Shared/Core/HookRegistry.cs` (new)
 
+**Editor-only guard (M2):** the file ships into the `ReactiveUITK.Shared`
+asmdef, which has empty `defineConstraints` and therefore ships every file
+to player builds. The registry contains ~50KB of tooling-only static data
+(hover markdown alone is ~32KB). To strip it from player builds the file is
+wrapped in `#if UNITY_EDITOR` / `#endif`. SG and language-lib are
+netstandard2.0 compiles via `<Compile Include Link>` and don't see Unity
+defines — both csprojs must add `<DefineConstants>$(DefineConstants);UNITY_EDITOR</DefineConstants>`
+so the registry compiles in those projects too. Precedent: the same
+pattern already exists in `SourceGenerator~/Emitter/CSharpEmitter.cs` Family
+fields region (L493-L545).
+
+**Visibility:** `internal` is sufficient (Q4). `Shared/AssemblyInfo.cs`
+already declares `[assembly: InternalsVisibleTo("ReactiveUITK.Editor")]`
+and `InternalsVisibleTo("ReactiveUITK.Runtime")`. SG and language-lib see
+the type because the source is linked in directly, not consumed via DLL ref.
+
 ```csharp
+#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 
 namespace ReactiveUITK.Core
 {
-    public static class HookRegistry
+    internal static class HookRegistry
     {
-        public readonly struct HookEntry
+        // M1: per-overload stub signatures. Hooks with multiple overloads
+        // (UseRef, UseSignal, UseUiDocumentRoot, ProvideContext) need
+        // distinct return types / parameters / where clauses per overload.
+        internal readonly struct StubSignature
         {
-            public string CamelName { get; }       // "useState"
-            public string PascalName { get; }      // "UseState"
-            public bool IsGeneric { get; }
-            public string DocString { get; }       // hover markdown, may be null
-            public string StubReturnType { get; }  // for VDG stub generation
-            public string StubParameters { get; }  // for VDG stub generation
-            public string StubBody { get; }        // e.g. "(initial, null!)"
-            public bool IsStatic { get; }          // true for hook-style stubs (else component-style)
-            public string ExtraStubModifiers { get; } // e.g. "where THandle : class"
-            public HookEntry(string camel, string pascal, bool isGeneric,
-                             string doc, string retType, string parameters,
-                             string body, string extra = "")
-            { CamelName = camel; PascalName = pascal; IsGeneric = isGeneric;
-              DocString = doc; StubReturnType = retType;
-              StubParameters = parameters; StubBody = body;
-              ExtraStubModifiers = extra; IsStatic = false; }
+            public string Generics { get; }       // e.g. "<T>" or ""
+            public string ReturnType { get; }     // e.g. "Ref<T>" vs "VisualElement"
+            public string Parameters { get; }     // e.g. "T initial"
+            public string WhereClause { get; }    // e.g. "where THandle : class"
+            public string Body { get; }           // e.g. "=> default!;" or "{ }"
+            public StubSignature(string generics, string retType, string parameters,
+                                 string body, string whereClause = "")
+            { Generics = generics; ReturnType = retType; Parameters = parameters;
+              Body = body; WhereClause = whereClause; }
         }
 
-        public static readonly HookEntry[] All = { /* 20 entries + overloads */ };
+        internal readonly struct HookEntry
+        {
+            public string CamelName { get; }       // "useRef"
+            public string PascalName { get; }      // "UseRef"
+            public bool IsGeneric { get; }         // membership in s_genericHookAliasRe
+            public string DocCamel { get; }        // hover markdown for "useRef"
+            public string DocPascal { get; }       // hover markdown for "Hooks.UseRef"
+            public StubSignature[] Stubs { get; }  // 1..N entries (one per overload)
+            public HookEntry(string camel, string pascal, bool isGeneric,
+                             string docCamel, string docPascal, StubSignature[] stubs)
+            { CamelName = camel; PascalName = pascal; IsGeneric = isGeneric;
+              DocCamel = docCamel; DocPascal = docPascal; Stubs = stubs; }
+        }
 
-        public static (string From, string To)[] GetAliasTable() => s_aliasCache;
-        public static string GetSignatureRegexPattern() => s_signaturePatternCache;
-        public static string GetGenericHookPattern() => s_genericPatternCache;
-        public static IReadOnlyDictionary<string, string> GetDocMap() => s_docMapCache;
-        public static string[] GetValidationPatterns() => s_validationPatternsCache;
-        public static string GenerateVirtualDocStubs(bool staticForm) =>
+        internal static readonly HookEntry[] All = BuildAll(); // 20 entries, 26 stubs total
+
+        // Accessors — all return cached references (see H1/perf rule below).
+        internal static (string From, string To)[] GetAliasTable()      => s_aliasCache;
+        internal static string GetSignatureRegexPattern()               => s_signaturePatternCache;
+        internal static string GetGenericHookPattern()                  => s_genericPatternCache;
+        internal static IReadOnlyDictionary<string, string> GetDocMap() => s_docMapCache;
+        internal static string[] GetValidationPatterns()                => s_validationPatternsCache;
+        internal static string GenerateVirtualDocStubs(bool staticForm) =>
             staticForm ? s_staticStubsCache : s_instanceStubsCache;
 
-        private static readonly (string,string)[] s_aliasCache = BuildAliases();
-        private static readonly string s_signaturePatternCache = BuildSignaturePattern();
-        private static readonly string s_genericPatternCache = BuildGenericPattern();
-        private static readonly Dictionary<string,string> s_docMapCache = BuildDocMap();
-        private static readonly string[] s_validationPatternsCache = BuildValidationPatterns();
-        private static readonly string s_staticStubsCache = BuildStubs(true);
-        private static readonly string s_instanceStubsCache = BuildStubs(false);
+        private static readonly (string,string)[] s_aliasCache             = BuildAliases();
+        private static readonly string             s_signaturePatternCache = BuildSignaturePattern();
+        private static readonly string             s_genericPatternCache   = BuildGenericPattern();
+        private static readonly Dictionary<string,string> s_docMapCache    = BuildDocMap();
+        private static readonly string[]           s_validationPatternsCache = BuildValidationPatterns();
+        private static readonly string             s_staticStubsCache      = BuildStubs(staticForm: true);
+        private static readonly string             s_instanceStubsCache    = BuildStubs(staticForm: false);
 
-        // ... static builders
+        // ... static builders (BuildAll, BuildAliases, BuildSignaturePattern,
+        //     BuildGenericPattern, BuildDocMap, BuildValidationPatterns, BuildStubs)
     }
 }
+#endif
 ```
 
-Critical perf rule: **all accessor methods return cached field references; no
-rebuild on call**. Required because `GetValidationPatterns()` is called per
-attribute-scan in IDE diagnostics (per-keystroke).
+**Critical perf rule (H1):** all accessor methods return cached field
+references; **no rebuild on call**. Required because `GetValidationPatterns()`
+is called per attribute-scan in IDE diagnostics (per-keystroke). A test
+asserts `Assert.Same(GetValidationPatterns(), GetValidationPatterns())`.
+
+**Regex contract (M3):** `GetSignatureRegexPattern()` and `GetGenericHookPattern()`
+return **raw pattern strings**, not compiled `Regex` instances. Each consumer
+wraps the string in its own `private static readonly Regex(pattern, RegexOptions.Compiled)`.
+Reason: preserves existing per-callsite optimisation and avoids a single
+shared mutable surface across SG / HMR / IDE.
+
+**Hover-doc contract (M4 corollary):** `DocCamel` and `DocPascal` are
+**copy-pasted byte-identical** from the current `HoverHandler.s_hookDocs`
+dictionary (40 hand-tuned markdown strings, ~32KB total). They are not
+synthesised from `Hooks.cs` doc-comments — the prose differs. A golden-file
+snapshot test (Phase 1A) gates this.
 
 ### 3.5 Migration phases (all in 0.5.23 — pure refactoring, no behavior change)
 
@@ -637,23 +680,95 @@ Precondition: 0.5.22 has shipped. Validator covers 20 hooks. Hover covers
 20 hooks. VDG stubs cover 26 hooks. The registry's job is to *consolidate*
 these 8 sites into one table with no behavior change.
 
-#### Phase 1 — Registry foundation
+**Phase ordering discipline (M5):** the SG consumer phase (Phase 2) must
+not merge to mainline until the HMR consumer phase (Phase 3) is ready.
+Reason: SG and HMR share parity contracts (`HmrEmitterParityContractTests`),
+but that test is a **one-way SG→HMR drift tripwire**, not a sync detector
+(see [HmrEmitterParityContractTests.cs L37-50](../SourceGenerator~/Tests/HmrEmitterParityContractTests.cs)
+— it asserts SG output contains specific marker substrings, it does NOT
+compare HMR output character-for-character). If Phase 2 merges alone, both
+sides happen to have identical content initially and the test silently
+passes, but future drift will not be caught. Enforcement: Phase 2 and
+Phase 3 land in a single squashed commit, or both sit behind a feature
+branch until ready. Add to PR description.
+
+**Stub emission order lock (F3):** `VirtualDocumentGenerator.cs` emits
+hook stubs in a hardcoded order (see L342-367 function-style block).
+`HookRegistry.All[]` must be initialised in that exact order so
+`GenerateVirtualDocStubs()` produces output that byte-matches the Phase
+1A golden files. The required order is:
+
+```
+useState, useMemo, useEffect, useRef×2, useCallback, useSignal×2,
+useContext, provideContext×2, useLayoutEffect, useSfx,
+useUiDocumentRoot×2, useReducer, useDeferredValue,
+useImperativeHandle, useStableFunc, useStableAction,
+useStableCallback, useTweenFloat, useAnimate, useSafeArea,
+useTransition
+```
+
+(`Asset<T>` and `Ast<T>` are NOT hooks and stay hand-emitted at
+[VirtualDocumentGenerator.cs L578-579](../ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs).)
+Hardcode this order in `BuildAll()` and add a comment with line
+references to the current VDG blocks.
+
+#### Phase 1A — Golden-file snapshots (zero code change) ✅
+
+Before any refactor edit, capture the **current** byte-exact output of the
+8 consumer sites to disk under `SourceGenerator~/Tests/Golden/HookRegistry/`:
+
+| Golden file | Source of truth (pre-refactor) |
+|---|---|
+| `vdg_static_stubs.golden.txt`     | `VirtualDocumentGenerator.cs` L342-367 emitted scaffold |
+| `vdg_instance_stubs.golden.txt`   | `VirtualDocumentGenerator.cs` L515-540 emitted scaffold |
+| `hover_docs.golden.json`          | `HoverHandler.s_hookDocs` serialized as `{key: markdown}` |
+| `validation_patterns.golden.txt`  | `HooksValidator.s_hookPatterns` one pattern per line (60 lines) |
+| `sg_alias_table.golden.txt`       | `CSharpEmitter.s_hookAliases` as `From => To` lines |
+| `signature_regex.golden.txt`      | `CSharpEmitter.s_hookSignatureRe.ToString()` |
+| `generic_alias_regex.golden.txt`  | `CSharpEmitter.s_genericHookAliasRe.ToString()` |
+
+These files are committed to the repo and form the immutable contract for
+Phases 2–5. Any later phase that produces output diverging from these files
+fails its parity test. Generation is via a one-shot helper test
+(`Golden_CaptureCurrentState`) marked `[Fact(Skip="Run manually to regenerate")]`.
+
+#### Phase 1B — Registry foundation ✅
 1. Create `Shared/Core/HookRegistry.cs` populated with all 20 hooks (plus
-   `useTransition` no-op now that it's a real method per issue 2). Include
-   docstrings drafted from current `HoverHandler` content + new placeholders
-   for the 12 missing.
+   `useTransition` no-op now that it's a real method per issue 2). Wrap the
+   entire file in `#if UNITY_EDITOR` / `#endif` per M2. Include docstrings
+   copy-pasted byte-identical from current `HoverHandler.s_hookDocs`.
 2. Add `<Compile Include Link>` entries to `SourceGenerator~/ReactiveUITK.SourceGenerator.csproj`
-   and `ide-extensions~/language-lib/UitkxLanguage.csproj`.
+   and `ide-extensions~/language-lib/UitkxLanguage.csproj`. Exact syntax
+   (mirrors the proven [RouterTagAliases link at SG csproj L33](../SourceGenerator~/ReactiveUITK.SourceGenerator.csproj)):
+   ```xml
+   <Compile Include="..\Shared\Core\HookRegistry.cs" Link="HookRegistry.cs" />
+   ```
+   (language-lib path: `..\..\Shared\Core\HookRegistry.cs`). Add
+   `<DefineConstants>$(DefineConstants);UNITY_EDITOR</DefineConstants>` to
+   both csprojs so the `#if` block compiles.
 3. New unit-test file `SourceGenerator~/Tests/HookRegistryTests.cs`:
    - `Registry_HookCount_IsExpected` (lock count → tripwire if anyone adds
      a hook without updating registry).
+   - `Registry_HookCount_Matches_RuntimeHooks` — reflects over
+     `typeof(Hooks).GetMethods()` and asserts the same hook names appear in
+     `HookRegistry.All`.
    - `Registry_All_HavePascalAndCamelForms`.
    - `Registry_GetGenericPattern_MatchesGenericFormsOnly`.
    - `Registry_GetSignaturePattern_MatchesAllForms`.
    - `Registry_GetValidationPatterns_HasThreeFormsPerHook`.
    - `Registry_GetDocMap_HasEntryPerHookBothForms`.
+   - **`Registry_Accessors_ReturnSameReferenceOnRepeatedCalls`** — covers
+     H1 (per-keystroke perf contract): `Assert.Same(GetValidationPatterns(),
+     GetValidationPatterns())` and the same for the other accessors.
+   - **`Registry_GenerateVirtualDocStubs_MatchesGoldenFile`** — both
+     `staticForm: true` and `false` byte-match the Phase 1A golden files.
+   - **`Registry_GetDocMap_MatchesGoldenJson`** — byte-match against
+     `hover_docs.golden.json`.
+   - **`Registry_StubsCompileCleanly`** — feed `GenerateVirtualDocStubs`
+     output into a Roslyn `CSharpSyntaxTree.ParseText` + minimal compilation
+     and assert zero diagnostics. Closes R4.
 
-#### Phase 2 — SG migration
+#### Phase 2 — SG migration ✅
 1. `CSharpEmitter.cs`: replace `s_hookAliases`, `s_genericHookAliasRe`,
    `s_hookSignatureRe` with registry-derived static caches. Method bodies
    unchanged (still a tuple-array iteration / Regex match).
@@ -668,7 +783,7 @@ these 8 sites into one table with no behavior change.
    - `SG_GenericPattern_CoversEveryGenericHook` — closes the current 7-hook
      generic-regex gap.
 
-#### Phase 3 — HMR migration
+#### Phase 3 — HMR migration ✅
 1. `HmrCSharpEmitter.cs` and `HmrHookEmitter.cs`: replace the duplicated
    `s_hookAliases`, regex fields with calls to `HookRegistry.*` accessors.
 2. Static-field initialisation order: HMR is in Editor asmdef, runs in Unity.
@@ -676,23 +791,26 @@ these 8 sites into one table with no behavior change.
    in normal Editor workflow.
 3. Run `HmrEmitterParityContractTests`. Output identical → all pass.
 
-#### Phase 4 — IDE diagnostics + hover migration (pure deduplication)
+#### Phase 4 — IDE diagnostics + hover migration (pure deduplication) ✅
 1. `DiagnosticsAnalyzer.cs`: replace `s_hookPatterns` (60 strings post-0.5.22)
    with `HookRegistry.GetValidationPatterns()`. Identical output.
 2. `HoverHandler.cs`: replace `s_hookDocs` (40 entries post-0.5.22) with
    `HookRegistry.GetDocMap()`. Identical content.
 3. **No new diagnostic surfaces** — inputs byte-identical to 0.5.22 tables.
 
-#### Phase 5 — IDE virtual-doc stubs migration (pure deduplication)
+#### Phase 5 — IDE virtual-doc stubs migration (pure deduplication) ✅
 1. `VirtualDocumentGenerator.cs` lines 342-367 and 515-540: replace the two
    hand-maintained scaffold blobs (now containing 26 entries post-0.5.22)
    with a single call to `HookRegistry.GenerateVirtualDocStubs(staticForm: bool)`.
 2. New IDE test: `VirtualDoc_AllRegistryHooks_HaveStubs` — enumerates the
    registry and confirms every entry produces a syntactically-valid stub.
-3. Snapshot test: generated output must byte-match the pre-refactor 0.5.22
-   output for every existing test fixture.
+3. Snapshot test: VDG-emitted output must byte-match the Phase 1A golden
+   files (`vdg_static_stubs.golden.txt` and `vdg_instance_stubs.golden.txt`).
+   This closes H3. Note: VDG also hand-emits non-hook stubs `Asset<T>` and
+   `Ast<T>` (L578-579 instance block); those are **outside** the registry
+   and remain hand-emitted. The registry call only replaces the hook block.
 
-#### Phase 6 — Cleanup
+#### Phase 6 — Cleanup ✅
 1. Update `CHANGELOG.md`: "Hook metadata unified into
    `Shared/Core/HookRegistry.cs`. No behavior change."
 2. Close `Plans~/TECH_DEBT_V2.md` item 15 — this refactor is the long-term
@@ -708,6 +826,7 @@ these 8 sites into one table with no behavior change.
 | R4 | Stub-template generation produces invalid C# | Medium | Test compiles generated stubs against an empty Roslyn workspace and asserts no diagnostics. The 0.5.22 hand-stubs serve as the byte-identical reference output. |
 | R5 | Phase rollout drift between SG and HMR | Low | Each phase keeps SG and HMR in lockstep. Don't merge a phase without all consumers updated. |
 | R6 | Public registry API leaks internal naming | Low (mitigated by Q4 decision) | `HookRegistry` is `internal` per Q4. Promote later if useful for tooling. |
+| R7 | Registry static data ships into player builds (~50KB bloat) | **High** | `#if UNITY_EDITOR` wrap per M2. Verified post-Phase 1B by Android player build + `ildasm ReactiveUITK.Shared.dll \| grep HookRegistry` — must return zero matches. Add to PR checklist. |
 
 **Validator-expansion risk that *was* in this section is now in 0.5.22's
 release notes** — see §6.1.
@@ -724,16 +843,19 @@ A new test fixture `HookRegistryDriftTests` that verifies:
 This becomes the new tripwire — analogous to `HmrEmitterParityContractTests`
 but covering all 8 sites instead of just SG↔HMR.
 
-### 3.8 Estimated scope
+### 3.8 Estimated scope (revised post-audit)
 
-- 1 new file (`HookRegistry.cs` + builders): ~250-400 LOC.
+- 1 new file (`HookRegistry.cs` + builders, with overload-supporting
+  `HookEntry` and embedded 32KB of hover-doc constants): **~350-450 LOC**.
 - 7 consumer files modified (3 SG + 2 HMR + 2 IDE): each loses ~30-60 LOC of
   duplicated tables, gains 3-5 LOC of registry calls. Net -150 LOC.
-- 2 csproj edits (`<Compile Link>`).
-- 4 new test fixtures: ~250 LOC.
+- 2 csproj edits (`<Compile Link>` + `<DefineConstants>UNITY_EDITOR</DefineConstants>`).
+- 4 new test fixtures + 7 golden files: **~300-350 LOC**.
+- Player-build verification step (manual, one-time): ~5 minutes.
 
-Total: net code reduction; net coverage expansion (validator +10, hover +12,
-stubs +10).
+Total: net code reduction at the consumer sites; one-time +200-250 LOC net
+rise (mostly the embedded hover-doc constants). Coverage expansion (validator
++10, hover +12, stubs +10) was shipped in 0.5.22; 0.5.23 is consolidation-only.
 
 ---
 

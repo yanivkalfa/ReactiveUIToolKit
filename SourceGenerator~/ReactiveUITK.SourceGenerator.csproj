@@ -49,6 +49,14 @@
       the analyzer DLL.
     -->
     <Compile Include="..\Shared\Core\Router\RouterTagAliases.cs" Link="Emitter\RouterTagAliases.cs" />
+    <!--
+      Single-source-of-truth hook metadata registry lives at
+      Shared/Core/HookRegistry.cs.  It is NOT linked here because that would
+      duplicate the type across this assembly and ReactiveUITK.Language.dll
+      (this csproj ProjectReferences UitkxLanguage.csproj below, and the
+      registry is linked there).  SG code consumes HookRegistry via the
+      language-lib reference.
+    -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ide-extensions~\language-lib\UitkxLanguage.csproj" />
