@@ -46,6 +46,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             sb.AppendLine("using ReactiveUITK.Core;");
             sb.AppendLine("using ReactiveUITK.Core.Animation;");
             sb.AppendLine("using ReactiveUITK.Props.Typed;");
+            sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.StyleKeys;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.CssHelpers;");
             sb.AppendLine("using static ReactiveUITK.AssetHelpers;");
@@ -65,6 +66,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             sb.AppendLine("using Length = UnityEngine.UIElements.Length;");
             sb.AppendLine("using StyleKeyword = UnityEngine.UIElements.StyleKeyword;");
             sb.AppendLine("using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;");
+            // Unity 6.3+ types — preprocessor-guarded so pre-6.3 builds compile clean.
+            sb.AppendLine("#if UNITY_6000_3_OR_NEWER");
+            sb.AppendLine("using FilterFunction = UnityEngine.UIElements.FilterFunction;");
+            sb.AppendLine("using Ratio = UnityEngine.UIElements.Ratio;");
+            sb.AppendLine("using StyleRatio = UnityEngine.UIElements.StyleRatio;");
+            sb.AppendLine("using MaterialDefinition = UnityEngine.UIElements.MaterialDefinition;");
+            sb.AppendLine("using StyleMaterialDefinition = UnityEngine.UIElements.StyleMaterialDefinition;");
+            sb.AppendLine("#endif");
             sb.AppendLine();
 
             // ── Namespace ────────────────────────────────────────────────────

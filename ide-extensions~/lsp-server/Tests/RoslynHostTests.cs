@@ -60,7 +60,8 @@ public sealed class RoslynHostTests : IAsyncLifetime
     public async Task EnsureReady_CreatesVirtualDocument()
     {
         // Use the same source pattern that works in SemanticModel_ResolvesBclType.
-        var source = "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
+        var source =
+            "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
         var path = "c:/test/VirtualDocTest.uitkx";
         var parseResult = Parse(source, path);
         await _host.EnsureReadyAsync(path, source, parseResult, CancellationToken.None);
@@ -90,7 +91,8 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task SemanticModel_ResolvesBclType()
     {
-        var source = "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
+        var source =
+            "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
         await EnsureReady(source);
 
         var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
@@ -111,7 +113,8 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task SemanticModel_FunctionStyle_ResolvesBclType()
     {
-        var source = "component Counter {\n  int count = 0;\n  string s = count.ToString();\n  return (\n    <Label text={s}/>\n  );\n}";
+        var source =
+            "component Counter {\n  int count = 0;\n  string s = count.ToString();\n  return (\n    <Label text={s}/>\n  );\n}";
         await EnsureReady(source);
 
         var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
@@ -126,7 +129,8 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task HoverTypeInfo_StringVariable()
     {
-        var source = "component C {\n  string greeting = \"hello\";\n  return (\n    <Label text={greeting}/>\n  )\n}";
+        var source =
+            "component C {\n  string greeting = \"hello\";\n  return (\n    <Label text={greeting}/>\n  )\n}";
         await EnsureReady(source);
 
         var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
@@ -204,7 +208,8 @@ public sealed class RoslynHostTests : IAsyncLifetime
     public async Task UITKX0112_UnusedVariable_Detected()
     {
         // `unused` is declared but never referenced in markup or other code.
-        var source = "component Test {\n  int unused = 42;\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
+        var source =
+            "component Test {\n  int unused = 42;\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
         await EnsureReady(source);
 
         var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
@@ -215,7 +220,8 @@ public sealed class RoslynHostTests : IAsyncLifetime
     public async Task UITKX0112_UsedVariable_NoDiagnostic()
     {
         // `count` IS referenced in expression {count.ToString()}.
-        var source = "component Test {\n  int count = 42;\n  return (\n    <Label text={count.ToString()}/>\n  );\n}";
+        var source =
+            "component Test {\n  int count = 42;\n  return (\n    <Label text={count.ToString()}/>\n  );\n}";
         await EnsureReady(source);
 
         var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
@@ -226,23 +232,99 @@ public sealed class RoslynHostTests : IAsyncLifetime
     public async Task UITKX0112_LambdaParam_NoFalsePositive()
     {
         // Lambda discard param `_` must NOT be flagged as unused.
-        var source = "component Test {\n  var (count, setCount) = useState(0);\n  return (\n    <Button text=\"+1\" onClick={_ => setCount(count + 1)} />\n  );\n}";
+        var source =
+            "component Test {\n  var (count, setCount) = useState(0);\n  return (\n    <Button text=\"+1\" onClick={_ => setCount(count + 1)} />\n  );\n}";
         await EnsureReady(source);
 
         var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
-        Assert.DoesNotContain(diags, d =>
-            d.Diagnostic.Id == "UITKX0112"
-            && d.Diagnostic.GetMessage().Contains("'_'"));
+        Assert.DoesNotContain(
+            diags,
+            d => d.Diagnostic.Id == "UITKX0112" && d.Diagnostic.GetMessage().Contains("'_'")
+        );
     }
 
     [Fact]
     public async Task UITKX0112_ForeachVariable_NoFalsePositive()
     {
         // Loop variable `item` is used in expression check — no false positive.
-        var source = "component Test {\n  var items = new string[] { \"a\", \"b\" };\n  return (\n    <VisualElement>\n      @foreach (var item in items) {\n        <Label text={item} />\n      }\n    </VisualElement>\n  );\n}";
+        var source =
+            "component Test {\n  var items = new string[] { \"a\", \"b\" };\n  return (\n    <VisualElement>\n      @foreach (var item in items) {\n        <Label text={item} />\n      }\n    </VisualElement>\n  );\n}";
         await EnsureReady(source);
 
         var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
         Assert.DoesNotContain(diags, d => d.Diagnostic.Id == "UITKX0112");
+    }
+
+    [Fact]
+    public async Task UITKX0112_CapturedByLambda_NoFalsePositive()
+    {
+        // Both `count` and `setCount` are referenced only from inside the
+        // onClick lambda body. Roslyn's AnalyzeDataFlow treats lambda bodies
+        // as opaque regions: those references appear in `Captured`, not
+        // `ReadInside`. The analyzer must union Captured into the read set
+        // to avoid a false positive — captured locals are by definition used.
+        var source =
+            "component Test {\n  var (count, setCount) = useState(0);\n  return (\n    <Button text=\"+1\" onClick={_ => setCount(count + 1)} />\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.DoesNotContain(
+            diags,
+            d =>
+                d.Diagnostic.Id == "UITKX0112"
+                && (
+                    d.Diagnostic.GetMessage().Contains("'count'")
+                    || d.Diagnostic.GetMessage().Contains("'setCount'")
+                )
+        );
+    }
+
+    // ── Issue 1 (0.5.22) — JSX subtree inside attribute lambda is type-checked ──
+
+    [Fact]
+    public async Task AttributeLambda_WithJsxSubtree_GeneratesVirtualDoc()
+    {
+        // Sanity: ensure the virtual document scaffolds successfully (no exceptions
+        // in the deferred Pattern-B emission path) when an attribute lambda body
+        // contains a JSX literal that gets stripped by EmitMappedExpressionStrippingJsx.
+        var source =
+            "component Test {\n"
+            + "  var (n, setN) = useState(0);\n"
+            + "  return (\n"
+            + "    <Button text=\"+\" onClick={e => setN(n + 1)} />\n"
+            + "  );\n"
+            + "}";
+        await EnsureReady(source);
+
+        var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
+        Assert.NotNull(vdoc);
+        Assert.False(string.IsNullOrEmpty(vdoc!.Text));
+    }
+
+    [Fact]
+    public async Task AttributeLambda_JsxBody_DeferredPatternBEmitted()
+    {
+        // When an attribute lambda body contains JSX (e.g. ternary returning JSX
+        // from inside an inline expression), the virtual document MUST emit a
+        // deferred Pattern-B (__uitkx_jsxattr...) local function so the JSX
+        // subtree is type-checked rather than silently dropped.
+        //
+        // Repro: ternary with two JSX branches inside an inline expression check.
+        var source =
+            "component Test {\n"
+            + "  var cond = true;\n"
+            + "  return (\n"
+            + "    <VisualElement>\n"
+            + "      {cond ? <Label text=\"A\" /> : <Label text=\"B\" />}\n"
+            + "    </VisualElement>\n"
+            + "  );\n"
+            + "}";
+        await EnsureReady(source);
+
+        var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
+        Assert.NotNull(vdoc);
+        Assert.Contains(
+            "__uitkx_jsxattr",
+            vdoc!.Text);
     }
 }

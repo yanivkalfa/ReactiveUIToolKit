@@ -151,6 +151,46 @@ public class HmrEmitterParityContractTests
         Assert.DoesNotContain("Header = null", output.GeneratedSource);
     }
 
+    // ── Phase 1 — JSX literals in arbitrary expression positions ────────────────
+
+    /// <summary>
+    /// Phase 1: SG splices JSX literals embedded inside C# expressions
+    /// (ternaries, lambdas, attribute values, child <c>{...}</c> /
+    /// <c>@(...)</c>) at emit time via <c>SpliceExpressionMarkup</c>. HMR
+    /// mirrors this in <c>HmrCSharpEmitter.SpliceExpressionMarkup</c>, wired
+    /// into <c>EmitExpression</c> and the <c>CSharpExpressionValue</c> case
+    /// of <c>AttrToExpr</c>. Both paths share the same scanner output
+    /// (<c>DirectiveParser.FindBareJsxRanges</c> and
+    /// <c>FindJsxBlockRanges</c>) — HMR reaches them via reflection
+    /// delegates piped through <c>UitkxHmrCompiler</c>.
+    /// <para>If SG ever stops splicing or changes the splice contract
+    /// (e.g. how rent statements flow), HMR must follow.</para>
+    /// </summary>
+    [Fact]
+    public void Sg_JsxInChildTernary_SplicedToVCalls_HmrMustMirror()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component Conditional {
+                bool flag = true;
+                return (
+                    <box>{flag ? <label text="A" /> : <label text="B" />}</box>
+                );
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // Both ternary branches must be spliced to V.Label calls.
+        Assert.Contains("V.Box(", output.GeneratedSource);
+        Assert.Contains("V.Label(", output.GeneratedSource);
+        // Raw JSX must NOT leak through — would cause a Roslyn parse error
+        // in the generated file.
+        Assert.DoesNotContain("<label text=\"A\"", output.GeneratedSource);
+    }
+
     // ── Issue 10 — UITKX0104 duplicate-key warning is emitted by SG ─────────────
 
     /// <summary>
@@ -257,6 +297,114 @@ public class HmrEmitterParityContractTests
             output.GeneratedSource
         );
         Assert.DoesNotContain("__Rent", output.GeneratedSource);
+    }
+
+    // ── Component-level Fast Refresh Family emission ─────────────────────────
+
+    /// <summary>
+    /// Every function-component must compile into the Fast Refresh shape:
+    /// <list type="bullet">
+    ///   <item>Public <c>Render</c> that forwards directly to
+    ///         <c>__Render_body</c> (no preprocessor branch, no trampoline
+    ///         field).</item>
+    ///   <item>Private <c>__Render_body</c> holding the user code, marked
+    ///         <c>[EditorBrowsable(Never)]</c>.</item>
+    ///   <item>A <c>[ModuleInitializer]</c> that publishes the body and the
+    ///         hook signature to <c>RefreshRuntime.Register</c> so the
+    ///         component's Family handle is canonical from assembly load
+    ///         onwards.</item>
+    /// </list>
+    /// Reconciler identity now comes from the Family handle threaded into
+    /// the VNode by parents - not from <c>ReferenceEquals</c> on the public
+    /// render delegate - so the public method needs no special shape.
+    /// </summary>
+    [Fact]
+    public void Sg_FunctionComponent_GeneratesFamilyRegistration()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component MyComponent {
+                return (<VisualElement />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        var src = output.GeneratedSource;
+
+        // Public Render forwards plainly to the body - no HmrState branch,
+        // no __hmr_Render field.
+        Assert.Contains("public static global::ReactiveUITK.Core.VirtualNode Render(", src);
+        Assert.DoesNotContain("__hmr_Render", src);
+        Assert.DoesNotContain("global::ReactiveUITK.Core.HmrState.IsActive", src);
+
+        // Body method exists and is EditorBrowsable-suppressed.
+        // Emitted as `internal` so the editor-only companion class
+        // `{ComponentName}__UitkxRefresh` (which holds [ModuleInitializer])
+        // can reference it via `() => Component.__Render_body` without
+        // triggering the component .cctor on Mono.
+        Assert.Contains("internal static global::ReactiveUITK.Core.VirtualNode __Render_body(", src);
+        Assert.Contains(
+            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]",
+            src);
+
+        // ModuleInitializer publishes body + signature to RefreshRuntime so
+        // the Family handle's Current slot is populated at assembly load.
+        Assert.Contains(
+            "[global::System.Runtime.CompilerServices.ModuleInitializer]",
+            src);
+        Assert.Contains("global::ReactiveUITK.Refresh.RefreshRuntime.Register(", src);
+        Assert.Contains("\"MyComponent\"", src);
+        Assert.Contains("__Render_body", src);
+    }
+
+    /// <summary>
+    /// Real-world component shape regression: hooks and setup must live
+    /// inside <c>__Render_body</c>, never inside the public <c>Render</c>
+    /// forwarder, and the component must still publish a hook signature so
+    /// <c>RefreshRuntime.PerformRefresh</c> can decide between compatible
+    /// (state-preserving) and incompatible (force-remount) edits.
+    /// </summary>
+    [Fact]
+    public void Sg_FunctionComponent_BodyContainsHooksAndSetup_RenderStaysThin()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component Counter(int initial = 0) {
+                var (count, setCount) = useState(initial);
+                return (
+                    <Button text={count.ToString()} />
+                );
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        var src = output.GeneratedSource;
+
+        Assert.Contains("__Render_body(", src);
+
+        // Hooks live in the body method, not the public forwarder. Land
+        // past the first reference (forwarder call site) to inspect the
+        // method definition itself.
+        int firstRef = src.IndexOf("__Render_body(", System.StringComparison.Ordinal);
+        Assert.True(firstRef > 0);
+        int afterFirst = src.IndexOf("__Render_body(", firstRef + 1, System.StringComparison.Ordinal);
+        int searchFrom = afterFirst > 0 ? afterFirst : firstRef;
+        int useStateAt = src.IndexOf("UseState", searchFrom, System.StringComparison.Ordinal);
+        Assert.True(useStateAt > 0,
+            "UseState call must be inside __Render_body, not in the public forwarder.");
+
+        // Hook signature still emitted - PerformRefresh reads it to gate
+        // FullResetComponentState on shape-changing edits.
+        Assert.Contains("HookSignature", src);
+
+        // Signature is published to the runtime via the registration call.
+        Assert.Contains("global::ReactiveUITK.Refresh.RefreshRuntime.Register(", src);
     }
 
     // ── Module static-method HMR rewrite (v0.4.20, Issue (a)) ───────────────────
@@ -461,8 +609,7 @@ public class HmrEmitterParityContractTests
         Assert.NotNull(output.GeneratedSource);
 
         // Stub for ReactiveUITK.Core.HmrState (referenced by the trampoline).
-        const string Stubs =
-            """
+        const string Stubs = """
             namespace ReactiveUITK.Core
             {
                 public static class HmrState
@@ -490,13 +637,14 @@ public class HmrEmitterParityContractTests
         // more reliable than hand-picking System.Reflection / System.Collections.Concurrent
         // / System.ComponentModel under .NET 10 where types are split across
         // many ref assemblies.
-        var trustedAssemblies =
-            (string)System.AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
+        var trustedAssemblies = (string)System.AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
         var refs = trustedAssemblies
             .Split(System.IO.Path.PathSeparator)
             .Where(p => !string.IsNullOrEmpty(p) && System.IO.File.Exists(p))
-            .Select(p => (Microsoft.CodeAnalysis.MetadataReference)
-                Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(p))
+            .Select(p =>
+                (Microsoft.CodeAnalysis.MetadataReference)
+                    Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(p)
+            )
             .ToArray();
 
         var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
@@ -535,10 +683,13 @@ public class HmrEmitterParityContractTests
     }
 
     /// <summary>
-    /// <c>const</c> fields, <c>static readonly</c> fields, mutable static
-    /// fields, instance methods, properties, and nested types must all be
-    /// emitted verbatim — never wrapped in trampolines. Anything else would
-    /// be a regression on existing module behaviour.
+    /// <c>const</c> fields, mutable static fields, instance methods,
+    /// properties, and nested types must all be emitted verbatim — never
+    /// wrapped in trampolines. <c>static readonly</c> fields are an exception:
+    /// they are rewritten to <c>[UitkxHmrSwap] static</c> (B28 — see
+    /// StaticReadonlyStripper) so the HMR pipeline can re-initialise them
+    /// across edit-save cycles. Anything else would be a regression on
+    /// existing module behaviour.
     /// </summary>
     [Fact]
     public void Sg_ModuleNonMethodMembers_StayVerbatim()
@@ -563,7 +714,12 @@ public class HmrEmitterParityContractTests
         Assert.DoesNotContain("__hmr_", output.GeneratedSource);
         // Original member declarations preserved (substring matches the source).
         Assert.Contains("public const int VERSION = 7", output.GeneratedSource);
-        Assert.Contains("public static readonly string Tag", output.GeneratedSource);
+        // `static readonly` is rewritten to `[UitkxHmrSwap] static` for HMR
+        // re-initialisation. The `readonly` keyword must be GONE from the
+        // emitted output and the attribute must be present.
+        Assert.Contains("[global::ReactiveUITK.UitkxHmrSwap]", output.GeneratedSource);
+        Assert.Contains("public static string Tag", output.GeneratedSource);
+        Assert.DoesNotContain("public static readonly string Tag", output.GeneratedSource);
         Assert.Contains("private static int _counter", output.GeneratedSource);
         Assert.Contains("public enum Color", output.GeneratedSource);
         Assert.Contains("public struct Pair", output.GeneratedSource);
@@ -763,5 +919,153 @@ public class HmrEmitterParityContractTests
         // Even though no alias-rewrite was needed (already PascalCase), the
         // signature regex must still detect it.
         Assert.Contains("UseSfx", output.GeneratedSource);
+    }
+
+    // -- Issue 15 coverage: hooks added in earlier releases whose camelCase
+    // alias forms were never wired into s_hookAliases / s_genericHookAliasRe.
+    // Without these tests, future hook additions that forget to update the
+    // alias tables would silently produce CS0103 in consumer .uitkx files.
+
+    [Fact]
+    public void Sg_UseSafeAreaHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component SafeAreaUser {
+                var insets = useSafeArea();
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseSafeArea(", output.GeneratedSource);
+        Assert.Contains("UseSafeArea", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseStableFuncHook_GenericAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component StableFuncUser {
+                var f = useStableFunc<int>(() => 42);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseStableFunc<int>(", output.GeneratedSource);
+        Assert.Contains("UseStableFunc", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseStableActionHook_GenericAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component StableActionUser {
+                var a = useStableAction<int>(v => { });
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseStableAction<int>(", output.GeneratedSource);
+        Assert.Contains("UseStableAction", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseStableCallbackHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component StableCallbackUser {
+                var cb = useStableCallback(() => { });
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseStableCallback(", output.GeneratedSource);
+        Assert.Contains("UseStableCallback", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseImperativeHandleHook_GenericAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component ImperativeHandleUser {
+                var h = useImperativeHandle<object>(() => null);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseImperativeHandle<object>(", output.GeneratedSource);
+        Assert.Contains("UseImperativeHandle", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseAnimateHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component AnimateUser {
+                useAnimate(null, false);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseAnimate(", output.GeneratedSource);
+        Assert.Contains("UseAnimate", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseTweenFloatHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component TweenFloatUser {
+                useTweenFloat(0f, 1f, 1f, default, 0f, v => { }, null);
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseTweenFloat(", output.GeneratedSource);
+        Assert.Contains("UseTweenFloat", output.GeneratedSource);
+    }
+
+    [Fact]
+    public void Sg_UseTransitionHook_LowercaseAliasRewritten()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component TransitionUser {
+                var (isPending, startTransition) = useTransition();
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("Hooks.UseTransition(", output.GeneratedSource);
     }
 }

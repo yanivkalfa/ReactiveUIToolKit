@@ -180,6 +180,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 return;
             }
 
+            // ── Static-readonly stripping (B28 fix) ────────────────────────
+            // Module-scope `static readonly` user fields are rewritten so the
+            // HMR pipeline can re-initialise them across edit-save cycles.
+            // See StaticReadonlyStripper.cs for the design rationale.
+            MemberDeclarationSyntax emitMember = member;
+            if (member is FieldDeclarationSyntax field
+                && StaticReadonlyStripper.IsStripCandidate(field))
+            {
+                emitMember = StaticReadonlyStripper.Strip(field);
+            }
+
             // Verbatim emit with #line mapped back to the user's file. Use the
             // member's leading-trivia start so attached XML doc comments / attribute
             // lists keep their position.
@@ -187,7 +198,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             int userLine = wrappedLine - wrapperLineOffset + bodyStartLine - 1;
 
             sb.Append("#line ").Append(userLine).Append(" \"").Append(linePath).AppendLine("\"");
-            sb.AppendLine(member.ToFullString().TrimEnd());
+            sb.AppendLine(emitMember.ToFullString().TrimEnd());
             sb.AppendLine("#line hidden");
         }
 

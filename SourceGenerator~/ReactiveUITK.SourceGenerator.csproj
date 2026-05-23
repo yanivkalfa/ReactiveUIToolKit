@@ -8,12 +8,24 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
     <!--
-      Build output goes directly into the Unity Analyzers/ folder.
-      The DLL placed there (with the RoslynAnalyzer .meta label) is what Unity
-      picks up when compiling every assembly in the project.
+      Build output goes into local bin/<Configuration>/.  A separate
+      PublishGeneratorToAnalyzers target (defined below) then copies the
+      generator + its companion DLLs into ..\Analyzers\ for Unity to pick up.
+
+      Why the indirection: when Unity Editor is open, it holds an exclusive
+      lock on Analyzers\*.dll while the AppDomain is alive.  Writing the build
+      output directly into Analyzers/ caused MSB3027 lock failures during dev
+      iteration (and stale TestIso DLLs in the test project, which still uses
+      $(OutputPath) via the ProjectReference's OutputItemType="Analyzer").
+      By keeping $(OutputPath) lock-free we always produce a fresh DLL that
+      the test project consumes; the Analyzers/ publish is best-effort and
+      warns (rather than fails) in Debug, hard-fails in Release.
     -->
-    <OutputPath>..\Analyzers\</OutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Treat the Analyzers/ publish as fatal only in Release (publish.yml path). -->
+    <PublishToAnalyzersContinueOnError Condition=" '$(Configuration)' == 'Release' ">ErrorAndStop</PublishToAnalyzersContinueOnError>
+    <PublishToAnalyzersContinueOnError Condition=" '$(PublishToAnalyzersContinueOnError)' == '' ">WarnAndContinue</PublishToAnalyzersContinueOnError>
     <!-- Keep intermediate build files local to SourceGenerator~ -->
     <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
     <AssemblyName>ReactiveUITK.SourceGenerator</AssemblyName>
@@ -37,6 +49,14 @@
       the analyzer DLL.
     -->
     <Compile Include="..\Shared\Core\Router\RouterTagAliases.cs" Link="Emitter\RouterTagAliases.cs" />
+    <!--
+      Single-source-of-truth hook metadata registry lives at
+      Shared/Core/HookRegistry.cs.  It is NOT linked here because that would
+      duplicate the type across this assembly and ReactiveUITK.Language.dll
+      (this csproj ProjectReferences UitkxLanguage.csproj below, and the
+      registry is linked there).  SG code consumes HookRegistry via the
+      language-lib reference.
+    -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ide-extensions~\language-lib\UitkxLanguage.csproj" />
@@ -97,6 +117,39 @@
       SourceFiles="@(_LanguageLibDll)"
       DestinationFolder="$(OutputPath)"
       SkipUnchangedFiles="true" />
+  </Target>
+
+  <!--
+    Publish the generator + companion DLLs to ..\Analyzers\ for Unity pickup.
+
+    Runs AFTER the two CopyXxxToOutput targets so $(OutputPath) is fully populated
+    (generator dll, ReactiveUITK.Language.dll, System.Collections.Immutable.dll).
+
+    Failure policy (see PublishToAnalyzersContinueOnError in PropertyGroup):
+      - Debug:   WarnAndContinue — Unity locks are expected during dev iteration.
+                 The test project still gets a fresh DLL from $(OutputPath).
+      - Release: ErrorAndStop    — publish.yml runs on Ubuntu with no Unity, so
+                 any copy failure here means the runner is genuinely broken.
+
+    Retries cover transient locks (antivirus, background indexers) within a window
+    short enough not to mask a real lock contention.
+  -->
+  <Target Name="PublishGeneratorToAnalyzers"
+          AfterTargets="CopyImmutableToOutput;CopyLanguageLibToOutput">
+    <ItemGroup>
+      <_AnalyzersPublishFiles Include="$(OutputPath)ReactiveUITK.SourceGenerator.dll" />
+      <_AnalyzersPublishFiles Include="$(OutputPath)ReactiveUITK.SourceGenerator.pdb" Condition="Exists('$(OutputPath)ReactiveUITK.SourceGenerator.pdb')" />
+      <_AnalyzersPublishFiles Include="$(OutputPath)ReactiveUITK.Language.dll" />
+      <_AnalyzersPublishFiles Include="$(OutputPath)ReactiveUITK.Language.pdb" Condition="Exists('$(OutputPath)ReactiveUITK.Language.pdb')" />
+      <_AnalyzersPublishFiles Include="$(OutputPath)System.Collections.Immutable.dll" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_AnalyzersPublishFiles)"
+      DestinationFolder="..\Analyzers\"
+      SkipUnchangedFiles="true"
+      Retries="3"
+      RetryDelayMilliseconds="200"
+      ContinueOnError="$(PublishToAnalyzersContinueOnError)" />
   </Target>
 
 </Project>

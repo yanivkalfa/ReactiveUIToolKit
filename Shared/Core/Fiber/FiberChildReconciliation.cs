@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using ReactiveUITK;
 using ReactiveUITK.Core;
 
@@ -263,53 +262,39 @@ namespace ReactiveUITK.Core.Fiber
                     if (fiber.Tag != FiberTag.FunctionComponent)
                         return false;
 
-                    // All function components use TypedRender.
+                    // Family-based identity (UITKX Fast Refresh, editor-only):
+                    // the SG emits a stable per-component Family handle that
+                    // survives HMR DLL recompiles. Reference equality on
+                    // the Family object guarantees correct fiber reuse
+                    // even when the underlying render delegates are
+                    // distinct instances from different DLL generations.
+                    // Player builds compile this branch out and fall
+                    // through to the delegate-equality path below.
+#if UNITY_EDITOR
+                    if (fiber.Family != null && vnode._family != null)
+                    {
+                        bool eq = ReferenceEquals(fiber.Family, vnode._family);
+                        return eq;
+                    }
+#endif
+
+                    // Legacy delegate path -- hand-written V.Func(delegate,
+                    // ...) call sites and player builds.
                     if (fiber.TypedRender == null || vnode.TypedFunctionRender == null)
+                    {
                         return false;
+                    }
                     if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender))
+                    {
                         return true;
+                    }
                     if (
                         fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
                         && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target
                     )
-                        return true;
-
-#if UNITY_EDITOR
-                    // HMR fallback: when hot-reloading, the fiber's delegate points to a
-                    // new assembly while the parent's VNode still references the old one.
-                    // Match by declaring type name + method name to preserve state.
-                    if (HmrState.IsActive)
                     {
-                        var fiberType = fiber.TypedRender.Method.DeclaringType;
-                        var vnodeType = vnode.TypedFunctionRender.Method.DeclaringType;
-                        if (
-                            fiberType != null
-                            && vnodeType != null
-                            && fiber.TypedRender.Method.Name
-                                == vnode.TypedFunctionRender.Method.Name
-                        )
-                        {
-                            // Primary: class name match
-                            if (fiberType.Name == vnodeType.Name)
-                                return true;
-
-                            // Fallback: after a component rename, class names differ
-                            // but [UitkxSource] file paths remain stable.
-                            var fiberSource = fiberType.GetCustomAttribute<UitkxSourceAttribute>();
-                            var vnodeSource = vnodeType.GetCustomAttribute<UitkxSourceAttribute>();
-                            if (
-                                fiberSource != null
-                                && vnodeSource != null
-                                && string.Equals(
-                                    fiberSource.SourcePath,
-                                    vnodeSource.SourcePath,
-                                    System.StringComparison.OrdinalIgnoreCase
-                                )
-                            )
-                                return true;
-                        }
+                        return true;
                     }
-#endif
                     return false;
 
                 case VirtualNodeType.Suspense:
@@ -365,6 +350,13 @@ namespace ReactiveUITK.Core.Fiber
                     fiber.Tag = FiberTag.FunctionComponent;
                     fiber.TypedRender = vnode.TypedFunctionRender;
                     fiber.TypedPendingProps = vnode.TypedProps;
+#if UNITY_EDITOR
+                    // Wire the Family slot on every fresh function-component
+                    // fiber. Without this, PerformRefresh's tree walk skips
+                    // the fiber (fiber.Family == null) and HMR Register updates
+                    // never reach it. Mirrors FiberFactory.CreateNew.
+                    fiber.Family = vnode._family;
+#endif
                     break;
 
                 case VirtualNodeType.Suspense:

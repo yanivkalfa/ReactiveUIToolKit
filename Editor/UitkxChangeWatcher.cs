@@ -83,14 +83,17 @@ namespace ReactiveUITK.Editor
             // ImportAsset tells Unity this .cs changed, scheduling a recompile.
             AssetDatabase.ImportAsset(TriggerAssetPath, ImportAssetOptions.ForceUpdate);
 
-            // Belt-and-suspenders: explicitly request a script compilation and
-            // clear the incremental build cache.  This ensures Roslyn re-reads
-            // every AdditionalText (including .uitkx files) from disk rather
-            // than returning a stale cached copy, which would cause the source
-            // generator to produce outdated output even after a file save.
-            CompilationPipeline.RequestScriptCompilation(
-                RequestScriptCompilationOptions.CleanBuildCache
-            );
+            // Request a script compilation so Roslyn re-reads AdditionalTexts
+            // (.uitkx files) for the source generator. We deliberately do NOT
+            // pass RequestScriptCompilationOptions.CleanBuildCache here: that
+            // wipes Roslyn's incremental compilation cache and forces every
+            // analyzer/source generator in the project to run from cold,
+            // which on a fresh HMR Stop produced a 30-40 second stall even on
+            // tiny projects. The trigger-file write above already invalidates
+            // the .cs side of the cache; Roslyn's AdditionalTextsProvider is
+            // content-hashed and will pick up modified .uitkx files via
+            // normal incremental recompilation.
+            CompilationPipeline.RequestScriptCompilation();
         }
 
         private static bool AnyUitkxFile(string[] paths)

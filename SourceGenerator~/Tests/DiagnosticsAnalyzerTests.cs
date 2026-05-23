@@ -196,6 +196,89 @@ public sealed class DiagnosticsAnalyzerTests
         Assert.False(HasDiag(diags, DiagnosticCodes.UnknownAttribute));
     }
 
+    // ── UITKX0109 — User-component strict attribute validation ──────────────
+    //
+    // Pretty-UI bug regression: <UserComp style={x}/> when the user component
+    // didn't declare a `style` parameter used to silently allow it (since
+    // `style` was lumped under `universalAttributes`), then explode at C#
+    // compile time as CS0117 against the generated *Props class.
+    //
+    // After the schema split, user-component attribute maps contain ONLY
+    // declared params + structural-universal (`key`, `ref`). Anything else
+    // must produce UITKX0109.
+
+    [Fact]
+    public void UITKX0109_UserComponent_StyleNotForwarded_ReportsUnknown()
+    {
+        // Foo declares only `text` — `style` (intrinsic-element attribute,
+        // NOT structural-universal) must NOT be silently allowed.
+        var knownAttrs = new Dictionary<string, IReadOnlyCollection<string>>
+        {
+            ["Foo"] = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "text", "key", "ref" },
+        };
+        var source = "component C {\n  return (\n    <Foo text=\"hi\" style=\"x\"/>\n  );\n}";
+        var diags = _analyzer.Analyze(Parse(source), "Test.uitkx", null, knownAttrs);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.UnknownAttribute && d.Message.Contains("style"));
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_KeyAndRefAlwaysAllowed()
+    {
+        // `key` and `ref` are structural-universal — must NEVER produce UITKX0109.
+        var knownAttrs = new Dictionary<string, IReadOnlyCollection<string>>
+        {
+            ["Foo"] = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "text", "key", "ref" },
+        };
+        var source = "component C {\n  return (\n    <Foo text=\"hi\" key=\"k\" ref=\"r\"/>\n  );\n}";
+        var diags = _analyzer.Analyze(Parse(source), "Test.uitkx", null, knownAttrs);
+        Assert.False(HasDiag(diags, DiagnosticCodes.UnknownAttribute));
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_DeclaredAttribute_NoDiagnostic()
+    {
+        var knownAttrs = new Dictionary<string, IReadOnlyCollection<string>>
+        {
+            ["Foo"] = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "text", "key", "ref" },
+        };
+        var source = "component C {\n  return (\n    <Foo text=\"hi\"/>\n  );\n}";
+        var diags = _analyzer.Analyze(Parse(source), "Test.uitkx", null, knownAttrs);
+        Assert.False(HasDiag(diags, DiagnosticCodes.UnknownAttribute));
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_ExtraPropsRejected()
+    {
+        // `extraProps` is intrinsic-only (escape hatch for built-in elements
+        // where the typed pipeline doesn't model the property). It MUST NOT
+        // be allowed on user components — they have no underlying VisualElement.
+        var knownAttrs = new Dictionary<string, IReadOnlyCollection<string>>
+        {
+            ["Foo"] = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "text", "key", "ref" },
+        };
+        var source = "component C {\n  return (\n    <Foo text=\"hi\" extraProps=\"x\"/>\n  );\n}";
+        var diags = _analyzer.Analyze(Parse(source), "Test.uitkx", null, knownAttrs);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.UnknownAttribute && d.Message.Contains("extraProps"));
+    }
+
+    [Fact]
+    public void UITKX0109_BuiltIn_StyleAllowed()
+    {
+        // Built-in element attribute map (as built by DiagnosticsPublisher)
+        // contains intrinsic + structural in addition to per-element attrs.
+        // Sanity test: <Box style="x"/> must not error.
+        var knownAttrs = new Dictionary<string, IReadOnlyCollection<string>>
+        {
+            ["Box"] = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                "style", "key", "ref", "name", "className", "extraProps",
+            },
+        };
+        var source = "component C {\n  return (\n    <Box style=\"x\" extraProps=\"y\"/>\n  );\n}";
+        var diags = _analyzer.Analyze(Parse(source), "Test.uitkx", null, knownAttrs);
+        Assert.False(HasDiag(diags, DiagnosticCodes.UnknownAttribute));
+    }
+
     // ── UITKX0111: Unused parameter ────────────────────────────────────────
 
     [Fact]
@@ -224,6 +307,83 @@ public sealed class DiagnosticsAnalyzerTests
         var mk = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.MissingKey);
         Assert.NotNull(mk);
         Assert.Equal(ParseSeverity.Error, mk.Severity);
+    }
+
+    // ── UITKX0211: const in module body breaks HMR ─────────────────────────
+    //
+    // Module-scope `const` is inlined into every consumer's IL at C# emit
+    // time, so HMR edits to the constant's value never propagate. The
+    // analyzer must flag it as a Warning so the user notices BEFORE shipping
+    // a value into prod that won't refresh on save during dev. See
+    // TECH_DEBT_20_21_22_RESOLUTION_PLAN.md §6.
+
+    [Fact]
+    public void UITKX0211_ConstInModule_Fires()
+    {
+        var source =
+            "@namespace Test\n"
+            + "module M {\n"
+            + "  public const int X = 42;\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.True(HasDiag(diags, DiagnosticCodes.ConstInModule));
+    }
+
+    [Fact]
+    public void UITKX0211_ConstInModule_IsWarningSeverity()
+    {
+        var source =
+            "@namespace Test\n"
+            + "module M {\n"
+            + "  public const float Pi = 3.14f;\n"
+            + "}";
+        var diags = Analyze(source);
+        var d = diags.FirstOrDefault(x => x.Code == DiagnosticCodes.ConstInModule);
+        Assert.NotNull(d);
+        Assert.Equal(ParseSeverity.Warning, d!.Severity);
+    }
+
+    [Fact]
+    public void UITKX0211_StaticReadonlyInModule_NoWarning()
+    {
+        // The recommended replacement: static readonly fields survive HMR via
+        // UitkxHmrModuleStaticSwapper. Must NOT fire UITKX0211.
+        var source =
+            "@namespace Test\n"
+            + "module M {\n"
+            + "  public static readonly int X = 42;\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.False(HasDiag(diags, DiagnosticCodes.ConstInModule));
+    }
+
+    [Fact]
+    public void UITKX0211_CommentedConstInModule_NoWarning()
+    {
+        // The regex-based detector is line-aware and must skip lines whose
+        // const declaration sits behind a `//` comment. Regression guard.
+        var source =
+            "@namespace Test\n"
+            + "module M {\n"
+            + "  // const int X = 42;\n"
+            + "  public static readonly int Y = 1;\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.False(HasDiag(diags, DiagnosticCodes.ConstInModule));
+    }
+
+    [Fact]
+    public void UITKX0211_MultipleConstsInModule_FiresPerDecl()
+    {
+        var source =
+            "@namespace Test\n"
+            + "module M {\n"
+            + "  public const int A = 1;\n"
+            + "  public const int B = 2;\n"
+            + "}";
+        var diags = Analyze(source);
+        int count = diags.Count(d => d.Code == DiagnosticCodes.ConstInModule);
+        Assert.Equal(2, count);
     }
 
     // ── UITKX0120: Asset not found ─────────────────────────────────────────

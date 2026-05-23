@@ -492,37 +492,45 @@ namespace ReactiveUITK.Core.Fiber
             catch (Exception ex)
             {
 #if UNITY_EDITOR
-                // HMR rollback: if a hot-reloaded delegate crashed, revert to
-                // the previous working delegate and retry the render once.
-                if (fiber.HmrPreviousRender != null)
+                // HMR rollback: if the component's Family.Current was just
+                // swapped to a new body and that body crashed, ask the
+                // Editor side to revert Family.Current to its previous
+                // value and retry the render once before falling through to
+                // the nearest error boundary.
+                //
+                // The TryRollbackFamily hook is wired by RefreshRuntime when
+                // the Editor registers its root-renderer provider (the
+                // Shared assembly cannot reference the Editor asmdef
+                // directly). Returns false in player builds (hook is null).
+                if (HmrState.IsActive
+                    && HmrState.TryRollbackFamily != null
+                    && fiber.Tag == FiberTag.FunctionComponent
+                    && fiber.Family != null)
                 {
-                    var oldDelegate = fiber.HmrPreviousRender;
-                    fiber.HmrPreviousRender = null;
-                    fiber.TypedRender = oldDelegate;
-
-                    // Also update the committed tree so the next render cycle
-                    // picks up the rolled-back delegate, not the broken one.
-                    if (fiber.Alternate != null)
+                    if (HmrState.TryRollbackFamily(fiber.Family))
                     {
-                        fiber.Alternate.TypedRender = oldDelegate;
-                        fiber.Alternate.HmrPreviousRender = null;
-                    }
+                        // Refresh the fiber's delegate from the rolled-back
+                        // Family so the retry uses the previous body.
+                        fiber.TypedRender = fiber.Family.Current;
 
-                    // Reset hook state — partially-executed hooks from the
-                    // crashing delegate may have corrupted slot values.
-                    ResetComponentStateForHmrRollback(fiber);
+                        // Reset hook state — partially-executed hooks from
+                        // the crashing delegate may have corrupted slot
+                        // values.
+                        ResetComponentStateForHmrRollback(fiber);
 
-                    UnityEngine.Debug.LogWarning(
-                        $"[HMR] Render crashed — rolled back to previous version: {ex.Message}"
-                    );
+                        UnityEngine.Debug.LogWarning(
+                            $"[HMR] Render crashed — rolled back component " +
+                            $"'{fiber.Family.Id}' to previous version: {ex.Message}"
+                        );
 
-                    try
-                    {
-                        return UpdateFunctionComponent(fiber);
-                    }
-                    catch
-                    {
-                        // Old delegate also failed — fall through to ErrorBoundary.
+                        try
+                        {
+                            return UpdateFunctionComponent(fiber);
+                        }
+                        catch
+                        {
+                            // Old body also failed — fall through to ErrorBoundary.
+                        }
                     }
                 }
 #endif
@@ -616,6 +624,25 @@ namespace ReactiveUITK.Core.Fiber
                         // commit phase from CommitUpdate / CommitDeletion, when the OLD
                         // HostProps is provably no longer referenced by the new tree.
                         fiber.PendingHostProps = fiber.HostProps;
+                    }
+                    break;
+
+                case FiberTag.HostPortal:
+                    // Portal target may change between renders when the consumer rebinds
+                    // <Portal target={x}>, e.g. via Hooks.UseUiDocumentRoot reacting to a
+                    // Unity 6.3 panel rebuild. FiberFactory.CloneFiber already refreshes
+                    // PortalTarget/HostElement from the new VNode; here we detect the
+                    // identity change so the commit phase can reparent the portal's
+                    // existing host descendants from the old target VE to the new one.
+                    //
+                    // Skipped on first mount (no Alternate) — CommitPlacement on the
+                    // children handles initial attachment through fiber.HostElement.
+                    if (
+                        fiber.Alternate != null
+                        && !ReferenceEquals(fiber.PortalTarget, fiber.Alternate.PortalTarget)
+                    )
+                    {
+                        fiber.EffectTag |= EffectFlags.PortalRetarget;
                     }
                     break;
             }
@@ -876,6 +903,20 @@ namespace ReactiveUITK.Core.Fiber
                 CommitDeletion(fiber);
             }
 
+            // PortalRetarget runs AFTER Placement/Update/Deletion of this fiber
+            // and AFTER all descendant CommitWork passes (the effect list is built
+            // in post-order). By this point any newly-placed children have been
+            // appended to the new target (because clone refreshed HostElement),
+            // and any deleted children have been removed from the old target.
+            // We move the remaining stable children from old target to new in
+            // fiber order so they end up after the new ones — the chosen
+            // ordering for the common case where target changes alone and the
+            // child set is stable.
+            if ((fiber.EffectTag & EffectFlags.PortalRetarget) != 0)
+            {
+                CommitPortalRetarget(fiber);
+            }
+
             // Layout effects
             if ((fiber.EffectTag & EffectFlags.LayoutEffect) != 0)
             {
@@ -895,6 +936,102 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
+        /// Reparents the top-level host descendants of a HostPortal fiber from
+        /// the previous <c>PortalTarget</c> VisualElement to the new one. Runs
+        /// when <see cref="EffectFlags.PortalRetarget"/> is set in CommitWork.
+        ///
+        /// The walk is bounded: it descends only through non-host wrapper
+        /// fibers (Fragment, FunctionComponent, ErrorBoundary, Suspense) to
+        /// reach the first host descendant on each branch. Reparenting a host
+        /// VisualElement carries its whole UI Toolkit subtree along, so there
+        /// is no need to recurse into host descendants. Nested HostPortal
+        /// fibers manage their own targets and are skipped.
+        ///
+        /// <c>VisualElement.Add</c> transparently removes a child from its
+        /// previous parent before appending, which makes this safe even when
+        /// the previous target has already been disposed by Unity (the
+        /// 6.3 panel-rebuild scenario this fix exists for).
+        /// </summary>
+        private void CommitPortalRetarget(FiberNode portalFiber)
+        {
+            var newTarget = portalFiber.PortalTarget;
+            if (newTarget == null)
+            {
+                // Defensive: clearing the target detaches existing host
+                // descendants from the old parent so they do not linger as
+                // orphan children of a dead panel root.
+                DetachTopLevelHostChildren(portalFiber);
+                return;
+            }
+
+            ReparentTopLevelHostChildren(portalFiber, newTarget);
+        }
+
+        /// <summary>
+        /// Depth-first walk of <paramref name="parent"/>'s fiber subtree that
+        /// reparents the first host fiber encountered on each branch to
+        /// <paramref name="newTarget"/>, preserving fiber-tree order. Stops
+        /// descent at host fibers (whose VE subtree comes along automatically)
+        /// and at nested HostPortal fibers (which own their own target).
+        /// </summary>
+        private void ReparentTopLevelHostChildren(FiberNode parent, VisualElement newTarget)
+        {
+            var child = parent.Child;
+            while (child != null)
+            {
+                if (child.Tag == FiberTag.HostPortal)
+                {
+                    // Nested portal owns its own target; do not touch.
+                }
+                else if (child.HostElement != null)
+                {
+                    if (!ReferenceEquals(child.HostElement.parent, newTarget))
+                    {
+                        _hostConfig.AppendChild(newTarget, child.HostElement);
+                    }
+                }
+                else
+                {
+                    // Wrapper fiber without a VE (Fragment / FunctionComponent /
+                    // ErrorBoundary / Suspense). Descend to find the first host
+                    // descendant on this branch.
+                    ReparentTopLevelHostChildren(child, newTarget);
+                }
+                child = child.Sibling;
+            }
+        }
+
+        /// <summary>
+        /// Removes the top-level host descendants of a HostPortal from their
+        /// current parent. Used when PortalTarget transitions to null between
+        /// renders so the children do not remain attached to a stale parent.
+        /// </summary>
+        private void DetachTopLevelHostChildren(FiberNode parent)
+        {
+            var child = parent.Child;
+            while (child != null)
+            {
+                if (child.Tag == FiberTag.HostPortal)
+                {
+                    // Nested portal owns its own target; do not touch.
+                }
+                else if (child.HostElement != null)
+                {
+                    var current = child.HostElement.parent;
+                    if (current != null)
+                    {
+                        _hostConfig.RemoveChild(current, child.HostElement);
+                    }
+                }
+                else
+                {
+                    DetachTopLevelHostChildren(child);
+                }
+                child = child.Sibling;
+            }
+        }
+
+        /// <summary>
         /// Commit placement - insert element into DOM at the correct position.
         /// Uses InsertBefore(parent, child, nextHostSibling) when a stable DOM
         /// sibling can be found, falling back to AppendChild when the element
@@ -910,7 +1047,9 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             if (fiber.HostElement == null)
+            {
                 return;
+            }
 
             // Find parent host fiber
             var parentFiber = fiber.Parent;
@@ -1033,7 +1172,9 @@ namespace ReactiveUITK.Core.Fiber
                         || node.Parent.Tag == FiberTag.HostComponent
                         || node.Parent.Tag == FiberTag.HostPortal
                     )
+                    {
                         return null; // no DOM sibling exists before the host parent boundary
+                    }
                     node = node.Parent;
                 }
                 node = node.Sibling;
@@ -1044,10 +1185,14 @@ namespace ReactiveUITK.Core.Fiber
                 while (node.Tag != FiberTag.HostComponent)
                 {
                     if ((node.EffectTag & EffectFlags.Placement) != 0)
+                    {
                         break; // this container is also new — try its sibling next
+                    }
 
                     if (node.Tag == FiberTag.HostPortal || node.Child == null)
+                    {
                         break; // can't descend further — try next sibling
+                    }
 
                     node = node.Child; // descend into Fragment / FunctionComponent
                 }
@@ -1058,7 +1203,9 @@ namespace ReactiveUITK.Core.Fiber
                     && (node.EffectTag & EffectFlags.Placement) == 0
                     && node.HostElement != null
                 )
+                {
                     return node.HostElement;
+                }
 
                 // Otherwise `node` is wherever we stopped.  The next outer loop
                 // iteration will advance to node.Sibling (or walk up if null).
@@ -1563,14 +1710,13 @@ namespace ReactiveUITK.Core.Fiber
                 fiber.TypedProps = fiber.TypedPendingProps;
             }
 
-            // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
+            // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check).
+            // EffectTag MUST be cleared here: GetHostSibling skips any fiber whose
+            // EffectTag has Placement set (treats it as "not yet committed"). If we leave
+            // stale Placement flags on committed fibers, subsequent reorder commits cannot
+            // find a stable anchor and fall back to AppendChild, producing wrong DOM order.
             fiber.SubtreeHasUpdates = false;
-
-#if UNITY_EDITOR
-            // Clear HMR rollback delegate after successful commit —
-            // the new delegate rendered and committed without crashing.
-            fiber.HmrPreviousRender = null;
-#endif
+            fiber.EffectTag = EffectFlags.None;
 
             // Recursively process children
             var child = fiber.Child;

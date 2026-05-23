@@ -181,14 +181,19 @@ namespace UitkxLanguageServer.Roslyn
             /// Used by go-to-definition and rename to map Roslyn positions in peer
             /// virtual documents back to their .uitkx source.
             /// </summary>
-            public Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)> PeerVDocs
-                = new Dictionary<DocumentId, (string, VirtualDocument)>();
+            public Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)> PeerVDocs =
+                new Dictionary<DocumentId, (string, VirtualDocument)>();
 
             public VirtualDocument? VirtualDoc;
 
             /// <summary>Hash of the source text used for the last virtual-doc build.
             /// <see cref="EnsureReadyAsync"/> uses this to skip redundant rebuilds.</summary>
             public string LastBuiltSource = "";
+
+            /// <summary>Parse result from the most recent <see cref="EnqueueRebuild"/> call.
+            /// Retained so the DLL watcher can re-enqueue a metadata-refresh rebuild without
+            /// re-parsing the source from scratch.</summary>
+            public ParseResult? LastParseResult;
 
             /// <summary>Debounce timer for rebuild requests.</summary>
             public Timer? DebounceTimer;
@@ -216,20 +221,32 @@ namespace UitkxLanguageServer.Roslyn
         /// instead of (potentially stale) disk content.
         /// Keyed by full path (case-insensitive).
         /// </summary>
-        private readonly ConcurrentDictionary<string, string> _companionOverlay =
-            new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, string> _companionOverlay = new(
+            StringComparer.OrdinalIgnoreCase
+        );
 
         private readonly ReferenceAssemblyLocator _refLocator;
         private readonly VirtualDocumentGenerator _docGenerator = new VirtualDocumentGenerator();
-        private readonly RoslynSemanticTokensProvider _roslynTokensProvider = new RoslynSemanticTokensProvider();
+        private readonly RoslynSemanticTokensProvider _roslynTokensProvider =
+            new RoslynSemanticTokensProvider();
         private readonly ILanguageServerFacade _server;
         private readonly IPropsTypeProvider _propsTypes;
         private readonly DocumentStore? _documentStore;
 
         private string? _workspaceRoot;
 
+        private readonly WorkspaceIndex _workspaceIndex;
+
         private FileSystemWatcher? _dllWatcher;
+        private Timer? _recompileCooldownTimer;
+        private DiagnosticsPublisher? _publisher;
         private bool _disposed;
+
+        // Milliseconds of DLL-watcher silence after which the recompile window
+        // is considered closed. Must be long enough to absorb Unity's multi-
+        // stage compile (asmdef → asmdef → addressables), short enough that
+        // users don't notice diagnostic lag after a real recompile finishes.
+        private const int RecompileCooldownMs = 2500;
 
         // ── Construction ──────────────────────────────────────────────────────
 
@@ -242,6 +259,7 @@ namespace UitkxLanguageServer.Roslyn
         {
             _server = server;
             _refLocator = new ReferenceAssemblyLocator();
+            _workspaceIndex = workspaceIndex;
             _propsTypes = new PropsTypeAdapter(schema, workspaceIndex);
             _documentStore = documentStore;
         }
@@ -308,7 +326,15 @@ namespace UitkxLanguageServer.Roslyn
             if (string.IsNullOrEmpty(uitkxFilePath))
                 return;
 
+            // Capture the singleton publisher once so the DLL watcher can
+            // re-enqueue rebuilds on Unity recompile without needing one
+            // passed explicitly. DiagnosticsPublisher is registered as a DI
+            // singleton (Program.cs) so every call passes the same instance.
+            if (_publisher == null)
+                Interlocked.CompareExchange(ref _publisher, publisher, null);
+
             var state = _files.GetOrAdd(uitkxFilePath, _ => new FileState());
+            state.LastParseResult = parseResult;
 
             // Cancel any previously-scheduled rebuild for this file
             state.DebounceTimer?.Dispose();
@@ -423,10 +449,23 @@ namespace UitkxLanguageServer.Roslyn
                         var dataFlow = semantic.AnalyzeDataFlow(renderMethod.Body);
                         if (dataFlow != null && dataFlow.Succeeded)
                         {
+                            // Read set must include BOTH direct reads
+                            // (dataFlow.ReadInside) AND locals captured by any
+                            // nested lambda / local function. A capture is, by
+                            // definition, a future use — flagging it as "never
+                            // used" is a false positive. Common case: state
+                            // hook deconstructions where the setter is only
+                            // referenced inside an event-handler lambda
+                            // (e.g. `onChange={(e) => setText(e.newValue)}`)
+                            // and the value is only referenced inside a JSX
+                            // fragment that the emitter lowers into a nested
+                            // render lambda.
                             var readSet = new HashSet<ISymbol>(
                                 dataFlow.ReadInside,
                                 SymbolEqualityComparer.Default
                             );
+                            foreach (var captured in dataFlow.Captured)
+                                readSet.Add(captured);
 
                             foreach (var local in dataFlow.VariablesDeclared)
                             {
@@ -479,9 +518,7 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     // Data-flow failure is non-fatal — regular diagnostics still
                     // surface; just log and continue.
-                    ServerLog.Log(
-                        $"[RoslynHost] AnalyzeDataFlow error: {ex.Message}"
-                    );
+                    ServerLog.Log($"[RoslynHost] AnalyzeDataFlow error: {ex.Message}");
                 }
 
                 return result;
@@ -531,7 +568,9 @@ namespace UitkxLanguageServer.Roslyn
         /// documents back to their .uitkx source.
         /// </summary>
         public (string PeerPath, VirtualDocument PeerVDoc)? TryGetPeerVirtualDocument(
-            string uitkxFilePath, DocumentId peerDocId)
+            string uitkxFilePath,
+            DocumentId peerDocId
+        )
         {
             if (!_files.TryGetValue(uitkxFilePath, out var state))
                 return null;
@@ -545,8 +584,10 @@ namespace UitkxLanguageServer.Roslyn
         /// Used by the rename handler to map Roslyn edits in peer virtual documents
         /// back to their .uitkx source.
         /// </summary>
-        public Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)>?
-            GetPeerVirtualDocuments(string uitkxFilePath)
+        public Dictionary<
+            DocumentId,
+            (string PeerPath, VirtualDocument PeerVDoc)
+        >? GetPeerVirtualDocuments(string uitkxFilePath)
         {
             if (!_files.TryGetValue(uitkxFilePath, out var state))
                 return null;
@@ -569,18 +610,26 @@ namespace UitkxLanguageServer.Roslyn
             foreach (var kv in _files)
             {
                 // Skip the changed file itself
-                if (string.Equals(
-                        System.IO.Path.GetFullPath(kv.Key), fullPath,
-                        StringComparison.OrdinalIgnoreCase))
+                if (
+                    string.Equals(
+                        System.IO.Path.GetFullPath(kv.Key),
+                        fullPath,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
                     continue;
 
                 var state = kv.Value;
                 // Check if this file has the changed path as a peer
                 foreach (var (_, (peerPath, _)) in state.PeerVDocs)
                 {
-                    if (string.Equals(
-                            System.IO.Path.GetFullPath(peerPath), fullPath,
-                            StringComparison.OrdinalIgnoreCase))
+                    if (
+                        string.Equals(
+                            System.IO.Path.GetFullPath(peerPath),
+                            fullPath,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
                     {
                         // Force next EnsureReadyAsync to rebuild
                         state.LastBuiltSource = "";
@@ -591,7 +640,8 @@ namespace UitkxLanguageServer.Roslyn
             }
             if (invalidated.Count > 0)
                 ServerLog.Log(
-                    $"[RoslynHost] InvalidatePeerDependents: invalidated {invalidated.Count} workspace(s) depending on {System.IO.Path.GetFileName(changedPeerPath)}");
+                    $"[RoslynHost] InvalidatePeerDependents: invalidated {invalidated.Count} workspace(s) depending on {System.IO.Path.GetFileName(changedPeerPath)}"
+                );
             return invalidated;
         }
 
@@ -601,8 +651,12 @@ namespace UitkxLanguageServer.Roslyn
         /// Returns the companion <see cref="Document"/>, the owning .uitkx path,
         /// and the main virtual-document <see cref="DocumentId"/>, or <c>null</c>.
         /// </summary>
-        public (Document CompanionDoc, string UitkxPath, DocumentId MainDocId, VirtualDocument? VDoc)?
-            FindCompanionDocument(string csFilePath)
+        public (
+            Document CompanionDoc,
+            string UitkxPath,
+            DocumentId MainDocId,
+            VirtualDocument? VDoc
+        )? FindCompanionDocument(string csFilePath)
         {
             var csFileName = System.IO.Path.GetFileName(csFilePath);
             var csDir = System.IO.Path.GetDirectoryName(csFilePath);
@@ -621,7 +675,10 @@ namespace UitkxLanguageServer.Roslyn
                 foreach (var companionDocId in state.CompanionDocIds)
                 {
                     var doc = solution.GetDocument(companionDocId);
-                    if (doc != null && string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase))
+                    if (
+                        doc != null
+                        && string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase)
+                    )
                         return (doc, kv.Key, state.DocumentId, state.VirtualDoc);
                 }
             }
@@ -657,12 +714,18 @@ namespace UitkxLanguageServer.Roslyn
                 foreach (var companionDocId in state.CompanionDocIds)
                 {
                     var doc = state.Workspace.CurrentSolution.GetDocument(companionDocId);
-                    if (doc == null || !string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase))
+                    if (
+                        doc == null
+                        || !string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase)
+                    )
                         continue;
 
                     // Replace the document text in the workspace
                     var newSourceText = Microsoft.CodeAnalysis.Text.SourceText.From(currentText);
-                    var newSolution = state.Workspace.CurrentSolution.WithDocumentText(companionDocId, newSourceText);
+                    var newSolution = state.Workspace.CurrentSolution.WithDocumentText(
+                        companionDocId,
+                        newSourceText
+                    );
                     state.Workspace.TryApplyChanges(newSolution);
                     return state.Workspace.CurrentSolution.GetDocument(companionDocId);
                 }
@@ -688,7 +751,8 @@ namespace UitkxLanguageServer.Roslyn
         public IReadOnlyList<string> FindUitkxFilesForCompanion(string csFilePath)
         {
             var csDir = System.IO.Path.GetDirectoryName(csFilePath);
-            if (csDir == null) return Array.Empty<string>();
+            if (csDir == null)
+                return Array.Empty<string>();
 
             var result = new List<string>();
             foreach (var kv in _files)
@@ -745,7 +809,12 @@ namespace UitkxLanguageServer.Roslyn
                     return;
 
                 var enriched = EnrichWithPeerHookUsings(parseResult, uitkxFilePath);
-                var virtualDoc = _docGenerator.Generate(enriched, source, uitkxFilePath, _propsTypes);
+                var virtualDoc = _docGenerator.Generate(
+                    enriched,
+                    source,
+                    uitkxFilePath,
+                    _propsTypes
+                );
                 UpdateWorkspace(state, uitkxFilePath, virtualDoc, ct);
                 state.VirtualDoc = virtualDoc;
                 state.LastBuiltSource = source;
@@ -789,7 +858,12 @@ namespace UitkxLanguageServer.Roslyn
 
                 // 1. Generate virtual document (enriched with peer hook usings)
                 var enriched = EnrichWithPeerHookUsings(parseResult, uitkxFilePath);
-                var virtualDoc = _docGenerator.Generate(enriched, source, uitkxFilePath, _propsTypes);
+                var virtualDoc = _docGenerator.Generate(
+                    enriched,
+                    source,
+                    uitkxFilePath,
+                    _propsTypes
+                );
 
                 // 2. Update (or create) the AdhocWorkspace for this file
                 UpdateWorkspace(state, uitkxFilePath, virtualDoc, ct);
@@ -812,14 +886,17 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     try
                     {
-                        await PushClassificationOverridesAsync(
-                            uitkxFilePath, source, state, ct
-                        ).ConfigureAwait(false);
+                        await PushClassificationOverridesAsync(uitkxFilePath, source, state, ct)
+                            .ConfigureAwait(false);
                     }
-                    catch (OperationCanceledException) { /* next rebuild will send */ }
+                    catch (OperationCanceledException)
+                    { /* next rebuild will send */
+                    }
                     catch (Exception ex)
                     {
-                        ServerLog.Log($"[RoslynHost] PushClassificationOverrides error: {ex.Message}");
+                        ServerLog.Log(
+                            $"[RoslynHost] PushClassificationOverrides error: {ex.Message}"
+                        );
                     }
                 }
             }
@@ -859,11 +936,10 @@ namespace UitkxLanguageServer.Roslyn
                 .ConfigureAwait(false);
 
             // Always send — an empty array clears stale overrides from a prior edit.
-            _server.SendNotification("uitkx/classificationOverrides", new
-            {
-                uri = DocumentUri.File(uitkxFilePath).ToString(),
-                overrides = overrides,
-            });
+            _server.SendNotification(
+                "uitkx/classificationOverrides",
+                new { uri = DocumentUri.File(uitkxFilePath).ToString(), overrides = overrides }
+            );
         }
 
         private void UpdateWorkspace(
@@ -887,17 +963,20 @@ namespace UitkxLanguageServer.Roslyn
             // never the LSP-internal `ReactiveUITK.Language` parser DLL — that
             // DLL doesn't contain the runtime types (Ref<T>, ReactiveEvent,
             // delegate handlers) that the polyfill provides.
-            bool needsPolyfill = !Array.Exists(refs, r =>
-            {
-                if (r.Display == null)
-                    return false;
-                var name = System.IO.Path.GetFileNameWithoutExtension(r.Display);
-                if (string.IsNullOrEmpty(name))
-                    return false;
-                return name.Equals("ReactiveUITK.Shared", StringComparison.OrdinalIgnoreCase)
-                    || name.Equals("ReactiveUITK.Runtime", StringComparison.OrdinalIgnoreCase)
-                    || name.Equals("ReactiveUITK.Core", StringComparison.OrdinalIgnoreCase);
-            });
+            bool needsPolyfill = !Array.Exists(
+                refs,
+                r =>
+                {
+                    if (r.Display == null)
+                        return false;
+                    var name = System.IO.Path.GetFileNameWithoutExtension(r.Display);
+                    if (string.IsNullOrEmpty(name))
+                        return false;
+                    return name.Equals("ReactiveUITK.Shared", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("ReactiveUITK.Runtime", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("ReactiveUITK.Core", StringComparison.OrdinalIgnoreCase);
+                }
+            );
 
             if (state.Workspace == null)
             {
@@ -988,19 +1067,23 @@ namespace UitkxLanguageServer.Roslyn
                 if (needsPolyfill && state.PolyfillDocId == null)
                 {
                     var newPolyfillId = DocumentId.CreateNewId(
-                        state.ProjectId!, debugName: "__polyfill__");
-                    newSolution = newSolution.AddDocument(DocumentInfo.Create(
-                        id: newPolyfillId,
-                        name: "__UitkxPolyfill__.g.cs",
-                        sourceCodeKind: SourceCodeKind.Regular,
-                        loader: TextLoader.From(
-                            TextAndVersion.Create(
-                                Microsoft.CodeAnalysis.Text.SourceText.From(PolyfillSource),
-                                VersionStamp.Create(),
-                                "__polyfill__"
+                        state.ProjectId!,
+                        debugName: "__polyfill__"
+                    );
+                    newSolution = newSolution.AddDocument(
+                        DocumentInfo.Create(
+                            id: newPolyfillId,
+                            name: "__UitkxPolyfill__.g.cs",
+                            sourceCodeKind: SourceCodeKind.Regular,
+                            loader: TextLoader.From(
+                                TextAndVersion.Create(
+                                    Microsoft.CodeAnalysis.Text.SourceText.From(PolyfillSource),
+                                    VersionStamp.Create(),
+                                    "__polyfill__"
+                                )
                             )
                         )
-                    ));
+                    );
                     state.PolyfillDocId = newPolyfillId;
                 }
                 else if (!needsPolyfill && state.PolyfillDocId != null)
@@ -1056,7 +1139,11 @@ namespace UitkxLanguageServer.Roslyn
                 state.PeerVDocs.Clear();
 
                 newSolution = AddPeerUitkxDocumentsToSolution(
-                    newSolution, state.ProjectId!, state, uitkxFilePath);
+                    newSolution,
+                    state.ProjectId!,
+                    state,
+                    uitkxFilePath
+                );
 
                 state.Workspace.TryApplyChanges(newSolution);
             }
@@ -1065,28 +1152,62 @@ namespace UitkxLanguageServer.Roslyn
         // ── Companion file discovery ──────────────────────────────────────────
 
         /// <summary>
-        /// Returns all .cs files in the same directory as the .uitkx file.
-        /// These are loaded as additional source documents so that partial-class
-        /// members (Styles, utils, types) defined in companion files are visible
-        /// to Roslyn's semantic analysis.
+        /// Returns all .cs files that should be loaded as companions for the
+        /// given .uitkx file. The set includes:
+        ///   - every .cs in the same directory (legacy contract)
+        ///   - every .cs anywhere in the workspace whose nearest *.asmdef
+        ///     resolves to the same owner asmdef as the .uitkx (added 0.5.12)
+        /// The asmdef boundary is identical to the SG's IsOwnedByCompilation
+        /// contract, mirrored via <see cref="AsmdefResolver"/>. Projects with
+        /// no .asmdef anywhere fall back to <c>Assembly-CSharp</c> /
+        /// <c>Assembly-CSharp-Editor</c> by Editor/-segment convention.
         /// </summary>
-        private static IReadOnlyList<string> FindCompanionFiles(string uitkxFilePath)
+        private IReadOnlyList<string> FindCompanionFiles(string uitkxFilePath)
         {
-            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
-            if (dir == null || !System.IO.Directory.Exists(dir))
-                return Array.Empty<string>();
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var result = new List<string>();
-            foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.cs"))
-                result.Add(file);
-            return result;
+            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
+            if (dir != null && System.IO.Directory.Exists(dir))
+            {
+                foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.cs"))
+                    result.Add(file);
+            }
+
+            if (_workspaceIndex != null)
+            {
+                string ownerAsmdef = AsmdefResolver.OwningAsmdefName(uitkxFilePath);
+                var allCs = _workspaceIndex.GetAllCsFiles();
+
+                // Soft telemetry breadcrumb. Documented in LATENCY_TARGETS.md
+                // — the .uitkx-open companion scan cost scales with the .cs
+                // count in the owning asmdef. Asmdef splitting is the
+                // recommended fix for monolith Assembly-CSharp projects.
+                if (allCs.Count > 500)
+                    ServerLog.Log(
+                        $"[RoslynHost] FindCompanionFiles: workspace has {allCs.Count} "
+                        + $".cs files; companion union for '{System.IO.Path.GetFileName(uitkxFilePath)}' "
+                        + $"is asmdef-scoped to '{ownerAsmdef}'.");
+
+                foreach (var cs in allCs)
+                {
+                    if (string.Equals(
+                            AsmdefResolver.OwningAsmdefName(cs),
+                            ownerAsmdef,
+                            StringComparison.Ordinal))
+                        result.Add(cs);
+                }
+            }
+
+            return result.Count == 0
+                ? Array.Empty<string>()
+                : result.ToArray();
         }
 
         /// <summary>
         /// Adds companion .cs files from the .uitkx directory to the workspace.
         /// Called during first-open workspace creation.
         /// </summary>
-        private static void AddCompanionDocuments(
+        private void AddCompanionDocuments(
             AdhocWorkspace ws,
             ProjectId projectId,
             FileState state,
@@ -1132,35 +1253,53 @@ namespace UitkxLanguageServer.Roslyn
         // ── Peer .uitkx file discovery & loading ─────────────────────────────
 
         /// <summary>
-        /// Returns all .uitkx files in the same directory as <paramref name="uitkxFilePath"/>,
-        /// excluding the file itself. These are hook/module/style peers whose generated
-        /// code must be visible in the Roslyn workspace for IntelliSense to resolve
-        /// cross-file references (e.g. <c>useCounter()</c> from a <c>.hooks.uitkx</c>
-        /// or style constants from a <c>.style.uitkx</c>).
+        /// Returns peer .uitkx files whose generated code must be visible in
+        /// the Roslyn workspace for cross-file references to resolve. Includes
+        /// every file in the same directory as <paramref name="uitkxFilePath"/>
+        /// (covers component<->hook/style/types pairs and `*Func` siblings) plus
+        /// every workspace-wide .uitkx file that declares a top-level <c>module</c>
+        /// or <c>hook</c>, sourced from <see cref="WorkspaceIndex"/>. The latter
+        /// is what makes a reference like <c>Theme.SidebarWidth</c> resolve when
+        /// <c>Theme.uitkx</c> lives in a parent or sibling directory.
+        /// The file itself is always excluded; results are case-insensitively
+        /// deduplicated.
         /// </summary>
-        private static IReadOnlyList<string> FindPeerUitkxFiles(string uitkxFilePath)
+        private IReadOnlyList<string> FindPeerUitkxFiles(string uitkxFilePath)
         {
-            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
-            if (dir == null || !System.IO.Directory.Exists(dir))
-                return Array.Empty<string>();
-
             var self = System.IO.Path.GetFullPath(uitkxFilePath);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { self };
             var result = new List<string>();
-            foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.uitkx"))
+
+            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
+            if (dir != null && System.IO.Directory.Exists(dir))
             {
-                if (string.Equals(System.IO.Path.GetFullPath(file), self, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                result.Add(file);
+                foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.uitkx"))
+                {
+                    var full = System.IO.Path.GetFullPath(file);
+                    if (seen.Add(full))
+                        result.Add(file);
+                }
             }
+
+            foreach (var file in _workspaceIndex.GetModuleAndHookFiles())
+            {
+                string full;
+                try { full = System.IO.Path.GetFullPath(file); }
+                catch { continue; }
+                if (seen.Add(full))
+                    result.Add(file);
+            }
+
             return result;
         }
 
         /// <summary>
         /// Enriches a <see cref="ParseResult"/> by injecting <c>using static Ns.XxxHooks;</c>
-        /// entries for every peer hook container in the same directory.  This makes hook
-        /// methods (e.g. <c>useTestHomeState()</c>) directly callable in the virtual
-        /// document without qualification — mirroring what the source generator's
-        /// Stage 3d does in <c>UitkxPipeline</c>.
+        /// entries for every peer hook container that belongs to the same asmdef as
+        /// the consumer .uitkx file, regardless of whether the hook file lives in the
+        /// same namespace or directory. This is the LSP-side mirror of the SG's
+        /// Stage 3d in <c>UitkxPipeline.cs</c>; both inject the same set of
+        /// using-static directives so the IDE and the build agree.
         /// </summary>
         private ParseResult EnrichWithPeerHookUsings(ParseResult parseResult, string uitkxFilePath)
         {
@@ -1168,14 +1307,19 @@ namespace UitkxLanguageServer.Roslyn
             // Only enrich component files (hooks/modules don't call peer hooks).
             if (d.ComponentName == null)
                 return parseResult;
-            if (string.IsNullOrEmpty(d.Namespace))
-                return parseResult;
 
             var peers = FindPeerUitkxFiles(uitkxFilePath);
             if (peers.Count == 0)
                 return parseResult;
 
+            string consumerAsmdef = AsmdefResolver.OwningAsmdefName(uitkxFilePath);
+
             var extraUsings = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            if (!d.Usings.IsDefault)
+                foreach (var u in d.Usings)
+                    seen.Add(u);
+
             foreach (var peerPath in peers)
             {
                 try
@@ -1186,34 +1330,51 @@ namespace UitkxLanguageServer.Roslyn
 
                     if (peerDirectives.HookDeclarations.IsDefaultOrEmpty)
                         continue;
-                    if (peerDirectives.Namespace != d.Namespace)
+                    if (string.IsNullOrEmpty(peerDirectives.Namespace))
+                        continue;
+                    if (!string.Equals(
+                            AsmdefResolver.OwningAsmdefName(peerPath),
+                            consumerAsmdef,
+                            StringComparison.Ordinal))
                         continue;
 
-                    // Derive container class name — mirrors HookEmitter / VDG logic.
-                    // Take the part before the first dot so any middle segment is ignored.
-                    string fileName = System.IO.Path.GetFileNameWithoutExtension(peerPath);
-                    int dot = fileName.IndexOf('.');
-                    if (dot > 0)
-                        fileName = fileName.Substring(0, dot);
-                    if (fileName.Length > 0 && char.IsLower(fileName[0]))
-                        fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
-                    string containerClass = fileName + "Hooks";
-
-                    extraUsings.Add($"static {d.Namespace}.{containerClass}");
+                    string containerClass = DerivePeerHookContainerClass(peerPath);
+                    string fqn = $"static {peerDirectives.Namespace}.{containerClass}";
+                    if (seen.Add(fqn))
+                        extraUsings.Add(fqn);
                 }
-                catch { /* skip unreadable peers */ }
+                catch
+                { /* skip unreadable peers */
+                }
             }
 
             if (extraUsings.Count == 0)
                 return parseResult;
 
-            // Build new Usings array with the extra entries.
-            var currentUsings = d.Usings.IsDefault
-                ? ImmutableArray<string>.Empty
-                : d.Usings;
+            var currentUsings = d.Usings.IsDefault ? ImmutableArray<string>.Empty : d.Usings;
             var newUsings = currentUsings.AddRange(extraUsings);
             var enrichedDirectives = d with { Usings = newUsings };
-            return new ParseResult(enrichedDirectives, parseResult.RootNodes, parseResult.Diagnostics);
+            return new ParseResult(
+                enrichedDirectives,
+                parseResult.RootNodes,
+                parseResult.Diagnostics
+            );
+        }
+
+        // Derives the static container class name for a peer hook file.
+        // Mirrors HookEmitter.DeriveContainerClassName (SG) and
+        // GenerateHookDocument (VDG): take the part before the first dot in the
+        // filename (so .hooks / .style middle segments are ignored), PascalCase
+        // the first letter, and append "Hooks".
+        private static string DerivePeerHookContainerClass(string peerPath)
+        {
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(peerPath);
+            int dot = fileName.IndexOf('.');
+            if (dot > 0)
+                fileName = fileName.Substring(0, dot);
+            if (fileName.Length > 0 && char.IsLower(fileName[0]))
+                fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
+            return fileName + "Hooks";
         }
 
         /// <summary>
@@ -1236,13 +1397,14 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     var peerSource = ReadPeerSource(peerPath);
                     var peerDiags = new List<ParseDiagnostic>();
-                    var peerDirectives = DirectiveParser.Parse(
-                        peerSource, peerPath, peerDiags);
+                    var peerDirectives = DirectiveParser.Parse(peerSource, peerPath, peerDiags);
 
                     // Only include files that have hooks or modules — regular components
                     // are handled by their own workspace.
-                    if (peerDirectives.HookDeclarations.IsDefaultOrEmpty
-                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty)
+                    if (
+                        peerDirectives.HookDeclarations.IsDefaultOrEmpty
+                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty
+                    )
                         continue;
 
                     var peerParseResult = new ParseResult(
@@ -1250,7 +1412,12 @@ namespace UitkxLanguageServer.Roslyn
                         ImmutableArray<AstNode>.Empty,
                         ImmutableArray.CreateRange<ParseDiagnostic>(peerDiags)
                     );
-                    var peerVDoc = _docGenerator.Generate(peerParseResult, peerSource, peerPath, _propsTypes);
+                    var peerVDoc = _docGenerator.Generate(
+                        peerParseResult,
+                        peerSource,
+                        peerPath,
+                        _propsTypes
+                    );
 
                     var docInfo = DocumentInfo.Create(
                         id: DocumentId.CreateNewId(projectId, debugName: peerPath + ".peer"),
@@ -1270,9 +1437,7 @@ namespace UitkxLanguageServer.Roslyn
                 }
                 catch (Exception ex)
                 {
-                    ServerLog.Log(
-                        $"[RoslynHost] Could not load peer {peerPath}: {ex.Message}"
-                    );
+                    ServerLog.Log($"[RoslynHost] Could not load peer {peerPath}: {ex.Message}");
                 }
             }
 
@@ -1300,11 +1465,12 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     var peerSource = ReadPeerSource(peerPath);
                     var peerDiags = new List<ParseDiagnostic>();
-                    var peerDirectives = DirectiveParser.Parse(
-                        peerSource, peerPath, peerDiags);
+                    var peerDirectives = DirectiveParser.Parse(peerSource, peerPath, peerDiags);
 
-                    if (peerDirectives.HookDeclarations.IsDefaultOrEmpty
-                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty)
+                    if (
+                        peerDirectives.HookDeclarations.IsDefaultOrEmpty
+                        && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty
+                    )
                         continue;
 
                     var peerParseResult = new ParseResult(
@@ -1312,7 +1478,12 @@ namespace UitkxLanguageServer.Roslyn
                         ImmutableArray<AstNode>.Empty,
                         ImmutableArray.CreateRange<ParseDiagnostic>(peerDiags)
                     );
-                    var peerVDoc = _docGenerator.Generate(peerParseResult, peerSource, peerPath, _propsTypes);
+                    var peerVDoc = _docGenerator.Generate(
+                        peerParseResult,
+                        peerSource,
+                        peerPath,
+                        _propsTypes
+                    );
 
                     var newDocId = DocumentId.CreateNewId(projectId, debugName: peerPath + ".peer");
                     var docInfo = DocumentInfo.Create(
@@ -1333,9 +1504,7 @@ namespace UitkxLanguageServer.Roslyn
                 }
                 catch (Exception ex)
                 {
-                    ServerLog.Log(
-                        $"[RoslynHost] Could not load peer {peerPath}: {ex.Message}"
-                    );
+                    ServerLog.Log($"[RoslynHost] Could not load peer {peerPath}: {ex.Message}");
                 }
             }
 
@@ -1366,6 +1535,8 @@ namespace UitkxLanguageServer.Roslyn
         {
             _dllWatcher?.Dispose();
             _dllWatcher = null;
+            var staleCooldown = Interlocked.Exchange(ref _recompileCooldownTimer, null);
+            staleCooldown?.Dispose();
 
             if (string.IsNullOrEmpty(workspaceRoot))
                 return;
@@ -1388,35 +1559,77 @@ namespace UitkxLanguageServer.Roslyn
                     EnableRaisingEvents = true,
                 };
 
-                // Debounced handler — a Unity recompile touches many DLLs in quick
-                // succession; we only need to invalidate once.
-                Timer? invalidateTimer = null;
-                void OnDllChanged(object _, FileSystemEventArgs __)
-                {
-                    invalidateTimer?.Dispose();
-                    invalidateTimer = new Timer(
-                        _ =>
-                        {
-                            _refLocator.Invalidate();
-                            ServerLog.Log(
-                                "[RoslynHost] Unity recompile detected — reference cache cleared."
-                            );
-                        },
-                        null,
-                        dueTime: 1500,
-                        period: Timeout.Infinite
-                    );
-                }
+                _dllWatcher.Changed += OnDllActivity;
+                _dllWatcher.Created += OnDllActivity;
+                _dllWatcher.Deleted += OnDllActivity;
 
-                _dllWatcher.Changed += OnDllChanged;
-                _dllWatcher.Created += OnDllChanged;
-
-                ServerLog.Log($"[RoslynHost] DLL watcher active: {scriptAssembliesDir}");
+                ServerLog.Log(
+                    $"[RoslynHost] DLL watcher active: {scriptAssembliesDir} "
+                    + $"(recompile cooldown {RecompileCooldownMs} ms)"
+                );
             }
             catch (Exception ex)
             {
                 ServerLog.Log($"[RoslynHost] Could not set up DLL watcher: {ex.Message}");
             }
+        }
+
+        // Any DLL activity opens (or extends) the recompile window. The
+        // ReferenceAssemblyLocator refuses to update its baseline or cache a
+        // fresh scan while the window is open, so no thread that calls
+        // GetReferences mid-recompile can poison the cache with a partial
+        // result. When the cooldown elapses with no further activity the
+        // window closes and we flush stale per-file workspace state.
+        private void OnDllActivity(object sender, FileSystemEventArgs e)
+        {
+            _refLocator.SetRecompileWindow(true);
+
+            var fresh = new Timer(
+                _ => OnRecompileWindowEnded(),
+                state: null,
+                dueTime: RecompileCooldownMs,
+                period: Timeout.Infinite
+            );
+            var prev = Interlocked.Exchange(ref _recompileCooldownTimer, fresh);
+            prev?.Dispose();
+        }
+
+        private void OnRecompileWindowEnded()
+        {
+            _refLocator.SetRecompileWindow(false);
+            _refLocator.Invalidate();
+            ServerLog.Log(
+                "[RoslynHost] Unity recompile window ended — reference cache cleared."
+            );
+            TriggerMetadataRefreshForAllFiles();
+        }
+
+        // Re-enqueues a no-source-change rebuild for every tracked file so
+        // their per-file Roslyn workspaces pick up the post-recompile metadata
+        // references without the user having to type into the file. Without
+        // this, stale CS0246 squiggles would persist on visible documents
+        // until the user edited them.
+        private void TriggerMetadataRefreshForAllFiles()
+        {
+            var pub = _publisher;
+            if (pub == null)
+                return;
+
+            int refreshed = 0;
+            foreach (var kv in _files)
+            {
+                var st = kv.Value;
+                if (st.Workspace == null || st.LastParseResult == null)
+                    continue;
+
+                EnqueueRebuild(kv.Key, st.LastBuiltSource, st.LastParseResult, pub);
+                refreshed++;
+            }
+
+            if (refreshed > 0)
+                ServerLog.Log(
+                    $"[RoslynHost] Refreshed metadata references for {refreshed} open file(s)."
+                );
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────
@@ -1428,6 +1641,8 @@ namespace UitkxLanguageServer.Roslyn
             _disposed = true;
 
             _dllWatcher?.Dispose();
+            var pendingCooldown = Interlocked.Exchange(ref _recompileCooldownTimer, null);
+            pendingCooldown?.Dispose();
 
             foreach (var kv in _files)
                 kv.Value.Dispose();

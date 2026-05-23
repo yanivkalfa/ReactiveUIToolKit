@@ -85,6 +85,56 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private readonly StringBuilder _hoistedStyleFields = new StringBuilder();
         private int _hoistCounter;
 
+        // ── UITKX Fast Refresh (always emitted) ────────────────────────────
+        // Collects distinct child-component FQNs referenced at
+        // function-component call sites in the rendered tree. After the
+        // class body is built we emit one
+        //   private static readonly Family __fam_<SanitizedFqn> =
+        //       RefreshRuntime.GetFamily("<FQN>");
+        // field per entry, plus a [ModuleInitializer] that registers THIS
+        // component's own body under its fully-qualified name. The system
+        // is active in both Editor and player builds; in player builds
+        // Family.Current is never mutated, so the cost is one Family
+        // allocation per component type plus one delegate indirection per
+        // render call.
+        //
+        // FQN keys (not simple names) are critical: two components named
+        // `Button` in different namespaces must NOT alias to the same
+        // Family handle, or one would silently overwrite the other in the
+        // registry.
+        private readonly HashSet<string> _familyChildRefs = new HashSet<string>(System.StringComparer.Ordinal);
+
+        // Build the FQN used as the Family registry key for THIS component.
+        private string SelfFamilyKey() =>
+            string.IsNullOrEmpty(_directives.Namespace)
+                ? _directives.ComponentName
+                : $"{_directives.Namespace}.{_directives.ComponentName}";
+
+        // Sanitize an FQN like "global::MyApp.Foo.Bar" into a valid C#
+        // identifier suffix ("global_MyApp_Foo_Bar") for use as the
+        // __fam_* field name. Two distinct FQNs map to distinct
+        // identifiers (we replace each non-identifier char with '_').
+        private static string SanitizeFqnToIdent(string fqn)
+        {
+            if (string.IsNullOrEmpty(fqn)) return "_";
+            var sb = new StringBuilder(fqn.Length);
+            foreach (char c in fqn)
+            {
+                if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
+                else sb.Append('_');
+            }
+            return sb.ToString();
+        }
+
+        // Strip a leading "global::" from an FQN, so the Family registry
+        // key matches what the owning component emits in its own Register
+        // call (which never includes "global::").
+        private static string NormalizeFamilyKey(string fqn)
+        {
+            const string g = "global::";
+            return fqn.StartsWith(g, System.StringComparison.Ordinal) ? fqn.Substring(g.Length) : fqn;
+        }
+
         // Indent constants
         private const string I2 = "        "; // 8sp — class member level
         private const string I3 = "            "; // 12sp — method body level
@@ -143,6 +193,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using ReactiveUITK.Core;");
             L("using ReactiveUITK.Core.Animation;");
             L("using ReactiveUITK.Props.Typed;");
+            L("using UnityEngine;");
             L("using static ReactiveUITK.Props.Typed.StyleKeys;");
             L("using static ReactiveUITK.Props.Typed.CssHelpers;");
             L("using static ReactiveUITK.AssetHelpers;");
@@ -168,6 +219,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using Length = UnityEngine.UIElements.Length;");
             L("using StyleKeyword = UnityEngine.UIElements.StyleKeyword;");
             L("using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;");
+            // Unity 6.3+ types referenced via Style.UnityMaterial, Style.AspectRatio,
+            // Style.Filter and the corresponding CssHelpers (MaterialDef, Ratio, Filter*).
+            // Emitted as preprocessor-guarded strings so pre-6.3 builds still compile clean.
+            L("#if UNITY_6000_3_OR_NEWER");
+            L("using FilterFunction = UnityEngine.UIElements.FilterFunction;");
+            L("using Ratio = UnityEngine.UIElements.Ratio;");
+            L("using StyleRatio = UnityEngine.UIElements.StyleRatio;");
+            L("using MaterialDefinition = UnityEngine.UIElements.MaterialDefinition;");
+            L("using StyleMaterialDefinition = UnityEngine.UIElements.StyleMaterialDefinition;");
+            L("#endif");
             L("");
 
             // ── Namespace + class ────────────────────────────────────────────
@@ -178,8 +239,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             // Emit hook signature for proactive HMR state-reset detection
             string hookSig = ExtractHookSignature(_directives.FunctionSetupCode);
-            if (hookSig.Length > 0)
-                L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
+            string[] customHookKeys = ExtractCustomHookFamilyKeys(_directives.FunctionSetupCode);
+            if (hookSig.Length > 0 || customHookKeys.Length > 0)
+            {
+                if (customHookKeys.Length > 0)
+                {
+                    L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\", {RenderCustomHookFamilyKeysLiteral(customHookKeys)})]");
+                }
+                else
+                {
+                    L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
+                }
+            }
 
             L($"    public partial class {_directives.ComponentName}");
             L("    {");
@@ -204,7 +275,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 string projectRoot = GetProjectRoot(_filePath);
 
                 _sb.Append(
-                    $"{I2}internal static readonly string[] __uitkx_ussKeys = new string[] {{ "
+                    $"{I2}[global::ReactiveUITK.UitkxHmrSwap] internal static string[] __uitkx_ussKeys = new string[] {{ "
                 );
                 for (int idx = 0; idx < _directives.UssFiles.Length; idx++)
                 {
@@ -260,8 +331,29 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 L("");
             }
 
-            // ── Render method signature ───────────────────────────────────────
+            // ── Public Render entry point ─────────────────────────────────────
+            // Stable, public method-group target for hand-written
+            // V.Func(MyComp.Render, ...) consumers and for the SG-emitted
+            // player-build call sites. Editor-build SG call sites instead
+            // reference the per-component Family handle (see __fam_* field
+            // emission below), so HMR delegate identity flows through the
+            // Family.Current cell rather than this method.
             L($"{I2}public static {QVNode} Render(");
+            L($"{I2}    global::ReactiveUITK.Core.IProps __rawProps,");
+            L($"{I2}    IReadOnlyList<{QVNode}> __children)");
+            L($"{I2}{{");
+            L($"{I3}return __Render_body(__rawProps, __children);");
+            L($"{I2}}}");
+            L("");
+
+            // ── Render body (the actual user code) ────────────────────────────
+            // Visibility is `internal` rather than `private` so the editor-only
+            // companion class `{ComponentName}__UitkxRefresh` (emitted below)
+            // can reference it via a `() => __Render_body` factory passed to
+            // RefreshRuntime.Register. The companion lives in the same
+            // assembly, so `internal` suffices.
+            L($"{I2}[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            L($"{I2}internal static {QVNode} __Render_body(");
             L($"{I2}    global::ReactiveUITK.Core.IProps __rawProps,");
             L($"{I2}    IReadOnlyList<{QVNode}> __children)");
             L($"{I2}{{");
@@ -352,7 +444,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.AppendLine($"{I3}return ({QVNode})null;");
             }
 
-            L($"{I2}}}"); // close Render
+            L($"{I2}}}"); // close __Render_body
 
             // ── Auto-generated props class for function-style components ──────
             // Emitted as a NESTED type INSIDE the partial class, before its
@@ -376,30 +468,105 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.Append(_hoistedStyleFields.ToString());
             }
 
+            // ── UITKX Fast Refresh: family fields + module-initializer Register ──
+            // Editor-only. The entire block is wrapped in #if UNITY_EDITOR so
+            // player builds carry zero Family / RefreshRuntime trace — no
+            // family fields, no ModuleInitializer Register call, no static
+            // .cctor side effects. This mirrors React Fast Refresh's
+            // $RefreshReg$ injection model: dev injects, production does not.
+            // The matching V.Func emission site emits the direct-delegate
+            // form under #if !UNITY_EDITOR.
+            //
+            // The __fam_* fields live on the component class because the SG
+            // emits `V.Func<P>(__fam_X, ...)` from inside the render body
+            // and the field is read at render time (long after editor init
+            // hooks have run, so triggering the component .cctor at first
+            // render is safe).
+            //
+            // The [ModuleInitializer] Register call is NOT on the component
+            // class. On Mono, calling a static method on a beforefieldinit
+            // class triggers that class's .cctor anyway, which would run
+            // user static field initializers (e.g.
+            // `static readonly Texture2D bg = Asset<T>(...)`) before
+            // Unity's [InitializeOnLoadMethod] hooks populate
+            // UitkxAssetRegistry. To avoid this we emit the
+            // ModuleInitializer on a companion class
+            // `{ComponentName}__UitkxRefresh` outside the partial class --
+            // calling a method on the companion never triggers the
+            // component .cctor, and the `() => __Render_body` factory
+            // uses `ldftn` (which also doesn't trigger cctor) so the
+            // component .cctor only runs when Family.Current is first
+            // read at first render.
+            L("");
+            L($"#if UNITY_EDITOR");
+            L($"{I2}// ── UITKX Fast Refresh (editor-only) ──");
+            if (_familyChildRefs.Count > 0)
+            {
+                foreach (var childFqn in _familyChildRefs.OrderBy(s => s, System.StringComparer.Ordinal))
+                {
+                    string famField = "__fam_" + SanitizeFqnToIdent(childFqn);
+                    string famKey = NormalizeFamilyKey(childFqn);
+                    // Fallback factory: `() => Child.Render`. For SG-emitted
+                    // children the companion's [ModuleInitializer] Register
+                    // runs first and the fallback is ignored. For hand-written
+                    // children (e.g. router types in the ReactiveUITK
+                    // package) the fallback is what Family.Current resolves
+                    // to at first render. The `ldftn Child.Render`
+                    // instruction inside the lambda does NOT trigger the
+                    // child's .cctor (per ECMA-335 §I.8.9.5 ldftn does not
+                    // require type init; Mono honors this for ldftn -- the
+                    // beforefieldinit divergence is on `call`, not ldftn).
+                    L($"{I2}private static readonly global::ReactiveUITK.Refresh.Family {famField} = global::ReactiveUITK.Refresh.RefreshRuntime.GetFamily(\"{famKey}\", () => {childFqn}.Render);");
+                }
+            }
+            L($"#endif // UNITY_EDITOR");
+
             L("    }"); // close class
+
+            // ── Companion class with [ModuleInitializer] -----------------
+            // See the long comment above for why this is a SEPARATE type.
+            // Lives in the same namespace as the component, fully-qualified
+            // reference to {ComponentName}.__Render_body (internal) keeps
+            // the factory closure free of any access that would trigger
+            // the component .cctor.
+            L($"#if UNITY_EDITOR");
+            string companionName = _directives.ComponentName + "__UitkxRefresh";
+            string componentRef = string.IsNullOrEmpty(_directives.Namespace)
+                ? "global::" + _directives.ComponentName
+                : "global::" + _directives.Namespace + "." + _directives.ComponentName;
+            L($"    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            L($"    [global::System.Runtime.CompilerServices.CompilerGenerated]");
+            L($"    internal static class {companionName}");
+            L($"    {{");
+            L($"        [global::System.Runtime.CompilerServices.ModuleInitializer]");
+            L($"        internal static void __Register()");
+            L($"        {{");
+            L($"            global::ReactiveUITK.Refresh.RefreshRuntime.Register(");
+            L($"                \"{SelfFamilyKey()}\",");
+            L($"                () => {componentRef}.__Render_body,");
+            L($"                \"{hookSig}\",");
+            L($"                {RenderCustomHookFamilyKeysLiteral(customHookKeys)});");
+            L($"        }}");
+            L($"    }}");
+            L($"#endif // UNITY_EDITOR");
+
             L("}"); // close namespace
 
             return _sb.ToString();
         }
 
         // ── Hook alias substitution ───────────────────────────────────────────
+        //
+        // The alias table and the generic-hook regex are sourced from
+        // ReactiveUITK.Core.HookRegistry (Shared/Core/HookRegistry.cs) so
+        // CSharpEmitter, HmrCSharpEmitter, HmrHookEmitter, HooksValidator,
+        // the IDE DiagnosticsAnalyzer, the LSP HoverHandler, and the virtual
+        // document generator all stay in lockstep automatically.  Local
+        // Regex objects below are kept compiled and instance-static so cold-
+        // start performance is identical to the pre-0.5.23 hard-coded form.
 
         private static readonly (string From, string To)[] s_hookAliases =
-        {
-            ("useState(", "Hooks.UseState("),
-            ("useEffect(", "Hooks.UseEffect("),
-            ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
-            ("useRef(", "Hooks.UseRef("),
-            ("useCallback(", "Hooks.UseCallback("),
-            ("useMemo(", "Hooks.UseMemo("),
-            ("useContext(", "Hooks.UseContext("),
-            ("useReducer(", "Hooks.UseReducer("),
-            ("useSignal(", "Hooks.UseSignal("),
-            ("useDeferredValue(", "Hooks.UseDeferredValue("),
-            ("useTransition(", "Hooks.UseTransition("),
-            ("useSfx(", "Hooks.UseSfx("),
-            ("provideContext(", "Hooks.ProvideContext("),
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetAliasTable();
 
         // Matches generic hook calls including up to 3 levels of nested type args:
         //   useContext<Color>(                         → level 1
@@ -408,7 +575,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         // The non-generic form is handled by s_hookAliases simple replacements above.
         private static readonly System.Text.RegularExpressions.Regex s_genericHookAliasRe =
             new System.Text.RegularExpressions.Regex(
-                @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+                global::ReactiveUITK.Core.HookRegistry.GetGenericHookPattern(),
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
@@ -463,10 +630,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// Matches any hook call in setup code — both user-written camelCase
         /// (useState, useEffect) and fully-qualified PascalCase (Hooks.UseState).
         /// Captures the hook name (without "Hooks." prefix) in group 1.
+        /// Pattern is sourced from HookRegistry so it stays in lockstep with
+        /// the alias table above.
         /// </summary>
         private static readonly System.Text.RegularExpressions.Regex s_hookSignatureRe =
             new System.Text.RegularExpressions.Regex(
-                @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|useSfx|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|UseSfx|ProvideContext)(?:<[^>]*>)?\s*\(",
+                global::ReactiveUITK.Core.HookRegistry.GetSignatureRegexPattern(),
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
@@ -480,7 +649,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (string.IsNullOrWhiteSpace(setupCode))
                 return string.Empty;
 
-            var matches = s_hookSignatureRe.Matches(setupCode);
+            // Strip comments and string literals before scanning so commented-out
+            // hook calls (e.g. `// useEffect(...)`) and hook-name substrings inside
+            // strings don't pollute the signature. Without this scrub a comment
+            // toggle would leave the signature identical, sigChanged stays false,
+            // and FullResetComponentState never runs -- so the now-removed
+            // useEffect's cleanup never fires and any pending Timer / subscription
+            // it captured leaks until domain reload.
+            string scrubbed = ScrubCommentsAndStrings(setupCode);
+
+            var matches = s_hookSignatureRe.Matches(scrubbed);
             if (matches.Count == 0)
                 return string.Empty;
 
@@ -511,6 +689,247 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 return "Provide" + char.ToUpper(name[7]) + name.Substring(8);
 
             return name;
+        }
+
+        // ── Phase 2: custom hook discovery ──────────────────────────────────
+
+        /// <summary>
+        /// Matches any hook-shaped call (custom or built-in): identifiers
+        /// starting with <c>use[A-Z]</c> / <c>Use[A-Z]</c> /
+        /// <c>provide[A-Z]</c> / <c>Provide[A-Z]</c>, optionally preceded by
+        /// a <c>Hooks.</c> qualifier, optionally with generic type args, then
+        /// an opening paren. The capture group is the bare identifier — we
+        /// filter against <see cref="s_builtinHookNames"/> to keep only
+        /// CUSTOM hooks (those the SG/HMR registered via <c>RegisterHook</c>).
+        /// </summary>
+        private static readonly System.Text.RegularExpressions.Regex s_anyHookCallRe =
+            new System.Text.RegularExpressions.Regex(
+                @"(?:Hooks\.)?\b((?:use|Use|provide|Provide)[A-Z][A-Za-z0-9_]*)(?:<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)?\s*\(",
+                System.Text.RegularExpressions.RegexOptions.Compiled
+            );
+
+        /// <summary>
+        /// PascalCase canonical names of every built-in hook recognised by
+        /// the runtime. Used by
+        /// <see cref="ExtractCustomHookFamilyKeys"/> to subtract built-ins
+        /// from the broader hook-shaped-call match set.
+        /// </summary>
+        private static readonly HashSet<string> s_builtinHookNames = new HashSet<string>(
+            StringComparer.Ordinal)
+        {
+            "UseState", "UseEffect", "UseLayoutEffect", "UseRef", "UseCallback",
+            "UseMemo", "UseContext", "UseReducer", "UseSignal", "UseDeferredValue",
+            "UseTransition", "UseSafeArea", "UseStableFunc", "UseStableAction",
+            "UseStableCallback", "UseImperativeHandle", "UseAnimate", "UseTweenFloat",
+            "UseUiDocumentRoot", "UseSfx", "ProvideContext",
+        };
+
+        /// <summary>
+        /// Scans raw body / setup code and returns the distinct, source-order
+        /// list of custom hook names called at first level. Built-ins are
+        /// filtered out. The returned names are the LITERAL identifiers as
+        /// they appear in source (e.g. <c>useUiDocumentSlot</c>), which is
+        /// also the family key used by both the consumer (Phase 2) and the
+        /// hook author (Phase 1 <c>RegisterHook</c>). Empty when no custom
+        /// hooks are called.
+        /// </summary>
+        internal static string[] ExtractCustomHookFamilyKeys(string setupCode)
+        {
+            if (string.IsNullOrWhiteSpace(setupCode))
+                return Array.Empty<string>();
+
+            string scrubbed = ScrubCommentsAndStrings(setupCode);
+            var matches = s_anyHookCallRe.Matches(scrubbed);
+            if (matches.Count == 0)
+                return Array.Empty<string>();
+
+            List<string> ordered = null;
+            HashSet<string> seen = null;
+            for (int i = 0; i < matches.Count; i++)
+            {
+                string name = matches[i].Groups[1].Value;
+                if (s_builtinHookNames.Contains(NormalizeHookName(name)))
+                    continue;
+                if (seen == null)
+                {
+                    ordered = new List<string>();
+                    seen = new HashSet<string>(StringComparer.Ordinal);
+                }
+                if (seen.Add(name))
+                    ordered.Add(name);
+            }
+            return ordered?.ToArray() ?? Array.Empty<string>();
+        }
+
+        /// <summary>
+        /// Renders a <c>string[]</c> as a C# array initializer literal:
+        /// empty → <c>null</c>, non-empty → <c>new string[] { "a", "b" }</c>.
+        /// Used by both the <c>[HookSignature(...)]</c> attribute and the
+        /// <c>RefreshRuntime.Register(...)</c> call to emit the
+        /// customHookFamilyKeys argument in a single canonical form.
+        /// </summary>
+        internal static string RenderCustomHookFamilyKeysLiteral(string[] keys)
+        {
+            if (keys == null || keys.Length == 0)
+                return "null";
+            var sb = new StringBuilder("new string[] { ");
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                sb.Append('"');
+                sb.Append(EscapeStringLiteralForCSharp(keys[i]));
+                sb.Append('"');
+            }
+            sb.Append(" }");
+            return sb.ToString();
+        }
+
+        internal static string EscapeStringLiteralForCSharp(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
+        /// <summary>
+        /// Replaces comment and string-literal contents with spaces so that
+        /// hook-name regex matches don't land inside neutralised text. Preserves
+        /// positions (length is unchanged) and newlines (so any positional
+        /// diagnostics remain accurate). Handles `//` line comments, `/* */`
+        /// block comments, `"..."` strings (with `\"` escapes), `@"..."`
+        /// verbatim strings (with `""` escapes), `$"..."` interpolated strings
+        /// (treated opaquely — hooks inside ${} holes are not counted, which is
+        /// an acceptable false-negative; nobody calls hooks inside string
+        /// interpolation), and `'.'` char literals.
+        /// </summary>
+        internal static string ScrubCommentsAndStrings(string code)
+        {
+            if (string.IsNullOrEmpty(code))
+                return code;
+
+            var sb = new StringBuilder(code.Length);
+            int i = 0;
+            int n = code.Length;
+            while (i < n)
+            {
+                char c = code[i];
+
+                // Line comment
+                if (c == '/' && i + 1 < n && code[i + 1] == '/')
+                {
+                    while (i < n && code[i] != '\n')
+                    {
+                        sb.Append(code[i] == '\r' ? '\r' : ' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Block comment
+                if (c == '/' && i + 1 < n && code[i + 1] == '*')
+                {
+                    sb.Append("  ");
+                    i += 2;
+                    while (i < n && !(code[i] == '*' && i + 1 < n && code[i + 1] == '/'))
+                    {
+                        sb.Append(code[i] == '\n' || code[i] == '\r' ? code[i] : ' ');
+                        i++;
+                    }
+                    if (i < n)
+                    {
+                        sb.Append("  ");
+                        i += 2;
+                    }
+                    continue;
+                }
+
+                // Char literal
+                if (c == '\'')
+                {
+                    sb.Append(' ');
+                    i++;
+                    while (i < n && code[i] != '\'')
+                    {
+                        if (code[i] == '\\' && i + 1 < n)
+                        {
+                            sb.Append("  ");
+                            i += 2;
+                            continue;
+                        }
+                        sb.Append(' ');
+                        i++;
+                    }
+                    if (i < n)
+                    {
+                        sb.Append(' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Verbatim or interpolated-verbatim string: @"...", $@"...", @$"..."
+                bool atVerbatim = c == '@' && i + 1 < n && code[i + 1] == '"';
+                bool dollarAtVerbatim =
+                    (c == '$' && i + 2 < n && code[i + 1] == '@' && code[i + 2] == '"')
+                    || (c == '@' && i + 2 < n && code[i + 1] == '$' && code[i + 2] == '"');
+                if (atVerbatim || dollarAtVerbatim)
+                {
+                    int prefix = dollarAtVerbatim ? 3 : 2;
+                    for (int k = 0; k < prefix; k++)
+                        sb.Append(' ');
+                    i += prefix;
+                    while (i < n)
+                    {
+                        if (code[i] == '"')
+                        {
+                            if (i + 1 < n && code[i + 1] == '"')
+                            {
+                                sb.Append("  ");
+                                i += 2;
+                                continue;
+                            }
+                            sb.Append(' ');
+                            i++;
+                            break;
+                        }
+                        sb.Append(code[i] == '\n' || code[i] == '\r' ? code[i] : ' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Regular string (possibly interpolated single-quote-dollar): "..." or $"..."
+                bool dollarString = c == '$' && i + 1 < n && code[i + 1] == '"';
+                if (c == '"' || dollarString)
+                {
+                    int prefix = dollarString ? 2 : 1;
+                    for (int k = 0; k < prefix; k++)
+                        sb.Append(' ');
+                    i += prefix;
+                    while (i < n && code[i] != '"')
+                    {
+                        if (code[i] == '\\' && i + 1 < n)
+                        {
+                            sb.Append("  ");
+                            i += 2;
+                            continue;
+                        }
+                        sb.Append(
+                            code[i] == '\n' ? '\n' : (code[i] == '\r' ? '\r' : ' ')
+                        );
+                        i++;
+                    }
+                    if (i < n)
+                    {
+                        sb.Append(' ');
+                        i++;
+                    }
+                    continue;
+                }
+
+                sb.Append(c);
+                i++;
+            }
+            return sb.ToString();
         }
 
         private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes = new(
@@ -608,11 +1027,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private void EmitHelperMethod()
         {
             // Generates a child-array builder (used only for the dynamic JSX path:
-            // children that contain @if / @for / @foreach / @while / @switch / @(expr)).
+            // children that contain @if / @for / @foreach / @while / @switch / {expr}).
             //
             //   * skips null VirtualNode entries (from @if without @else)
             //   * flattens VirtualNode[] / IReadOnlyList<VirtualNode> / IEnumerable<VirtualNode>
-            //     (from @foreach -> .Select().ToArray() and from @(__children) slot
+            //     (from @foreach -> .Select().ToArray() and from {__children} slot
             //     pass-through, where __children has compile-time type
             //     IReadOnlyList<VirtualNode>)
             //
@@ -899,7 +1318,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             bool injectUssKeys = false
         )
         {
-            // UITKX0002 — validate attribute names against known Props properties
+            // UITKX0109 — validate attribute names against known Props properties.
             if (res.PropsTypeName != null)
             {
                 var knownProps = _resolver.GetPublicPropertyNames(res.PropsTypeName);
@@ -947,7 +1366,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (!first)
                         _sb.Append(", ");
                     first = false;
-                    _sb.Append($"{ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
+                    _sb.Append($"{ToPropName(attr.Name)} = {AttrVal(attr)}");
                 }
                 if (injectUssKeys)
                 {
@@ -977,7 +1396,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         continue;
                     if (string.Equals(ToPropName(attr.Name), "Style", StringComparison.Ordinal))
                     {
-                        string val = AttrVal(attr.Value);
+                        string val = AttrVal(attr);
 
                         // ── OPT-V2-2 Phase A: try to hoist all-literal styles ──
                         // Handles BOTH `new Style { Width = 5f, ... }` (setter form,
@@ -1021,7 +1440,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     )
                         val = styleVarName;
                     else
-                        val = AttrVal(attr.Value);
+                        val = AttrVal(attr);
                     _rentBuffer.Append($"{propsVar}.{propName} = {val}; ");
                 }
 
@@ -1085,7 +1504,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (!first)
                         _sb.Append(", ");
                     first = false;
-                    _sb.Append($" {{ \"{attr.Name}\", {AttrVal(attr.Value)} }}");
+                    _sb.Append($" {{ \"{attr.Name}\", {AttrVal(attr)} }}");
                 }
                 if (injectUssKeys)
                 {
@@ -1143,21 +1562,101 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
             }
 
+            // ── UITKX0109 — validate attribute names against the user-component
+            // prop surface (declared parameters only — user components do NOT
+            // inherit BaseProps, so style/onClick/etc. are NOT auto-allowed).
+            // key/ref are exempt: they are structural-universal (key lives on
+            // VirtualNode; ref is routed via MutableRef<T> — handled below).
+            //
+            // Unknown attributes are collected into `unknownAttrs` so the
+            // subsequent emit loops skip them, preventing a follow-on
+            // CS0117 / CS0246 against the generated *Props class.
+            HashSet<string>? unknownAttrs = null;
+            string displayName = SimpleNameForDiagnostic(typeName);
             if (res.FuncPropsTypeName != null)
             {
-                // ── Typed path: V.Func<PropsType>(TypeName.Render, new PropsType { ... }) ──
+                var knownProps = _resolver.GetPublicPropertyNamesByQualifiedName(
+                    res.FuncPropsTypeName
+                );
+                if (knownProps.Count > 0)
+                {
+                    foreach (var attr in attrs)
+                    {
+                        if (IsKey(attr.Name) || IsRefAttr(attr.Name))
+                            continue;
+                        string mapped = ToPropName(attr.Name);
+                        if (!knownProps.Contains(mapped))
+                        {
+                            (unknownAttrs ??= new HashSet<string>(StringComparer.Ordinal)).Add(
+                                attr.Name
+                            );
+                            string hint = BuildUnknownAttrHintForUserComponent(
+                                mapped,
+                                displayName,
+                                knownProps
+                            );
+                            var loc = MakeLoc(_filePath, attr.SourceLine);
+                            _diagnostics.Add(
+                                Diagnostic.Create(
+                                    UitkxDiagnostics.UnknownAttribute,
+                                    loc,
+                                    attr.Name,
+                                    displayName,
+                                    hint
+                                )
+                            );
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // No-props user component: any non-structural attribute is unknown.
+                foreach (var attr in attrs)
+                {
+                    if (IsKey(attr.Name) || IsRefAttr(attr.Name))
+                        continue;
+                    (unknownAttrs ??= new HashSet<string>(StringComparer.Ordinal)).Add(attr.Name);
+                    string hint =
+                        $". Component '{displayName}' declares no parameters; add one to the component or remove the attribute.";
+                    var loc = MakeLoc(_filePath, attr.SourceLine);
+                    _diagnostics.Add(
+                        Diagnostic.Create(
+                            UitkxDiagnostics.UnknownAttribute,
+                            loc,
+                            attr.Name,
+                            displayName,
+                            hint
+                        )
+                    );
+                }
+            }
+
+            if (res.FuncPropsTypeName != null)
+            {
+                // ── Typed path: dual-shape V.Func<PropsType>(...) ──
+                // Editor: V.Func<P>(__fam_X, new P { ... }) -- threads the
+                // per-component Family handle so the reconciler can identify
+                // fibers by stable Family reference (delegate identity
+                // breaks across HMR DLL generations).
+                // Player: V.Func<P>(global::Foo.X.Render, new P { ... }) --
+                // direct delegate, zero Family / RefreshRuntime trace,
+                // identical shape to 0.5.x.
+                _familyChildRefs.Add(typeName);
                 string propsTypeName = res.FuncPropsTypeName;
-                _sb.Append($"V.Func<{propsTypeName}>({typeName}.Render, new {propsTypeName} {{");
+                _sb.Append($"V.Func<{propsTypeName}>(\n#if UNITY_EDITOR\n                    __fam_{SanitizeFqnToIdent(typeName)},\n#else\n                    {typeName}.Render,\n#endif\n                    new {propsTypeName} {{");
 
                 bool first = true;
                 foreach (var attr in attrs)
                 {
                     if (IsKey(attr.Name) || IsRefAttr(attr.Name))
                         continue;
+                    if (unknownAttrs != null && unknownAttrs.Contains(attr.Name))
+                        continue; // skip unknown — UITKX0109 already emitted; would otherwise produce CS0117
                     if (!first)
                         _sb.Append(", ");
                     first = false;
-                    _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
+                    _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr)}");
                 }
 
                 // Route ref={x} to the component's MutableRef<T> parameter.
@@ -1174,7 +1673,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         case PropsResolver.RefParamLookupResult.Found:
                             if (!first)
                                 _sb.Append(",");
-                            _sb.Append($" {refPropName} = {AttrVal(refAttr.Value)}");
+                            _sb.Append($" {refPropName} = {AttrVal(refAttr)}");
                             break;
 
                         case PropsResolver.RefParamLookupResult.None:
@@ -1209,7 +1708,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
             else
             {
-                // ── No-props path: V.Func(TypeName.Render, ...) ──
+                // ── No-props path: dual-shape V.Func(...) ──
+                // Editor: V.Func(__fam_X, null, ...); Player: V.Func(global::Foo.X.Render, null, ...).
                 // ref={x} on a no-props component has no route — emit UITKX0020.
                 if (refAttr != null)
                 {
@@ -1227,7 +1727,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Required for C# 7.2+ non-trailing-named-argument rules when
                 // children follow positionally (Phase-A fast-path).  Without this,
                 // `V.Func(R, key: K, c1, c2)` triggers CS8323.
-                _sb.Append($"V.Func({typeName}.Render, null");
+                _familyChildRefs.Add(typeName);
+                _sb.Append($"V.Func(\n#if UNITY_EDITOR\n                    __fam_{SanitizeFqnToIdent(typeName)},\n#else\n                    {typeName}.Render,\n#endif\n                    null");
             }
 
             _sb.Append($", key: {keyExpr}");
@@ -1576,10 +2077,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitExpressionNode(ExpressionNode ex)
         {
-            // @(expr) — passed as-is into __C which handles both VirtualNode and
-            // IEnumerable<VirtualNode> (e.g. @(__children) for slot pass-through).
-            // No cast here — __C's params object[] dispatch handles the runtime type.
-            _sb.Append($"({ex.Expression})");
+            // {expr} — passed as-is into __C which handles both
+            // VirtualNode and IEnumerable<VirtualNode> (e.g. {__children} for
+            // slot pass-through). No cast here — __C's params object[] dispatch
+            // handles the runtime type.
+            //
+            // Phase 1: any JSX literals embedded inside the expression
+            // (e.g. {cond ? <A/> : <B/>}) are spliced to V.Tag(...) calls.
+            // For the common case (no JSX), the scanner returns empty and the
+            // helper returns the original string unchanged — a single O(n) pass.
+            string spliced = SpliceExpressionMarkup(ex.Expression, ex.SourceLine);
+            _sb.Append($"({spliced})");
         }
 
         // ── Body expression helpers ───────────────────────────────────────────
@@ -1677,6 +2185,54 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return best;
         }
 
+        // ── User-component diagnostic helpers ────────────────────────
+
+        /// <summary>
+        /// Strips <c>global::</c> prefix and any namespace qualifier from a
+        /// resolved component type name, returning the simple PascalCase name
+        /// suitable for diagnostic messages (matches what the user typed in
+        /// the JSX tag).
+        /// </summary>
+        private static string SimpleNameForDiagnostic(string typeName)
+        {
+            if (string.IsNullOrEmpty(typeName))
+                return typeName;
+            string s = typeName.StartsWith("global::", StringComparison.Ordinal)
+                ? typeName.Substring("global::".Length)
+                : typeName;
+            int lastDot = s.LastIndexOf('.');
+            return lastDot < 0 ? s : s.Substring(lastDot + 1);
+        }
+
+        /// <summary>
+        /// Builds the actionable hint suffix for a UITKX0109 message on a user
+        /// component. Format: <c>". Did you mean 'Foo'?"</c> when a close match
+        /// exists, otherwise <c>". Available: a, b, c. Add a parameter to
+        /// '&lt;Comp&gt;' or remove the attribute."</c>.
+        /// </summary>
+        private static string BuildUnknownAttrHintForUserComponent(
+            string mappedAttrName,
+            string componentDisplayName,
+            HashSet<string> knownProps
+        )
+        {
+            string? suggestion = FindClosestMatch(mappedAttrName, knownProps);
+            if (suggestion != null)
+                return $". Did you mean '{suggestion}'?";
+
+            // No close match — list the available props verbatim with an
+            // actionable instruction. Cap at the first 8 names to keep the
+            // message readable.
+            if (knownProps.Count == 0)
+                return $". Component '{componentDisplayName}' declares no parameters; add one or remove the attribute.";
+            var ordered = knownProps.OrderBy(s => s, StringComparer.Ordinal).ToList();
+            string available =
+                ordered.Count <= 8
+                    ? string.Join(", ", ordered)
+                    : string.Join(", ", ordered.Take(8)) + ", …";
+            return $". Available on '{componentDisplayName}': {available}. Add a parameter to the component or remove the attribute.";
+        }
+
         private static int LevenshteinDistance(string a, string b)
         {
             if (a.Length == 0)
@@ -1728,6 +2284,30 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 BooleanShorthandValue => "true",
                 _ => "null",
             };
+
+        /// <summary>
+        /// Attribute-aware overload that splices JSX literals embedded inside
+        /// a <see cref="CSharpExpressionValue"/> using the attribute's source
+        /// line for accurate <c>#line</c> directives. Other branches fall
+        /// through to the value-only path.
+        /// <para>Used by the element-emit pathways. Helpers that look up
+        /// values by name (<see cref="ExtractKey"/>, <see cref="GetAttrValue"/>)
+        /// keep using the value-only overload — they pre-date Phase 1 and
+        /// don't need source-line context.</para>
+        /// </summary>
+        private string AttrVal(AttributeNode attr)
+        {
+            if (attr.Value is CSharpExpressionValue cev)
+            {
+                // Phase 1: splice JSX literals embedded inside the expression
+                // (e.g. attr={cond ? <A/> : <B/>} or attr={x => <Item/>}).
+                // For the common case (no JSX) the helper returns the input
+                // unchanged after a single O(n) scan — no allocation.
+                string spliced = SpliceExpressionMarkup(cev.Expression, attr.SourceLine);
+                return TransformExpression(spliced);
+            }
+            return AttrVal(attr.Value);
+        }
 
         /// <summary>
         /// Emits a JSX <see cref="ElementNode"/> to a string by temporarily capturing
@@ -1847,21 +2427,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                     _sb.Length = savedLen;
 
-                    // Insert rent statements at the last statement boundary
+                    // Insert rent statements at the last statement boundary.
+                    // Use the lexer-aware scanner so we never land inside a
+                    // string/char literal or comment (e.g. `// see {x}` contains
+                    // a literal `}` that is NOT a statement boundary).
                     string inlineRent = _rentBuffer.ToString();
                     _rentBuffer = savedRent;
                     if (inlineRent.Length > 0)
                     {
-                        int insertPos = 0;
-                        for (int si = spliced.Length - 1; si >= 0; si--)
-                        {
-                            char ch = spliced[si];
-                            if (ch == ';' || ch == '}')
-                            {
-                                insertPos = si + 1;
-                                break;
-                            }
-                        }
+                        int insertPos = FindLastTopLevelStatementBoundary(spliced);
                         spliced.Insert(insertPos, inlineRent);
                     }
                     spliced.Append(emittedCs.Trim());
@@ -1888,6 +2462,144 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (gapOffset >= 0 && relOffset >= gapOffset)
                 relOffset -= gapLength;
             return relOffset;
+        }
+
+        /// <summary>
+        /// Finds the position immediately after the last top-level statement
+        /// boundary (<c>;</c> or <c>}</c>) in <paramref name="text"/>, ignoring
+        /// occurrences inside string literals, char literals, line comments,
+        /// or block comments. Returns 0 if no boundary is found.
+        /// Used to determine where to insert pool-rent declarations such that
+        /// they appear as standalone statements outside of any comment/string.
+        /// </summary>
+        private static int FindLastTopLevelStatementBoundary(StringBuilder text)
+        {
+            int len = text.Length;
+            int lastBoundary = 0;
+            int i = 0;
+            while (i < len)
+            {
+                char c = text[i];
+
+                // ── Line comment // ... <newline>
+                if (c == '/' && i + 1 < len && text[i + 1] == '/')
+                {
+                    i += 2;
+                    while (i < len && text[i] != '\n')
+                        i++;
+                    continue;
+                }
+                // ── Block comment /* ... */
+                if (c == '/' && i + 1 < len && text[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < len && !(text[i] == '*' && text[i + 1] == '/'))
+                        i++;
+                    if (i + 1 < len)
+                        i += 2;
+                    else
+                        i = len;
+                    continue;
+                }
+                // ── Verbatim / interpolated-verbatim string @"..."  /  $@"..."
+                bool isVerbatim = c == '@' && i + 1 < len && text[i + 1] == '"';
+                bool isDollarVerbatim =
+                    c == '$'
+                    && i + 1 < len
+                    && text[i + 1] == '@'
+                    && i + 2 < len
+                    && text[i + 2] == '"';
+                if (isVerbatim || isDollarVerbatim)
+                {
+                    i += isDollarVerbatim ? 3 : 2;
+                    while (i < len)
+                    {
+                        if (text[i] == '"')
+                        {
+                            if (i + 1 < len && text[i + 1] == '"')
+                            {
+                                i += 2;
+                                continue;
+                            }
+                            i++;
+                            break;
+                        }
+                        i++;
+                    }
+                    continue;
+                }
+                // ── Regular / interpolated string "..."  /  $"..."
+                if (c == '"' || (c == '$' && i + 1 < len && text[i + 1] == '"'))
+                {
+                    if (c == '$')
+                        i++;
+                    i++; // past opening "
+                    int braceDepth = 0;
+                    while (i < len)
+                    {
+                        char ci = text[i];
+                        if (ci == '\\' && i + 1 < len)
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        if (ci == '{' && i + 1 < len && text[i + 1] == '{')
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        if (ci == '}' && i + 1 < len && text[i + 1] == '}')
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        if (ci == '{')
+                        {
+                            braceDepth++;
+                            i++;
+                            continue;
+                        }
+                        if (ci == '}' && braceDepth > 0)
+                        {
+                            braceDepth--;
+                            i++;
+                            continue;
+                        }
+                        if (ci == '"' && braceDepth == 0)
+                        {
+                            i++;
+                            break;
+                        }
+                        i++;
+                    }
+                    continue;
+                }
+                // ── Char literal '...'
+                if (c == '\'')
+                {
+                    i++;
+                    while (i < len)
+                    {
+                        if (text[i] == '\\' && i + 1 < len)
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        if (text[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
+                        i++;
+                    }
+                    continue;
+                }
+                // ── Statement boundary in real code
+                if (c == ';' || c == '}')
+                    lastBoundary = i + 1;
+                i++;
+            }
+            return lastBoundary;
         }
 
         /// <summary>
@@ -2000,18 +2712,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         // 'yield return'. Insert them right after the last ';' or '}'
                         // (i.e. the end of the previous statement or block), or at
                         // position 0 if there is no prior boundary.
+                        //
+                        // The scan must be string- and comment-aware: a `}` inside
+                        // a `//` line comment (e.g. `// see {catBadge}`) or inside
+                        // a string literal is NOT a statement boundary. Walking
+                        // forward and tracking lexer state is the simplest way to
+                        // ensure correctness across nested string/comment forms.
                         // NOTE: '{' is deliberately excluded — it could be an object
                         // or collection initializer brace, not a statement block.
-                        int insertPos = 0;
-                        for (int si = spliced.Length - 1; si >= 0; si--)
-                        {
-                            char ch = spliced[si];
-                            if (ch == ';' || ch == '}')
-                            {
-                                insertPos = si + 1;
-                                break;
-                            }
-                        }
+                        int insertPos = FindLastTopLevelStatementBoundary(spliced);
                         spliced.Insert(insertPos, inlineRent);
                     }
                     spliced.Append(emittedCs.Trim());
@@ -2028,6 +2737,245 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 spliced.Append(bodyCode, prev, bodyCode.Length - prev);
 
             return spliced.ToString();
+        }
+
+        // ── Inline-expression JSX splice ──────────────────────────────────────
+
+        /// <summary>
+        /// Splices JSX literals embedded inside an arbitrary C# expression
+        /// (used for <c>{ expr }</c> child positions and <c>attr={ expr }</c>
+        /// attribute values). Each detected JSX literal is replaced by its
+        /// emitted <c>V.Tag(...)</c> equivalent; the surrounding C# remains
+        /// verbatim. Pool-rent statements produced by inner JSX flow into the
+        /// shared <see cref="_rentBuffer"/> so the surrounding emit context
+        /// hoists them above the parent expression — matching how
+        /// <see cref="EmitJsxToString"/> handles <c>JsxExpressionValue</c>.
+        ///
+        /// <para>Returns <paramref name="expr"/> unchanged when no JSX is
+        /// detected (the common case — scanner cost is O(n) on the expression
+        /// text and runs only when the expression actually contains JSX).</para>
+        ///
+        /// <para>This is the single emit-time entry point that makes JSX
+        /// recognized in arbitrary expression positions, mirroring Babel/TSC's
+        /// "JSX is allowed wherever an expression is allowed" semantics.</para>
+        /// </summary>
+        /// <param name="expr">The raw C# expression text (already extracted
+        /// from the <c>{</c>...<c>}</c> or <c>@(</c>...<c>)</c> wrapper).</param>
+        /// <param name="sourceLine">1-based line number in the .uitkx source
+        /// where this expression begins; used to map <c>#line</c> directives
+        /// in the spliced JSX back to the user's file.</param>
+        private string SpliceExpressionMarkup(string expr, int sourceLine)
+        {
+            if (string.IsNullOrEmpty(expr))
+                return expr;
+
+            // Re-run the same scanners that already handle preamble &
+            // directive bodies. Output ranges are relative to the input
+            // string (start = 0), so no offset arithmetic is needed.
+            var markupRanges = DirectiveParser.FindJsxBlockRanges(expr, 0, expr.Length);
+            var bareRanges = DirectiveParser.FindBareJsxRanges(expr, 0, expr.Length);
+
+            bool hasMarkup = !markupRanges.IsDefaultOrEmpty;
+            bool hasBare = !bareRanges.IsDefaultOrEmpty;
+            if (!hasMarkup && !hasBare)
+                return expr;
+
+            var allRanges = new List<(int Start, int End, int Line)>(
+                markupRanges.Length + bareRanges.Length
+            );
+            if (hasMarkup)
+                foreach (var r in markupRanges)
+                    allRanges.Add(r);
+            if (hasBare)
+                foreach (var r in bareRanges)
+                    allRanges.Add(r);
+            allRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+            var spliced = new StringBuilder(expr.Length);
+            int prev = 0;
+
+            foreach (var (start, end, line) in allRanges)
+            {
+                int s = start;
+                int e = end;
+                if (s < 0)
+                    s = 0;
+                if (e < 0)
+                    e = 0;
+                if (s > expr.Length)
+                    s = expr.Length;
+                if (e > expr.Length)
+                    e = expr.Length;
+                if (e <= s)
+                    continue;
+
+                // Skip inner paren-JSX ranges that fall inside an outer
+                // bare-JSX range already processed as a unit by the mini-parser.
+                if (s < prev)
+                    continue;
+
+                // ── Detect logical-AND desugar mode ────────────────────────
+                // If the prefix expr[prev..s] ends in `&&` (modulo whitespace),
+                // the user wrote `cond && <Tag/>`. Rewrite to
+                //   ((cond) ? V.Tag(...) : (VirtualNode?)null)
+                // so it typechecks (`bool && VirtualNode` is CS0019).
+                // The LHS walker scans expr[prev..ampStart] precedence-aware
+                // to find where `cond` begins.
+                int ampStart = TryFindTrailingLogicalAnd(expr, prev, s);
+                int lhsStart = -1;
+                if (ampStart >= 0)
+                {
+                    lhsStart = DirectiveParser.FindLhsStartForLogicalAnd(expr, prev, ampStart);
+                }
+                bool desugarAnd = ampStart >= 0 && lhsStart >= 0;
+
+                if (desugarAnd)
+                {
+                    // Emit text before the LHS verbatim (operators, prior
+                    // sub-expressions, leading whitespace).
+                    if (lhsStart > prev)
+                        spliced.Append(expr, prev, lhsStart - prev);
+                    // Open the ternary: ((LHS) ?
+                    // Trim trailing whitespace from the LHS slice so the
+                    // emitted ternary reads `((flag) ? ` not `((flag ) ? `.
+                    int lhsEnd = ampStart;
+                    while (
+                        lhsEnd > lhsStart
+                        && (
+                            expr[lhsEnd - 1] == ' '
+                            || expr[lhsEnd - 1] == '\t'
+                            || expr[lhsEnd - 1] == '\r'
+                            || expr[lhsEnd - 1] == '\n'
+                        )
+                    )
+                        lhsEnd--;
+                    spliced.Append("((");
+                    spliced.Append(expr, lhsStart, lhsEnd - lhsStart);
+                    spliced.Append(") ? ");
+                }
+                else if (ampStart >= 0)
+                {
+                    // Walker failed — emit prefix verbatim then a UITKX0026
+                    // directive that surfaces as a CS1029 at the right line.
+                    // Drop the JSX entirely (advance prev past it) so the user
+                    // sees ONE diagnostic, not the cascade from raw JSX.
+                    if (s > prev)
+                        spliced.Append(expr, prev, s - prev);
+                    spliced.Append(
+                        "\n#error UITKX0026: Could not desugar `&&` JSX expression. "
+                            + "Use `cond ? <Tag/> : null` instead.\n"
+                    );
+                    prev = e;
+                    continue;
+                }
+                else
+                {
+                    // Normal (non-`&&`) splice: append prefix verbatim.
+                    if (s > prev)
+                        spliced.Append(expr, prev, s - prev);
+                }
+
+                string jsxText = expr.Substring(s, e - s);
+
+                // Scanner returns 1-based lines relative to the input string.
+                // Combine with the expression's source line so #line directives
+                // emitted by the inner UitkxParser map back to the .uitkx file.
+                int absLine = sourceLine + (line - 1);
+
+                var miniDirectives = new DirectiveSet(
+                    Namespace: null,
+                    ComponentName: null,
+                    PropsTypeName: null,
+                    DefaultKey: null,
+                    Usings: _directives.Usings,
+                    UssFiles: ImmutableArray<string>.Empty,
+                    Injects: ImmutableArray<(string, string)>.Empty,
+                    MarkupStartLine: absLine,
+                    MarkupStartIndex: 0,
+                    MarkupEndIndex: jsxText.Length
+                );
+                var miniDiags = new List<ParseDiagnostic>();
+                var nodes = UitkxParser.Parse(
+                    jsxText,
+                    _filePath,
+                    miniDirectives,
+                    miniDiags,
+                    lineOffset: absLine - 1
+                );
+
+                if (nodes.Length > 0)
+                {
+                    // Emit into a temporary buffer; rent flows to the SHARED
+                    // _rentBuffer so the parent emit context (component setup
+                    // or directive body) hoists it above the surrounding
+                    // expression — same contract as EmitJsxToString.
+                    int savedLen = _sb.Length;
+                    if (nodes.Length == 1)
+                    {
+                        var node = nodes[0];
+                        if (node is ForeachNode or ForNode or WhileNode)
+                            _sb.Append(
+                                "#error UITKX: @foreach/@for/@while produces a list and cannot appear directly in an expression position. Wrap it in a container element."
+                            );
+                        else
+                            EmitNode(node);
+                    }
+                    else
+                        _sb.Append(
+                            "#error UITKX0025: Inline JSX expression must have a single root element."
+                        );
+                    string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
+                    _sb.Length = savedLen;
+
+                    spliced.Append(emittedCs.Trim());
+                }
+                else
+                {
+                    // Parse failed — keep the original text so the C# compiler
+                    // surfaces a clear error rather than silently dropping content.
+                    spliced.Append(jsxText);
+                }
+
+                if (desugarAnd)
+                {
+                    // Close the ternary: : (VirtualNode?)null)
+                    spliced.Append(" : (global::ReactiveUITK.Core.VirtualNode?)null)");
+                }
+
+                prev = e;
+            }
+
+            if (prev < expr.Length)
+                spliced.Append(expr, prev, expr.Length - prev);
+
+            return spliced.ToString();
+        }
+
+        /// <summary>
+        /// Returns the index of the trailing <c>&amp;&amp;</c> in
+        /// <paramref name="expr"/><c>[prev..jsxStart]</c> if the prefix ends
+        /// with that operator (modulo trailing whitespace), or -1 otherwise.
+        /// Used by <see cref="SpliceExpressionMarkup"/> to detect the
+        /// logical-AND desugar trigger.
+        /// </summary>
+        private static int TryFindTrailingLogicalAnd(string expr, int prev, int jsxStart)
+        {
+            int i = jsxStart - 1;
+            // Skip trailing whitespace between `&&` and the JSX `<`
+            while (
+                i >= prev
+                && (expr[i] == ' ' || expr[i] == '\t' || expr[i] == '\r' || expr[i] == '\n')
+            )
+                i--;
+            if (i - 1 < prev)
+                return -1;
+            if (expr[i] != '&' || expr[i - 1] != '&')
+                return -1;
+            // Reject `&&&` (degenerate) — the scanner already filters this
+            // but defence-in-depth keeps the splice contract local.
+            if (i - 2 >= prev && expr[i - 2] == '&')
+                return -1;
+            return i - 1;
         }
 
         /// <summary>
@@ -2648,7 +3596,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             hoistName = $"__sty_{hid}";
             _hoistedStyleFields.Append(I2);
             _hoistedStyleFields.Append(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style "
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style "
             );
             _hoistedStyleFields.Append(hoistName);
             _hoistedStyleFields.Append(" = new global::ReactiveUITK.Props.Typed.Style { ");

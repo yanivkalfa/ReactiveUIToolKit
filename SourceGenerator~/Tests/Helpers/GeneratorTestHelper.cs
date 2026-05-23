@@ -80,11 +80,15 @@ internal static class GeneratorTestHelper
         string? generatedSource = null;
         if (runResult.Results.Length > 0)
         {
-            // Skip UITKX_Loaded.g.cs (the always-present marker stub) and pick
-            // the first source that actually contains generated component code.
+            // Skip UITKX_Loaded.g.cs (the always-present marker stub) and
+            // UITKX_ModuleInitializerPolyfill.g.cs (the ModuleInitializer
+            // attribute shim for pre-NET5 TFMs) and pick the first source
+            // that actually contains generated component code.
             foreach (var src in runResult.Results[0].GeneratedSources)
             {
                 string text = src.SourceText.ToString();
+                if (src.HintName.Contains("ModuleInitializerPolyfill"))
+                    continue;
                 if (text.Contains("partial class") || text.Contains("namespace "))
                 {
                     generatedSource = text;
@@ -163,13 +167,16 @@ internal static class GeneratorTestHelper
             if (generatedSource != null) break;
         }
 
-        // Fallback: first source with component code
+        // Fallback: first source with component code (skipping the
+        // ModuleInitializer polyfill stub).
         if (generatedSource == null)
         {
             foreach (var r in runResult.Results)
             {
                 foreach (var src in r.GeneratedSources)
                 {
+                    if (src.HintName.Contains("ModuleInitializerPolyfill"))
+                        continue;
                     string text = src.SourceText.ToString();
                     if (text.Contains("partial class") || text.Contains("namespace "))
                     {
@@ -234,6 +241,8 @@ internal static class GeneratorTestHelper
         {
             foreach (var src in runResult.Results[0].GeneratedSources)
             {
+                if (src.HintName.Contains("ModuleInitializerPolyfill"))
+                    continue;
                 string text = src.SourceText.ToString();
                 if (text.Contains("partial class") || text.Contains("namespace "))
                 {

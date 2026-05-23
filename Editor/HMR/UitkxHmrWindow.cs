@@ -185,11 +185,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                 float currentMB = currentMem / (1024f * 1024f);
                 float windowDeltaMB = (currentMem - _windowBaselineMemory) / (1024f * 1024f);
 
-                EditorGUILayout.LabelField("RAM", $"{currentMB:F0} MB  ({(windowDeltaMB >= 0 ? "+" : "")}{windowDeltaMB:F1} since open)");
+                EditorGUILayout.LabelField(
+                    "RAM",
+                    $"{currentMB:F0} MB  ({(windowDeltaMB >= 0 ? "+" : "")}{windowDeltaMB:F1} since open)"
+                );
                 if (_controller != null && _controller.Active)
                 {
                     float sessionDelta = _controller.SessionMemoryDeltaMB;
-                    EditorGUILayout.LabelField("Session Δ", $"{(sessionDelta >= 0 ? "+" : "")}{sessionDelta:F1} MB");
+                    EditorGUILayout.LabelField(
+                        "Session Δ",
+                        $"{(sessionDelta >= 0 ? "+" : "")}{sessionDelta:F1} MB"
+                    );
                 }
 
                 EditorGUILayout.Space(4);
@@ -213,6 +219,26 @@ namespace ReactiveUITK.EditorSupport.HMR
                 );
                 if (showNotify != _controller.ShowNotifications)
                     _controller.ShowNotifications = showNotify;
+
+                bool autoReload = EditorGUILayout.Toggle(
+                    new GUIContent(
+                        "Auto-reload on rude edit",
+                        "When you ADD a new static readonly field to a module body, the CLR cannot grow the loaded type's metadata at runtime. When enabled (default), HMR schedules a domain reload so the new field materialises everywhere. Edits to existing field initializers still use the fast in-place HMR path."
+                    ),
+                    _controller.AutoReloadOnRudeEdit
+                );
+                if (autoReload != _controller.AutoReloadOnRudeEdit)
+                    _controller.AutoReloadOnRudeEdit = autoReload;
+
+                bool verbose = EditorGUILayout.Toggle(
+                    new GUIContent(
+                        "Verbose watcher trace",
+                        "Log every raw .uitkx / .uss / .cs file event delivered by the OS to the Console as '[HMR][trace] FSW ...'. Use this when a save seems to do nothing — if no trace line appears for your file, the OS itself isn't delivering the event (FSW buffer overflow, antivirus, OneDrive/symlink path, etc.) and the problem is upstream of HMR. High noise; leave off in normal use."
+                    ),
+                    _controller.VerboseWatcherTrace
+                );
+                if (verbose != _controller.VerboseWatcherTrace)
+                    _controller.VerboseWatcherTrace = verbose;
             }
             else
             {
@@ -221,6 +247,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 EditorGUILayout.Toggle("Auto-stop on Play Mode", autoStop);
                 bool showNotify = EditorPrefs.GetBool("UITKX_HMR_ShowNotify", true);
                 EditorGUILayout.Toggle("Show swap notifications", showNotify);
+                bool autoReload = EditorPrefs.GetBool("UITKX_HMR_AutoReloadOnRudeEdit", true);
+                EditorGUILayout.Toggle("Auto-reload on rude edit", autoReload);
+                bool verbose = EditorPrefs.GetBool("UITKX_HMR_VerboseWatcher", false);
+                bool newVerbose = EditorGUILayout.Toggle("Verbose watcher trace", verbose);
+                if (newVerbose != verbose)
+                    EditorPrefs.SetBool("UITKX_HMR_VerboseWatcher", newVerbose);
             }
 
             // ── Shortcuts ────────────────────────────────────────────────────
@@ -306,15 +338,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                             _recording = 0;
                             e.Use();
                         }
-                        else if (e.keyCode != KeyCode.None
+                        else if (
+                            e.keyCode != KeyCode.None
                             && (e.control || e.alt || e.shift)
-                            && e.keyCode != KeyCode.LeftControl && e.keyCode != KeyCode.RightControl
-                            && e.keyCode != KeyCode.LeftAlt && e.keyCode != KeyCode.RightAlt
-                            && e.keyCode != KeyCode.LeftShift && e.keyCode != KeyCode.RightShift)
+                            && e.keyCode != KeyCode.LeftControl
+                            && e.keyCode != KeyCode.RightControl
+                            && e.keyCode != KeyCode.LeftAlt
+                            && e.keyCode != KeyCode.RightAlt
+                            && e.keyCode != KeyCode.LeftShift
+                            && e.keyCode != KeyCode.RightShift
+                        )
                         {
                             var combo = new KeyCombo(e.control, e.alt, e.shift, e.keyCode);
-                            if (id == 1) UitkxHmrKeybinds.ToggleHmrKey = combo;
-                            else UitkxHmrKeybinds.ToggleWindowKey = combo;
+                            if (id == 1)
+                                UitkxHmrKeybinds.ToggleHmrKey = combo;
+                            else
+                                UitkxHmrKeybinds.ToggleWindowKey = combo;
                             _recording = 0;
                             e.Use();
                         }
@@ -323,14 +362,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 else
                 {
-                    if (GUILayout.Button(current.ToDisplay(), EditorStyles.miniButton, GUILayout.Width(90)))
+                    if (
+                        GUILayout.Button(
+                            current.ToDisplay(),
+                            EditorStyles.miniButton,
+                            GUILayout.Width(90)
+                        )
+                    )
                         _recording = id;
 
                     EditorGUI.BeginDisabledGroup(!current.IsValid);
                     if (GUILayout.Button("×", EditorStyles.miniButton, GUILayout.Width(20)))
                     {
-                        if (id == 1) UitkxHmrKeybinds.ToggleHmrKey = default;
-                        else UitkxHmrKeybinds.ToggleWindowKey = default;
+                        if (id == 1)
+                            UitkxHmrKeybinds.ToggleHmrKey = default;
+                        else
+                            UitkxHmrKeybinds.ToggleWindowKey = default;
                     }
                     EditorGUI.EndDisabledGroup();
                 }

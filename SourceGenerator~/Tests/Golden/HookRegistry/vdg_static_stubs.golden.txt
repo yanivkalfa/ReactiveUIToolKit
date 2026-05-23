@@ -1,0 +1,41 @@
+
+        // ── Roslyn-only hook stubs (never called at runtime) ──────────
+#pragma warning disable CS8603, CS8625, CS1998, CS0246
+        private delegate void __StateSetter__<T>(global::System.Func<T, T> updater);
+        private static (T value, __StateSetter__<T> set)
+            useState<T>(T initial = default) => (initial, null!);
+        private static T useMemo<T>(global::System.Func<T> factory, params object[] deps)
+            => factory != null ? factory() : default!;
+        private static void useEffect(
+            global::System.Func<global::System.Action> effectFactory,
+            params object[] deps) { }
+        private static global::ReactiveUITK.Core.Ref<T> useRef<T>(T initial = default) => new();
+        private static global::UnityEngine.UIElements.VisualElement useRef() => null!;
+        private static global::System.Func<T> useCallback<T>(
+            global::System.Func<T> callback, params object[] deps) => callback!;
+        private static T useSignal<T>(object signal) => default!;
+        private static T useSignal<T>(string key, T initialValue = default) => initialValue;
+        private static T useContext<T>(string key) => default!;
+        private static void provideContext<T>(string key, T value) { }
+        private static void provideContext(string key, object value) { }
+        private static void useLayoutEffect(
+            global::System.Func<global::System.Action> effectFactory,
+            params object[] deps) { }
+        private static global::System.Action<global::UnityEngine.AudioClip, float>
+            useSfx(global::UnityEngine.Audio.AudioMixerGroup mixer = null) => (_, __) => { };
+        private static global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(global::UnityEngine.UIElements.UIDocument doc) => default!;
+        private static global::UnityEngine.UIElements.VisualElement useUiDocumentRoot(string contextKey) => default!;
+        private static (TState state, global::System.Action<TAction> dispatch) useReducer<TState, TAction>(global::System.Func<TState, TAction, TState> reducer, TState initialState) => (initialState, _ => { });
+        private static T useDeferredValue<T>(T value, params object[] deps) => value;
+        private static THandle useImperativeHandle<THandle>(global::System.Func<THandle> factory, params object[] deps) where THandle : class => factory();
+        private static global::System.Func<T> useStableFunc<T>(global::System.Func<T> function) => function;
+        private static global::System.Action<T> useStableAction<T>(global::System.Action<T> action) => action;
+        private static global::System.Action useStableCallback(global::System.Action callback) => callback;
+        private static void useTweenFloat(float from, float to, float duration, global::ReactiveUITK.Core.Animation.Ease ease, float delay, global::System.Action<float> onUpdate, global::System.Action onComplete, params object[] deps) { }
+        private static void useAnimate(global::System.Collections.Generic.IReadOnlyList<global::ReactiveUITK.Core.Animation.AnimateTrack> tracks, bool autoplay = true, params object[] deps) { }
+        private static global::ReactiveUITK.Core.SafeAreaInsets useSafeArea(float tolerance = 0.5f) => default!;
+        private static (bool isPending, global::System.Action<global::System.Action> startTransition) useTransition() => (false, _ => { });
+        private static T Asset<T>(string path) where T : global::UnityEngine.Object => default!;
+        private static T Ast<T>(string path) where T : global::UnityEngine.Object => default!;
+#pragma warning restore CS8603, CS8625, CS1998, CS0246
+

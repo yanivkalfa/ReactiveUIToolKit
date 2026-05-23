@@ -59,6 +59,13 @@ ide-extensions~/lsp-server/publish/
 ide-extensions~/language-lib/bin/
 ide-extensions~/language-lib/obj/
 
+# ── AstDump ad-hoc tool ────────────────────────────────────────
+# Local-only Roslyn-AST inspection helper. Not used by
+# unity-api-diff.ps1, the package, IDE extensions, HMR, or CI.
+# The whole folder is ignored — recreate Program.cs + AstDump.csproj
+# locally if you need it (or use automation~/dump_ast.csx instead).
+automation~/AstDump/
+
 # ── Temporary debugging scripts ────────────────────────────────
 *.csx
 !SourceGenerator~/Tests/FormatTest.csx

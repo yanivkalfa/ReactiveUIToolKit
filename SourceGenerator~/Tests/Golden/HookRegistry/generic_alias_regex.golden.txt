@@ -1,0 +1,1 @@
+\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useStableFunc|useStableAction|useImperativeHandle)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(

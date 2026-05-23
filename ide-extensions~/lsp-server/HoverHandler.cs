@@ -162,7 +162,12 @@ public sealed class HoverHandler : IHoverHandler
         if (element is not null)
         {
             var elementAttrs = element.Attributes;
-            var universalAttrs = _schema.Root.UniversalAttributes;
+            // Built-in elements show intrinsic + structural under "Common attributes".
+            // (User components don't reach this branch — they go through the
+            // workspace-prop path above.)
+            var commonAttrs = _schema.Root.IntrinsicElementAttributes
+                .Concat(_schema.Root.StructuralAttributes)
+                .ToList();
             var attrList =
                 elementAttrs.Count == 0
                     ? "_None_"
@@ -174,12 +179,12 @@ public sealed class HoverHandler : IHoverHandler
                                 : $"- `{a.Name}`: `{a.Type}` — {a.Description}"
                         )
                     );
-            if (universalAttrs.Count > 0)
+            if (commonAttrs.Count > 0)
                 attrList +=
                     "\n\n**Common attributes**\n"
                     + string.Join(
                         "\n",
-                        universalAttrs.Select(a =>
+                        commonAttrs.Select(a =>
                             string.IsNullOrEmpty(a.Description)
                                 ? $"- `{a.Name}`: `{a.Type}`"
                                 : $"- `{a.Name}`: `{a.Type}` — {a.Description}"
@@ -546,44 +551,15 @@ public sealed class HoverHandler : IHoverHandler
     }
 
     // ── Hook documentation ──────────────────────────────────────────────────
+    //
+    // Sourced from ReactiveUITK.Core.HookRegistry (Shared/Core/HookRegistry.cs
+    // linked into ReactiveUITK.Language.dll) so the LSP hover docs stay in
+    // lockstep with the diagnostics analyzer, the source generator, and the
+    // VDG stubs.  The registry adds useLayoutEffect entries that were missing
+    // from the original hand-maintained map — a pure coverage win.
 
-    private static readonly Dictionary<string, string> s_hookDocs = new Dictionary<string, string>(
-        StringComparer.Ordinal
-    )
-    {
-        ["useState"] =
-            "## `useState<T>(initialValue)`\n\n**Shorthand for `Hooks.UseState`.** Returns a `(value, setter)` tuple.  \nCall `setter(newValue)` to schedule a re-render with the new state.\n\n```csharp\nvar (count, setCount) = useState(0);\n```",
-        ["Hooks.UseState"] =
-            "## `Hooks.UseState<T>(initialValue)`\n\nReturns a `(value, setter)` tuple.  \nCall `setter(newValue)` to schedule a re-render with the new state.\n\n```csharp\nvar (count, setCount) = Hooks.UseState(0);\n```",
-        ["useEffect"] =
-            "## `useEffect(action, deps?)`\n\n**Shorthand for `Hooks.UseEffect`.** Runs `action` after each render.  \nPass a `deps` array to run only when those values change.\n\n```csharp\nuseEffect(() => { /* side-effect */ }, new object[] { count });\n```",
-        ["Hooks.UseEffect"] =
-            "## `Hooks.UseEffect(action, deps?)`\n\nRuns `action` after each render.  \nPass a `deps` array to run only when those values change.\n\n```csharp\nHooks.UseEffect(() => { /* side-effect */ }, new object[] { count });\n```",
-        ["useRef"] =
-            "## `useRef<T>(initialValue?)`\n\n**Shorthand for `Hooks.UseRef`.** Returns a mutable ref object whose `.Current` persists across re-renders without causing a re-render on write.",
-        ["Hooks.UseRef"] =
-            "## `Hooks.UseRef<T>(initialValue?)`\n\nReturns a mutable ref object whose `.Current` persists across re-renders without causing a re-render on write.",
-        ["useMemo"] =
-            "## `useMemo<T>(factory, deps)`\n\n**Shorthand for `Hooks.UseMemo`.** Returns a memoised value. Re-computes `factory()` only when `deps` change.",
-        ["Hooks.UseMemo"] =
-            "## `Hooks.UseMemo<T>(factory, deps)`\n\nReturns a memoised value. Re-computes `factory()` only when `deps` change.",
-        ["useCallback"] =
-            "## `useCallback(fn, deps)`\n\n**Shorthand for `Hooks.UseCallback`.** Returns a memoised delegate. Re-creates `fn` only when `deps` change.",
-        ["Hooks.UseCallback"] =
-            "## `Hooks.UseCallback(fn, deps)`\n\nReturns a memoised delegate. Re-creates `fn` only when `deps` change.",
-        ["useSignal"] =
-            "## `useSignal<T>(initialValue)`\n\n**Shorthand for `Hooks.UseSignal`.** Like `useState` but backed by a reactive signal — updates propagate without a full re-render.",
-        ["Hooks.UseSignal"] =
-            "## `Hooks.UseSignal<T>(initialValue)`\n\nLike `UseState` but backed by a reactive signal — updates propagate without a full re-render.",
-        ["useContext"] =
-            "## `useContext<T>()`\n\n**Shorthand for `Hooks.UseContext`.** Reads the nearest context value of type `T` provided by a parent component.",
-        ["Hooks.UseContext"] =
-            "## `Hooks.UseContext<T>()`\n\nReads the nearest context value of type `T` provided by a parent component.",
-        ["useReducer"] =
-            "## `useReducer<TState, TAction>(reducer, initialState)`\n\n**Shorthand for `Hooks.UseReducer`.** Returns `(state, dispatch)`. Calls `reducer(state, action)` on each `dispatch(action)`.",
-        ["Hooks.UseReducer"] =
-            "## `Hooks.UseReducer<TState, TAction>(reducer, initialState)`\n\nReturns `(state, dispatch)`. Calls `reducer(state, action)` on each `dispatch(action)`.",
-    };
+    private static readonly IReadOnlyDictionary<string, string> s_hookDocs =
+        global::ReactiveUITK.Core.HookRegistry.GetDocMap();
 
     private static readonly Regex s_hookTupleRegex = new Regex(
         @"\bvar\s*\(\s*\w+\s*,\s*(?<setter>\w+)\s*\)\s*=\s*(?<hook>(?:Hooks\.)?[Uu]se[A-Za-z]+)\s*[<(]",

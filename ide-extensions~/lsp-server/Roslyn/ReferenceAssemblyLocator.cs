@@ -47,6 +47,31 @@ namespace UitkxLanguageServer.Roslyn
         private MetadataReference[]? _cachedRefs;
         private UnityVersion      _detectedVersion;
 
+        // High-water mark from the most recently accepted scan. Used by
+        // GetReferences to reject obviously-incomplete re-scans (e.g. a scan
+        // that lands mid-Unity-recompile and misses Shared.dll) so a transient
+        // partial result can't poison the long-lived cache.
+        private int  _lastGoodCount;
+        private bool _lastGoodHadReactive;
+
+        // Set true by the DLL watcher (RoslynHost) as soon as any DLL activity
+        // is observed; cleared after a cooldown window of silence. While true,
+        // GetReferences refuses to update the baseline or replace the cache
+        // with a fresh scan result, because Unity's multi-stage recompile can
+        // produce momentarily-incomplete on-disk states.
+        private volatile bool _isRecompiling;
+
+        // Names of the assemblies that, if present in a prior accepted scan,
+        // must remain present for a new scan to be accepted as the new baseline.
+        // These are the runtime assemblies that the polyfill stands in for —
+        // their disappearance is the canonical symptom of a poisoned scan.
+        private static readonly string[] s_reactiveAssemblyNames =
+        {
+            "ReactiveUITK.Shared.dll",
+            "ReactiveUITK.Runtime.dll",
+            "ReactiveUITK.Core.dll",
+        };
+
         // ── Public API ────────────────────────────────────────────────────────
 
         /// <summary>
@@ -57,6 +82,28 @@ namespace UitkxLanguageServer.Roslyn
         public UnityVersion DetectedVersion
         {
             get { lock (_lock) { return _detectedVersion; } }
+        }
+
+        /// <summary>
+        /// Whether the locator currently believes a Unity recompile is in
+        /// progress (set/cleared by <see cref="SetRecompileWindow"/>). While
+        /// true, <see cref="GetReferences"/> avoids replacing a healthy cache
+        /// with a fresh scan that could be racing against in-flight DLL writes.
+        /// </summary>
+        public bool IsRecompiling => _isRecompiling;
+
+        /// <summary>
+        /// Marks the start or end of a Unity recompile window. The DLL watcher
+        /// in <see cref="RoslynHost"/> calls this with <c>true</c> on any
+        /// observed DLL activity and with <c>false</c> after a cooldown of
+        /// silence.
+        /// </summary>
+        public void SetRecompileWindow(bool active)
+        {
+            lock (_lock)
+            {
+                _isRecompiling = active;
+            }
         }
 
         /// <summary>
@@ -75,12 +122,41 @@ namespace UitkxLanguageServer.Roslyn
         {
             lock (_lock)
             {
-                if (_cachedRefs != null
-                    && string.Equals(_cachedRoot, workspaceRoot, StringComparison.OrdinalIgnoreCase))
+                bool sameRoot =
+                    string.Equals(_cachedRoot, workspaceRoot, StringComparison.OrdinalIgnoreCase);
+
+                if (_cachedRefs != null && sameRoot)
+                {
+                    // Cache hit. Even during a recompile window we serve the
+                    // last-good cache rather than risk a poisoned re-scan.
                     return _cachedRefs;
+                }
+
+                var newRefs = BuildReferences(workspaceRoot);
+                bool hasReactive = HasReactiveAssembly(newRefs);
+
+                if (sameRoot && ShouldRejectScan(newRefs.Length, hasReactive))
+                {
+                    ServerLog.Log(
+                        $"[ReferenceAssemblyLocator] Rejecting partial scan: count={newRefs.Length} "
+                        + $"baseline={_lastGoodCount} hasReactive={hasReactive} "
+                        + $"baselineHadReactive={_lastGoodHadReactive} recompiling={_isRecompiling} "
+                        + (_cachedRefs != null ? "— serving prior cache." : "— no prior cache, returning uncached."));
+
+                    if (_cachedRefs != null)
+                        return _cachedRefs;
+
+                    // No prior cache. Best-effort: return the scan but do NOT
+                    // promote it to baseline or persist it as the cache — so
+                    // the next call will rescan.
+                    _detectedVersion = DetectUnityVersion(workspaceRoot);
+                    return newRefs;
+                }
 
                 _cachedRoot = workspaceRoot;
-                _cachedRefs = BuildReferences(workspaceRoot);
+                _cachedRefs = newRefs;
+                _lastGoodCount = newRefs.Length;
+                _lastGoodHadReactive = hasReactive;
                 _detectedVersion = DetectUnityVersion(workspaceRoot);
                 return _cachedRefs;
             }
@@ -90,15 +166,57 @@ namespace UitkxLanguageServer.Roslyn
         /// Clears the cached reference list so the next call to
         /// <see cref="GetReferences"/> re-scans the file system.
         /// Call this after Unity recompiles assemblies.
+        /// <para>
+        /// Does NOT reset the baseline (<c>_lastGoodCount</c> /
+        /// <c>_lastGoodHadReactive</c>) — the baseline is what protects the
+        /// next scan from being a poisoned partial result.
+        /// </para>
         /// </summary>
         public void Invalidate()
         {
             lock (_lock)
             {
                 _cachedRefs = null;
-                // _detectedVersion is intentionally NOT cleared — the Unity
-                // version doesn't change on recompilation, only the DLLs do.
             }
+        }
+
+        // Decides whether a freshly built reference set is suspicious enough
+        // to refuse caching. Two heuristics:
+        //   1. Mid-recompile scans are always suspicious (caller may be racing
+        //      with Unity's multi-stage DLL writes).
+        //   2. A scan whose count dropped by more than half versus the last
+        //      good scan, or whose ReactiveUITK runtime assembly disappeared
+        //      after previously being present, indicates the file system is
+        //      mid-rewrite (or a watcher event was missed).
+        // No rejection until a baseline has been established (first scan in
+        // a session is always accepted).
+        private bool ShouldRejectScan(int newCount, bool nowHasReactive)
+        {
+            if (_lastGoodCount == 0)
+                return false;
+            if (_isRecompiling)
+                return true;
+            if (newCount < _lastGoodCount / 2)
+                return true;
+            if (_lastGoodHadReactive && !nowHasReactive)
+                return true;
+            return false;
+        }
+
+        private static bool HasReactiveAssembly(MetadataReference[] refs)
+        {
+            foreach (var r in refs)
+            {
+                if (r.Display == null)
+                    continue;
+                var name = Path.GetFileName(r.Display);
+                for (int i = 0; i < s_reactiveAssemblyNames.Length; i++)
+                {
+                    if (string.Equals(name, s_reactiveAssemblyNames[i], StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+            }
+            return false;
         }
 
         // ── Reference discovery ───────────────────────────────────────────────

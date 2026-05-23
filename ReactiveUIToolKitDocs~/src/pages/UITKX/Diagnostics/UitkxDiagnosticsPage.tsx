@@ -230,7 +230,15 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX0109" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Unknown attribute on element</TableCell>
-            <TableCell>Check the attribute name against the element's props type.</TableCell>
+            <TableCell>
+              For built-in tags: check the attribute against the element's props type. For
+              <strong> user components</strong>: only declared parameters and the universal
+              <code>key</code> / <code>ref</code> attributes are accepted — intrinsic
+              attributes like <code>style</code>, <code>className</code>, <code>onClick</code>,
+              <code>extraProps</code> are <em>not</em> auto-forwarded. Either declare the
+              attribute as a parameter on the component (and forward it in the body) or
+              remove it.
+            </TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0111" size="small" color="error" variant="outlined" /></TableCell>
@@ -243,6 +251,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Unused variable in setup code</TableCell>
             <TableCell>Remove the unused variable or use it in the component.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0113" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Duplicate component declaration in the same asmdef</TableCell>
+            <TableCell>Two or more <code>.uitkx</code> files in the same asmdef declare a <code>component</code> with the same name. The source generator picks one deterministically (first by path), but consumers across the asmdef may bind to the wrong one. Rename one of the components, or move it to a different asmdef. Cross-asmdef collisions are legal and not flagged.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0120" size="small" color="warning" variant="outlined" /></TableCell>
@@ -261,6 +275,18 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Attribute requires newer Unity version</TableCell>
             <TableCell>The attribute is only available in a newer Unity version, or was removed in the current version.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0210" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Write to <code>[UitkxHmrSwap]</code> field outside type initializer</TableCell>
+            <TableCell>The field is generator-managed for HMR re-initialization. Move the assignment into a <code>static</code> constructor or field initializer. The HMR pipeline will overwrite any external write on the next save. Suppress with <code>#pragma warning disable UITKX0210</code> if intentional.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0211" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell><code>const</code> field inside <code>module &#123; &#125;</code> body</TableCell>
+            <TableCell>Const fields are inlined into every consumer's IL at compile time and do not propagate under HMR — editing the value during a session leaves callers reading the cold-build constant until a full domain reload. Use <code>static readonly</code> instead; the source generator strips <code>readonly</code> on module fields and the HMR static-swapper refreshes the value on every save.</TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -323,8 +349,19 @@ export const UitkxDiagnosticsPage: FC = () => (
           <TableRow>
             <TableCell><Chip label="UITKX0306" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>@(expr) in setup code</TableCell>
-            <TableCell>Inline expressions <code>@(...)</code> are only valid inside markup, not in setup code.</TableCell>
+            <TableCell><code>@(expr)</code> markup syntax is no longer supported</TableCell>
+            <TableCell>
+              The <code>@(expr)</code> markup-child embed has been removed. Use{' '}
+              <code>{'{expr}'}</code> instead (matching JSX/Babel/React). Migration
+              is mechanical: replace every <code>@(</code> with <code>{'{'}</code>{' '}
+              and the matching <code>)</code> with <code>{'}'}</code>. The{' '}
+              <code>@</code> prefix still marks <strong>directives</strong>{' '}
+              (<code>@if</code>, <code>@for</code>, <code>@foreach</code>,{' '}
+              <code>@while</code>, <code>@switch</code>, <code>@case</code>,{' '}
+              <code>@default</code>, <code>@using</code>, <code>@namespace</code>,{' '}
+              <code>@component</code>, <code>@props</code>, <code>@key</code>,{' '}
+              <code>@inject</code>, <code>@uss</code>).
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>

@@ -471,7 +471,7 @@ public sealed class FormatterSnapshotTests
             """
             component Foo {
               return (
-                @(count.ToString())
+                {count.ToString()}
                 <Box />
               );
             }
@@ -480,7 +480,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("@(count.ToString())", result);
+        Assert.Contains("{count.ToString()}", result);
     }
 
     [Fact]
@@ -576,6 +576,110 @@ public sealed class FormatterSnapshotTests
 
         Assert.Contains("} @elseif (b) {", result);
         Assert.Contains("} @else {", result);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  B.4-bis  @if / @else with bare-C# body (no JSX) — idempotency regression
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Regression for v0.5.2: an `@else` (or any directive) branch whose body
+    /// contains only a C# statement (e.g. `return varName;`) — no JSX — fell
+    /// through to the no-parsed-body fallback in
+    /// <c>AstFormatter.FormatDirectiveBody</c>, which passed the raw bodyCode
+    /// straight to <c>EmitSetupCodeNormalized</c>. That bodyCode always starts
+    /// with the `\n` that immediately follows the opener `{`, and
+    /// <c>EmitSetupCodeNormalized</c> emitted it as a blank line ON TOP of the
+    /// `\n` already written by FormatIf at the end of `} @else {` — adding one
+    /// extra blank line per format pass (non-idempotent: format-on-save grew
+    /// the file forever).
+    ///
+    /// The parsed-body path (with JSX) routes through
+    /// <c>EmitDirectiveBodySetupCode</c> which already does
+    /// <c>setupCode.TrimStart('\n', '\r')</c> — comment in that method already
+    /// noted the same bug class. Fix is the symmetric trim in the no-parsed-body
+    /// fallback.
+    /// </summary>
+    [Fact]
+    public void Idempotency_ElseBranch_BareCSharpBody_NoBlankLineGrowth()
+    {
+        var source = N(
+            """
+            @namespace P
+            component MenuPage {
+              var chrome = (<Box />);
+
+              return (
+                <VisualElement>
+                  @if (true) {
+                    return (
+                      <Portal>
+                        {chrome}
+                      </Portal>
+                    );
+                  } @else {
+                    return chrome;
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var p1 = Format(source);
+        var p2 = Format(p1);
+        var p3 = Format(p2);
+
+        // Two passes must agree (idempotent). Three for extra confidence.
+        Assert.Equal(p1, p2);
+        Assert.Equal(p2, p3);
+
+        // No phantom blank line between `} @else {` and `return chrome;`.
+        Assert.Contains("} @else {\n        return chrome;", p1);
+        Assert.DoesNotContain("} @else {\n\n", p1);
+    }
+
+    /// <summary>
+    /// Regression: a function-style component parameter declared with whitespace
+    /// before the nullable marker (e.g. <c>Texture2D ? icon = null</c>) used to
+    /// be silently dropped on save. The parser's <c>TryReadTypeName</c> only
+    /// consumed the <c>?</c> when it was the very next character after the
+    /// identifier; with a space between, the marker was abandoned, the next
+    /// <c>TryReadIdentifier</c> hit <c>?</c> and failed, and the parameter was
+    /// skipped to the next comma. The formatter then re-emitted the param list
+    /// from the AST — so the parameter (including its name and default) was
+    /// permanently deleted on every format-on-save. Roslyn accepts the spacing,
+    /// so we must too. Canonical re-emit collapses the space and produces
+    /// <c>Texture2D? icon = null</c>.
+    /// </summary>
+    [Fact]
+    public void ComponentParam_NullableType_WhitespaceBeforeQuestionMark_Preserved()
+    {
+        var source = N(
+            """
+            component AppButton(
+              string text = "",
+              Action ? onClick = null,
+              Texture2D ? iconName = null,
+              List<int>  ?  items = null
+            ) {
+              return (<Box />);
+            }
+            """
+        );
+
+        var p1 = Format(source);
+        var p2 = Format(p1);
+
+        // Idempotent.
+        Assert.Equal(p1, p2);
+
+        // None of the params was dropped, and the nullable marker survives
+        // (canonical form: no space before '?').
+        Assert.Contains("string text", p1);
+        Assert.Contains("Action? onClick = null", p1);
+        Assert.Contains("Texture2D? iconName = null", p1);
+        Assert.Contains("List<int>? items = null", p1);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -984,7 +1088,7 @@ public sealed class FormatterSnapshotTests
                   @if (show) {
                     <Label text="content" />
                   } @else {
-                    @(fallback)
+                    {fallback}
                   }
                 </Box>
               );
@@ -3069,6 +3173,43 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(result, Format(result));
     }
 
+    // ── C.16b  Commented-out block: braces inside `//` must NOT push a
+    //          phantom block onto the formatter's block stack (idempotency
+    //          regression — repeated formatting drifted indent deeper).
+    [Fact]
+    public void C16b_CommentedOutHookBlock_TrailingBraceInComment_DoesNotShiftIndent()
+    {
+        var source = N(
+            """
+            component Foo {
+              var x = 1;
+              // useEffect(() => {
+              //   var rng = new System.Random();
+              //   var timer = new Timer(_ => {
+              //     setStats(prev => PlayerStatsJitter.Tick(prev, rng));
+              //   }, null, 1000, 1000);
+              //   return () => timer.Dispose();
+              // }, new object[] { });
+              var y = 2;
+              return (<Box />);
+            }
+            """
+        );
+
+        var formatted = Format(source);
+
+        Assert.Contains("\n  // useEffect(() => {", formatted);
+        Assert.Contains("\n  //   var rng = new System.Random();", formatted);
+        Assert.Contains("\n  //   var timer = new Timer(_ => {", formatted);
+        Assert.Contains("\n  //     setStats(prev => PlayerStatsJitter.Tick(prev, rng));", formatted);
+        Assert.Contains("\n  //   }, null, 1000, 1000);", formatted);
+        Assert.Contains("\n  //   return () => timer.Dispose();", formatted);
+        Assert.Contains("\n  // }, new object[] { });", formatted);
+        Assert.Contains("\n  var y = 2;", formatted);
+        // Idempotency: repeated formatting must not drift indent deeper.
+        Assert.Equal(formatted, Format(formatted));
+    }
+
     // ── C.17  Multi-line Style initializers ──────────────────────────────────
 
     [Fact]
@@ -3643,7 +3784,7 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(result, Format(result));
     }
 
-    // ── C.26  @(expr) inline expression rendering ─────────────────────────────
+    // ── C.26  {expr} inline expression rendering ─────────────────────────────
 
     [Fact]
     public void C26a_InlineExprRender_SimpleVar_FormattedCorrectly()
@@ -3654,7 +3795,7 @@ public sealed class FormatterSnapshotTests
               var node = (<Label text="hi" />);
               return (
                 <Box>
-                  @(node)
+                  {node}
                 </Box>
               );
             }
@@ -3663,7 +3804,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("@(node)", result);
+        Assert.Contains("{node}", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3676,7 +3817,7 @@ public sealed class FormatterSnapshotTests
               var portalNode = target != null ? V.Label(new LabelProps { Text = "x" }) : null;
               return (
                 <Box>
-                  @(portalNode)
+                  {portalNode}
                 </Box>
               );
             }
@@ -3685,7 +3826,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("@(portalNode)", result);
+        Assert.Contains("{portalNode}", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -4056,7 +4197,7 @@ public sealed class FormatterSnapshotTests
     {
         // Representative slice covering: @switch (multi-child case), @if chain
         // with @for in @else, @foreach with key, inline style (single/multi
-        // entry), style var-ref, extraProps, Suspense, @(expr), ToggleButtonGroup,
+        // entry), style var-ref, extraProps, Suspense, {expr}, ToggleButtonGroup,
         // Toolbar/ToolbarMenu, TabView.
         var source = N(
             """
@@ -4158,7 +4299,7 @@ public sealed class FormatterSnapshotTests
                   >
                     <Label text="Content" />
                   </Suspense>
-                  @(inlineNode)
+                  {inlineNode}
                 </ScrollView>
               );
             }
@@ -4189,7 +4330,7 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("<TabView", first);
         Assert.Contains("extraProps={new Dictionary<string, object>", first);
         Assert.Contains("<Suspense", first);
-        Assert.Contains("@(inlineNode)", first);
+        Assert.Contains("{inlineNode}", first);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -5474,14 +5615,14 @@ public sealed class FormatterSnapshotTests
             """
             component Foo {
               return (
-            	@(myNode)
+            	{myNode}
                 <Box />
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("@(myNode)", result);
+        Assert.Contains("{myNode}", result);
         Assert.DoesNotContain("\t", result);
         Assert.Equal(result, Format(result));
     }
@@ -8495,7 +8636,7 @@ public sealed class FormatterSnapshotTests
 
     // ════════════════════════════════════════════════════════════════════════════
     //  X) DEEP NESTING — local functions with JSX, 4-level directives,
-    //     setup-code JSX variables, @() expression splicing
+    //     setup-code JSX variables, {} expression splicing
     //
     //  These tests cover the deep nesting patterns added to
     //  UitkxTestFileDoNotTouch.uitkx: local functions returning JSX with
@@ -8550,7 +8691,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(PillBar(items, "a"))
+                  {PillBar(items, "a")}
                 </VisualElement>
               );
             }
@@ -8596,7 +8737,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(statusNode)
+                  {statusNode}
                 </VisualElement>
               );
             }
@@ -8655,7 +8796,7 @@ public sealed class FormatterSnapshotTests
                           (StyleKeys.MarginBottom, 4f),
                         }}
                       >
-                        @(catBadge)
+                        {catBadge}
                         @for (int d = 0; d < count; d++) {
                           var depthBg = new Color(0.12f, 0.12f, 0.2f);
 
@@ -8727,7 +8868,7 @@ public sealed class FormatterSnapshotTests
     public void DeepNest_SetupCodeJsxVar_TernaryAssign_Idempotent()
     {
         // Ternary JSX variable in setup code: var node = cond ? (<JSX>) : null;
-        // Plus @() expression splicing in the return JSX.
+        // Plus {} expression splicing in the return JSX.
         var source = N(
             """
             component C {
@@ -8743,7 +8884,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(controlsNode)
+                  {controlsNode}
                   <Label text="footer" />
                 </VisualElement>
               );
@@ -8775,7 +8916,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(headerNode)
+                  {headerNode}
                 </VisualElement>
               );
             }
@@ -8813,7 +8954,7 @@ public sealed class FormatterSnapshotTests
 
               return (
                 <VisualElement>
-                  @(badge)
+                  {badge}
                   @foreach (var item in items) {
                     return (
                       <VisualElement key={item}>
@@ -8826,7 +8967,7 @@ public sealed class FormatterSnapshotTests
                       </VisualElement>
                     );
                   }
-                  @(footer)
+                  {footer}
                 </VisualElement>
               );
             }
@@ -8862,7 +9003,7 @@ public sealed class FormatterSnapshotTests
 
                 return (
                     <VisualElement>
-                        @(node)
+                        {node}
                     </VisualElement>
                 );
             }
@@ -8905,7 +9046,7 @@ public sealed class FormatterSnapshotTests
 
                     return (
                       <VisualElement key={cat}>
-                        @(badge)
+                        {badge}
                       </VisualElement>
                     );
                   }
@@ -9346,7 +9487,7 @@ component Comp {
     }
 
     // ════════════════════════════════════════════════════════════════════════════
-    //  B.14  Multiple top-level returns with @(...) in markup
+    //  B.14  Multiple top-level returns with {...} in markup
     //  Regression: UITKX0306 from misidentified setup code must not prevent
     //  formatting when UITKX2103 triggers re-parse with useLastReturn.
     // ════════════════════════════════════════════════════════════════════════════
@@ -9454,7 +9595,7 @@ component Comp {
               var safeItems = Array.Empty<int>();
             var someVara = (
                 <Box>
-                  @(safeItems)
+                  {safeItems}
                 </Box>
               );
               RowRenderer BuildRowRenderer() =>
@@ -9468,7 +9609,7 @@ component Comp {
 
                 return (
                   <VisualElement key={$"lv-wrap-{index}"}>
-                    @(row)
+                    {row}
                   </VisualElement>
                 );
               };
@@ -9486,7 +9627,7 @@ component Comp {
               var safeItems = Array.Empty<int>();
               var someVara = (
                 <Box>
-                  @(safeItems)
+                  {safeItems}
                 </Box>
               );
               RowRenderer BuildRowRenderer() =>
@@ -9500,7 +9641,7 @@ component Comp {
 
                 return (
                   <VisualElement key={$"lv-wrap-{index}"}>
-                    @(row)
+                    {row}
                   </VisualElement>
                 );
               };

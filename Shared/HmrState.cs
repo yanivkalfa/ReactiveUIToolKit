@@ -9,6 +9,21 @@ namespace ReactiveUITK.Core
     public static class HmrState
     {
         public static bool IsActive;
+
+        /// <summary>
+        /// Editor-side rollback hook for the UITKX Fast Refresh Family
+        /// system. The reconciler invokes this from its render-crash catch
+        /// block (inside <c>BeginWork</c>): if it returns <c>true</c>, the
+        /// Family's <c>Current</c> delegate has been reverted to the
+        /// previous-known-working body and the reconciler retries the
+        /// render once before falling through to the nearest error boundary.
+        ///
+        /// Wired up by the Editor at load time (see
+        /// <c>RefreshRuntime.RegisterRootRendererProvider</c>). Null in
+        /// player builds — the reconciler skips the rollback path under
+        /// the same <c>#if UNITY_EDITOR</c> guard.
+        /// </summary>
+        public static System.Func<Refresh.Family, bool> TryRollbackFamily;
     }
 }
 #endif

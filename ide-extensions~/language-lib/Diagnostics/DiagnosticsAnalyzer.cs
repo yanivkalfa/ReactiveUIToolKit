@@ -167,6 +167,19 @@ namespace ReactiveUITK.Language.Diagnostics
                 CheckAssetPaths(sourceText, filePath, diags);
             }
 
+            // ── T2: UITKX0211 — `const` in module body breaks HMR ────────────
+            // Module-scope `const` is inlined at IL emit time by the C# compiler.
+            // The HMR pipeline can refresh `static readonly` slots via the
+            // [UitkxHmrSwap] machinery (StaticReadonlyStripper +
+            // UitkxHmrModuleStaticSwapper), but consts have no slot — every
+            // consumer's IL carries the literal value. Editing the const is
+            // invisible until full domain reload, which contradicts the HMR
+            // promise. Warn the user to use `static readonly` instead.
+            if (!d.ModuleDeclarations.IsDefaultOrEmpty)
+            {
+                CheckConstInModuleBodies(d, diags);
+            }
+
             return diags;
         }
 
@@ -252,7 +265,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 ForNode          => "@for",
                 WhileNode        => "@while",
                 SwitchNode       => "@switch",
-                ExpressionNode en => $"@({en.Expression})",
+                ExpressionNode en => $"{{{en.Expression}}}",
                 TextNode tn      => $"text \"{ tn.Content.Trim() }\"",
                 _                => node.GetType().Name,
             };
@@ -457,41 +470,18 @@ namespace ReactiveUITK.Language.Diagnostics
         //  RULES OF HOOKS (UITKX0013–0016)
         // ═══════════════════════════════════════════════════════════════════════
 
-        // Patterns that indicate a hook call.  Matches the SourceGenerator's
-        // HooksValidator.s_hookPatterns — qualified, bare, and camelCase forms.
+        // Patterns that indicate a hook call.  Sourced from
+        // ReactiveUITK.Core.HookRegistry so this analyzer cannot drift from
+        // the SourceGenerator's HooksValidator.s_hookPatterns.  Pre-0.5.23
+        // both tables were missing useLayoutEffect entries; the registry
+        // includes them, expanding UITKX0013-0016 to also catch
+        // conditional/looping useLayoutEffect calls (pure coverage win, no
+        // legitimate code breaks).
+        //
+        // This is a per-keystroke hot path; the registry guarantees a single
+        // cached array reference and never reallocates per call.
         private static readonly string[] s_hookPatterns =
-        {
-            "Hooks.UseState(",
-            "Hooks.UseEffect(",
-            "Hooks.UseRef(",
-            "Hooks.UseCallback(",
-            "Hooks.UseMemo(",
-            "Hooks.UseContext(",
-            "Hooks.UseReducer(",
-            "Hooks.UseSignal(",
-            "Hooks.UseDeferredValue(",
-            "Hooks.UseTransition(",
-            "UseState(",
-            "UseEffect(",
-            "UseRef(",
-            "UseCallback(",
-            "UseMemo(",
-            "UseContext(",
-            "UseReducer(",
-            "UseSignal(",
-            "UseDeferredValue(",
-            "UseTransition(",
-            "useState(",
-            "useEffect(",
-            "useRef(",
-            "useCallback(",
-            "useMemo(",
-            "useContext(",
-            "useReducer(",
-            "useSignal(",
-            "useDeferredValue(",
-            "useTransition(",
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetValidationPatterns();
 
         /// <summary>
         /// Returns the end offset within <paramref name="bodyCode"/> marking the
@@ -1246,6 +1236,75 @@ namespace ReactiveUITK.Language.Diagnostics
                 { ".uss",  new HashSet<string> { "StyleSheet" } },
                 { ".renderTexture", new HashSet<string> { "RenderTexture" } },
             };
+
+        // ── UITKX0211 — `const` in module body breaks HMR ──────────────────
+
+        // Matches `const <type> <name> =` at the start of a logical line inside
+        // a module body. The body is RAW C# text from DirectiveParser, so we
+        // can't use Roslyn here (would force a full Roslyn dep on language-lib).
+        // The regex tolerates optional access / static / new modifiers before
+        // `const`. The captured `name` group is used in the diagnostic message.
+        // Line-comment false positives are filtered explicitly below.
+        private static readonly Regex s_constInModuleRe = new Regex(
+            @"(?m)^[ \t]*(?:(?:public|private|internal|protected|new|static)\s+)*const\s+[A-Za-z_][\w.<>?\[\],\s]*?\s+(?<name>[A-Za-z_]\w*)\s*=",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        /// <summary>
+        /// UITKX0211 — Emits an HMR-invisibility warning for every top-level
+        /// <c>const</c> declaration inside a <c>module { ... }</c> body. Const
+        /// fields are inlined into every consumer's IL at compile time, so HMR
+        /// edits to their value never propagate. Recommend <c>static readonly</c>
+        /// which the SG's stripper / HMR static-swapper pipeline already
+        /// handles correctly via the <c>[UitkxHmrSwap]</c> attribute.
+        /// </summary>
+        private static void CheckConstInModuleBodies(
+            DirectiveSet d,
+            List<ParseDiagnostic> diags)
+        {
+            foreach (var mod in d.ModuleDeclarations)
+            {
+                if (string.IsNullOrEmpty(mod.Body))
+                    continue;
+
+                foreach (Match m in s_constInModuleRe.Matches(mod.Body))
+                {
+                    // Cheap false-positive filter: skip when the match position
+                    // sits after a `//` on its own line (comment).
+                    int lineStart = m.Index;
+                    while (lineStart > 0 && mod.Body[lineStart - 1] != '\n')
+                        lineStart--;
+                    string leading = mod.Body.Substring(lineStart, m.Index - lineStart);
+                    if (leading.IndexOf("//", StringComparison.Ordinal) >= 0)
+                        continue;
+
+                    // Body line → source line: BodyStartLine is the line of the
+                    // first body statement (immediately after `{`); count '\n'
+                    // from body start to the match position.
+                    int newlinesBefore = 0;
+                    for (int i = 0; i < m.Index; i++)
+                        if (mod.Body[i] == '\n')
+                            newlinesBefore++;
+
+                    int sourceLine = mod.BodyStartLine + newlinesBefore;
+                    string fieldName = m.Groups["name"].Success ? m.Groups["name"].Value : "<unnamed>";
+
+                    diags.Add(new ParseDiagnostic
+                    {
+                        Code = DiagnosticCodes.ConstInModule,
+                        Severity = ParseSeverity.Warning,
+                        Message =
+                            $"'const {fieldName}' is inlined at compile time and will not "
+                            + "update under HMR. Use 'static readonly' so the HMR pipeline "
+                            + "can refresh the value across edit-save cycles.",
+                        SourceLine = sourceLine,
+                        SourceColumn = 0,
+                        EndLine = sourceLine,
+                        EndColumn = 9999,
+                    });
+                }
+            }
+        }
 
         /// <summary>
         /// UITKX0120 — Check that every <c>Asset&lt;T&gt;("path")</c>,

@@ -158,7 +158,7 @@ public sealed class DefinitionHandler : IDefinitionHandler
         }
 
         // ―― Case 3: variable declared in a @code block ――――――――――――――――――――――――――
-        // Handles @(identifier) — scan the document for a @code-block variable
+        // Handles {identifier} — scan the document for a @code-block variable
         // declaration matching the word (e.g. "var component = ..." or "Type word =").
         var (codeVarLine, codeVarCol) = FindCodeVarDeclaration(text, word);
         if (codeVarLine > 0)

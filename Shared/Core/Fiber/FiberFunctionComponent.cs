@@ -62,7 +62,7 @@ namespace ReactiveUITK.Core.Fiber
             bool propsEqual = cp != null && (ReferenceEquals(tp, cp) || tp.Equals(cp));
             bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
 
-            // Children equality check: if the parent passed different children (e.g. @(__children)
+            // Children equality check: if the parent passed different children (e.g. {__children}
             // slot pattern), we must re-render even if props are equal. Compare by reference —
             // every render produces a new __C(...) array, so a changed count or different reference
             // means the parent re-evaluated its children and we must too.
@@ -281,7 +281,16 @@ namespace ReactiveUITK.Core.Fiber
                     if (fiber.Tag != FiberTag.FunctionComponent)
                         return false;
 
-                    // All function components now use TypedRender.
+                    // Family-based identity (UITKX Fast Refresh, editor-only):
+                    // see FiberChildReconciliation.CanReuseFiber for the
+                    // design rationale -- these two copies must stay in
+                    // lockstep. Player builds compile this branch out.
+#if UNITY_EDITOR
+                    if (fiber.Family != null && vnode._family != null)
+                        return ReferenceEquals(fiber.Family, vnode._family);
+#endif
+
+                    // Legacy delegate path.
                     if (fiber.TypedRender == null || vnode.TypedFunctionRender == null)
                         return false;
                     if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender))
@@ -291,26 +300,6 @@ namespace ReactiveUITK.Core.Fiber
                         && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target
                     )
                         return true;
-
-#if UNITY_EDITOR
-                    // HMR fallback: match by declaring type name when delegates differ
-                    // across assemblies after hot-reload.
-                    if (HmrState.IsActive)
-                    {
-                        var fiberType = fiber.TypedRender.Method.DeclaringType;
-                        var vnodeType = vnode.TypedFunctionRender.Method.DeclaringType;
-                        if (
-                            fiberType != null
-                            && vnodeType != null
-                            && fiberType.Name == vnodeType.Name
-                            && fiber.TypedRender.Method.Name
-                                == vnode.TypedFunctionRender.Method.Name
-                        )
-                        {
-                            return true;
-                        }
-                    }
-#endif
                     return false;
 
                 case VirtualNodeType.Suspense:
