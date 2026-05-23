@@ -431,7 +431,7 @@ public class EmitterTests
                     </box>
                 );
                 return (
-                    <box>@(component)</box>
+                    <box>{component}</box>
                 );
             }
             """;
@@ -902,9 +902,20 @@ public class EmitterTests
             ),
             $"Expected fully qualified peer props type. Got:\n{result.GeneratedSource}"
         );
+        // Per-child Family handle is keyed off the peer's FQN so two
+        // components named JSOAppButton in different namespaces do not
+        // alias in the global registry.
         Assert.True(
-            result.SourceContains("global::MyApp.Components.Buttons.JSOAppButton.Render"),
-            $"Expected fully qualified peer render target. Got:\n{result.GeneratedSource}"
+            result.SourceContains(
+                "__fam_global__MyApp_Components_Buttons_JSOAppButton"
+            ),
+            $"Expected sanitized Family field for FQN peer. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains(
+                "GetFamily(\"MyApp.Components.Buttons.JSOAppButton\", () => global::MyApp.Components.Buttons.JSOAppButton.Render)"
+            ),
+            $"Expected GetFamily call keyed by peer FQN with fallback factory. Got:\n{result.GeneratedSource}"
         );
         Assert.True(
             result.SourceContains("Disabled = isDisabled"),
@@ -1438,9 +1449,9 @@ public class EmitterTests
         );
         Assert.True(
             result.SourceContains(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style __sty_0"
             ),
-            $"Expected hoisted static field __sty_0. Got:\n{result.GeneratedSource}"
+            $"Expected hoisted static field __sty_0 with [UitkxHmrSwap]. Got:\n{result.GeneratedSource}"
         );
         Assert.True(
             result.SourceContains("__sty_0"),
@@ -1467,9 +1478,9 @@ public class EmitterTests
         Assert.True(result.SourceWasProduced);
         Assert.True(
             result.SourceContains(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style __sty_0"
             ),
-            $"Expected hoisted static field. Got:\n{result.GeneratedSource}"
+            $"Expected hoisted static field with [UitkxHmrSwap]. Got:\n{result.GeneratedSource}"
         );
         Assert.False(
             result.SourceContains("Style.__Rent()"),
@@ -1516,9 +1527,9 @@ public class EmitterTests
         Assert.True(result.SourceWasProduced);
         Assert.True(
             result.SourceContains(
-                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+                "[global::ReactiveUITK.UitkxHmrSwap] private static global::ReactiveUITK.Props.Typed.Style __sty_0"
             ),
-            $"new Color(literal-args) must be hoist-safe. Got:\n{result.GeneratedSource}"
+            $"new Color(literal-args) must be hoist-safe with [UitkxHmrSwap]. Got:\n{result.GeneratedSource}"
         );
     }
 
@@ -1699,8 +1710,9 @@ public class EmitterTests
 
     // ── Router primitives — alias-map resolution ────────────────────────────
     // Verifies the source generator wires every <RouterTagAliases.Map> entry
-    // through to a V.Func(<TypeName>.Render, ...) emission, exercising the
-    // shared dictionary at Shared/Core/Router/RouterTagAliases.cs.
+    // through to a V.Func(__fam_<TypeName>, ...) emission backed by a
+    // per-type Family handle, exercising the shared dictionary at
+    // Shared/Core/Router/RouterTagAliases.cs.
 
     [Fact]
     public void RouterTag_EmitsRouterFunc()
@@ -1708,8 +1720,8 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(Wrap("<Router/>"));
         Assert.True(result.SourceWasProduced);
         Assert.True(
-            result.SourceContains("RouterFunc.Render"),
-            $"Expected V.Func(RouterFunc.Render, ...). Got:\n{result.GeneratedSource}"
+            result.SourceContains("__fam_RouterFunc"),
+            $"Expected V.Func(__fam_RouterFunc, ...) backed by per-type Family handle. Got:\n{result.GeneratedSource}"
         );
     }
 
@@ -1717,7 +1729,7 @@ public class EmitterTests
     public void RouteTag_EmitsRouteFunc()
     {
         var result = GeneratorTestHelper.Run(Wrap("<Route path=\"/\"/>"));
-        Assert.True(result.SourceContains("RouteFunc.Render"));
+        Assert.True(result.SourceContains("__fam_RouteFunc"));
     }
 
     [Fact]
@@ -1725,8 +1737,8 @@ public class EmitterTests
     {
         var result = GeneratorTestHelper.Run(Wrap("<Outlet/>"));
         Assert.True(
-            result.SourceContains("OutletFunc.Render"),
-            $"Expected OutletFunc.Render call. Got:\n{result.GeneratedSource}"
+            result.SourceContains("__fam_OutletFunc"),
+            $"Expected __fam_OutletFunc Family field. Got:\n{result.GeneratedSource}"
         );
     }
 
@@ -1735,8 +1747,8 @@ public class EmitterTests
     {
         var result = GeneratorTestHelper.Run(Wrap("<Routes><Route path=\"/\"/></Routes>"));
         Assert.True(
-            result.SourceContains("RoutesFunc.Render"),
-            $"Expected RoutesFunc.Render call. Got:\n{result.GeneratedSource}"
+            result.SourceContains("__fam_RoutesFunc"),
+            $"Expected __fam_RoutesFunc Family field. Got:\n{result.GeneratedSource}"
         );
     }
 
@@ -1745,8 +1757,8 @@ public class EmitterTests
     {
         var result = GeneratorTestHelper.Run(Wrap("<NavLink to=\"/\" label=\"Home\"/>"));
         Assert.True(
-            result.SourceContains("NavLinkFunc.Render"),
-            $"Expected NavLinkFunc.Render call. Got:\n{result.GeneratedSource}"
+            result.SourceContains("__fam_NavLinkFunc"),
+            $"Expected __fam_NavLinkFunc Family field. Got:\n{result.GeneratedSource}"
         );
     }
 
@@ -1755,8 +1767,8 @@ public class EmitterTests
     {
         var result = GeneratorTestHelper.Run(Wrap("<Navigate to=\"/home\"/>"));
         Assert.True(
-            result.SourceContains("NavigateFunc.Render"),
-            $"Expected NavigateFunc.Render call. Got:\n{result.GeneratedSource}"
+            result.SourceContains("__fam_NavigateFunc"),
+            $"Expected __fam_NavigateFunc Family field. Got:\n{result.GeneratedSource}"
         );
     }
 
@@ -1769,4 +1781,272 @@ public class EmitterTests
     // by the FormatterSnapshotTests against real .uitkx samples
     // (Samples/Components/RouterDemoFunc/RouterOutletDemo.uitkx now uses these
     // attributes in production-shaped markup).
+
+    // ── UITKX0109 — User-component strict attribute validation ──────────────
+    //
+    // Pretty-UI bug regression: <UserComp style={x}/> when the user component
+    // didn't declare a `style` parameter used to silently allow it (since
+    // `style` was lumped under `universalAttributes`), then explode at C#
+    // compile time as CS0117 against the generated *Props class.
+    //
+    // After the SG-side fix in EmitFuncComponent:
+    //   1. Unknown attributes on user components emit UITKX0109 with an
+    //      actionable hint (did-you-mean or "Available: …").
+    //   2. The unknown attribute assignment is SKIPPED in the generated C#
+    //      so we don't pile a follow-on CS0117/CS0246 on top of the warning.
+    //   3. `key` and `ref` are exempt — structural-universal at the JSX
+    //      surface (key lives on VirtualNode; ref is routed to MutableRef<T>).
+
+    [Fact]
+    public void UITKX0109_UserComponent_StyleNotForwarded_EmitsDiagnostic_AndSkipsAssignment()
+    {
+        // ChildComp declares `text` only — `style` is not a parameter.
+        const string childSrc = """
+            component ChildComp(string? text = null) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        // Parent passes `style={...}`, which is intrinsic-only and must NOT
+        // be silently allowed on a user component.
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" style={SomeStyle} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        // (1) UITKX0109 must fire.
+        Assert.True(
+            result.HasDiagnostic("UITKX0109"),
+            $"Expected UITKX0109 for unknown 'style' attr on <ChildComp>. "
+                + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id + ':' + d.GetMessage()))}"
+        );
+
+        // (2) The bad `Style = SomeStyle` assignment must NOT be in the emitted source —
+        // otherwise the C# compiler produces CS0117 against ChildCompProps.
+        Assert.False(
+            result.SourceContains("Style = SomeStyle"),
+            "Generated source must NOT contain the bad 'Style = SomeStyle' assignment "
+                + "for an unknown attribute (would cascade to CS0117).\n"
+                + result.GeneratedSource
+        );
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_KeyAndRef_AlwaysExempt()
+    {
+        // ChildComp has a MutableRef param so `ref` routes cleanly.
+        const string childSrc = """
+            component ChildComp(
+                string? text = null,
+                Hooks.MutableRef<object>? inputRef = null
+            ) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" key="k1" ref={myRef} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        // key/ref must NEVER produce UITKX0109.
+        Assert.False(
+            result.HasDiagnostic("UITKX0109"),
+            "key= and ref= must be structural-universal — never UITKX0109.\n"
+                + string.Join("\n", result.Diagnostics.Select(d => d.Id + ':' + d.GetMessage()))
+        );
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_DeclaredAttribute_NoDiagnostic()
+    {
+        const string childSrc = """
+            component ChildComp(string? text = null) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.False(
+            result.HasDiagnostic("UITKX0109"),
+            "Declared attribute 'text' must not raise UITKX0109."
+        );
+
+        // Sanity: the declared attribute IS emitted.
+        Assert.True(
+            result.SourceContains("Text = "),
+            $"Expected 'Text = ' assignment in generated source.\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void UITKX0109_UserComponent_NoParams_AnyAttrIsUnknown()
+    {
+        // Edge case: component declares zero parameters at all.
+        const string childSrc = """
+            component ChildComp {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc = """
+            component ParentComp {
+                return (
+                    <ChildComp text="hi" />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.True(
+            result.HasDiagnostic("UITKX0109"),
+            "A no-params user component must reject any non-structural attribute."
+        );
+    }
+
+    // ── HMR architectural invariants ──────────────────────────────────────────
+    //
+    // These tests lock in load-time emission shapes that solved real
+    // production-blocking 0.6.0 bugs. Each test names the bug it guards
+    // against; do not relax the assertion without re-validating against the
+    // original Unity scenario.
+
+    /// <summary>
+    /// Regression test for the PrettyUi 0.6.0 Router playmode crash. The
+    /// SG must emit a fallback factory `() =&gt; {ChildFqn}.Render` as the
+    /// second argument to `GetFamily(...)` for every child reference,
+    /// unconditionally. Hand-written children that ship without an
+    /// `[ModuleInitializer]` Register call (e.g. router types in the
+    /// ReactiveUITK package) rely on this fallback so that
+    /// `Family.Current` resolves to a real delegate at first render
+    /// instead of the throwing placeholder. Optimising the SG to skip
+    /// the fallback for any reason would silently re-introduce the
+    /// playmode crash, so this test enforces the contract.
+    /// </summary>
+    [Fact]
+    public void ChildFamily_GetFamilyCall_AlwaysIncludesFallbackFactory()
+    {
+        // <Router/> resolves via router-tag aliases to RouterFunc, which
+        // ships hand-written in ReactiveUITK.Router and has no companion
+        // class -- the exact production scenario.
+        var result = GeneratorTestHelper.Run(Wrap("<Router/>"));
+        Assert.True(result.SourceWasProduced);
+
+        Assert.True(
+            result.SourceContains("__fam_RouterFunc"),
+            $"Expected __fam_RouterFunc Family field. Got:\n{result.GeneratedSource}"
+        );
+
+        // The whole GetFamily call must be on a single line per the
+        // current emitter. Asserting the full shape (id + factory) means
+        // a future change that splits the args, drops the factory, or
+        // emits null for the factory will fail loudly here.
+        Assert.True(
+            result.SourceContains("RefreshRuntime.GetFamily(\"RouterFunc\", () =>")
+            && result.SourceContains(".Render);"),
+            "Expected GetFamily(\"RouterFunc\", () => global::...RouterFunc.Render) " +
+            "fallback factory. The fallback factory is what lets non-SG children " +
+            "(e.g. ReactiveUITK.Router types) resolve at first render. " +
+            $"Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    /// <summary>
+    /// Regression test for the PrettyUi 0.6.0 cold-open crash. Mono's
+    /// runtime diverges from ECMA-335 §I.8.9.5: it triggers a
+    /// `beforefieldinit` type's `.cctor` on ANY static method call
+    /// against the type, including `call MyComp::__Register()` from
+    /// `&lt;Module&gt;::.cctor`. If `[ModuleInitializer]` lives on the
+    /// component class itself, the component `.cctor` runs at module
+    /// load -- before Unity's `[InitializeOnLoadMethod]` hooks have
+    /// populated registries -- and any user `static readonly Texture2D
+    /// bg = Asset&lt;T&gt;(...)` initializer crashes.
+    ///
+    /// The structural fix: `[ModuleInitializer]` methods live on a
+    /// SEPARATE companion class named `{ComponentName}__UitkxRefresh`,
+    /// emitted as a sibling type in the same namespace. The companion
+    /// class has no user state, so triggering its `.cctor` is harmless.
+    ///
+    /// This test parses the generated source as a Roslyn syntax tree
+    /// and asserts that every `[ModuleInitializer]` method lives on a
+    /// type whose name ends with `__UitkxRefresh`. A future refactor
+    /// that moves Register back inline would silently re-introduce the
+    /// cold-open crash; this test makes that impossible.
+    /// </summary>
+    [Fact]
+    public void ModuleInitializer_OnlyEmittedOnCompanionClass_NeverOnComponentItself()
+    {
+        var result = GeneratorTestHelper.Run(Wrap("<label/>"));
+        Assert.True(result.SourceWasProduced);
+
+        // The companion class lives inside an #if UNITY_EDITOR region, so
+        // parse with that symbol defined — otherwise the Roslyn parser
+        // strips the conditional block and the test sees zero
+        // [ModuleInitializer] methods (false negative).
+        var parseOpts = Microsoft.CodeAnalysis.CSharp.CSharpParseOptions.Default
+            .WithPreprocessorSymbols("UNITY_EDITOR");
+        var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+            result.GeneratedSource!, parseOpts);
+        var moduleInitMethods = tree.GetRoot()
+            .DescendantNodes()
+            .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>()
+            .Where(m => m.AttributeLists
+                .SelectMany(al => al.Attributes)
+                .Any(a => a.Name.ToString().EndsWith("ModuleInitializer", System.StringComparison.Ordinal)))
+            .ToList();
+
+        Assert.NotEmpty(moduleInitMethods);
+
+        foreach (var m in moduleInitMethods)
+        {
+            var owner = m.Ancestors()
+                .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax>()
+                .First();
+
+            Assert.True(
+                owner.Identifier.Text.EndsWith("__UitkxRefresh", System.StringComparison.Ordinal),
+                $"[ModuleInitializer] method '{m.Identifier.Text}' lives on class " +
+                $"'{owner.Identifier.Text}', but must live on a '*__UitkxRefresh' " +
+                "companion class. Background: Mono's BeforeFieldInit divergence " +
+                "fires the containing type's .cctor when <Module>::.cctor invokes " +
+                "the initializer -- triggering user static readonly Asset<T>(...) " +
+                "initializers BEFORE Unity populates UitkxAssetRegistry, which " +
+                "crashes cold-open. See /memories/repo/mono-beforefieldinit-cctor.md " +
+                "and CHANGELOG entry for 0.6.0.\n" +
+                $"Generated source:\n{result.GeneratedSource}"
+            );
+        }
+    }
 }

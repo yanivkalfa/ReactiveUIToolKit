@@ -68,15 +68,87 @@ function output(text, args) {
 
 // ── add ──────────────────────────────────────────────────────────────────────
 
+/**
+ * Detect tell-tale signs of CP1252→UTF-8 mojibake in a message string.
+ * On Windows, invoking this script through PowerShell or cmd transcodes argv
+ * to the active code page (typically CP1252) before Node receives it, so
+ * characters like `—` (U+2014), `’` (U+2019), curly quotes, and ellipsis
+ * arrive as their CP1252-as-UTF-8 byte sequences (`â€"`, `â€™`, `â€¦`, …).
+ * We refuse to write such content to the source-of-truth JSON.
+ *
+ * Also catches the silent truncation that happens when a message contains
+ * `"…"` (PowerShell strips embedded double-quotes from argv): the caller
+ * almost certainly meant to pass the full text via --message-file.
+ */
+function detectArgvCorruption(message) {
+  // CP1252-as-UTF-8 mojibake signatures. Original UTF-8 bytes that are then
+  // decoded as CP1252 produce these distinctive Unicode prefixes:
+  //   • 0xC2 0x?? (e.g. NBSP, ©, ®, ±)              → "Â" + control range
+  //   • 0xC3 0x?? (Latin Extended A: à, á, ç, é …)  → "Ã" + control range
+  //   • 0xE2 0x80 0x?? (em/en dash, curly quotes,
+  //     ellipsis, bullets, …)                       → "â€" digraph
+  //   • 0xE2 0x82 0x?? (€ and friends)              → "â‚" digraph
+  //   • 0xEF 0xBF 0xBD (UTF-8 replacement char
+  //     itself triple-decoded)                      → "ï¿½"
+  // Any of these are virtually impossible to occur intentionally in our
+  // changelog text, so refuse rather than persist corruption.
+  if (/\u00C2[\u0080-\u00BF]/.test(message)
+   || /\u00C3[\u0080-\u00BF]/.test(message)
+   || /\u00E2\u20AC/.test(message)
+   || /\u00E2\u201A/.test(message)
+   || /\u00EF\u00BF\u00BD/.test(message)
+  ) {
+    return 'looks like CP1252→UTF-8 mojibake (e.g. "â€"" instead of "—"). '
+      + 'PowerShell/cmd transcoded argv. Use --message-file <utf8-file> instead.';
+  }
+  // Replacement character — Node could not decode the bytes at all.
+  if (message.includes('\uFFFD')) {
+    return 'contains the Unicode replacement character (U+FFFD). '
+      + 'Use --message-file <utf8-file> instead.';
+  }
+  return null;
+}
+
+/**
+ * Read message text from --message-file (UTF-8) or --message (argv).
+ * --message-file is preferred for any non-ASCII content because argv on
+ * Windows is subject to code-page transcoding and quote stripping.
+ */
+function readMessageArg(args) {
+  if (args['message-file']) {
+    const p = resolve(args['message-file']);
+    if (!existsSync(p)) {
+      console.error(`Message file not found: ${p}`);
+      process.exit(1);
+    }
+    // Trim only trailing newlines — preserve all interior whitespace verbatim.
+    return readFileSync(p, 'utf8').replace(/\r\n/g, '\n').replace(/\n+$/, '');
+  }
+  if (args.message && args.message !== true) {
+    return args.message;
+  }
+  return null;
+}
+
 function cmdAdd(args) {
   const scope = args.scope;
-  const message = args.message;
+  const message = readMessageArg(args);
 
   if (!scope || !message) {
     console.error(
-      'Usage: add --scope <shared|vscode|vs2022|rider> --message "text" ' +
-      '[--vscode X.Y.Z] [--vs2022 X.Y.Z] [--rider X.Y.Z] [--date YYYY-MM-DD]'
+      'Usage: add --scope <shared|vscode|vs2022|rider>\n' +
+      '           (--message "text" | --message-file <path>)\n' +
+      '           [--vscode X.Y.Z] [--vs2022 X.Y.Z] [--rider X.Y.Z] [--date YYYY-MM-DD]\n' +
+      '\n' +
+      'Prefer --message-file for any non-ASCII content (em-dashes, quotes, etc.) — \n' +
+      'PowerShell/cmd transcode argv through the active code page and corrupt UTF-8.'
     );
+    process.exit(1);
+  }
+
+  const corruption = detectArgvCorruption(message);
+  if (corruption) {
+    console.error(`Refusing to add: message ${corruption}`);
     process.exit(1);
   }
 
@@ -279,10 +351,17 @@ Commands:
 
 Examples:
   add --scope shared --message "Fix: server crash" --vscode 1.0.292 --vs2022 1.0.69
+  add --scope shared --message-file CHANGES.txt --vscode 1.2.0 --vs2022 1.2.0
   add --scope vscode --message "Fix: debounce" --vscode 1.0.292
   extract --ide vscode --out ide-extensions~/vscode/CHANGELOG.md
   extract --ide vscode --version 1.0.292
   extract-overview --ide vs2022 --template ide-extensions~/visual-studio/UitkxVsix/overview-template.md --out overview.md
-  import --ide vscode --file ide-extensions~/vscode/CHANGELOG.md`
+  import --ide vscode --file ide-extensions~/vscode/CHANGELOG.md
+
+Tips:
+  • Prefer --message-file for any non-ASCII content (em-dashes, quotes,
+    code-block chars). PowerShell/cmd on Windows transcode argv through the
+    active code page (CP1252) and silently strip embedded double-quotes —
+    --message-file reads UTF-8 verbatim and avoids both pitfalls.`
     );
 }

@@ -175,29 +175,48 @@ namespace ReactiveUITK.Props.Typed
 
         // ── Background repeat ───────────────────────────────────────────
         public static BackgroundRepeat BgRepeat(Repeat x, Repeat y) => new BackgroundRepeat(x, y);
-        public static BackgroundRepeat BgRepeatNone => new BackgroundRepeat(Repeat.NoRepeat, Repeat.NoRepeat);
-        public static BackgroundRepeat BgRepeatBoth => new BackgroundRepeat(Repeat.Repeat, Repeat.Repeat);
-        public static BackgroundRepeat BgRepeatX => new BackgroundRepeat(Repeat.Repeat, Repeat.NoRepeat);
-        public static BackgroundRepeat BgRepeatY => new BackgroundRepeat(Repeat.NoRepeat, Repeat.Repeat);
-        public static BackgroundRepeat BgRepeatSpace => new BackgroundRepeat(Repeat.Space, Repeat.Space);
-        public static BackgroundRepeat BgRepeatRound => new BackgroundRepeat(Repeat.Round, Repeat.Round);
+
+        public static BackgroundRepeat BgRepeatNone =>
+            new BackgroundRepeat(Repeat.NoRepeat, Repeat.NoRepeat);
+        public static BackgroundRepeat BgRepeatBoth =>
+            new BackgroundRepeat(Repeat.Repeat, Repeat.Repeat);
+        public static BackgroundRepeat BgRepeatX =>
+            new BackgroundRepeat(Repeat.Repeat, Repeat.NoRepeat);
+        public static BackgroundRepeat BgRepeatY =>
+            new BackgroundRepeat(Repeat.NoRepeat, Repeat.Repeat);
+        public static BackgroundRepeat BgRepeatSpace =>
+            new BackgroundRepeat(Repeat.Space, Repeat.Space);
+        public static BackgroundRepeat BgRepeatRound =>
+            new BackgroundRepeat(Repeat.Round, Repeat.Round);
 
         // ── Background position ─────────────────────────────────────────
-        public static BackgroundPosition BgPos(BackgroundPositionKeyword keyword) => new BackgroundPosition(keyword);
-        public static BackgroundPosition BgPos(BackgroundPositionKeyword keyword, Length offset) => new BackgroundPosition(keyword, offset);
-        public static BackgroundPosition BgPosCenter => new BackgroundPosition(BackgroundPositionKeyword.Center);
-        public static BackgroundPosition BgPosTop => new BackgroundPosition(BackgroundPositionKeyword.Top);
-        public static BackgroundPosition BgPosBottom => new BackgroundPosition(BackgroundPositionKeyword.Bottom);
-        public static BackgroundPosition BgPosLeft => new BackgroundPosition(BackgroundPositionKeyword.Left);
-        public static BackgroundPosition BgPosRight => new BackgroundPosition(BackgroundPositionKeyword.Right);
+        public static BackgroundPosition BgPos(BackgroundPositionKeyword keyword) =>
+            new BackgroundPosition(keyword);
+
+        public static BackgroundPosition BgPos(BackgroundPositionKeyword keyword, Length offset) =>
+            new BackgroundPosition(keyword, offset);
+
+        public static BackgroundPosition BgPosCenter =>
+            new BackgroundPosition(BackgroundPositionKeyword.Center);
+        public static BackgroundPosition BgPosTop =>
+            new BackgroundPosition(BackgroundPositionKeyword.Top);
+        public static BackgroundPosition BgPosBottom =>
+            new BackgroundPosition(BackgroundPositionKeyword.Bottom);
+        public static BackgroundPosition BgPosLeft =>
+            new BackgroundPosition(BackgroundPositionKeyword.Left);
+        public static BackgroundPosition BgPosRight =>
+            new BackgroundPosition(BackgroundPositionKeyword.Right);
 
         // ── Background size ─────────────────────────────────────────────
         public static BackgroundSize BgSize(Length x, Length y) => new BackgroundSize(x, y);
+
         public static BackgroundSize BgSizeCover => new BackgroundSize(BackgroundSizeType.Cover);
-        public static BackgroundSize BgSizeContain => new BackgroundSize(BackgroundSizeType.Contain);
+        public static BackgroundSize BgSizeContain =>
+            new BackgroundSize(BackgroundSizeType.Contain);
 
         // ── Transform origin ────────────────────────────────────────────
         public static TransformOrigin Origin(Length x, Length y) => new TransformOrigin(x, y);
+
         public static TransformOrigin OriginCenter => Origin(Pct(50), Pct(50));
 
         // ── Translate ───────────────────────────────────────────────────
@@ -205,6 +224,7 @@ namespace ReactiveUITK.Props.Typed
 
         // ── Easing functions ────────────────────────────────────────────
         public static EasingFunction Easing(EasingMode mode) => new EasingFunction(mode);
+
         public static EasingFunction EaseDefault => new EasingFunction(EasingMode.Ease);
         public static EasingFunction EaseLinear => new EasingFunction(EasingMode.Linear);
         public static EasingFunction EaseIn => new EasingFunction(EasingMode.EaseIn);
@@ -215,19 +235,23 @@ namespace ReactiveUITK.Props.Typed
         public static EasingFunction EaseInOutSine => new EasingFunction(EasingMode.EaseInOutSine);
         public static EasingFunction EaseInCubic => new EasingFunction(EasingMode.EaseInCubic);
         public static EasingFunction EaseOutCubic => new EasingFunction(EasingMode.EaseOutCubic);
-        public static EasingFunction EaseInOutCubic => new EasingFunction(EasingMode.EaseInOutCubic);
+        public static EasingFunction EaseInOutCubic =>
+            new EasingFunction(EasingMode.EaseInOutCubic);
         public static EasingFunction EaseInCirc => new EasingFunction(EasingMode.EaseInCirc);
         public static EasingFunction EaseOutCirc => new EasingFunction(EasingMode.EaseOutCirc);
         public static EasingFunction EaseInOutCirc => new EasingFunction(EasingMode.EaseInOutCirc);
         public static EasingFunction EaseInElastic => new EasingFunction(EasingMode.EaseInElastic);
-        public static EasingFunction EaseOutElastic => new EasingFunction(EasingMode.EaseOutElastic);
-        public static EasingFunction EaseInOutElastic => new EasingFunction(EasingMode.EaseInOutElastic);
+        public static EasingFunction EaseOutElastic =>
+            new EasingFunction(EasingMode.EaseOutElastic);
+        public static EasingFunction EaseInOutElastic =>
+            new EasingFunction(EasingMode.EaseInOutElastic);
         public static EasingFunction EaseInBack => new EasingFunction(EasingMode.EaseInBack);
         public static EasingFunction EaseOutBack => new EasingFunction(EasingMode.EaseOutBack);
         public static EasingFunction EaseInOutBack => new EasingFunction(EasingMode.EaseInOutBack);
         public static EasingFunction EaseInBounce => new EasingFunction(EasingMode.EaseInBounce);
         public static EasingFunction EaseOutBounce => new EasingFunction(EasingMode.EaseOutBounce);
-        public static EasingFunction EaseInOutBounce => new EasingFunction(EasingMode.EaseInOutBounce);
+        public static EasingFunction EaseInOutBounce =>
+            new EasingFunction(EasingMode.EaseInOutBounce);
 
         // ── Filter functions (Unity 6.3+) ───────────────────────────────
 #if UNITY_6000_3_OR_NEWER
@@ -268,6 +292,24 @@ namespace ReactiveUITK.Props.Typed
 
         public static FilterFunction FilterTint(Color color) =>
             MakeFilter(FilterFunctionType.Tint, color);
+
+        // ── Material (Style.UnityMaterial) ──────────────────────────────
+        /// <summary>
+        /// Wraps a <see cref="Material"/> into the <see cref="StyleMaterialDefinition"/>
+        /// value expected by <c>Style.UnityMaterial</c>. Mirrors the existing
+        /// <see cref="FontDef"/> precedent for asset-backed style wrappers.
+        /// <code>new Style { UnityMaterial = MaterialDef(myMat) }</code>
+        /// </summary>
+        public static StyleMaterialDefinition MaterialDef(Material material) =>
+            new StyleMaterialDefinition(new MaterialDefinition(material));
+
+        // ── Aspect ratio (Style.AspectRatio) ────────────────────────────
+        /// <summary>
+        /// Builds a <see cref="StyleRatio"/> from a single float ratio
+        /// (width / height) for <c>Style.AspectRatio</c>.
+        /// <code>new Style { AspectRatio = Ratio(16f / 9f) }</code>
+        /// </summary>
+        public static StyleRatio Ratio(float value) => new StyleRatio(new Ratio(value));
 #endif
 
         // ── 9-slice ─────────────────────────────────────────────────────

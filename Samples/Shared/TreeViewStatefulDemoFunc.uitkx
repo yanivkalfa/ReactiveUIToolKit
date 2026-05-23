@@ -78,7 +78,7 @@ component TreeViewStatefulDemoFunc(
 
       return (
         <VisualElement key={$"tv-wrap-{prefix}-{id}"}>
-          @(childNode)
+          {childNode}
         </VisualElement>
       );
   };

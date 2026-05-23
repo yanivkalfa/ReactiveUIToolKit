@@ -13,9 +13,26 @@ namespace ReactiveUITK
     {
         public string Signature { get; }
 
+        /// <summary>
+        /// Family IDs of every custom hook this component (or this hook)
+        /// calls transitively at first level. Empty for hooks/components
+        /// that only call built-in hooks. The reconciler walks this list
+        /// during HMR equality checks (<c>RefreshRuntime.HaveEqualSignatures</c>)
+        /// to detect transitive signature changes — analogous to React Fast
+        /// Refresh's <c>signature.getCustomHooks()</c>.
+        /// </summary>
+        public string[] CustomHookFamilyKeys { get; }
+
         public HookSignatureAttribute(string signature)
         {
             Signature = signature ?? throw new ArgumentNullException(nameof(signature));
+            CustomHookFamilyKeys = Array.Empty<string>();
+        }
+
+        public HookSignatureAttribute(string signature, string[] customHookFamilyKeys)
+        {
+            Signature = signature ?? throw new ArgumentNullException(nameof(signature));
+            CustomHookFamilyKeys = customHookFamilyKeys ?? Array.Empty<string>();
         }
     }
 }

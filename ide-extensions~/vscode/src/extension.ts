@@ -227,6 +227,28 @@ export function activate(context: vscode.ExtensionContext): void {
   // ────────────────────────────────────────────────────────────────────
 
   context.subscriptions.push(client);
+
+  const restartCommand = vscode.commands.registerCommand(
+    'uitkx.restartLanguageServer',
+    async () => {
+      if (!client) {
+        vscode.window.showWarningMessage('UITKX: language client is not running.');
+        return;
+      }
+      output.appendLine('[UITKX] Restarting language server (user-requested)');
+      try {
+        await client.restart();
+        output.appendLine('[UITKX] Language server restarted.');
+        vscode.window.showInformationMessage('UITKX: language server restarted.');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        output.appendLine(`[UITKX] Restart failed: ${message}`);
+        vscode.window.showErrorMessage(`UITKX: restart failed — ${message}`);
+      }
+    }
+  );
+  context.subscriptions.push(restartCommand);
+
   output.appendLine('[UITKX] activate() completed');
 }
 

@@ -6,9 +6,12 @@ namespace ReactiveUITK.Language.Diagnostics
     /// ID ranges:
     ///   UITKX0013–0016   T2 — Rules of Hooks (shared codes with SourceGenerator);
     ///                         language-lib DiagnosticsAnalyzer
-    ///   UITKX0101–0112   T2 — Structural (directive + schema checks); language-lib
+    ///   UITKX0101–0113   T2 — Structural (directive + schema checks); language-lib
+    ///                         + lsp-server (UITKX0113 duplicate component)
     ///   UITKX0120         T2 — Asset path validation; language-lib
     ///   UITKX0200–0200   T2v — Version compatibility; lsp-server
+    ///   UITKX0210         T2 — HMR-swap field writes; SourceGenerator analyzer
+    ///   UITKX0211         T2 — `const` in module body breaks HMR; SourceGenerator analyzer
     ///   UITKX0300–0306   T1 — Parser syntax errors; emitted by UitkxParser /
     ///                         DirectiveParser into ParseResult.Diagnostics
     ///   UITKX0112         T3 — Roslyn data-flow; lsp-server (unused variable)
@@ -115,6 +118,18 @@ namespace ReactiveUITK.Language.Diagnostics
         public const string UnusedVariable = "UITKX0112";
 
         /// <summary>
+        /// Two or more <c>.uitkx</c> files in the same asmdef declare a
+        /// <c>component</c> with the same name. The deterministic-first
+        /// declarant wins for IntelliSense / go-to-definition; the others are
+        /// shadowed.  Almost always the result of a copy-paste refactor that
+        /// forgot to rename the component. Emitted by the lsp-server
+        /// (DiagnosticsPublisher) once per (name, asmdef) pair against the
+        /// FIRST declaration line in each duplicated file.
+        /// Severity: Warning.
+        /// </summary>
+        public const string DuplicateComponent = "UITKX0113";
+
+        /// <summary>
         /// An <c>Asset&lt;T&gt;("path")</c>, <c>Ast&lt;T&gt;("path")</c>, or
         /// <c>@uss "path"</c> references a file that does not exist on disk.
         /// Severity: Error.
@@ -127,6 +142,30 @@ namespace ReactiveUITK.Language.Diagnostics
         /// Severity: Warning.
         /// </summary>
         public const string AssetTypeMismatch = "UITKX0121";
+
+        // ── T2 — HMR-correctness diagnostics ─────────────────────────────────
+
+        /// <summary>
+        /// A field marked with <c>[UitkxHmrSwap]</c> (i.e. a <c>static readonly</c>
+        /// field stripped by the SG so HMR can refresh its value) is being
+        /// assigned outside of its declaration. Such writes silently regress
+        /// on every HMR swap because the swapper copies the declaration
+        /// initializer back over the slot.
+        /// Severity: Warning. Emitted by the SourceGenerator analyzer
+        /// <c>UitkxHmrSwapWriteAnalyzer</c>.
+        /// </summary>
+        public const string HmrSwapFieldWrite = "UITKX0210";
+
+        /// <summary>
+        /// A <c>const</c> field is declared inside a <c>module { ... }</c> body.
+        /// Const values are inlined at IL emit time, so HMR edits to the value
+        /// never propagate to consumers until a full domain reload. Use
+        /// <c>static readonly</c> instead — the SG strips <c>readonly</c> and
+        /// the HMR static-swapper refreshes the slot on every edit.
+        /// Severity: Warning. Emitted by the language-lib
+        /// <see cref="DiagnosticsAnalyzer"/>.
+        /// </summary>
+        public const string ConstInModule = "UITKX0211";
 
         // ── T2v — Version compatibility diagnostics (lsp-server) ─────────────
         // Produced by DiagnosticsPublisher, not DiagnosticsAnalyzer, because
@@ -155,9 +194,11 @@ namespace ReactiveUITK.Language.Diagnostics
         public const string UnknownDirective = "UITKX0305";
 
         /// <summary>
-        /// <c>@(expr)</c> used in function-style setup code. This syntax is not
-        /// supported outside the return markup. Emitted by DirectiveParser.
+        /// <c>@(expr)</c> syntax is not supported. Inline child expressions
+        /// in markup must use <c>{expr}</c>; in raw C# setup code, assign to a
+        /// local variable first. Emitted by <c>UitkxParser</c> (markup context)
+        /// and <c>DirectiveParser</c> (setup-code context).
         /// </summary>
-        public const string AtExprInSetupCode = "UITKX0306";
+        public const string AtExprNotSupported = "UITKX0306";
     }
 }

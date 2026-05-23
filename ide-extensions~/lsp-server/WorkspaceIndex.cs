@@ -57,7 +57,52 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // ── State ────────────────────────────────────────────────────────────────
 
     private readonly HashSet<string> _elements = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ElementInfo> _elementInfo = new(StringComparer.Ordinal);
+
+    // ── Multi-valued element index (TECH_DEBT_V2 #21 fix, 2026-05-18) ────────
+    //
+    // The outer key is the element name; the inner map keys by absolute file
+    // path so the same `component <Name>` declared in two .uitkx files lives
+    // as two distinct entries. The previous one-to-one `Dictionary<string,
+    // ElementInfo>` silently overwrote on the second indexed file and then
+    // EvictElementsFromFile would delete the shared name entirely on the
+    // winner's next edit — the exact bug surfaced by the PrettyUi folder
+    // copy+rename refactor (see TECH_DEBT_20_21_22_RESOLUTION_PLAN.md §2).
+    //
+    // The inner map is a SortedDictionary keyed by full path (case-insensitive
+    // ordering) so the deterministic-first-match used by TryGetElementInfo
+    // is stable across process restarts and OS file enumeration order.
+    //
+    // All access goes through the public accessor methods on this class; no
+    // external code touches the dictionary directly (verified by workspace
+    // grep before the shape change — 19 hits, all internal).
+    private readonly Dictionary<string, SortedDictionary<string, ElementInfo>> _elementInfo =
+        new(StringComparer.Ordinal);
+
+    // Reverse map: file path -> set of element names currently contributed by
+    // that file. Maintained alongside _elementInfo / _elements so that a file
+    // re-index (after edit / rename) or deletion can deterministically evict
+    // names the file used to declare but no longer does. Without this, when a
+    // file's `component Foo { ... }` is edited to `component Bar { ... }`,
+    // the `Foo` entry stays in _elementInfo forever pointing at this file,
+    // breaking go-to-definition / hover / diagnostics for any later file
+    // that legitimately declares `component Foo`.
+    private readonly Dictionary<string, HashSet<string>> _elementsByFile =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Set of .uitkx file paths whose top-level declarations include `module`
+    // or `hook`. Maintained incrementally by IndexUitkxFile and consumed by
+    // RoslynHost.FindPeerUitkxFiles to enable cross-directory symbol resolution
+    // for module-member references like `Theme.SidebarWidth` when `Theme` lives
+    // in a different folder than the consumer .uitkx file.
+    private readonly HashSet<string> _moduleHookFiles = new(StringComparer.OrdinalIgnoreCase);
+
+    // Workspace-wide set of all indexed *.cs file paths. Consumed by
+    // RoslynHost.FindCompanionFiles to load partial-class members and types
+    // declared in any .cs file belonging to the same asmdef as the .uitkx
+    // being opened, not just the sibling-folder ones. AsmdefResolver enforces
+    // the asmdef boundary at the call site so this set can be a flat union.
+    private readonly HashSet<string> _allCsFiles = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly ReaderWriterLockSlim _lock = new();
 
     // ── Patterns ─────────────────────────────────────────────────────────────
@@ -100,6 +145,16 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
     private static readonly Regex s_uitkxDeclPattern = new(
         @"^component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
+    );
+
+    // Matches a top-level `module Foo {` or `hook fooBar(` declaration. Used
+    // to flag .uitkx files that contribute symbols (modules/hooks) which
+    // peer .uitkx files anywhere in the workspace may reference by namespace
+    // import. Multiline so `^` matches each logical line start; the directive
+    // grammar prohibits leading whitespace before `module`/`hook` keywords.
+    private static readonly Regex s_uitkxModuleOrHookPattern = new(
+        @"^(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -205,6 +260,44 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     /// <summary>
+    /// Snapshot of every indexed .uitkx file path that declares at least one
+    /// top-level <c>module</c> or <c>hook</c>. Used by the Roslyn host to load
+    /// cross-directory peers into the workspace so module-member references
+    /// (e.g. <c>Theme.SidebarWidth</c>) resolve from any consumer file.
+    /// </summary>
+    public IReadOnlyList<string> GetModuleAndHookFiles()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _moduleHookFiles.ToArray();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Snapshot of every indexed .cs file path. Used by the Roslyn host to
+    /// load companion .cs files from anywhere in the same asmdef as the
+    /// .uitkx being opened, not just the sibling folder. The asmdef boundary
+    /// is enforced at the call site via <see cref="AsmdefResolver"/>.
+    /// </summary>
+    public IReadOnlyList<string> GetAllCsFiles()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _allCsFiles.ToArray();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
     /// Returns <c>true</c> if any element names have been indexed (i.e. the
     /// background scan has completed at least partially).
     /// </summary>
@@ -230,9 +323,9 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         _lock.EnterReadLock();
         try
         {
-            if (!_elementInfo.TryGetValue(elementName, out var info))
+            if (!_elementInfo.TryGetValue(elementName, out var bucket) || bucket.Count == 0)
                 return Array.Empty<PropInfo>();
-            return ResolveProps(info);
+            return ResolveProps(bucket.First().Value);
         }
         finally
         {
@@ -241,31 +334,19 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     /// <summary>Returns the <see cref="ElementInfo"/> for the element, or <c>null</c>.</summary>
+    /// <remarks>
+    /// When multiple files declare the same element name, returns the
+    /// deterministic-first match (sorted by absolute file path). Callers that
+    /// need to enumerate every declarant should call <see cref="GetAllElementInfo"/>.
+    /// </remarks>
     public ElementInfo? TryGetElementInfo(string elementName)
     {
         _lock.EnterReadLock();
         try
         {
-            if (!_elementInfo.TryGetValue(elementName, out var info))
+            if (!_elementInfo.TryGetValue(elementName, out var bucket) || bucket.Count == 0)
                 return null;
-            var resolved = ResolveProps(info);
-            if (resolved == info.Props)
-                return new ElementInfo
-                {
-                    FilePath = info.FilePath,
-                    FileLine = info.FileLine,
-                    Props = resolved,
-                    OwnProps = info.Props,
-                    BaseElement = info.BaseElement,
-                };
-            return new ElementInfo
-            {
-                FilePath = info.FilePath,
-                FileLine = info.FileLine,
-                Props = resolved,
-                OwnProps = info.Props,
-                BaseElement = info.BaseElement,
-            };
+            return BuildResolved(bucket.First().Value);
         }
         finally
         {
@@ -274,16 +355,95 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     /// <summary>
+    /// Returns every <see cref="ElementInfo"/> that contributes to <paramref name="elementName"/>,
+    /// sorted by absolute file path. Used by <see cref="RenameHandler"/> so a rename
+    /// touches every file that declares the same component name, and by
+    /// <see cref="DiagnosticsPublisher"/> so the duplicate-component diagnostic
+    /// (UITKX0113) fires once per declarant.
+    /// </summary>
+    public IReadOnlyList<ElementInfo> GetAllElementInfo(string elementName)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            if (!_elementInfo.TryGetValue(elementName, out var bucket) || bucket.Count == 0)
+                return Array.Empty<ElementInfo>();
+            var result = new List<ElementInfo>(bucket.Count);
+            foreach (var info in bucket.Values)
+                result.Add(BuildResolved(info));
+            return result;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Returns every (name, file path) pair where the same element name is
+    /// declared in more than one file. Pairs are returned only when the count
+    /// for a name exceeds one. Used by <see cref="DiagnosticsPublisher"/> to
+    /// publish UITKX0113 duplicate-component-declaration warnings.
+    /// </summary>
+    public IReadOnlyList<(string Name, IReadOnlyList<string> FilePaths)> GetDuplicateDeclarations()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            var result = new List<(string, IReadOnlyList<string>)>();
+            foreach (var kv in _elementInfo)
+            {
+                if (kv.Value.Count <= 1)
+                    continue;
+                var paths = new List<string>(kv.Value.Count);
+                foreach (var path in kv.Value.Keys)
+                    paths.Add(path);
+                result.Add((kv.Key, paths));
+            }
+            return result;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    // Internal helper: returns a wrapped ElementInfo with Props (resolved
+    // inheritance) and OwnProps (declared-only). Must be called under the
+    // read lock.
+    private ElementInfo BuildResolved(ElementInfo info)
+    {
+        var resolved = ResolveProps(info);
+        return new ElementInfo
+        {
+            FilePath = info.FilePath,
+            FileLine = info.FileLine,
+            Props = resolved,
+            OwnProps = info.Props,
+            BaseElement = info.BaseElement,
+        };
+    }
+
+    /// <summary>
     /// Returns all props for the element, including those inherited from base *Props classes.
     /// Must be called under the read lock.
     /// </summary>
     private List<PropInfo> ResolveProps(ElementInfo info, int depth = 0)
     {
+        ElementInfo? baseInfo = null;
         if (
-            depth > 5
-            || info.BaseElement is null
-            || !_elementInfo.TryGetValue(info.BaseElement, out var baseInfo)
+            depth <= 5
+            && info.BaseElement is not null
+            && _elementInfo.TryGetValue(info.BaseElement, out var baseBucket)
+            && baseBucket.Count > 0
         )
+        {
+            // Deterministic-first base pick when the base name is itself
+            // multi-valued. The same selection rule as TryGetElementInfo.
+            baseInfo = baseBucket.First().Value;
+        }
+
+        if (baseInfo is null)
             return info.Props;
 
         var baseProps = ResolveProps(baseInfo, depth + 1);
@@ -312,6 +472,17 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             if (!File.Exists(filePath))
             {
+                _lock.EnterWriteLock();
+                try { _allCsFiles.Remove(filePath); }
+                finally { _lock.ExitWriteLock(); }
+
+                // Evict element names contributed by the now-deleted .cs file.
+                // Without this, deleting a *Props.cs file leaves its element
+                // entries dangling in _elementInfo until the next process
+                // restart. ScanDirectory below re-indexes survivors but never
+                // touches the deleted file's stale entries.
+                EvictElementsFromFile(filePath);
+
                 var dir = Path.GetDirectoryName(filePath);
                 if (dir is not null)
                     ScanDirectory(dir);
@@ -323,7 +494,19 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         else if (filePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
         {
             if (!File.Exists(filePath))
-                return; // deletion — component will disappear on next full scan
+            {
+                _lock.EnterWriteLock();
+                try { _moduleHookFiles.Remove(filePath); }
+                finally { _lock.ExitWriteLock(); }
+
+                // Evict element names contributed by the now-deleted file so
+                // go-to-definition / hover / diagnostics don't keep pointing
+                // at a phantom path. Without this, after a delete the index
+                // entry survives until the next process restart.
+                EvictElementsFromFile(filePath);
+                IndexChanged?.Invoke();
+                return;
+            }
             IndexUitkxFile(filePath);
             IndexChanged?.Invoke();
         }
@@ -401,9 +584,25 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// </summary>
     private void IndexUitkxFile(string filePath)
     {
+        // Drop every element name this file PREVIOUSLY contributed so that a
+        // rename like `component Foo { }` -> `component Bar { }` doesn't leave
+        // a stale `Foo` entry pointing at this file. CommitElement re-adds
+        // each name found in the new content below.
+        EvictElementsFromFile(filePath);
+
         try
         {
             string content = File.ReadAllText(filePath);
+
+            bool hasModuleOrHook = s_uitkxModuleOrHookPattern.IsMatch(content);
+            _lock.EnterWriteLock();
+            try
+            {
+                if (hasModuleOrHook) _moduleHookFiles.Add(filePath);
+                else _moduleHookFiles.Remove(filePath);
+            }
+            finally { _lock.ExitWriteLock(); }
+
             foreach (Match m in s_uitkxDeclPattern.Matches(content))
             {
                 string componentName = m.Groups["name"].Value;
@@ -456,6 +655,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
     private void IndexFile(string filePath)
     {
+        // Workspace-wide registry write happens BEFORE invoking the .cs parser
+        // so the brief write lock cannot nest with CommitElement's write lock
+        // (ReaderWriterLockSlim default policy is NoRecursion).
+        _lock.EnterWriteLock();
+        try { _allCsFiles.Add(filePath); }
+        finally { _lock.ExitWriteLock(); }
+
+        // Drop element names this file PREVIOUSLY contributed so a renamed /
+        // removed *Props class can't keep its old name pointing at this file.
+        // CommitElement re-adds names found in the new content below.
+        EvictElementsFromFile(filePath);
+
         try
         {
             var lines = File.ReadAllLines(filePath);
@@ -577,7 +788,67 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         try
         {
             _elements.Add(elementName);
-            _elementInfo[elementName] = info;
+
+            // Multi-valued shape: get-or-create the per-name bucket, then
+            // assign the per-file slot. The same file re-indexing itself
+            // overwrites its own slot; a SECOND file declaring the same name
+            // gets a separate slot under its own path key.
+            if (!_elementInfo.TryGetValue(elementName, out var bucket))
+            {
+                bucket = new SortedDictionary<string, ElementInfo>(
+                    StringComparer.OrdinalIgnoreCase);
+                _elementInfo[elementName] = bucket;
+            }
+            bucket[filePath] = info;
+
+            if (!_elementsByFile.TryGetValue(filePath, out var names))
+            {
+                names = new HashSet<string>(StringComparer.Ordinal);
+                _elementsByFile[filePath] = names;
+            }
+            names.Add(elementName);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Removes every element name currently attributed to <paramref name="filePath"/>
+    /// from the index but only if the entry's <c>FilePath</c> still matches
+    /// (i.e. some other file hasn't already claimed the same name in the
+    /// meantime). Call BEFORE re-indexing a file's new content or when the
+    /// file is deleted; combined with <see cref="CommitElement"/>'s tracking,
+    /// this gives the index correct rename / content-change semantics without
+    /// requiring a workspace rescan.
+    /// </summary>
+    private void EvictElementsFromFile(string filePath)
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            if (!_elementsByFile.TryGetValue(filePath, out var names))
+                return;
+
+            foreach (var name in names)
+            {
+                if (!_elementInfo.TryGetValue(name, out var bucket))
+                    continue;
+
+                // Multi-valued shape: drop only THIS file's slot. The name
+                // survives in the global element set when other files still
+                // declare it. This is the core of the TECH_DEBT #21 fix —
+                // the old single-valued code deleted the name entirely on
+                // the first evict, kicking the still-on-disk declarant out
+                // of completion/hover for no reason.
+                if (bucket.Remove(filePath) && bucket.Count == 0)
+                {
+                    _elementInfo.Remove(name);
+                    _elements.Remove(name);
+                }
+            }
+            _elementsByFile.Remove(filePath);
         }
         finally
         {

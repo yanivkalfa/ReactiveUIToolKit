@@ -65,12 +65,16 @@ module DoomTextures {
   public const int S_COUNT = 27;
 
   // ───── Lazy caches ─────
-  private static Texture2D[] _walls;
-  private static Texture2D[] _floors;
-  private static Texture2D[] _sprites;
-  private static Texture2D _sky;
-  private static Texture2D[] _faces;
-  private static Texture2D[] _weapons;
+  // Initialized in EnsureBuilt(); every public getter routes through
+  // EnsureBuilt(), so consumers never observe the null state. The `null!`
+  // suffix tells the compiler the field is framework-initialized later
+  // (matches the convention already used elsewhere in the samples).
+  private static Texture2D[] _walls = null!;
+  private static Texture2D[] _floors = null!;
+  private static Texture2D[] _sprites = null!;
+  private static Texture2D _sky = null!;
+  private static Texture2D[] _faces = null!;
+  private static Texture2D[] _weapons = null!;
 
   public static Texture2D[] Walls { get { EnsureBuilt(); return _walls; } }
   public static Texture2D[] Floors { get { EnsureBuilt(); return _floors; } }

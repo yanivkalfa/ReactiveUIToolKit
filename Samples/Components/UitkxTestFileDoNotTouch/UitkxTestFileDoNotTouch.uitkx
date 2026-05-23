@@ -43,7 +43,7 @@ component UitkxTestFileDoNotTouch(
 
     return (
       <VisualElement key={$"lv-wrap-{id}"}>
-        @(childNode)
+        {childNode}
       </VisualElement>
     );
   };
@@ -658,8 +658,8 @@ component UitkxTestFileDoNotTouch(
         onClick={_ => setMounted(!mounted)}
         style={new Style { (StyleKeys.MinWidth, 140f), (StyleKeys.MarginBottom, 6f), (StyleKeys.MarginTop, 4f) }}
       />
-      @(portalNode)
-      @(inlineNode)
+      {portalNode}
+      {inlineNode}
       <UitkxTestSubFileDoNotTouch
         message="UitkxCounterFunc â€” Go-to-definition test"
       />
@@ -676,8 +676,8 @@ component UitkxTestFileDoNotTouch(
         message="UitkxCounterFunc â€” Go-to-definition test"
       />
       // ── deep nesting: @foreach → @for → @if/@else → @foreach (4 levels) ──
-      @(DeepPillBar(deepPills, mode))
-      @(deepStatusNode)
+      {DeepPillBar(deepPills, mode)}
+      {deepStatusNode}
       @foreach (var cat in deepCategories) {
         var catColor =
           cat == "A" ? Color.cyan :
@@ -712,7 +712,7 @@ component UitkxTestFileDoNotTouch(
               (StyleKeys.BorderRadius, 4f),
             }}
           >
-            @(catBadge)
+            {catBadge}
             @for (int d = 0; d < count; d++) {
               var depthFrac = count > 1 ? (float)d / (count - 1) : 0f;
               var depthBg = new Color(0.12f + depthFrac * 0.08f, 0.12f, 0.2f - depthFrac * 0.08f);

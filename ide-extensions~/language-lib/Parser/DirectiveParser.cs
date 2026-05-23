@@ -397,8 +397,9 @@ namespace ReactiveUITK.Language.Parser
                     bodyStart,       returnStart,
                     returnStmtEndExclusive, bodyEndExclusive);
 
-            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence,
-            // but skip @( inside embedded JSX markup where it is valid syntax.
+            // Scan setup code ranges for @( tokens — emit UITKX0306 per occurrence,
+            // but skip @( inside embedded JSX markup where it is re-parsed by UitkxParser
+            // (which emits its own UITKX0306 from the markup-context branch).
             ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
             ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
 
@@ -982,9 +983,21 @@ namespace ReactiveUITK.Language.Parser
                     i++; // consume ']'
             }
 
-            // Nullable marker
-            if (i < source.Length && source[i] == '?')
-                i++;
+            // Nullable marker (allow optional whitespace before '?', e.g.
+            // `Texture2D ? iconName` — Roslyn accepts the spacing, so we must
+            // too. Canonicalize the captured typeName by appending '?' with no
+            // intervening whitespace so the formatter re-emits a clean
+            // `Texture2D? iconName`.
+            int beforeNullable = i;
+            int peek = i;
+            while (peek < source.Length && (source[peek] == ' ' || source[peek] == '\t'))
+                peek++;
+            if (peek < source.Length && source[peek] == '?')
+            {
+                i = peek + 1;
+                typeName = source.Substring(start, beforeNullable - start) + "?";
+                return true;
+            }
 
             typeName = source.Substring(start, i - start);
             return typeName.Length > 0;
@@ -1065,9 +1078,10 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                return source[i] == '<' || source[i] == '@'
-                    || (source[i] == '{' && i + 2 < endExclusive
-                        && source[i + 1] == '/' && source[i + 2] == '*');
+                // Accept '<' (element), '@' (directive / control flow), or '{' which
+                // is either a brace expression `{expr}` (canonical inline expression
+                // syntax) or a block comment `{/* ... */}` opener.
+                return source[i] == '<' || source[i] == '@' || source[i] == '{';
             }
 
             return false;
@@ -1896,13 +1910,13 @@ namespace ReactiveUITK.Language.Parser
             return start;
         }
 
-        // ── @(expr) scanner ──────────────────────────────────────────────────
+        // ── @( scanner ───────────────────────────────────────────────────────
 
         /// <summary>
         /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
         /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings,
         /// comments, and embedded JSX markup ranges, emitting
-        /// <see cref="DiagnosticCodes.AtExprInSetupCode"/> for each occurrence.
+        /// <see cref="DiagnosticCodes.AtExprNotSupported"/> for each occurrence.
         /// </summary>
         private static void ScanAtExprInSetupCode(
             string source,
@@ -1978,12 +1992,14 @@ namespace ReactiveUITK.Language.Parser
                 // Detect @(
                 if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '(')
                 {
-                    // @(expr) is valid inside embedded JSX markup — skip those.
+                    // @( inside embedded JSX markup is re-parsed by UitkxParser,
+                    // which emits UITKX0306 from its markup-context branch — skip
+                    // here to avoid double-firing.
                     if (!IsInsideJsxRange(i, jsxRanges) && !IsInsideJsxRange(i, bareJsxRanges))
                     {
                         diagnosticBag.Add(new ParseDiagnostic
                         {
-                            Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
+                            Code = Diagnostics.DiagnosticCodes.AtExprNotSupported,
                             Severity = ParseSeverity.Error,
                             SourceLine = LineAtPos(source, i),
                             SourceColumn = ColAtPos(source, i),
@@ -2135,7 +2151,7 @@ namespace ReactiveUITK.Language.Parser
         /// <c>Line</c>  = 1-based source line of <c>Start</c>.
         /// </para>
         /// </summary>
-        internal static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
+        public static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
             string source, int rangeStart, int rangeEnd)
         {
             var result = ImmutableArray.CreateBuilder<(int, int, int)>();
@@ -2280,7 +2296,7 @@ namespace ReactiveUITK.Language.Parser
         /// stored separately to avoid breaking the formatter's block-index
         /// alignment.
         /// </summary>
-        internal static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
+        public static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
             string source, int rangeStart, int rangeEnd)
         {
             var result = ImmutableArray.CreateBuilder<(int, int, int)>();
@@ -2405,6 +2421,40 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
+                // ── Logical-AND short-circuit: && <Tag  ───────────────────
+                // Recognises the React idiom `cond && <Tag/>`. The splice
+                // layer (CSharpEmitter.SpliceExpressionMarkup) desugars this
+                // to a ternary because `bool && VirtualNode` is a hard CS0019
+                // (no operator overload exists on VirtualNode).
+                //
+                // Lookahead: must be `&&` (not `&`, `&=`, `&&&`).
+                // Lookbehind: must not be preceded by another `&` (avoids
+                // re-firing on the second `&` of `&&` if a degenerate input
+                // somehow walked one char at a time, and ignores `&&&`).
+                if (source[i] == '&' && i + 1 < rangeEnd && source[i + 1] == '&'
+                    && (i == 0 || source[i - 1] != '&')
+                    && (i + 2 >= rangeEnd || source[i + 2] != '&'))
+                {
+                    int peek = i + 2;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
                 i++;
             }
             return result.ToImmutable();
@@ -2421,6 +2471,165 @@ namespace ReactiveUITK.Language.Parser
             if (r2.IsDefaultOrEmpty) return r1;
             if (r1.IsDefaultOrEmpty) return r2;
             return r1.AddRange(r2);
+        }
+
+        /// <summary>
+        /// Finds the start position of the LHS of a logical-AND (<c>&amp;&amp;</c>)
+        /// operator located at <paramref name="ampStart"/>, scanning forward
+        /// through <c>source[sliceStart..ampStart]</c>. Used by the splice
+        /// layer to desugar the React idiom <c>cond &amp;&amp; &lt;Tag/&gt;</c>
+        /// into a ternary <c>(cond) ? V.Tag(...) : (VirtualNode?)null</c>.
+        ///
+        /// <para>The walker is precedence-aware: it tracks paren / bracket
+        /// depth and records boundary tokens at depth 0 that have lower
+        /// precedence than <c>&amp;&amp;</c> (and thus terminate the LHS
+        /// expression). The LHS starts immediately after the LAST recorded
+        /// boundary, with leading whitespace skipped. If no boundary is
+        /// found, the LHS spans the full slice.</para>
+        ///
+        /// <para>Boundary tokens recognised at depth 0:</para>
+        /// <list type="bullet">
+        ///   <item><c>?</c> ternary (excluding <c>??</c>, <c>?.</c>)</item>
+        ///   <item><c>:</c> ternary (excluding <c>::</c>)</item>
+        ///   <item><c>??</c> null-coalescing</item>
+        ///   <item><c>||</c> logical-or</item>
+        ///   <item><c>,</c> argument / element separator</item>
+        ///   <item><c>;</c> statement separator</item>
+        /// </list>
+        ///
+        /// <para>String / char literals and line / block comments are skipped
+        /// using the same lexer helpers as <see cref="FindBareJsxRanges"/>.
+        /// The walker is O(n) on the slice length and allocation-free.</para>
+        ///
+        /// <para>Returns -1 if the resulting LHS slice (after trimming) would
+        /// be empty — caller should treat this as "could not desugar" and
+        /// emit a UITKX0026 diagnostic.</para>
+        /// </summary>
+        public static int FindLhsStartForLogicalAnd(string source, int sliceStart, int ampStart)
+        {
+            if (sliceStart < 0) sliceStart = 0;
+            if (ampStart > source.Length) ampStart = source.Length;
+            if (sliceStart >= ampStart) return -1;
+
+            // Boundary tracking is per-paren-depth, not absolute. The `&&`
+            // operator lives at whatever depth the walker reaches when it
+            // arrives at `ampStart`. Boundaries (`?`, `:`, `??`, `||`, `,`,
+            // `;`) only constrain the LHS when they sit at the SAME depth
+            // as the `&&`. Example:
+            //   `(a ? b : c && X)` — outer `(` enters depth 1; the `?:`
+            //   tokens live at depth 1, the `&&` also at depth 1 → they ARE
+            //   boundaries (LHS = `c`).
+            //   `f(a, b) && X`     — `,` is at depth 1, `&&` at depth 0 →
+            //   the `,` is NOT a boundary (LHS = `f(a, b)`).
+            //
+            // Stack semantics: index 0 holds the outer-scope boundary;
+            // entering `(`/`[` pushes a fresh slot for the new scope; closing
+            // discards it. The slot at depth 0 (top of stack) when we exit
+            // the loop is the LHS start at `&&`'s depth.
+            var boundaries = new int[16];
+            int depth = 0;
+            boundaries[0] = sliceStart;
+            int i = sliceStart;
+
+            while (i < ampStart)
+            {
+                // Skip strings and chars (lexer-aware)
+                if (TrySkipStringOrCharLiteral(source, ampStart, ref i))
+                    continue;
+
+                // Skip // line comments
+                if (i + 1 < ampStart && source[i] == '/' && source[i + 1] == '/')
+                {
+                    while (i < ampStart && source[i] != '\n') i++;
+                    continue;
+                }
+
+                // Skip /* ... */ block comments
+                if (i + 1 < ampStart && source[i] == '/' && source[i + 1] == '*')
+                {
+                    int end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = (end >= 0 && end + 2 <= ampStart) ? end + 2 : ampStart;
+                    continue;
+                }
+
+                char c = source[i];
+
+                // Track bracket depth — push/pop a per-depth boundary slot
+                if (c == '(' || c == '[')
+                {
+                    depth++;
+                    if (depth >= boundaries.Length)
+                        Array.Resize(ref boundaries, boundaries.Length * 2);
+                    // Inside the new scope, the LHS-of-`&&` boundary starts
+                    // immediately after the opening bracket.
+                    boundaries[depth] = i + 1;
+                    i++;
+                    continue;
+                }
+                if (c == ')' || c == ']')
+                {
+                    if (depth > 0) depth--;
+                    i++;
+                    continue;
+                }
+
+                // `??` null-coalescing — must check before single `?`
+                if (c == '?' && i + 1 < ampStart && source[i + 1] == '?')
+                {
+                    i += 2;
+                    boundaries[depth] = i;
+                    continue;
+                }
+
+                // `?` ternary (excluding `??` handled above, and `?.`)
+                if (c == '?' && i + 1 < ampStart && source[i + 1] != '.' && source[i + 1] != '?')
+                {
+                    i++;
+                    boundaries[depth] = i;
+                    continue;
+                }
+
+                // `:` ternary (excluding `::` namespace alias)
+                if (c == ':' && i + 1 < ampStart && source[i + 1] != ':')
+                {
+                    i++;
+                    boundaries[depth] = i;
+                    continue;
+                }
+
+                // `||` logical-or
+                if (c == '|' && i + 1 < ampStart && source[i + 1] == '|')
+                {
+                    i += 2;
+                    boundaries[depth] = i;
+                    continue;
+                }
+
+                // `,` and `;`
+                if (c == ',' || c == ';')
+                {
+                    i++;
+                    boundaries[depth] = i;
+                    continue;
+                }
+
+                i++;
+            }
+
+            int lastBoundary = boundaries[depth];
+
+            // Skip leading whitespace from the boundary
+            while (lastBoundary < ampStart &&
+                   (source[lastBoundary] == ' '  || source[lastBoundary] == '\t' ||
+                    source[lastBoundary] == '\r' || source[lastBoundary] == '\n'))
+            {
+                lastBoundary++;
+            }
+
+            // Empty LHS — caller should fall back to UITKX0026
+            if (lastBoundary >= ampStart) return -1;
+
+            return lastBoundary;
         }
 
         /// <summary>

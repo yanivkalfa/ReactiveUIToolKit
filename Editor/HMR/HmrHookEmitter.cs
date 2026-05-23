@@ -19,25 +19,15 @@ namespace ReactiveUITK.EditorSupport.HMR
     internal static class HmrHookEmitter
     {
         // ── Hook alias substitution (mirrors HmrCSharpEmitter) ───────────────
+        //
+        // Sourced from ReactiveUITK.Core.HookRegistry — the single source of
+        // truth shared by SG, HMR, IDE diagnostics, hover docs, and VDG stubs.
 
         private static readonly (string From, string To)[] s_hookAliases =
-        {
-            ("useState(", "Hooks.UseState("),
-            ("useEffect(", "Hooks.UseEffect("),
-            ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
-            ("useRef(", "Hooks.UseRef("),
-            ("useCallback(", "Hooks.UseCallback("),
-            ("useMemo(", "Hooks.UseMemo("),
-            ("useContext(", "Hooks.UseContext("),
-            ("useReducer(", "Hooks.UseReducer("),
-            ("useSignal(", "Hooks.UseSignal("),
-            ("useDeferredValue(", "Hooks.UseDeferredValue("),
-            ("useTransition(", "Hooks.UseTransition("),
-            ("provideContext(", "Hooks.ProvideContext("),
-        };
+            global::ReactiveUITK.Core.HookRegistry.GetAliasTable();
 
         private static readonly Regex s_genericHookAliasRe = new Regex(
-            @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+            global::ReactiveUITK.Core.HookRegistry.GetGenericHookPattern(),
             RegexOptions.Compiled
         );
 
@@ -89,6 +79,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             sb.AppendLine("using ReactiveUITK.Core;");
             sb.AppendLine("using ReactiveUITK.Core.Animation;");
             sb.AppendLine("using ReactiveUITK.Props.Typed;");
+            sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.StyleKeys;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.CssHelpers;");
             sb.AppendLine("using static ReactiveUITK.AssetHelpers;");
@@ -115,6 +106,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             sb.AppendLine("using Length = UnityEngine.UIElements.Length;");
             sb.AppendLine("using StyleKeyword = UnityEngine.UIElements.StyleKeyword;");
             sb.AppendLine("using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;");
+            // Unity 6.3+ types — preprocessor-guarded so pre-6.3 builds compile clean.
+            sb.AppendLine("#if UNITY_6000_3_OR_NEWER");
+            sb.AppendLine("using FilterFunction = UnityEngine.UIElements.FilterFunction;");
+            sb.AppendLine("using Ratio = UnityEngine.UIElements.Ratio;");
+            sb.AppendLine("using StyleRatio = UnityEngine.UIElements.StyleRatio;");
+            sb.AppendLine("using MaterialDefinition = UnityEngine.UIElements.MaterialDefinition;");
+            sb.AppendLine("using StyleMaterialDefinition = UnityEngine.UIElements.StyleMaterialDefinition;");
+            sb.AppendLine("#endif");
             sb.AppendLine();
 
             sb.AppendLine($"namespace {ns}");
@@ -128,9 +127,65 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             sb.AppendLine("    }");
+
+            // ── HMR companion ────────────────────────────────────────────────
+            // [ModuleInitializer] that re-registers each hook with
+            // RefreshRuntime under the FRESH signature derived from the
+            // recompiled body source. Mirrors HookEmitter.EmitHookRefreshCompanion
+            // on the source-gen side. The SG-emitted [HookSignature]
+            // attribute on the trampoline cannot detect HMR-time changes
+            // because it lives in the original project assembly; we must
+            // re-publish the signature here so Phase 3's transitive walk
+            // sees the new value.
+            EmitHookRefreshCompanion(sb, hookList, containerClassName, ns);
+
             sb.AppendLine("}");
 
             return sb.ToString();
+        }
+
+        private static void EmitHookRefreshCompanion(
+            StringBuilder sb,
+            List<object> hookList,
+            string containerClassName,
+            string ns)
+        {
+            if (hookList.Count == 0)
+                return;
+
+            string companionName = containerClassName + "__UitkxHookRefresh";
+
+            sb.AppendLine();
+            sb.AppendLine($"    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+            sb.AppendLine($"    [global::System.Runtime.CompilerServices.CompilerGenerated]");
+            sb.AppendLine($"    internal static class {companionName}");
+            sb.AppendLine("    {");
+            sb.AppendLine($"        [global::System.Runtime.CompilerServices.ModuleInitializer]");
+            sb.AppendLine($"        internal static void __Register()");
+            sb.AppendLine("        {");
+            foreach (var hook in hookList)
+            {
+                // Family key = literal hook name (bare). See HookEmitter for rationale.
+                string hookName = (string)GetProp(hook, "Name");
+                string hookBody = (string)GetProp(hook, "Body") ?? string.Empty;
+                string sig = HmrCSharpEmitter.ExtractHookSignature(hookBody) ?? string.Empty;
+                string[] hookCustomKeys = HmrCSharpEmitter.ExtractCustomHookFamilyKeys(hookBody);
+                string familyKey = hookName;
+                string keysLit = HmrCSharpEmitter.RenderCustomHookFamilyKeysLiteral(hookCustomKeys);
+                sb.AppendLine(
+                    $"            global::ReactiveUITK.Refresh.RefreshRuntime.RegisterHook(" +
+                    $"\"{EscapeStringLiteral(familyKey)}\", " +
+                    $"\"{EscapeStringLiteral(sig)}\", " +
+                    $"{keysLit});");
+            }
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+        }
+
+        private static string EscapeStringLiteral(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         /// <summary>
@@ -166,6 +221,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             sb.AppendLine("using ReactiveUITK.Core;");
             sb.AppendLine("using ReactiveUITK.Core.Animation;");
             sb.AppendLine("using ReactiveUITK.Props.Typed;");
+            sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.StyleKeys;");
             sb.AppendLine("using static ReactiveUITK.Props.Typed.CssHelpers;");
             sb.AppendLine("using static ReactiveUITK.AssetHelpers;");
@@ -191,6 +247,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             sb.AppendLine("using Length = UnityEngine.UIElements.Length;");
             sb.AppendLine("using StyleKeyword = UnityEngine.UIElements.StyleKeyword;");
             sb.AppendLine("using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;");
+            // Unity 6.3+ types — preprocessor-guarded so pre-6.3 builds compile clean.
+            sb.AppendLine("#if UNITY_6000_3_OR_NEWER");
+            sb.AppendLine("using FilterFunction = UnityEngine.UIElements.FilterFunction;");
+            sb.AppendLine("using Ratio = UnityEngine.UIElements.Ratio;");
+            sb.AppendLine("using StyleRatio = UnityEngine.UIElements.StyleRatio;");
+            sb.AppendLine("using MaterialDefinition = UnityEngine.UIElements.MaterialDefinition;");
+            sb.AppendLine("using StyleMaterialDefinition = UnityEngine.UIElements.StyleMaterialDefinition;");
+            sb.AppendLine("#endif");
             sb.AppendLine();
 
             sb.AppendLine($"namespace {ns}");
@@ -207,6 +271,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // recompiles produce identical literal strings to what UitkxAssetRegistry
                 // indexes by).
                 body = HmrCSharpEmitter.ResolveAssetPaths(body, filePath);
+
+                // ── B28: strip `readonly` from every top-level `static readonly`
+                // field and decorate with [UitkxHmrSwap]. Mirrors the SG-side
+                // StaticReadonlyStripper so module statics can be re-initialised
+                // across HMR cycles (Mono's JIT inlines initonly statics; the
+                // attribute discriminator opts the field in to the swapper).
+                body = HmrStaticReadonlyStripper.Strip(body);
 
                 sb.AppendLine($"    public partial class {name}");
                 sb.AppendLine("    {");

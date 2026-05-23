@@ -137,8 +137,11 @@ export const HmrPage: FC = () => (
         </Table>
       </TableContainer>
       <Typography variant="body1" paragraph sx={{ mt: 1 }}>
-        If the number or order of hooks changes between edits, HMR detects the mismatch, resets
-        state for that component, and logs a <code>[HMR] Hook mismatch</code> warning.
+        If the number, order, or types of hooks change between edits (an incompatible signature
+        change), HMR resets state for every live instance of the component and logs{' '}
+        <code>[HMR] Hook signature changed in &lt;Component&gt; — resetting state on all instances.</code>{' '}
+        State resets in-place without a domain reload, matching React Fast Refresh semantics; you
+        do not need to recompile, restart Play mode, or close any windows.
       </Typography>
     </Section>
 
@@ -152,12 +155,28 @@ export const HmrPage: FC = () => (
           <ListItemText primary={<><strong>Hook files</strong> (e.g. <code>MyComponent.hooks.uitkx</code>) — the hook delegate is swapped in-place. All components that use the hook re-render with the new logic. Hook state is preserved.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><strong>Style modules</strong> (e.g. <code>MyComponent.style.uitkx</code>) — module changes trigger a domain reload since they contain static data.</>} />
+          <ListItemText primary={<><strong>Style modules</strong> (e.g. <code>MyComponent.style.uitkx</code>) — <code>static readonly</code> field initializers are re-evaluated and the new values are copied into the live module type. Editing a <code>Style</code>, <code>Color</code>, or any other module-scope <code>static readonly</code> value takes effect on the next render without a domain reload.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><strong>Utility modules</strong> (e.g. <code>MyComponent.utils.uitkx</code>) — same as style modules, domain reload.</>} />
+          <ListItemText primary={<><strong>Utility modules</strong> (e.g. <code>MyComponent.utils.uitkx</code>) — <code>static</code> method bodies are hot-swapped via per-method delegate trampolines; <code>static readonly</code> fields are re-initialized like style modules; mutable <code>static</code> fields keep their runtime value across cycles.</>} />
         </ListItem>
       </List>
+      <Typography variant="body1" paragraph sx={{ mt: 1 }}>
+        Module-scope <code>static readonly</code> fields are transparently emitted as
+        <code>[UitkxHmrSwap] static</code> by the source generator so the runtime slot stays
+        writable and the Mono JIT cannot inline a stale reference. Writing to these fields from
+        non-cctor code triggers analyzer warning <code>UITKX0210</code> — the HMR pipeline will
+        overwrite the value on the next save.
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <strong>Limitation — prefer fields over static auto-properties.</strong> A get-only static
+        auto-property like <code>public static Style Root {'{'} get; {'}'} = new Style {'{'}…{'}'}</code>
+        is lowered by the C# compiler to a private <code>static readonly</code> backing field that
+        the source generator cannot rewrite. Its value will be inlined by the JIT and HMR cannot
+        refresh it. For HMR-able module values, use fields:
+        <code>public static readonly Style Root = new Style {'{'}…{'}'};</code>. Field handling for
+        static auto-properties is on the roadmap.
+      </Typography>
       <Typography variant="body1" paragraph>
         Generic hooks (e.g. <code>{'hook useLocalStorage<T>(...)'}</code>) use a cached delegate
         strategy — first call per type parameter after HMR pays ~1-2µs, subsequent calls are direct
@@ -182,6 +201,31 @@ export const HmrPage: FC = () => (
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary="Cross-component references are managed via an assembly registry." />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>New plain <code>.cs</code> helper files referenced from a <code>.uitkx</code> are picked up too, even before Unity has recompiled the project DLL — HMR adds them as additional Roslyn syntax trees, asmdef-scoped and AppDomain-deduped against types Unity already loaded.</>} />
+        </ListItem>
+      </List>
+    </Section>
+
+    <Section title="Save Cascade">
+      <Typography variant="body1" paragraph>
+        Saving a single <code>.uitkx</code> file now enqueues every transitive consumer in the
+        same asmdef and recompiles them in topological order. The drain runs through
+        <code> EditorApplication.delayCall</code> so the editor stays responsive between compiles.
+      </Typography>
+      <List sx={Styles.list}>
+        <ListItem disablePadding>
+          <ListItemText primary="Editing a child component's body now updates parent renderers without requiring a manual second save." />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Module value edits (e.g. <code>Theme.Accent</code>) propagate through every derived module field (<code>StatsPanel.Container.BorderColor</code>) automatically.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>When a cascade pulls in two or more files within one asmdef, HMR compiles them in a single union assembly so a refactored <code>ChildProps</code> shape resolves to a single authoritative type across parent + child. Falls back to per-file compile on failure so the user-facing error surface (CS0117 / CS0246 / CS0433) is preserved.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Telemetry: <code>[HMR] union: N files, M ms</code> on a successful batch compile.</>} />
         </ListItem>
       </List>
     </Section>
@@ -379,7 +423,7 @@ export const HmrPage: FC = () => (
           <ListItemText primary="Hook order or count may have changed — this triggers automatic state reset." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Check Console for "<code>[HMR] Hook mismatch</code>" messages.</>} />
+          <ListItemText primary={<>Check Console for "<code>[HMR] Hook signature changed</code>" messages.</>} />
         </ListItem>
       </List>
     </Section>

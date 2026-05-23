@@ -25,6 +25,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         public event Action<string> OnUssChanged;
 
+        /// <summary>
+        /// Fires on the main thread (synchronously, no debounce) when a .uitkx
+        /// file is deleted or renamed away. Parameter is the absolute path of
+        /// the file that no longer exists. Used by the controller to evict
+        /// stale entries from <c>_pendingRetryPaths</c> so retries don't loop
+        /// on a missing file.
+        /// </summary>
+        public event Action<string> OnUitkxDeleted;
+
         private FileSystemWatcher _watcher;
         private readonly Dictionary<string, int> _pendingChanges = new();
         private readonly Dictionary<string, int> _pendingUssChanges = new();
@@ -60,11 +69,24 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             // Pump pending changes on every editor update
             EditorApplication.update += PumpPendingChanges;
+
+            // Register a redundant event source via Unity's AssetPostprocessor.
+            // Mono's FileSystemWatcher silently drops events when its 8 KB
+            // internal buffer overflows under save bursts on a deep Assets/
+            // tree (every save also touches .meta files, etc.). The
+            // AssetPostprocessor path is main-thread, never drops, and
+            // _pendingChanges dedupes by path so redundant events from both
+            // sources are harmless. Touching FSW config has proven fragile on
+            // some Mono versions, so we keep FSW exactly as-is and add
+            // AssetPostprocessor as a parallel safety net.
+            UitkxHmrAssetPostprocessor.Register(this);
         }
 
         public void Stop()
         {
             EditorApplication.update -= PumpPendingChanges;
+
+            UitkxHmrAssetPostprocessor.Unregister(this);
 
             if (_watcher != null)
             {
@@ -127,6 +149,48 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 _pendingChanges[uitkxPath] = Environment.TickCount;
             }
+        }
+
+        // Push a synthetic change event from the AssetPostprocessor.
+        // Routes through OnFileSystemEvent so all extension filtering,
+        // companion-.cs mapping, USS handling, and dedupe behave identically
+        // to the FileSystemWatcher path.
+        internal void EnqueueAssetChange(string absolutePath)
+        {
+            if (_disposed || string.IsNullOrEmpty(absolutePath))
+                return;
+            OnFileSystemEvent(
+                this,
+                new FileSystemEventArgs(
+                    WatcherChangeTypes.Changed,
+                    Path.GetDirectoryName(absolutePath) ?? string.Empty,
+                    Path.GetFileName(absolutePath)
+                )
+            );
+        }
+
+        // Push a deletion notification from the AssetPostprocessor. Fires the
+        // OnUitkxDeleted event synchronously on the main thread (deletions
+        // are cleanup, not work — no need to debounce). Companion .cs
+        // deletions are intentionally ignored: there's no retry-state keyed
+        // by .cs path. Also evicts any pending change entry for the path so
+        // a stale debounced compile doesn't fire after the file is gone.
+        internal void EnqueueAssetDeletion(string absolutePath)
+        {
+            if (_disposed || string.IsNullOrEmpty(absolutePath))
+                return;
+            string ext = Path.GetExtension(absolutePath);
+            if (string.IsNullOrEmpty(ext))
+                return;
+            if (!ext.Equals(".uitkx", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            lock (_lock)
+            {
+                _pendingChanges.Remove(absolutePath);
+            }
+
+            OnUitkxDeleted?.Invoke(absolutePath);
         }
 
         // ── Main thread pump ──────────────────────────────────────────────────

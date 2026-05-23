@@ -67,17 +67,19 @@ const CONTROL_FLOW_EXAMPLE = `<VisualElement>
 const EXPRESSION_EXAMPLE = `<Label text={$"Count: {count}"} />
 <Button onClick={_ => setCount(count + 1)} />
 <VisualElement>
-  @(MyCustomComponent)
+  {myCustomNode}
+  {cond ? <A/> : <B/>}
+  {items.Select(x => <Item key={x.Id} text={x.Name} />)}
   // This is a line comment
   /* This is a block comment */
 </VisualElement>
 
-// Switch expression inside @(...)
-@(status switch {
+// C# switch expression in child position
+{status switch {
     "ok"  => <Label text="All good" />,
     "err" => <Label text="Something went wrong" />,
     _     => <Label text="Unknown" />
-})`
+}}`
 
 export const UitkxReferencePage: FC = () => (
   <Box sx={Styles.root}>
@@ -231,7 +233,7 @@ export const UitkxReferencePage: FC = () => (
       <code>return (&lt;JSX /&gt;);</code>. Use <code>return null;</code> to skip
       rendering for a particular iteration or branch. JSX can also be assigned to
       variables in setup code: <code>var x = (&lt;Label text="hi" /&gt;);</code> and
-      rendered inline with <code>@(x)</code>.
+      rendered inline with <code>{'{x}'}</code>.
     </Typography>
 
     {/* ── Expressions & Values ───────────────────────────────────────────── */}
@@ -249,12 +251,19 @@ export const UitkxReferencePage: FC = () => (
         </TableHead>
         <TableBody>
           <TableRow>
-            <TableCell><code>@(expr)</code></TableCell>
-            <TableCell><code>@(MyCustomComponent)</code></TableCell>
-            <TableCell>Render a component or expression inline in markup children</TableCell>
+            <TableCell><code>{'{expr}'}</code></TableCell>
+            <TableCell><code>{'<Box>{myNode}</Box>'}</code></TableCell>
+            <TableCell>
+              C# expression in <strong>markup-child</strong> position. The expression
+              may evaluate to a <code>VirtualNode</code>, an{' '}
+              <code>{'IEnumerable<VirtualNode>'}</code> (rendered as siblings), a
+              string (rendered as a label), or <code>null</code> (renders nothing).
+              JSX literals are allowed inside the expression
+              (e.g. <code>{'{cond ? <A/> : <B/>}'}</code>).
+            </TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>{'{expr}'}</code></TableCell>
+            <TableCell><code>{'attr={expr}'}</code></TableCell>
             <TableCell><code>text={'{$"Count: {count}"}'}</code></TableCell>
             <TableCell>C# expression as attribute value</TableCell>
           </TableRow>
@@ -279,14 +288,90 @@ export const UitkxReferencePage: FC = () => (
             <TableCell>Fragment — invisible wrapper for multiple elements without a parent node</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>{'@(expr switch { ... })'}</code></TableCell>
-            <TableCell><code>{'@(status switch { "ok" => <Label text="OK" />, _ => <Label text="?" /> })'}</code></TableCell>
-            <TableCell>C# switch expression inside inline expression — returns markup per branch</TableCell>
+            <TableCell><code>{'{expr switch { ... }}'}</code></TableCell>
+            <TableCell><code>{'{status switch { "ok" => <Label text="OK" />, _ => <Label text="?" /> }}'}</code></TableCell>
+            <TableCell>C# switch expression in child position — returns markup per branch</TableCell>
           </TableRow>
         </TableBody>
       </Table>
     </TableContainer>
     <CodeBlock language="jsx" code={EXPRESSION_EXAMPLE} />
+
+    {/* ── Migration from @(expr) ─────────────────────────────────────────── */}
+    <Box sx={{ my: 3, p: 2, borderLeft: '4px solid', borderColor: 'warning.main', bgcolor: 'action.hover' }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+        Migration: <code>@(expr)</code> → <code>{'{expr}'}</code>
+      </Typography>
+      <Typography variant="body2" paragraph sx={{ mb: 1 }}>
+        Earlier versions of UITKX accepted <code>@(expr)</code> as a markup-child
+        embed (Razor-style). It has been removed. The canonical and only embed
+        form for arbitrary C# expressions inside markup is now <code>{'{expr}'}</code>{' '}
+        (matching JSX/Babel/React). Files containing legacy <code>@(expr)</code>{' '}
+        in markup raise a hard parse error <strong>UITKX0306</strong>.
+      </Typography>
+      <Typography variant="body2" paragraph sx={{ mb: 1 }}>
+        The <code>@</code> prefix continues to mark <strong>directives only</strong>:{' '}
+        <code>@if</code>, <code>@else</code>, <code>@for</code>, <code>@foreach</code>,{' '}
+        <code>@while</code>, <code>@switch</code>, <code>@case</code>,{' '}
+        <code>@default</code>, <code>@using</code>, <code>@namespace</code>,{' '}
+        <code>@component</code>, <code>@props</code>, <code>@key</code>,{' '}
+        <code>@inject</code>, <code>@uss</code>.
+      </Typography>
+      <Typography variant="body2" sx={{ mb: 1 }}>
+        Migration is mechanical:
+      </Typography>
+      <CodeBlock language="jsx" code={`// before
+<Box>@(items.Count)</Box>
+<Box>@(myNode)</Box>
+<Box>@(KeyDot(label))</Box>
+
+// after
+<Box>{items.Count}</Box>
+<Box>{myNode}</Box>
+<Box>{KeyDot(label)}</Box>`} />
+    </Box>
+
+    {/* ── User-component strict attribute validation (0.5.4) ───────────────── */}
+    <Box sx={{ my: 3, p: 2, borderLeft: '4px solid', borderColor: 'warning.main', bgcolor: 'action.hover' }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+        Migration: User-component attribute strictness (<code>0.5.4</code>)
+      </Typography>
+      <Typography variant="body2" paragraph sx={{ mb: 1 }}>
+        Earlier versions silently allowed any <code>BaseProps</code> attribute
+        (<code>style</code>, <code>name</code>, <code>className</code>,{' '}
+        <code>onClick</code>, <code>extraProps</code>, …) on every tag — including
+        user-defined function components — because the schema lumped them with{' '}
+        <code>key</code> / <code>ref</code> under one <em>universal</em> list.
+        That produced <strong>CS0117</strong> at C# compile time when the user
+        component's generated <code>*Props</code> class didn't actually have
+        the property.
+      </Typography>
+      <Typography variant="body2" paragraph sx={{ mb: 1 }}>
+        From <code>0.5.4</code> onward, user components only accept their{' '}
+        <strong>declared parameters</strong> plus the two truly universal
+        attributes: <code>key</code> (VirtualNode reconciliation slot) and{' '}
+        <code>ref</code> (auto-routed to the unique{' '}
+        <code>{'Hooks.MutableRef<T>'}</code> parameter via{' '}
+        <code>forwardRef</code>-style semantics). Anything else raises{' '}
+        <strong>UITKX0109</strong> (Error). Built-in tags (<code>Box</code>,{' '}
+        <code>Button</code>, <code>Label</code>, …) are unchanged — they still
+        accept the full <code>BaseProps</code> intrinsic surface.
+      </Typography>
+      <Typography variant="body2" sx={{ mb: 1 }}>
+        Migration: declare the attribute as a parameter and forward it.
+      </Typography>
+      <CodeBlock language="jsx" code={`// before — silent slip-through, then CS0117 on AppButtonProps.Style
+component AppButton(string text = "") {
+    return (<Button text={text}/>);
+}
+<AppButton text="Save" style={btnStyle}/>   // UITKX0109 in 0.5.4+
+
+// after — declare style as a parameter and forward it explicitly
+component AppButton(string text = "", IStyle? style = null) {
+    return (<Button text={text} style={style}/>);
+}
+<AppButton text="Save" style={btnStyle}/>   // OK`} />
+    </Box>
 
     {/* ── JSX in Setup Code ──────────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>

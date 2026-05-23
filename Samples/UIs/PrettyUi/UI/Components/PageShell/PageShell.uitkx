@@ -4,9 +4,9 @@
 component PageShell(VirtualNode? sidebar = null, VirtualNode? content = null) {
   return (
     <VisualElement style={Root}>
-      @(sidebar)
+      {sidebar}
       <VisualElement style={Content}>
-        @(content)
+        {content}
       </VisualElement>
     </VisualElement>
   );

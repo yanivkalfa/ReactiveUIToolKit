@@ -40,6 +40,20 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> TypedRender;
 
+        /// <summary>
+        /// UITKX Fast Refresh Family handle. Non-null when this fiber was
+        /// created from a vnode produced by a <c>V.Func(Family,...)</c>
+        /// overload. The reconciler compares Family identity in
+        /// <c>CanReuseFiber</c>, eliminating the cross-DLL
+        /// <c>Method.DeclaringType</c> mismatch the legacy trampoline
+        /// architecture was vulnerable to. Editor-only -- player builds
+        /// receive direct <c>V.Func(MyComp.Render,...)</c> calls and the
+        /// <c>Refresh.Family</c> type does not exist outside the Editor.
+        /// </summary>
+#if UNITY_EDITOR
+        public Refresh.Family Family;
+#endif
+
         /// <summary>Pending typed props for the next render (typed path only).</summary>
         public IProps TypedPendingProps;
 
@@ -131,16 +145,6 @@ namespace ReactiveUITK.Core.Fiber
         /// Flag indicating this fiber reads from Context and cannot safely bail out based on props alone
         /// </summary>
         public bool ReadsContext;
-
-#if UNITY_EDITOR
-        // ==== HMR Rollback ====
-        /// <summary>
-        /// Previous render delegate saved by HMR before a delegate swap.
-        /// Used to rollback if the new delegate crashes during render.
-        /// Cleared after a successful commit.
-        /// </summary>
-        internal Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> HmrPreviousRender;
-#endif
     }
 
     /// <summary>
@@ -190,5 +194,15 @@ namespace ReactiveUITK.Core.Fiber
 
         /// <summary>Ref needs update</summary>
         Ref = 1 << 5,
+
+        /// <summary>
+        /// HostPortal whose <see cref="FiberNode.PortalTarget"/> changed between
+        /// renders. The commit phase must physically reparent the portal's
+        /// top-level host descendants from the previous target VisualElement to
+        /// the new one. Set in <c>CompleteWork</c> by comparing the WIP fiber's
+        /// PortalTarget to its alternate's; honored in <c>CommitWork</c> by
+        /// <c>CommitPortalRetarget</c>.
+        /// </summary>
+        PortalRetarget = 1 << 6,
     }
 }
