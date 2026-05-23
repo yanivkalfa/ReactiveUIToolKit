@@ -3,6 +3,16 @@
     {
       "date": "2026-05-23",
       "versions": {
+        "vscode": "1.2.16",
+        "vs2022": "1.2.16"
+      },
+      "shared": [
+        "Fix: language server reference cache no longer poisoned by mid-recompile DLL state; open .uitkx files refresh diagnostics automatically after Unity recompiles. Added uitkx.restartLanguageServer command for faster recovery than Reload Window."
+      ]
+    },
+    {
+      "date": "2026-05-23",
+      "versions": {
         "vscode": "1.2.15",
         "vs2022": "1.2.15"
       },

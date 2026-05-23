@@ -190,6 +190,11 @@ namespace UitkxLanguageServer.Roslyn
             /// <see cref="EnsureReadyAsync"/> uses this to skip redundant rebuilds.</summary>
             public string LastBuiltSource = "";
 
+            /// <summary>Parse result from the most recent <see cref="EnqueueRebuild"/> call.
+            /// Retained so the DLL watcher can re-enqueue a metadata-refresh rebuild without
+            /// re-parsing the source from scratch.</summary>
+            public ParseResult? LastParseResult;
+
             /// <summary>Debounce timer for rebuild requests.</summary>
             public Timer? DebounceTimer;
             public CancellationTokenSource RebuildCts = new CancellationTokenSource();
@@ -233,7 +238,15 @@ namespace UitkxLanguageServer.Roslyn
         private readonly WorkspaceIndex _workspaceIndex;
 
         private FileSystemWatcher? _dllWatcher;
+        private Timer? _recompileCooldownTimer;
+        private DiagnosticsPublisher? _publisher;
         private bool _disposed;
+
+        // Milliseconds of DLL-watcher silence after which the recompile window
+        // is considered closed. Must be long enough to absorb Unity's multi-
+        // stage compile (asmdef → asmdef → addressables), short enough that
+        // users don't notice diagnostic lag after a real recompile finishes.
+        private const int RecompileCooldownMs = 2500;
 
         // ── Construction ──────────────────────────────────────────────────────
 
@@ -313,7 +326,15 @@ namespace UitkxLanguageServer.Roslyn
             if (string.IsNullOrEmpty(uitkxFilePath))
                 return;
 
+            // Capture the singleton publisher once so the DLL watcher can
+            // re-enqueue rebuilds on Unity recompile without needing one
+            // passed explicitly. DiagnosticsPublisher is registered as a DI
+            // singleton (Program.cs) so every call passes the same instance.
+            if (_publisher == null)
+                Interlocked.CompareExchange(ref _publisher, publisher, null);
+
             var state = _files.GetOrAdd(uitkxFilePath, _ => new FileState());
+            state.LastParseResult = parseResult;
 
             // Cancel any previously-scheduled rebuild for this file
             state.DebounceTimer?.Dispose();
@@ -1514,6 +1535,8 @@ namespace UitkxLanguageServer.Roslyn
         {
             _dllWatcher?.Dispose();
             _dllWatcher = null;
+            var staleCooldown = Interlocked.Exchange(ref _recompileCooldownTimer, null);
+            staleCooldown?.Dispose();
 
             if (string.IsNullOrEmpty(workspaceRoot))
                 return;
@@ -1536,35 +1559,77 @@ namespace UitkxLanguageServer.Roslyn
                     EnableRaisingEvents = true,
                 };
 
-                // Debounced handler — a Unity recompile touches many DLLs in quick
-                // succession; we only need to invalidate once.
-                Timer? invalidateTimer = null;
-                void OnDllChanged(object _, FileSystemEventArgs __)
-                {
-                    invalidateTimer?.Dispose();
-                    invalidateTimer = new Timer(
-                        _ =>
-                        {
-                            _refLocator.Invalidate();
-                            ServerLog.Log(
-                                "[RoslynHost] Unity recompile detected — reference cache cleared."
-                            );
-                        },
-                        null,
-                        dueTime: 1500,
-                        period: Timeout.Infinite
-                    );
-                }
+                _dllWatcher.Changed += OnDllActivity;
+                _dllWatcher.Created += OnDllActivity;
+                _dllWatcher.Deleted += OnDllActivity;
 
-                _dllWatcher.Changed += OnDllChanged;
-                _dllWatcher.Created += OnDllChanged;
-
-                ServerLog.Log($"[RoslynHost] DLL watcher active: {scriptAssembliesDir}");
+                ServerLog.Log(
+                    $"[RoslynHost] DLL watcher active: {scriptAssembliesDir} "
+                    + $"(recompile cooldown {RecompileCooldownMs} ms)"
+                );
             }
             catch (Exception ex)
             {
                 ServerLog.Log($"[RoslynHost] Could not set up DLL watcher: {ex.Message}");
             }
+        }
+
+        // Any DLL activity opens (or extends) the recompile window. The
+        // ReferenceAssemblyLocator refuses to update its baseline or cache a
+        // fresh scan while the window is open, so no thread that calls
+        // GetReferences mid-recompile can poison the cache with a partial
+        // result. When the cooldown elapses with no further activity the
+        // window closes and we flush stale per-file workspace state.
+        private void OnDllActivity(object sender, FileSystemEventArgs e)
+        {
+            _refLocator.SetRecompileWindow(true);
+
+            var fresh = new Timer(
+                _ => OnRecompileWindowEnded(),
+                state: null,
+                dueTime: RecompileCooldownMs,
+                period: Timeout.Infinite
+            );
+            var prev = Interlocked.Exchange(ref _recompileCooldownTimer, fresh);
+            prev?.Dispose();
+        }
+
+        private void OnRecompileWindowEnded()
+        {
+            _refLocator.SetRecompileWindow(false);
+            _refLocator.Invalidate();
+            ServerLog.Log(
+                "[RoslynHost] Unity recompile window ended — reference cache cleared."
+            );
+            TriggerMetadataRefreshForAllFiles();
+        }
+
+        // Re-enqueues a no-source-change rebuild for every tracked file so
+        // their per-file Roslyn workspaces pick up the post-recompile metadata
+        // references without the user having to type into the file. Without
+        // this, stale CS0246 squiggles would persist on visible documents
+        // until the user edited them.
+        private void TriggerMetadataRefreshForAllFiles()
+        {
+            var pub = _publisher;
+            if (pub == null)
+                return;
+
+            int refreshed = 0;
+            foreach (var kv in _files)
+            {
+                var st = kv.Value;
+                if (st.Workspace == null || st.LastParseResult == null)
+                    continue;
+
+                EnqueueRebuild(kv.Key, st.LastBuiltSource, st.LastParseResult, pub);
+                refreshed++;
+            }
+
+            if (refreshed > 0)
+                ServerLog.Log(
+                    $"[RoslynHost] Refreshed metadata references for {refreshed} open file(s)."
+                );
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────
@@ -1576,6 +1641,8 @@ namespace UitkxLanguageServer.Roslyn
             _disposed = true;
 
             _dllWatcher?.Dispose();
+            var pendingCooldown = Interlocked.Exchange(ref _recompileCooldownTimer, null);
+            pendingCooldown?.Dispose();
 
             foreach (var kv in _files)
                 kv.Value.Dispose();
