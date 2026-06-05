@@ -1,4 +1,18 @@
-﻿## [0.6.1] - 2026-05-23
+﻿## [0.6.2] - 2026-06-05
+
+### Unity 6.3 panel-rebuild defense is now editor-only - zero player cost
+
+**Unity fixed the bug, so the workaround is compiled out of builds.** 0.5.6 added a per-frame `UIDocument.rootVisualElement` poll to survive the Unity 6.3 regression where the panel is silently rebuilt on every `InspectorWindow.RedrawFromNative` (reported as `UUM-127851`). Unity shipped the fix in 6000.3.17f1 / 6000.4.9f1 / 6000.5.0b9 / 6000.6.0a6 - verified on real hardware: the root swaps about once per second while the UIDocument is selected in the Hierarchy on 6000.3.8f1, and is silent on 6000.3.17f1.
+
+More importantly, every swap the poll defends against is editor-only: `RedrawFromNative` never runs in a player, and undo, asset-swap, disable/enable, and HMR are all editor mutations. In a built game the only root swaps are developer-initiated and already flow through the always-on reactive path, so the poll is dead weight in shipped builds. It is now wrapped in `#if UNITY_EDITOR` in both `RootRenderer.Initialize(UIDocument)` and `Hooks.UseUiDocumentRoot`.
+
+**No API change, no player regression.** `Initialize(UIDocument)` still seeds the initial root in every build. `UseUiDocumentRoot` still does its initial capture plus one effect-time resync and still re-runs when the `doc` reference changes - only the per-frame poll for silent same-reference swaps is editor-gated. Consumers that swap the document through their own state (e.g. a UIDocument slot registry firing on enable/disable) behave identically in players.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.15 / VS 2022 1.2.15.
+
+---
+
+## [0.6.1] - 2026-05-23
 
 ### Unified hook metadata registry - drift bugs cannot ship again, `useLayoutEffect` now diagnosed + documented
 
