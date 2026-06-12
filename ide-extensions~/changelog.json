@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-06-13",
+      "versions": {
+        "vscode": "1.2.17",
+        "vs2022": "1.2.17"
+      },
+      "shared": [
+        "Feature: Ships library 0.6.3 declarative custom rendering. Built-in elements now accept an `onGenerateVisualContent` attribute - a binding for Unity UI Toolkit's `VisualElement.generateVisualContent` delegate, typed `Action<MeshGenerationContext>` - plus a companion `redrawKey` int that forces an on-demand repaint without changing the callback reference. Editor support is complete and schema-driven: both attributes are recognized on every built-in element (no false UITKX0109 unknown-attribute error), surface in completion and hover, and the `ctx` lambda parameter is typed as `MeshGenerationContext` so `ctx.painter2D` and `ctx.Allocate(...)` autocomplete and type-check inside the attribute value. The grammar schema (`uitkx-schema.json`, embedded in the LSP server) gained the two `intrinsicElementAttributes` entries, and the virtual document generator maps `onGenerateVisualContent` to `MeshGenerationContext` in its event-callback parameter table. No completion/hover/diagnostics code changed - the new attributes flow from the schema. The source generator needs no change either: it resolves the new `BaseProps` members by semantic reflection, so the attributes compile in Unity with no extension rebuild required."
+      ]
+    },
+    {
       "date": "2026-05-23",
       "versions": {
         "vscode": "1.2.16",
