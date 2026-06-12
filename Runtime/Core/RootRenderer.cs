@@ -17,22 +17,22 @@ namespace ReactiveUITK.Core
         private VisualElement rootElement;
         private VNodeHostRenderer vnodeHostRenderer;
 
-        // UIDocument host-rebuild tracking. Unity rebuilds the panel
-        // (replacing rootVisualElement) on undo, asset swap, disable/enable,
-        // and the editor playmode selection storm. UIDocument exposes no
-        // event for this, so when Initialize(UIDocument, ...) is used we
-        // poll once per frame via AnimationTicker (a panel-independent
-        // tick source already running for animations) and reparent the
-        // mounted fiber tree onto the new root via VNodeHostRenderer
-        // .RetargetHost when the reference changes.
+#if UNITY_EDITOR
+        // Editor-only UIDocument host-rebuild tracking. In the editor Unity
+        // silently replaces UIDocument.rootVisualElement on undo, asset swap,
+        // disable/enable, HMR, and the 6.3 InspectorWindow selection storm
+        // (UUM-127851) — hookless mutations with no callback to observe. When
+        // Initialize(UIDocument, ...) is used we poll once per frame via
+        // AnimationTicker and reparent the mounted fiber tree onto the new
+        // root via VNodeHostRenderer.RetargetHost when the reference changes.
         //
-        // Cost is one ReferenceEquals per RootRenderer per frame (~3 ns);
-        // the editor selection storm collapses to a single retarget thanks
-        // to the dedupe gate.
+        // Built players have none of these hookless swaps — every runtime
+        // panel change is developer-initiated through their own code — so the
+        // poll is compiled out of player builds entirely. Editor cost is one
+        // ReferenceEquals per RootRenderer per frame.
         private UIDocument hostDocument;
         private System.Action hostDocumentTickUnsubscribe;
 
-#if UNITY_EDITOR
         /// <summary>HMR: all active RootRenderer instances for multi-tree walking.</summary>
         private static readonly HashSet<RootRenderer> s_allInstances = new();
         internal static IEnumerable<RootRenderer> AllInstances => s_allInstances;
@@ -92,8 +92,8 @@ namespace ReactiveUITK.Core
         {
 #if UNITY_EDITOR
             s_allInstances.Remove(this);
-#endif
             UnsubscribeFromHostDocument();
+#endif
             if (Instance == this)
             {
                 Instance = null;
@@ -123,32 +123,37 @@ namespace ReactiveUITK.Core
         }
 
         /// <summary>
-        /// UIDocument-aware overload. Polls the document's
-        /// <c>rootVisualElement</c> once per frame and reparents the
-        /// mounted fiber tree onto the new root whenever Unity rebuilds
-        /// the panel (undo, asset swap, disable/enable, scene reload,
-        /// <c>panelSettings</c>/<c>visualTreeAsset</c> reassignment, and
-        /// the editor-selection panel-rebuild storm in playmode). Without
-        /// this the rendered UI vanishes after any of those events because
-        /// the VisualElement that <see cref="Render"/> was first called
-        /// against has been replaced by Unity.
+        /// UIDocument-aware overload. In the <b>editor</b> this polls the
+        /// document's <c>rootVisualElement</c> once per frame and reparents
+        /// the mounted fiber tree onto the new root whenever Unity rebuilds
+        /// the panel (undo, asset swap, disable/enable, HMR, and the 6.3
+        /// <c>InspectorWindow</c> selection storm). Those are hookless,
+        /// editor-only mutations with no callback to observe, so polling is
+        /// the only correct detection mechanism; the cost is one reference
+        /// compare per frame on a tick source already running.
         ///
-        /// The retarget is dedupe-gated by reference-equality so the
-        /// per-frame editor selection storm collapses to a single reparent.
-        /// UIDocument exposes no panel-rebuild event, so polling is the
-        /// only correct mechanism. The cost is one pointer compare per
-        /// frame on a tick source that is already running.
+        /// In <b>player builds</b> the poll is compiled out entirely: a
+        /// running game has no hookless panel swaps (every runtime panel
+        /// change is developer-initiated), so this overload simply seeds the
+        /// initial root from <paramref name="hostDoc"/>, exactly like
+        /// <see cref="Initialize(VisualElement, Action{HostContext})"/>. A
+        /// build that deliberately rebuilds a UIDocument at runtime should
+        /// re-call <see cref="Render"/> (or this overload) from the code that
+        /// triggers the rebuild.
         /// </summary>
         public void Initialize(UIDocument hostDoc, Action<HostContext> env = null)
         {
             EnsureSetup();
-            UnsubscribeFromHostDocument();
-            hostDocument = hostDoc;
             rootElement = hostDoc != null ? hostDoc.rootVisualElement : null;
             env?.Invoke(sharedHostContext);
+#if UNITY_EDITOR
+            UnsubscribeFromHostDocument();
+            hostDocument = hostDoc;
             SubscribeToHostDocument();
+#endif
         }
 
+#if UNITY_EDITOR
         private void SubscribeToHostDocument()
         {
             if (hostDocument == null || hostDocumentTickUnsubscribe != null)
@@ -195,6 +200,7 @@ namespace ReactiveUITK.Core
                 vnodeHostRenderer.RetargetHost(nextRoot);
             }
         }
+#endif
 
         public void Render(VirtualNode rootNode)
         {
@@ -212,7 +218,9 @@ namespace ReactiveUITK.Core
 
         public void Unmount()
         {
+#if UNITY_EDITOR
             UnsubscribeFromHostDocument();
+#endif
             if (vnodeHostRenderer != null)
             {
                 vnodeHostRenderer.Unmount();

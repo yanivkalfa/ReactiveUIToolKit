@@ -6,6 +6,92 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.6.3] - 2026-06-13
+
+### Added
+
+- **Declarative custom rendering via `onGenerateVisualContent` (plus
+  `redrawKey`).** Every element now accepts an `onGenerateVisualContent`
+  attribute that binds directly to Unity UI Toolkit's
+  `VisualElement.generateVisualContent` delegate
+  (`Action<MeshGenerationContext>`). Draw vector shapes with `ctx.painter2D`
+  or raw vertex/index meshes with `ctx.Allocate(...)`, while the rest of your
+  UI stays reactive. The attribute is inherited from `BaseProps`, so it is
+  available on `VisualElement`, `Button`, and every other built-in element.
+  - **Reactive repaints.** The element repaints automatically when the
+    callback reference changes between renders, or when the new `redrawKey`
+    (an `int`) changes. A fresh inline lambda redraws each render — the same
+    model as any other prop. Stabilise the callback with `useMemo` /
+    `useStableCallback` and bump `redrawKey` for on-demand repaints without
+    changing the delegate.
+  - **Player-safe.** `MeshGenerationContext`, `Painter2D`, and `Vertex` are
+    runtime `UnityEngine.UIElements` types, so the feature ships in player
+    builds with no `#if UNITY_EDITOR` gating and behaves identically in the
+    Editor and in a built game.
+  - **Read-only callback.** The callback runs during Unity's paint phase, not
+    during render — treat the element as read-only inside it.
+
+- **Sample: `CustomDrawDemoFunc`.** A new showcase component demonstrating all
+  three techniques — a Painter2D polygon driven by component state, a raw
+  `ctx.Allocate` quad, and a stable callback forced to repaint via `redrawKey`.
+  Open it from the Unity menu under **ReactiveUITK → Demos → Custom Drawing**.
+
+### Documentation
+
+- New **Custom Rendering** guide on the documentation site covering the
+  attribute reference, repaint semantics, Painter2D vs. raw-mesh drawing, the
+  companion-file pattern for keeping draw bodies out of the markup, and
+  `redrawKey`.
+
+IDE extensions ship the matching schema and attribute-lambda typing
+(`MeshGenerationContext`) at VS Code 1.2.17 / VS 2022 1.2.17.
+
+## [0.6.2] - 2026-06-05
+
+
+### Changed
+
+- **Unity 6.3 panel-rebuild defense is now editor-only (`#if UNITY_EDITOR`).**
+  The per-frame `UIDocument.rootVisualElement` poll added in 0.5.6 to work
+  around the Unity 6.3 regression — the panel being silently rebuilt on every
+  `InspectorWindow.RedrawFromNative`, reported to Unity as `UUM-127851` — is
+  now compiled out of player builds entirely. Two facts drove the change:
+  - **Unity shipped the fix.** `UUM-127851` is resolved in 6000.3.17f1,
+    6000.4.9f1, 6000.5.0b9, and 6000.6.0a6. Verified on real hardware: the
+    root swaps roughly once per second while the `UIDocument` is selected in
+    the Hierarchy on 6000.3.8f1, and is silent on 6000.3.17f1.
+  - **Every swap the poll defends against is editor-only.**
+    `InspectorWindow.RedrawFromNative` never runs in a player, and undo,
+    source-asset reassignment, disable/enable, and HMR are all editor
+    mutations. In a built game the only `rootVisualElement` swaps are
+    developer-initiated and already flow through the always-on reactive
+    path, so the poll is dead weight in shipped builds.
+
+  Public API is unchanged — both `RootRenderer.Initialize` overloads and both
+  `Hooks.UseUiDocumentRoot` overloads keep their signatures and their full
+  editor behaviour:
+  - `RootRenderer.Initialize(UIDocument)` still seeds the initial root from
+    the document in every build (identical to `Initialize(VisualElement)`).
+    Only the per-frame poll, `PollHostDocument`, the `AnimationTicker`
+    subscription, and the `RetargetHost` call path are editor-gated.
+  - `Hooks.UseUiDocumentRoot` still performs its initial `UseState` capture
+    plus one effect-time resync in every build, and still re-runs whenever the
+    `doc` argument reference changes (its `UseEffect` dependency). Only the
+    per-frame poll that catches *silent same-reference* root swaps is
+    editor-only. Consumers that swap the document through their own state —
+    e.g. a `UIDocument` slot registry firing on enable/disable — behave
+    identically in players.
+
+### Performance
+
+- Player builds no longer execute or contain the per-frame
+  `UIDocument.rootVisualElement` poll (one property read plus a
+  `ReferenceEquals` per `RootRenderer` and per `UseUiDocumentRoot` consumer,
+  per frame). The editor-only machinery and the `hostDocument` tracking fields
+  on `RootRenderer` are stripped from player IL. Editor cost is unchanged.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.15 / VS 2022 1.2.15.
+
 ## [0.6.1] - 2026-05-23
 
 ### Changed

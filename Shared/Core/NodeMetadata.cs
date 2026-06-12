@@ -20,6 +20,14 @@ namespace ReactiveUITK.Core
         public HostContext HostContext;
         public FunctionComponentState ComponentState;
 
+        // Custom visual content (Unity generateVisualContent). The trampoline is
+        // subscribed to the element's generateVisualContent delegate exactly once;
+        // LatestGvc holds the current user callback and is swapped on each render so
+        // a fresh closure never re-subscribes. Both are null until the first
+        // OnGenerateVisualContent apply, and torn down on removal/unmount.
+        public Action<UnityEngine.UIElements.MeshGenerationContext> GvcTrampoline;
+        public Action<UnityEngine.UIElements.MeshGenerationContext> LatestGvc;
+
         internal FunctionComponentState EnsureComponentState()
         {
             if (ComponentState == null)

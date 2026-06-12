@@ -27,6 +27,7 @@ import { FAQPage } from './pages/FAQ/FAQPage'
 import { StylingPage } from './pages/UITKX/Styling/StylingPage'
 import { AssetsPage } from './pages/UITKX/Assets/AssetsPage'
 import { EventsPage } from './pages/UITKX/Events/EventsPage'
+import { CustomRenderingPage } from './pages/UITKX/CustomRendering/CustomRenderingPage'
 import { HooksGuidePage } from './pages/UITKX/Hooks/HooksGuidePage'
 import { ContextPage } from './pages/UITKX/Context/ContextPage'
 import { HooksAPIPage } from './pages/UITKX/HooksAPI/HooksAPIPage'
@@ -257,6 +258,15 @@ export const sections: DocSection[] = [
         keywords: ['events', 'input', 'click', 'pointer', 'keyboard', 'focus', 'drag'],
         searchContent: 'events input handling onClick onPointerDown onPointerUp onPointerMove onPointerEnter onPointerLeave onWheel onScroll onFocus onBlur onFocusIn onFocusOut onKeyDown onKeyUp onInput onGeometryChanged onAttachToPanel onDetachFromPanel onDragEnter onDragLeave onDragUpdated onDragPerform onDragExited ReactivePointerEvent ReactiveWheelEvent ReactiveKeyboardEvent ReactiveFocusEvent ReactiveDragEvent ReactiveGeometryEvent ReactivePanelEvent PointerEventHandler WheelEventHandler KeyboardEventHandler FocusEventHandler DragEventHandler GeometryChangedEventHandler PanelLifecycleEventHandler ChangeEventHandler InputEventHandler StopPropagation PreventDefault Position DeltaPosition Button ClickCount KeyCode Character modifier keys AltKey CtrlKey ShiftKey CommandKey Pressure Radius Delta RelatedTarget OldRect NewRect event bubbling propagation editor-only drag BaseProps delegate signatures',
         element: () => <EventsPage />,
+      },
+      {
+        id: 'custom-rendering-page',
+        canonicalId: 'custom-rendering',
+        title: 'Custom Rendering',
+        path: '/guides/custom-rendering',
+        keywords: ['custom rendering', 'onGenerateVisualContent', 'redrawKey', 'painter2D', 'mesh', 'canvas', 'draw'],
+        searchContent: 'custom rendering declarative onGenerateVisualContent redrawKey attribute callback MeshGenerationContext ctx painter2D Painter2D vector drawing BeginPath MoveTo LineTo Arc BezierCurveTo strokeColor fillColor lineWidth Stroke Fill ctx.Allocate raw mesh MeshWriteData SetAllVertices SetAllIndices Vertex position tint nearZ VisualElement generateVisualContent Action UnityEngine.UIElements runtime player-safe repaint repaints MarkDirtyRepaint useStableCallback useMemo stable callback reference changes optimization performance canvas chart gauge draw shapes BaseProps CustomDrawDemoFunc',
+        element: () => <CustomRenderingPage />,
       },
       {
         id: 'hooks-guide-page',
