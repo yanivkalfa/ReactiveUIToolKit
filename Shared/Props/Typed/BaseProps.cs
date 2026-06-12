@@ -49,6 +49,16 @@ namespace ReactiveUITK.Props.Typed
         // --- Locale ---
         public LanguageDirection? LanguageDirection { get; set; }
 
+        // --- Custom rendering ---
+        /// <summary>
+        /// Forces a repaint of <see cref="OnGenerateVisualContent"/> when this value
+        /// changes between renders, without changing the callback itself. Pair with a
+        /// stable callback (e.g. <c>useStableCallback</c>) to redraw on demand.
+        /// Default 0. Typed-props path only (built-in elements); not applied through
+        /// the dictionary/<c>V.Host</c> path.
+        /// </summary>
+        public int RedrawKey { get; set; }
+
         // ═══════════════════════════════════════════════════════════════════
         //  Event handler fields + fast "has any event?" flag
         //
@@ -116,6 +126,9 @@ namespace ReactiveUITK.Props.Typed
         private GeometryChangedEventHandler _onGeometryChanged;
         private PanelLifecycleEventHandler _onAttachToPanel;
         private PanelLifecycleEventHandler _onDetachFromPanel;
+
+        // --- Custom visual content backing field ---
+        private Action<MeshGenerationContext> _onGenerateVisualContent;
 
         // --- Pointer events ---
         public PointerEventHandler OnClick
@@ -561,6 +574,28 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
+        // --- Custom visual content (Unity generateVisualContent) ---
+        /// <summary>
+        /// Custom-rendering callback invoked during the element's
+        /// <c>generateVisualContent</c> pass. Receives a
+        /// <see cref="MeshGenerationContext"/>; use <c>ctx.painter2D</c> for vector
+        /// drawing or <c>ctx.Allocate</c> for raw meshes. Treat the element as
+        /// read-only inside the callback. The framework calls
+        /// <c>MarkDirtyRepaint()</c> automatically when this callback's reference
+        /// changes or <see cref="RedrawKey"/> changes, so it re-runs on the next
+        /// repaint.
+        /// </summary>
+        public Action<MeshGenerationContext> OnGenerateVisualContent
+        {
+            get => _onGenerateVisualContent;
+            set
+            {
+                _onGenerateVisualContent = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+
         // --- Escape hatch for non-standard / custom prop keys ---
         /// <summary>
         /// Optional dictionary of arbitrary extra props to be merged into the final
@@ -619,6 +654,10 @@ namespace ReactiveUITK.Props.Typed
 
             // --- Locale ---
             if (LanguageDirection != other.LanguageDirection)
+                return false;
+
+            // --- Custom rendering (value-typed; compared unconditionally) ---
+            if (RedrawKey != other.RedrawKey)
                 return false;
 
             // --- Event handlers (skip all 43 comparisons when neither side has events) ---
@@ -723,6 +762,8 @@ namespace ReactiveUITK.Props.Typed
                     return false;
                 if (OnDetachFromPanel != other.OnDetachFromPanel)
                     return false;
+                if (OnGenerateVisualContent != other.OnGenerateVisualContent)
+                    return false;
             }
 
             // --- ExtraProps ---
@@ -818,6 +859,8 @@ namespace ReactiveUITK.Props.Typed
             _onGeometryChanged = null;
             _onAttachToPanel = null;
             _onDetachFromPanel = null;
+            _onGenerateVisualContent = null;
+            RedrawKey = 0;
             ExtraProps = null;
         }
 
@@ -1049,6 +1092,8 @@ namespace ReactiveUITK.Props.Typed
                 dict["onAttachToPanel"] = OnAttachToPanel;
             if (OnDetachFromPanel != null)
                 dict["onDetachFromPanel"] = OnDetachFromPanel;
+            if (OnGenerateVisualContent != null)
+                dict["onGenerateVisualContent"] = OnGenerateVisualContent;
             if (ExtraProps != null)
             {
                 foreach (var kv in ExtraProps)

@@ -1349,11 +1349,15 @@ namespace ReactiveUITK.Core
         /// <c>target != null ? &lt;Portal target={target}&gt;...&lt;/Portal&gt; : null</c>,
         /// so the portal is unrendered while the panel is between rebuilds.
         ///
-        /// Detection uses a per-frame ReferenceEquals poll on the
-        /// panel-independent <see cref="ReactiveUITK.Core.Animation.AnimationTicker"/>
+        /// In the editor, detection uses a per-frame ReferenceEquals poll on
+        /// the panel-independent <see cref="ReactiveUITK.Core.Animation.AnimationTicker"/>
         /// because <c>UIDocument</c> exposes no public event for panel
-        /// rebuilds and AttachToPanelEvent fires on the (replaced) root, not
-        /// on the document itself.
+        /// rebuilds. Those rebuilds are editor-only hookless mutations, so in
+        /// player builds the poll is compiled out: the hook returns the root
+        /// captured at mount (plus one effect-time resync) and does not track
+        /// later runtime rebuilds. A build that intentionally rebuilds a
+        /// target panel at runtime should drive that change through its own
+        /// reactive state rather than relying on this hook.
         /// </summary>
         public static UnityEngine.UIElements.VisualElement UseUiDocumentRoot(
             UnityEngine.UIElements.UIDocument doc
@@ -1379,6 +1383,13 @@ namespace ReactiveUITK.Core
                         setCurrent(initial);
                     }
 
+#if UNITY_EDITOR
+                    // Editor-only: Unity silently replaces rootVisualElement on
+                    // undo, asset swap, disable/enable, HMR, and the 6.3
+                    // InspectorWindow selection storm — hookless mutations with
+                    // no callback. Poll once per frame to follow them. Built
+                    // players have no hookless swaps, so this is compiled out
+                    // and the root synced above is returned as a stable value.
                     System.Action unsubscribe = null;
                     unsubscribe = ReactiveUITK.Core.Animation.AnimationTicker.Subscribe(() =>
                     {
@@ -1401,6 +1412,9 @@ namespace ReactiveUITK.Core
                         unsubscribe?.Invoke();
                         unsubscribe = null;
                     };
+#else
+                    return null;
+#endif
                 },
                 doc
             );
