@@ -1,4 +1,38 @@
-﻿## [0.6.1] - 2026-05-23
+﻿## [0.6.3] - 2026-06-13
+
+### Custom rendering - draw straight into any element with onGenerateVisualContent
+
+**Declarative custom drawing landed.** Every element now takes an `onGenerateVisualContent` attribute that binds Unity UI Toolkit's `VisualElement.generateVisualContent` delegate (`Action<MeshGenerationContext>`). Draw vector shapes with `ctx.painter2D` or raw vertex/index meshes with `ctx.Allocate(...)` - charts, gauges, custom backgrounds - while the rest of your UI stays reactive. It is inherited from `BaseProps`, so it works on `VisualElement`, `Button`, and every built-in element.
+
+```jsx
+<VisualElement onGenerateVisualContent={ctx => DrawHelpers.Polygon(ctx, sides)} />
+```
+
+**Reactive repaints, your call.** The element repaints when the callback reference changes between renders, or when the new `redrawKey` (an int) changes. A fresh inline lambda redraws every render like any other prop; stabilize it with `useMemo` / `useStableCallback` and bump `redrawKey` for on-demand repaints without swapping the delegate. The callback runs at Unity paint time, so treat the element as read-only inside it.
+
+**Player-safe.** `MeshGenerationContext`, `Painter2D`, and `Vertex` are runtime `UnityEngine.UIElements` types - no `#if UNITY_EDITOR` gating, identical in Editor and built games.
+
+**Sample + docs.** New `CustomDrawDemoFunc` showcase - a Painter2D polygon by state, a raw `ctx.Allocate` quad, and a stable-callback + `redrawKey` scatter. Open it from the Unity menu under ReactiveUITK -> Demos -> Custom Drawing. New Custom Rendering guide added to the docs site. SG suite `1266/1266` passing.
+
+VS Code **1.2.16 -> 1.2.17** | VS 2022 **1.2.16 -> 1.2.17** ship the schema and attribute-lambda typing.
+
+---
+
+## [0.6.2] - 2026-06-05
+
+### Unity 6.3 panel-rebuild defense is now editor-only - zero player cost
+
+**Unity fixed the bug, so the workaround is compiled out of builds.** 0.5.6 added a per-frame `UIDocument.rootVisualElement` poll to survive the Unity 6.3 regression where the panel is silently rebuilt on every `InspectorWindow.RedrawFromNative` (reported as `UUM-127851`). Unity shipped the fix in 6000.3.17f1 / 6000.4.9f1 / 6000.5.0b9 / 6000.6.0a6 - verified on real hardware: the root swaps about once per second while the UIDocument is selected in the Hierarchy on 6000.3.8f1, and is silent on 6000.3.17f1.
+
+More importantly, every swap the poll defends against is editor-only: `RedrawFromNative` never runs in a player, and undo, asset-swap, disable/enable, and HMR are all editor mutations. In a built game the only root swaps are developer-initiated and already flow through the always-on reactive path, so the poll is dead weight in shipped builds. It is now wrapped in `#if UNITY_EDITOR` in both `RootRenderer.Initialize(UIDocument)` and `Hooks.UseUiDocumentRoot`.
+
+**No API change, no player regression.** `Initialize(UIDocument)` still seeds the initial root in every build. `UseUiDocumentRoot` still does its initial capture plus one effect-time resync and still re-runs when the `doc` reference changes - only the per-frame poll for silent same-reference swaps is editor-gated. Consumers that swap the document through their own state (e.g. a UIDocument slot registry firing on enable/disable) behave identically in players.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.15 / VS 2022 1.2.15.
+
+---
+
+## [0.6.1] - 2026-05-23
 
 ### Unified hook metadata registry - drift bugs cannot ship again, `useLayoutEffect` now diagnosed + documented
 
@@ -156,9 +190,6 @@ New file `Editor/HMR/UitkxHmrAssetPostprocessor.cs`. The watcher registers with 
 
 Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
 
----
-
-## [0.5.15] - 2026-05-15
 
 ---
 

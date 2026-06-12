@@ -1,0 +1,90 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using UnityEngine.UIElements
+
+component CustomDrawDemoFunc {
+  var (sides, setSides) = useState(3);
+  var (useBlue, setUseBlue) = useState(true);
+  var (redrawTick, setRedrawTick) = useState(0);
+
+  var scatterDraw = useMemo<Action<MeshGenerationContext>>(
+    () => CustomDrawHelpers.Scatter,
+    Array.Empty<object>()
+  );
+
+  var page = new Style {
+    (StyleKeys.Padding, 12f),
+  };
+  var heading = new Style {
+    (StyleKeys.MarginTop, 10f),
+    (StyleKeys.MarginBottom, 4f),
+  };
+  var canvas = new Style {
+    (StyleKeys.Height, 130f),
+    (StyleKeys.MarginBottom, 6f),
+    (StyleKeys.BackgroundColor, new UnityEngine.Color(0.12f, 0.12f, 0.14f, 1f)),
+  };
+  var rowStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.MarginBottom, 4f),
+  };
+  var btn = new Style {
+    (StyleKeys.MarginRight, 6f),
+  };
+
+  return (
+    <VisualElement style={page}>
+      <Text
+        text="Custom Rendering Demo (generateVisualContent)"
+        style={heading}
+      />
+      <Text text="1. Painter2D polygon - redraws when 'sides' state changes" />
+      <VisualElement
+        style={canvas}
+        onGenerateVisualContent={ctx => CustomDrawHelpers.DrawPolygon(ctx, sides)}
+      />
+      <VisualElement style={rowStyle}>
+        <Button
+          text="Add side"
+          onClick={_ => setSides(sides + 1)}
+          style={btn}
+        />
+        <Button text="Reset" onClick={_ => setSides(3)} style={btn} />
+        <Text text={$"sides = {sides}"} />
+      </VisualElement>
+      <Text
+        text="2. Raw mesh via ctx.Allocate - toggles tint"
+        style={heading}
+      />
+      <VisualElement
+        style={canvas}
+        onGenerateVisualContent={ctx => CustomDrawHelpers.DrawQuad(ctx, useBlue)}
+      />
+      <VisualElement style={rowStyle}>
+        <Button
+          text="Toggle color"
+          onClick={_ => setUseBlue(!useBlue)}
+          style={btn}
+        />
+        <Text text={useBlue ? "blue" : "orange"} />
+      </VisualElement>
+      <Text
+        text="3. Stable callback + RedrawKey - forces a repaint on demand"
+        style={heading}
+      />
+      <VisualElement
+        style={canvas}
+        onGenerateVisualContent={scatterDraw}
+        redrawKey={redrawTick}
+      />
+      <VisualElement style={rowStyle}>
+        <Button
+          text="Shuffle (bump RedrawKey)"
+          onClick={_ => setRedrawTick(redrawTick + 1)}
+          style={btn}
+        />
+        <Text text={$"redrawKey = {redrawTick}"} />
+      </VisualElement>
+    </VisualElement>
+  );
+}
