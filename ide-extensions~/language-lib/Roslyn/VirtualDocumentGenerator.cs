@@ -1756,6 +1756,9 @@ namespace ReactiveUITK.Language.Roslyn
             // ── Panel lifecycle ───────────────────────────────────────────────
             ["onAttachToPanel"] = "global::UnityEngine.UIElements.AttachToPanelEvent",
             ["onDetachFromPanel"] = "global::UnityEngine.UIElements.DetachFromPanelEvent",
+            // ── Custom rendering ──────────────────────────────────────────────
+            ["onGenerateVisualContent"] =
+                "global::UnityEngine.UIElements.MeshGenerationContext",
             // ── Navigation ────────────────────────────────────────────────────
             ["onNavigationMove"] = "global::UnityEngine.UIElements.NavigationMoveEvent",
             ["onNavigationSubmit"] = "global::UnityEngine.UIElements.NavigationSubmitEvent",

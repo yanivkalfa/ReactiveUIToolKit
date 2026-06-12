@@ -1,4 +1,24 @@
-﻿## [0.6.2] - 2026-06-05
+﻿## [0.6.3] - 2026-06-13
+
+### Custom rendering - draw straight into any element with onGenerateVisualContent
+
+**Declarative custom drawing landed.** Every element now takes an `onGenerateVisualContent` attribute that binds Unity UI Toolkit's `VisualElement.generateVisualContent` delegate (`Action<MeshGenerationContext>`). Draw vector shapes with `ctx.painter2D` or raw vertex/index meshes with `ctx.Allocate(...)` - charts, gauges, custom backgrounds - while the rest of your UI stays reactive. It is inherited from `BaseProps`, so it works on `VisualElement`, `Button`, and every built-in element.
+
+```jsx
+<VisualElement onGenerateVisualContent={ctx => DrawHelpers.Polygon(ctx, sides)} />
+```
+
+**Reactive repaints, your call.** The element repaints when the callback reference changes between renders, or when the new `redrawKey` (an int) changes. A fresh inline lambda redraws every render like any other prop; stabilize it with `useMemo` / `useStableCallback` and bump `redrawKey` for on-demand repaints without swapping the delegate. The callback runs at Unity paint time, so treat the element as read-only inside it.
+
+**Player-safe.** `MeshGenerationContext`, `Painter2D`, and `Vertex` are runtime `UnityEngine.UIElements` types - no `#if UNITY_EDITOR` gating, identical in Editor and built games.
+
+**Sample + docs.** New `CustomDrawDemoFunc` showcase - a Painter2D polygon by state, a raw `ctx.Allocate` quad, and a stable-callback + `redrawKey` scatter. Open it from the Unity menu under ReactiveUITK -> Demos -> Custom Drawing. New Custom Rendering guide added to the docs site. SG suite `1266/1266` passing.
+
+VS Code **1.2.16 -> 1.2.17** | VS 2022 **1.2.16 -> 1.2.17** ship the schema and attribute-lambda typing.
+
+---
+
+## [0.6.2] - 2026-06-05
 
 ### Unity 6.3 panel-rebuild defense is now editor-only - zero player cost
 
@@ -170,9 +190,6 @@ New file `Editor/HMR/UitkxHmrAssetPostprocessor.cs`. The watcher registers with 
 
 Library-only release. IDE extensions unchanged at VS Code 1.2.8 / VS 2022 1.2.8.
 
----
-
-## [0.5.15] - 2026-05-15
 
 ---
 

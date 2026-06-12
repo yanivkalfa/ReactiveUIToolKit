@@ -6,7 +6,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.6.3] - 2026-06-13
+
+### Added
+
+- **Declarative custom rendering via `onGenerateVisualContent` (plus
+  `redrawKey`).** Every element now accepts an `onGenerateVisualContent`
+  attribute that binds directly to Unity UI Toolkit's
+  `VisualElement.generateVisualContent` delegate
+  (`Action<MeshGenerationContext>`). Draw vector shapes with `ctx.painter2D`
+  or raw vertex/index meshes with `ctx.Allocate(...)`, while the rest of your
+  UI stays reactive. The attribute is inherited from `BaseProps`, so it is
+  available on `VisualElement`, `Button`, and every other built-in element.
+  - **Reactive repaints.** The element repaints automatically when the
+    callback reference changes between renders, or when the new `redrawKey`
+    (an `int`) changes. A fresh inline lambda redraws each render — the same
+    model as any other prop. Stabilise the callback with `useMemo` /
+    `useStableCallback` and bump `redrawKey` for on-demand repaints without
+    changing the delegate.
+  - **Player-safe.** `MeshGenerationContext`, `Painter2D`, and `Vertex` are
+    runtime `UnityEngine.UIElements` types, so the feature ships in player
+    builds with no `#if UNITY_EDITOR` gating and behaves identically in the
+    Editor and in a built game.
+  - **Read-only callback.** The callback runs during Unity's paint phase, not
+    during render — treat the element as read-only inside it.
+
+- **Sample: `CustomDrawDemoFunc`.** A new showcase component demonstrating all
+  three techniques — a Painter2D polygon driven by component state, a raw
+  `ctx.Allocate` quad, and a stable callback forced to repaint via `redrawKey`.
+  Open it from the Unity menu under **ReactiveUITK → Demos → Custom Drawing**.
+
+### Documentation
+
+- New **Custom Rendering** guide on the documentation site covering the
+  attribute reference, repaint semantics, Painter2D vs. raw-mesh drawing, the
+  companion-file pattern for keeping draw bodies out of the markup, and
+  `redrawKey`.
+
+IDE extensions ship the matching schema and attribute-lambda typing
+(`MeshGenerationContext`) at VS Code 1.2.17 / VS 2022 1.2.17.
+
 ## [0.6.2] - 2026-06-05
+
 
 ### Changed
 
