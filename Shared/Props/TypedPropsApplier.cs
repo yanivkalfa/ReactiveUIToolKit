@@ -128,6 +128,16 @@ namespace ReactiveUITK.Props
             ApplyEventIfSet(element, "onAttachToPanel", props.OnAttachToPanel);
             ApplyEventIfSet(element, "onDetachFromPanel", props.OnDetachFromPanel);
 
+            // --- Custom visual content (registers the trampoline; repaints once) ---
+            if (props.OnGenerateVisualContent != null)
+                PropsApplier.ApplyGvc(
+                    element,
+                    props.OnGenerateVisualContent,
+                    null,
+                    0,
+                    props.RedrawKey
+                );
+
             // --- ExtraProps (escape hatch) ---
             if (props.ExtraProps != null)
             {
@@ -331,6 +341,14 @@ namespace ReactiveUITK.Props
                     "onDetachFromPanel",
                     prev.OnDetachFromPanel,
                     next.OnDetachFromPanel
+                );
+                // --- Custom visual content (delegate ref change OR RedrawKey change) ---
+                DiffGvc(
+                    element,
+                    prev.OnGenerateVisualContent,
+                    next.OnGenerateVisualContent,
+                    prev.RedrawKey,
+                    next.RedrawKey
                 );
             }
 
@@ -1213,6 +1231,22 @@ namespace ReactiveUITK.Props
         {
             if (handler != null)
                 PropsApplier.ApplySingle(element, null, key, handler);
+        }
+
+        // Custom visual content diff: re-apply (and repaint) when the callback
+        // reference changes OR the RedrawKey changes; remove when cleared.
+        private static void DiffGvc(
+            VisualElement element,
+            Action<MeshGenerationContext> prev,
+            Action<MeshGenerationContext> next,
+            int prevKey,
+            int nextKey
+        )
+        {
+            if (next != null)
+                PropsApplier.ApplyGvc(element, next, prev, prevKey, nextKey);
+            else if (prev != null)
+                PropsApplier.RemoveGvc(element);
         }
 
         private static void DiffExtraProps(

@@ -200,6 +200,16 @@
       "description": "Detach from panel handler."
     },
     {
+      "name": "onGenerateVisualContent",
+      "type": "Action<MeshGenerationContext>",
+      "description": "Custom rendering callback. Receives a MeshGenerationContext; use ctx.painter2D for vector drawing (lines, arcs, beziers) or ctx.Allocate for raw vertex/index meshes. Treat the element as read-only inside the callback. Re-runs on repaint, triggered automatically when the callback reference or RedrawKey changes."
+    },
+    {
+      "name": "redrawKey",
+      "type": "int",
+      "description": "Bump this value to force OnGenerateVisualContent to repaint without changing the callback (pair with a stable callback, e.g. useStableCallback)."
+    },
+    {
       "name": "onClickCapture",
       "type": "PointerEventHandler",
       "description": "Capture-phase click handler."

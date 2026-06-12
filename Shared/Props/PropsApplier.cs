@@ -1578,6 +1578,12 @@ namespace ReactiveUITK.Props
                 }
                 return;
             }
+            if (propertyName == "onGenerateVisualContent"
+                && propertyValue is Action<MeshGenerationContext> gvc)
+            {
+                ApplyGvc(element, gvc, oldValue as Action<MeshGenerationContext>, 0, 0);
+                return;
+            }
             if (propertyName.StartsWith("on") && propertyValue is Delegate d)
             {
                 ApplyEvent(element, propertyName, d, oldValue as Delegate);
@@ -1587,6 +1593,11 @@ namespace ReactiveUITK.Props
 
         internal static void RemoveProp(VisualElement element, string propertyName, object oldValue)
         {
+            if (propertyName == "onGenerateVisualContent")
+            {
+                RemoveGvc(element);
+                return;
+            }
             if (propertyName == "ref")
             {
                 var meta = element.userData as NodeMetadata;
@@ -2058,6 +2069,84 @@ namespace ReactiveUITK.Props
                 }
             }
             return Color.white;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  Custom visual content (Unity generateVisualContent)
+        //
+        //  A single stable trampoline is subscribed to the element's
+        //  generateVisualContent delegate exactly once and stored in
+        //  NodeMetadata. It always invokes the latest user callback (also held
+        //  in NodeMetadata), so a fresh closure each render swaps the slot
+        //  without re-subscribing — mirroring the event system's
+        //  register-once / latest-delegate indirection.
+        //
+        //  generateVisualContent only re-fires when the panel repaints, so we
+        //  call MarkDirtyRepaint() whenever the callback reference or the
+        //  RedrawKey changes. The callback runs during Unity's paint pass; it
+        //  is wrapped in try/catch so one faulty draw cannot kill the panel.
+        // ═══════════════════════════════════════════════════════════════════
+
+        internal static void ApplyGvc(
+            VisualElement element,
+            Action<MeshGenerationContext> next,
+            Action<MeshGenerationContext> prev,
+            int prevKey,
+            int nextKey
+        )
+        {
+            Core.NodeMetadata meta = element.userData as Core.NodeMetadata;
+            if (meta == null)
+            {
+                meta = new Core.NodeMetadata();
+                element.userData = meta;
+            }
+
+            // Register the trampoline exactly once; it always reads the latest delegate.
+            if (meta.GvcTrampoline == null)
+            {
+                meta.GvcTrampoline = mgc =>
+                {
+                    var current = meta.LatestGvc;
+                    if (current == null)
+                    {
+                        return;
+                    }
+                    try
+                    {
+                        current(mgc);
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogError(ex);
+                    }
+                };
+                element.generateVisualContent += meta.GvcTrampoline;
+            }
+
+            meta.LatestGvc = next;
+
+            // Repaint when the callback identity changed OR the RedrawKey changed.
+            if (!ReferenceEquals(prev, next) || prevKey != nextKey)
+            {
+                element.MarkDirtyRepaint();
+            }
+        }
+
+        internal static void RemoveGvc(VisualElement element)
+        {
+            Core.NodeMetadata meta = element.userData as Core.NodeMetadata;
+            if (meta == null)
+            {
+                return;
+            }
+            meta.LatestGvc = null;
+            if (meta.GvcTrampoline != null)
+            {
+                element.generateVisualContent -= meta.GvcTrampoline;
+                meta.GvcTrampoline = null;
+            }
+            element.MarkDirtyRepaint();
         }
 
         private static string ComputeHandlerSignature(Delegate del)
