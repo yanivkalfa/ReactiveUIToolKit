@@ -306,6 +306,18 @@ namespace ReactiveUITK.Core.Fiber
                 _workInProgressRoot = CreateWorkInProgress(rootCurrent, vnode);
             }
             _root.WorkInProgress = _workInProgressRoot;
+
+            // When an update lands while a time-sliced render is parked mid-tree, the work
+            // loop is restarted from the WIP root (above). The partially-built effect list
+            // lives on the persistent _root and is otherwise cleared ONLY in CommitRoot, so
+            // without discarding it here the interrupted pass's stale Placement effects get
+            // committed again (duplicating freshly-mounted host elements) and its lost
+            // deletions can leave the previous route mounted alongside the new one. The
+            // restarted walk rebuilds the effect list from scratch and re-derives _hasDeletions.
+            _root.FirstEffect = null;
+            _root.LastEffect = null;
+            _hasDeletions = false;
+
             _nextUnitOfWork = _workInProgressRoot;
 
             // Start work loop (scheduler-based when available)
