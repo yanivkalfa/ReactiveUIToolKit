@@ -64,10 +64,6 @@ VS Code **1.2.14 -> 1.2.15** | VS 2022 **1.2.14 -> 1.2.15** ship the new analyze
 
 ## [0.6.0] - 2026-05-22
 
----
-
-## [0.6.0] - 2026-05-22
-
 ### HMR ported to React Fast Refresh - zero player cost, custom-hook edits invalidate consumers
 
 **Cascade-drift bug gone.** The old trampoline compared `MethodInfo.DeclaringType` at the reconciler; after a cascade compile, parent and child delegates came from different DLLs, the reconciler saw a type mismatch and tore down state in components the user never edited (saving a leaf re-mounted the page root). Replaced with React Fast Refresh's Family indirection - a `Family` handle with a mutable `Current` slot. The SG emits one `__fam_<Child>` per child type plus a `[ModuleInitializer]` Register on a `*__UitkxRefresh` companion (keeps the component's `.cctor` cold on Mono). Reconciliation compares Family references - one identity per child type regardless of depth. Render crash -> `Family.Current` reverts to the previous body.
