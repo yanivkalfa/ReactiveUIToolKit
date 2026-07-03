@@ -2,6 +2,8 @@
 
 Adds language support for `.uitkx` ReactiveUIToolKit component templates.
 
+💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+
 ## Features
 
 - **Syntax highlighting** — directives, control flow, element tags, attributes, embedded C# expressions

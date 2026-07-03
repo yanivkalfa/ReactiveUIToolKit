@@ -122,7 +122,7 @@ no-op vs. other).
 **Source:** `TECH_DEBT_V2.md` TD-12. Fix is **implemented** for the LSP
 (editor-buffer peer reads + T3 revalidation wired); only VS2022 confirmation
 is outstanding.
-- [~] **P-3** Re-test tab-switch staleness in the VS2022 extension; close if green.
+- [x] **P-3** Re-test tab-switch staleness in the VS2022 extension; close if green. **Done (2026-06-19)** - fix shipped (LSP editor-buffer peer reads + T3 revalidation); VS2022 1.1.0.
 
 ---
 
@@ -131,7 +131,7 @@ is outstanding.
 ## HMR audit follow-ups  (Debt)
 **Source:** `HMR_AUDIT.md`. B1/B4/B7 were resolved by the 0.6.0 Family redesign.
 Remaining:
-- [ ] **D-HMR-B2** Verify `[HookSignature]` is emitted for empty-signature hooks (quick check vs. 0.6.0 hook redesign).
+- [x] **D-HMR-B2** Verify `[HookSignature]` is emitted for empty-signature hooks (quick check vs. 0.6.0 hook redesign). **Done (2026-06-19)** - correct by design: the attribute is intentionally omitted for empty signatures, but the runtime still registers the empty signature via unconditional `RegisterHook`; parity tests pass.
 - [ ] **D-HMR-B5** Generic method overloads silently skip swap (no overload-signature carrier on the `MethodInfo` field). Needs `[HmrOverloadSignature]` or name-encoding.
 - [ ] **D-HMR-B8** USS cascade rewrites each dependent separately; batch into one asset + selective re-render.
 - [ ] **D-HMR-B9** `TryResolveMissingDependencies` has no visited-set / cycle guard; add depth + cycle detection.
@@ -157,10 +157,11 @@ Remaining:
       since 0.5.5). Shared `FindLhsStartForLogicalAnd` walker would extend it.
 
 ## Low-priority test/quality  (Debt)
-- [ ] **D-TDS6** GalagaGame `GameScreen.uitkx` formatter idempotency: 2nd pass
+- [x] **D-TDS6** GalagaGame `GameScreen.uitkx` formatter idempotency: 2nd pass
       differs from 1st (2 snapshot tests fail). Runtime unaffected. Same family
       as the (fixed) bare-return idempotency bug. Files:
       `ide-extensions~/language-lib/Formatter/AstFormatter.cs`.
+      **Done (2026-06-19)** - idempotency snapshot suite (incl. GalagaGame) passes; dedicated regression test added.
 - [ ] **D-LAT** No automated latency-regression gate for the targets in
       `LATENCY_TARGETS.md` (<200ms T1/T2 diags, <500ms completion, etc.).
       Add CI sampling post-v1.
@@ -169,11 +170,13 @@ Remaining:
 
 # Part 4 - Housekeeping
 
-- [ ] **H-K1** MarioGame `<HUD>` prop-mismatch audit (carryover from
+- [x] **H-K1** MarioGame `<HUD>` prop-mismatch audit (carryover from
       `COHERENCY_FIXES.md`): confirm the call site passes only declared props.
-- [ ] **H-K2** Refresh or retire `ROUTER_REACT_ROUTER_COMPARISON.md` - it lists
+      **Done (2026-06-19)** - `HUD(int score, int lives)`; the only call site passes exactly `score` + `lives`.
+- [x] **H-K2** Refresh or retire `ROUTER_REACT_ROUTER_COMPARISON.md` - it lists
       `<Outlet>`/`<Routes>`/`<NavLink>`/`<Navigate>` as missing, but all four
       shipped in 0.4.14 (`Shared/Core/V.cs`). Doc is stale.
+      **Done (2026-06-19)** - added a status banner (verified 14/18 gaps shipped); 4 remaining tracked there (optional segments, errorElement, nav-action tracking, useNavigate relative).
 
 ---
 
