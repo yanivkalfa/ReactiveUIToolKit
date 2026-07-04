@@ -2,6 +2,8 @@
 
 Adds language support for `.uitkx` ReactiveUIToolKit component templates in **Visual Studio 2022**.
 
+💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+
 ## Features
 
 - `.uitkx` file association (content type `uitkx`)

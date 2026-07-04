@@ -1,4 +1,20 @@
-﻿## [0.6.3] - 2026-06-13
+﻿## [0.6.4] - 2026-06-19
+
+### Fix - interrupted renders no longer duplicate UI, strand routes, or freeze the editor
+
+**An update that lands mid-render is now safe.** When a time-sliced render parked between slices (across frames) and a state update or navigation arrived before the next commit, the reconciler restarted the work loop from the WIP root but did NOT clear the partially-built effect list -- that list lives on the persistent FiberRoot and was only ever cleared in `CommitRoot`. The interrupted pass's stale `Placement` effects then committed again, so freshly-mounted elements were appended twice (and once more per restart), and a route that should have unmounted could stay mounted beside the new one. Worst case: the re-appended chain spliced `NextEffect` into a cycle and `CommitRoot`'s walk spun forever, freezing the editor.
+
+`FiberReconciler.ScheduleUpdateOnFiber` now discards `_root.FirstEffect` / `_root.LastEffect` and resets `_hasDeletions` when an update restarts the work loop; the restarted walk rebuilds the effect list from scratch. No API change, no player cost -- single-slice renders are untouched.
+
+The window is narrow (an update must land after a slice yields but before the next commit), so it surfaced only under heavy pause-time churn: rapid route navigation while wall-clock `schedule.Execute().Every()` timers keep firing state at `Time.timeScale == 0`.
+
+**Guidance.** Wrap bare `<Route>` siblings in `<Routes>` for atomic single-best-match selection -- without it, exclusivity is emergent (each unmatched route renders null) and two routes can briefly co-exist under the same stress.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.17 / VS 2022 1.2.17.
+
+---
+
+## [0.6.3] - 2026-06-13
 
 ### Custom rendering - draw straight into any element with onGenerateVisualContent
 
@@ -43,10 +59,6 @@ Library-only release. IDE extensions unchanged at VS Code 1.2.15 / VS 2022 1.2.1
 **Tests.** SG `1264/1264` passing. New `HookRegistryTests.cs` (16 tests) covers internal invariants (count, cardinality, accessor-reference caching for the per-keystroke hot path), runtime reflection parity against `Hooks`, and byte-for-byte golden equality against 8 snapshots captured at the 0.6.0 baseline. The validation-patterns golden asserts the diff is exactly the 3 `useLayoutEffect` entries - future drift fails a test naming the specific table.
 
 VS Code **1.2.14 -> 1.2.15** | VS 2022 **1.2.14 -> 1.2.15** ship the new analyzer DLL.
-
----
-
-## [0.6.0] - 2026-05-22
 
 ---
 

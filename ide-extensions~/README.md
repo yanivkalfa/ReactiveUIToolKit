@@ -3,6 +3,8 @@
 Language tooling for **`.uitkx`** — the ReactiveUIToolKit component template format.  
 Three IDE wrappers share a single LSP server and a single TextMate grammar.
 
+💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+
 ```
 ide-extensions~/
   grammar/
