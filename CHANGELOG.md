@@ -6,6 +6,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.6.4] - 2026-06-19
+
+### Fixed
+
+- **Interrupted time-sliced renders no longer duplicate UI, strand old
+  routes, or freeze the editor.** When a state update or navigation arrived
+  while a time-sliced render was parked mid-tree (between slices, across
+  frames), `FiberReconciler` restarted the work loop from the work-in-progress
+  root but did not clear the partially-built effect list. That list lives on
+  the persistent `FiberRoot` and was only ever cleared in `CommitRoot`, so the
+  interrupted pass's stale `Placement` effects were committed a second time on
+  the next commit: freshly-mounted host elements were appended twice (and once
+  more per restart), and a route that should have unmounted could stay mounted
+  alongside the new one. In the worst case the re-appended effect chain spliced
+  `NextEffect` into a cycle and `CommitRoot`'s `while (effect != null)` walk
+  spun forever, freezing the editor.
+  - **Fix:** `FiberReconciler.ScheduleUpdateOnFiber` now discards
+    `_root.FirstEffect` / `_root.LastEffect` and resets `_hasDeletions`
+    whenever an update restarts the work loop; the restarted walk rebuilds the
+    effect list (and re-derives deletions) from scratch.
+  - **No API change, no player cost.** Renders that complete within a single
+    slice are unaffected -- only the interrupted-and-restarted path changed.
+  - **Why it was rare:** the update must land in the narrow window after a
+    slice yields but before the next commit. It surfaced under heavy
+    pause-time UI churn -- e.g. rapid menu/route navigation while wall-clock
+    `schedule.Execute().Every()` timers keep firing state updates at
+    `Time.timeScale == 0`.
+
+### Notes
+
+- Mount bare `<Route>` siblings under a `<Routes>` selector for atomic
+  single-best-match selection. Without it, route exclusivity is emergent (each
+  unmatched route independently renders null), which can briefly show two
+  routes at once under the same interrupted-render stress; `<Routes>` collapses
+  the choice to a single committed node.
+
+Library-only release. IDE extensions unchanged at VS Code 1.2.17 / VS 2022 1.2.17.
+
 ## [0.6.3] - 2026-06-13
 
 ### Added
