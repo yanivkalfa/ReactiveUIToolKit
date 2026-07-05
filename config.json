@@ -6,6 +6,10 @@
     "exceptionControlFlow": true
   },
   "pathsToOmitFromStore": [
+    "Samples/Shared/MediaPlaygroundDemoPage.uitkx",
+    "Samples/Shared/MediaPlaygroundRuntimeBootstrap.cs",
+    "Samples/Showcase/Editor/EditorUitkxMediaPlaygroundDemoWindow.cs",
+    "Samples/Components/MediaPlayground/**",
     "CLAUDE.md",
     "AUTOMATION.md",
     "RELEASE_OPS.md",
