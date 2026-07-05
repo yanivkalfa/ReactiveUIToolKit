@@ -5,6 +5,16 @@
     "diffTracing": false,
     "exceptionControlFlow": true
   },
+  "pathsToOmitFromStore": [
+    "CLAUDE.md",
+    "AUTOMATION.md",
+    "RELEASE_OPS.md",
+    "VERSIONING.md",
+    "tscn_stable.html",
+    "publisher-secrets.example.json",
+    "ReactiveUIToolKit.code-workspace",
+    ".csharpierignore"
+  ],
   "pathsToOmitFromDist": [
     "CICD/**",
     "dist~/**",
