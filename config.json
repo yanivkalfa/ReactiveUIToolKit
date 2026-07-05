@@ -6,6 +6,7 @@
     "exceptionControlFlow": true
   },
   "pathsToOmitFromStore": [
+    "Samples/Components/UitkxTestFileDoNotTouch/**",
     "Samples/Shared/MediaPlaygroundDemoPage.uitkx",
     "Samples/Shared/MediaPlaygroundRuntimeBootstrap.cs",
     "Samples/Showcase/Editor/EditorUitkxMediaPlaygroundDemoWindow.cs",
