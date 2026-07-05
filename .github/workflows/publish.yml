@@ -451,18 +451,20 @@ jobs:
   # uploads it as a run artifact. The store upload itself stays manual — Unity ships no
   # publish API — so the last mile is: download artifact (or export locally), then
   # Tools -> Asset Store -> Uploader -> Export and Upload -> Submit for review.
-  # INERT UNTIL ARMED: set repo secret UNITY_LICENSE to the contents of a Unity .ulf
-  # (generate: Unity -batchmode -createManualActivationFile -> upload the .alf at
-  # license.unity.com/manual -> download the .ulf). Idempotent via the store-v<ver> tag.
+  # INERT UNTIL ARMED: Unity discontinued manual (.alf/.ulf) activation for Personal
+  # licenses, so this job activates a named-user seat per run and returns it afterwards.
+  # Set repo secrets UNITY_EMAIL + UNITY_PASSWORD to a Unity ID WITHOUT two-factor auth
+  # (create a dedicated free CI account — headless activation cannot answer 2FA), then
+  # verify with the "Unity license check" workflow. Idempotent via the store-v<ver> tag.
   # ════════════════════════════════════════════════════════════════════════════
   build-unitypackage:
     runs-on: ubuntu-latest
     env:
       # Floor Unity version (store compatibility floor, see the plan §6). Needs a
       # matching unityci/editor docker image; bump the trailing image revision (-3)
-      # if the pull ever 404s.
+      # if the pull ever 404s. Keep unity-license-check.yml in lockstep.
       UNITY_VERSION: "6000.2.6f1"
-      HAS_LICENSE: ${{ secrets.UNITY_LICENSE != '' }}
+      HAS_LICENSE: ${{ secrets.UNITY_EMAIL != '' && secrets.UNITY_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -478,7 +480,7 @@ jobs:
             echo "::notice::Asset Store package store-v$VERSION already built — skipping"
           elif [ "$HAS_LICENSE" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Unity Asset Store::build-unitypackage is INERT — add the UNITY_LICENSE repo secret (contents of a Unity .ulf) to arm it."
+            echo "::notice title=Unity Asset Store::build-unitypackage is INERT — add UNITY_EMAIL + UNITY_PASSWORD repo secrets (a no-2FA Unity ID) to arm it; verify with the Unity license check workflow."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -599,27 +601,30 @@ jobs:
       - name: Import + export with the floor Unity
         if: steps.check.outputs.skip == 'false'
         env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           OUT_FILE: out/ReactiveUIToolKit-${{ steps.check.outputs.version }}.unitypackage
         run: |
           set -e
           mkdir -p out
-          printf '%s' "$UNITY_LICENSE" > Unity_lic.ulf
           docker run --rm \
             -v "$PWD:/workspace" -w /workspace \
-            -e OUT_FILE="$OUT_FILE" \
+            -e OUT_FILE="$OUT_FILE" -e UNITY_EMAIL -e UNITY_PASSWORD \
             unityci/editor:ubuntu-${UNITY_VERSION}-base-3 \
             bash -lc '
+              set -e
+              # Named-user seat: always return it, even when the export fails.
+              trap "unity-editor -batchmode -nographics -quit -returnlicense -username \"$UNITY_EMAIL\" -password \"$UNITY_PASSWORD\" -logFile - || true" EXIT
               # Activation exits nonzero on some editor versions even when it succeeds;
               # the export run below is the real gate.
-              unity-editor -batchmode -nographics -quit -manualLicenseFile /workspace/Unity_lic.ulf -logFile - || true
+              unity-editor -batchmode -nographics -quit \
+                -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -logFile - || true
               unity-editor -batchmode -nographics -quit \
                 -projectPath /workspace/shell \
                 -executeMethod ReactiveUITK.CICD.AssetStoreExport.Run \
                 -exportOut "/workspace/$OUT_FILE" \
                 -logFile -
             '
-          rm -f Unity_lic.ulf
 
       - name: Verify the package
         if: steps.check.outputs.skip == 'false'
