@@ -1,11 +1,22 @@
 # Unity Asset Store publishing plan — ReactiveUIToolKit
 
-> **Status: RESEARCHED (2026-07-05), not started.** How to get ReactiveUIToolKit onto the Unity
-> Asset Store, and how much of it can be automated through a publish workflow. Bottom line up
-> front: **listing + first submission are manual; per-release artifact build + validation are
-> fully automatable in CI; the final upload+submit click is manual today** (Unity ships no
-> official CLI/API as of Asset Store Publishing Tools v12.0.0, Jan 2025) — same situation as
-> Godot's new Asset Store, and we solve it the same way: automate everything up to the click.
+> **Status: TIER A BUILT (2026-07-05).** Decisions locked: **free**, publisher
+> **ReactiveUIToolKit**, floor **Unity 6.2**, store cadence **~monthly**. Shipped: the
+> `build-unitypackage` job in `publish.yml` (assembles a store-shaped shell project — dist
+> omit-list + the new `pathsToOmitFromStore` hygiene list in `config.json` — imports it with the
+> floor editor, exports via `CICD/Editor/AssetStoreExport.cs` with must-ship/must-not-ship guard
+> rails, verifies, uploads the artifact; INERT until the `UNITY_LICENSE` secret is set; idempotent
+> via `store-v<ver>` tags). First local run immediately caught a real store-blocker: the Doom
+> sample's generated code needs **com.unity.inputsystem**, absent from fresh projects — the shell
+> manifest now includes it and the store draft must declare it as a package dependency. Publisher
+> profile created; listing kit (copy + 4 key images) staged in `<project root>/store_upload/`.
+> Remaining: create the package draft, first upload from a 6.2 editor, submit.
+>
+> Original bottom line: **listing + first submission are manual; per-release artifact build +
+> validation are fully automatable in CI; the final upload+submit click is manual today** (Unity
+> ships no official CLI/API as of Asset Store Publishing Tools v12.0.0, Jan 2025) — same
+> situation as Godot's new Asset Store, and we solve it the same way: automate everything up to
+> the click.
 
 ## 1. What the store requires (one-time)
 
