@@ -1,4 +1,6 @@
-# ReactiveUIToolKit — Final Audit: FINDINGS & BUGS (v4 split)
+# ReactiveUIToolKit — Final Audit: FINDINGS & BUGS (v5)
+
+**VERIFICATION PASS (v5, 2026-07-06):** a consolidated probe verifier re-ran every previously-confirmed finding against the current tree — **14/14 still reproduce**: U-01, U-02, U-03, U-04, U-05, U-07, U-08, U-09, U-10 (both comment + `_useState` variants), U-12 (0106 severity == Error in the analyzer), U-36 (+ its non-idempotency), and **U-20's `$@"` lexing drift is UPGRADED from latent to CONFIRMED** with an exact repro: `ExpressionExtractor.FromBrace` on `{ $@"{a("}")}" }` extracts the truncated `$@"{a("` (the quoted `}` inside the interpolation hole closes the outer brace early — add this string to the U-20 regression tests). Grep-verified code-read claims: U-37 (zero `RenameFile`/`DocumentChanges` occurrences in RenameHandler), U-39 (the `__StateSetter__` marker exists in the scaffold — `Shared/Core/HookRegistry.cs:429` — so the tightened filter works), H-01 (`diagList` truly never read after the parses in `Compile`'s body), H-03 (all four resolution behaviors re-read at their anchors). The v5 sweep of remaining unread surface (Definition/References handlers, CanonicalLowering, module/hook emitters, StaticReadonlyStripper) found ONE new item (U-42) and one cleanup note (see section 6).
 
 **Date:** 2026-07-06 (v4 = v3 content split into two documents; this file = correctness findings/bugs with fix recipes. Performance/optimization items live in `FINAL_AUDIT_UITKX_OPTIMIZATIONS.md` — IDs U-16, U-17, U-21, H-05, C-01, C-02, C-04, C-06 moved there unchanged.)
 **Auditor:** Claude, three read-only research passes. Working-tree changes made during the audit (already committed on `cleanup_and_upgrades`): deleted stray `Cargo.toml` and `tscn_stable.html` (the 1.45 MB saved Godot-docs page that was ~20% "HTML" in GitHub language stats; drop its `pathsToOmitFromStore` entry in `config.json` when merging master, where that list lives).
@@ -239,6 +241,11 @@
 ### U-41 — stale validator docs (LOW)
 - `SourceGenerator~/Emitter/StructureValidator.cs:15-19` doc lists "UITKX0009/0017"; actual descriptors are 0106/0108-aligned. Fix the comment (severity part is handled by U-12).
 
+### U-42 — **NEW (v5)** — Definition/References peer reads bypass the DocumentStore (stale-jump)
+- **Anchors:** `DefinitionHandler.cs:470` + `:481` and `ReferencesHandler.cs:361` — peer `.uitkx` sources read via `File.ReadAllText(peerPath)` with NO `_store.TryGetByPath` check first (unlike the handlers' own primary-document reads at `DefinitionHandler.cs:63-67`, which correctly prefer the store).
+- **Failure:** the target peer file is open with unsaved edits (e.g. you just added a hook above the one you're navigating to) → go-to-definition/references computes the declaration line against the STALE disk copy → the jump lands on the wrong line.
+- **FIX RECIPE:** at each of the three sites, `if (_store.TryGetByPath(peerPath, out var live)) peerSource = live; else peerSource = File.ReadAllText(peerPath);` (the helper already exists on `DocumentStore`). Sweep both handlers for any remaining bare `File.ReadAllText` on paths that can be open documents (`ReferencesHandler.cs:440/508` already do it right — use them as the template). Test: unit-test the store-preference helper; manual: edit a peer hook file without saving, F12 from a consumer → correct line.
+
 ### LSP smalls (one cleanup commit)
 - `DiagnosticsPublisher._lastT1T2/_lastT3`: evict on DidClose (`Forget(path)` from `TextSyncHandler`); key `OrdinalIgnoreCase`.
 - `ScheduleDebouncedRevalidation` CTS race → `Interlocked.Exchange`.
@@ -281,6 +288,7 @@
 | U-35 | ~~Cargo.toml / tscn_stable.html~~ | **RESOLVED + PUSHED** (a909714). Remaining: remove the `tscn_stable.html` entry from master's `config.json` `pathsToOmitFromStore` on merge. |
 | C-03 | `FiberFunctionComponent.ScheduleEffect:601` `// TODO: Use proper scheduler` — effects run inline | investigate callers FIRST: legacy-only → delete; reachable during commit → route through `_pendingPassiveEffects`. Reconciler timing — do not change blindly. |
 | C-05 | `PropsApplier.cs:669` cursor TODO | document as unsupported in `uitkx-schema.json` so the LSP flags it instead of silently ignoring. |
+| U-43 | `language-lib/Lowering/CanonicalLowering.cs` (v5) | the entire lowering stage is a documented NO-OP pass-through ("simply returns the parsed roots unchanged") still called from 3 sites (DiagnosticsPublisher, HMR compiler, pipeline). Delete the stage + call sites, or keep ONLY if a lowering pass is genuinely planned — then say so in the doc comment with a date. Zero risk either way. |
 
 Formatter behavior notes (non-corrupting, document only): 1-blank-line normalization between top-level siblings (EndLine untracked); `CollapseIntraLineSpaces` collapses inside one-line `/* */` interiors; `Ln()` multi-line re-anchoring.
 
@@ -292,7 +300,7 @@ Formatter behavior notes (non-corrupting, document only): 1-blank-line normaliza
 2. **Formatter batch:** U-01, U-02, U-03, U-04, U-36 (+ snapshots per recipe; paste-ready repros above).
 3. **HMR batch:** H-01, H-02, H-03 (coordinates with emitters), H-04, H-06.
 4. **Grammar batch:** U-05, U-06 (4 sites + parity tests), U-08, U-09, U-10, U-11, U-12 — one release-notes entry.
-5. **LSP batch:** U-14+U-15 together, U-18, U-19, U-39 (small, high value — do early), smalls.
+5. **LSP batch:** U-14+U-15 together, U-18, U-19, U-39 (small, high value — do early), U-42 (three-line fix, same theme as U-15), smalls.
 5b. **Rename batch:** U-37, U-38, U-40 — same file, one PR.
 6. **SG batch:** U-22 (verify/demote). *(U-21 generator incrementality is in the optimization doc.)*
 7. **Cleanup sweep:** section 6.
