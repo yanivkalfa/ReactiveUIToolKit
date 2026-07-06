@@ -443,6 +443,221 @@ jobs:
           path: ${{ steps.find_vsix.outputs.VSIX_PATH }}
 
   # ════════════════════════════════════════════════════════════════════════════
+  # Asset Store .unitypackage — Tier A of Plans~/ASSET_STORE_PUBLISHING_PLAN.md.
+  # Assembles the store-shaped content (dist omit-list applied, Samples kept visible)
+  # into a shell Unity project, imports it with the FLOOR Unity version (the store
+  # derives compatibility from the upload editor; reviewers test on the floor), exports
+  # ReactiveUIToolKit-<version>.unitypackage via CICD/Editor/AssetStoreExport.cs, and
+  # uploads it as a run artifact. The store upload itself stays manual — Unity ships no
+  # publish API — so the last mile is: download artifact (or export locally), then
+  # Tools -> Asset Store -> Uploader -> Export and Upload -> Submit for review.
+  # INERT UNTIL ARMED: Unity discontinued manual (.alf/.ulf) activation for Personal
+  # licenses, so this job activates a named-user seat per run and returns it afterwards.
+  # Set repo secrets UNITY_EMAIL + UNITY_PASSWORD to a Unity ID WITHOUT two-factor auth
+  # (create a dedicated free CI account — headless activation cannot answer 2FA), then
+  # verify with the "Unity license check" workflow. Idempotent via the store-v<ver> tag.
+  # ════════════════════════════════════════════════════════════════════════════
+  build-unitypackage:
+    runs-on: ubuntu-latest
+    env:
+      # Floor Unity version (store compatibility floor, see the plan §6). Needs a
+      # matching unityci/editor docker image; bump the trailing image revision (-3)
+      # if the pull ever 404s. Keep unity-license-check.yml in lockstep.
+      UNITY_VERSION: "6000.2.6f1"
+      HAS_LICENSE: ${{ secrets.UNITY_EMAIL != '' && secrets.UNITY_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version + license arming
+        id: check
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git tag --list "store-v$VERSION" | grep -q .; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Asset Store package store-v$VERSION already built — skipping"
+          elif [ "$HAS_LICENSE" != "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Unity Asset Store::build-unitypackage is INERT — add UNITY_EMAIL + UNITY_PASSWORD repo secrets (a no-2FA Unity ID) to arm it; verify with the Unity license check workflow."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Assemble store-shaped shell project
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -e
+          STORE_DIR="shell/Assets/ReactiveUIToolKit"
+          mkdir -p "$STORE_DIR"
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.vs' \
+            --exclude='.github' \
+            --exclude='shell' \
+            --exclude='out' \
+            --exclude='dist_build' \
+            --exclude='dist~' \
+            ./ "$STORE_DIR/"
+
+          # Same omit-list as the dist build (pathsToOmitFromDist) PLUS the store-only
+          # hygiene list (pathsToOmitFromStore: repo-internal docs, workspace files —
+          # anything a paying customer's Assets folder must not contain).
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const cfg = require('./config.json');
+            const patterns = (cfg.pathsToOmitFromDist || []).concat(cfg.pathsToOmitFromStore || []);
+            const distDir = '$STORE_DIR';
+
+            function rmSafe(p) {
+              const full = path.join(distDir, p);
+              if (fs.existsSync(full)) {
+                const stat = fs.statSync(full);
+                if (stat.isDirectory()) {
+                  fs.rmSync(full, { recursive: true });
+                } else {
+                  fs.unlinkSync(full);
+                }
+                console.log('Removed: ' + p);
+              }
+              const meta = full + '.meta';
+              if (fs.existsSync(meta)) {
+                fs.unlinkSync(meta);
+                console.log('Removed: ' + p + '.meta');
+              }
+            }
+
+            for (const pattern of patterns) {
+              const trimmed = pattern.trim().replace(/\\\\/g, '/');
+              if (trimmed.endsWith('/**')) {
+                rmSafe(trimmed.slice(0, -3));
+              } else {
+                rmSafe(trimmed);
+              }
+            }
+          "
+
+          # Re-include CICD/: it hosts the export method. The method itself excludes
+          # CICD from the .unitypackage and guard-rails against it leaking.
+          rsync -a CICD/ "$STORE_DIR/CICD/"
+          cp CICD.meta "$STORE_DIR/CICD.meta"
+
+          # Unlike dist (UPM channel), the store package keeps Samples/ visible — no
+          # Samples~ move: store users expect importable demo content.
+
+          mkdir -p shell/ProjectSettings
+          echo "m_EditorVersion: $UNITY_VERSION" > shell/ProjectSettings/ProjectVersion.txt
+
+          # Customer-baseline manifest: default engine modules + the Input System package,
+          # which some Samples use (their generated code references UnityEngine.InputSystem —
+          # without it the package cannot compile in a fresh project, which is an instant
+          # store-review rejection). Keep the store draft's "package dependencies" declaring
+          # com.unity.inputsystem so customer installs pull it automatically.
+          mkdir -p shell/Packages
+          cat > shell/Packages/manifest.json <<'MANIFEST'
+          {
+            "dependencies": {
+              "com.unity.inputsystem": "1.19.0",
+              "com.unity.ugui": "2.0.0",
+              "com.unity.modules.accessibility": "1.0.0",
+              "com.unity.modules.ai": "1.0.0",
+              "com.unity.modules.androidjni": "1.0.0",
+              "com.unity.modules.animation": "1.0.0",
+              "com.unity.modules.assetbundle": "1.0.0",
+              "com.unity.modules.audio": "1.0.0",
+              "com.unity.modules.cloth": "1.0.0",
+              "com.unity.modules.director": "1.0.0",
+              "com.unity.modules.imageconversion": "1.0.0",
+              "com.unity.modules.imgui": "1.0.0",
+              "com.unity.modules.jsonserialize": "1.0.0",
+              "com.unity.modules.particlesystem": "1.0.0",
+              "com.unity.modules.physics": "1.0.0",
+              "com.unity.modules.physics2d": "1.0.0",
+              "com.unity.modules.screencapture": "1.0.0",
+              "com.unity.modules.terrain": "1.0.0",
+              "com.unity.modules.terrainphysics": "1.0.0",
+              "com.unity.modules.tilemap": "1.0.0",
+              "com.unity.modules.ui": "1.0.0",
+              "com.unity.modules.uielements": "1.0.0",
+              "com.unity.modules.umbra": "1.0.0",
+              "com.unity.modules.unityanalytics": "1.0.0",
+              "com.unity.modules.unitywebrequest": "1.0.0",
+              "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
+              "com.unity.modules.unitywebrequestaudio": "1.0.0",
+              "com.unity.modules.unitywebrequesttexture": "1.0.0",
+              "com.unity.modules.unitywebrequestwww": "1.0.0",
+              "com.unity.modules.vehicles": "1.0.0",
+              "com.unity.modules.video": "1.0.0",
+              "com.unity.modules.vr": "1.0.0",
+              "com.unity.modules.wind": "1.0.0",
+              "com.unity.modules.xr": "1.0.0"
+            }
+          }
+          MANIFEST
+
+      - name: Import + export with the floor Unity
+        if: steps.check.outputs.skip == 'false'
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          OUT_FILE: out/ReactiveUIToolKit-${{ steps.check.outputs.version }}.unitypackage
+        run: |
+          set -e
+          mkdir -p out
+          docker run --rm \
+            -v "$PWD:/workspace" -w /workspace \
+            -e OUT_FILE="$OUT_FILE" -e UNITY_EMAIL -e UNITY_PASSWORD \
+            unityci/editor:ubuntu-${UNITY_VERSION}-base-3 \
+            bash -lc '
+              set -e
+              # Named-user seat: always return it, even when the export fails.
+              trap "unity-editor -batchmode -nographics -quit -returnlicense -username \"$UNITY_EMAIL\" -password \"$UNITY_PASSWORD\" -logFile - || true" EXIT
+              # Activation exits nonzero on some editor versions even when it succeeds;
+              # the export run below is the real gate.
+              unity-editor -batchmode -nographics -quit \
+                -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -logFile - || true
+              unity-editor -batchmode -nographics -quit \
+                -projectPath /workspace/shell \
+                -executeMethod ReactiveUITK.CICD.AssetStoreExport.Run \
+                -exportOut "/workspace/$OUT_FILE" \
+                -logFile -
+            '
+
+      - name: Verify the package
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          set -e
+          PKG="out/ReactiveUIToolKit-${{ steps.check.outputs.version }}.unitypackage"
+          [ -f "$PKG" ] || { echo "::error::unitypackage missing"; exit 1; }
+          SIZE=$(stat -c%s "$PKG")
+          COUNT=$(tar -tzf "$PKG" | wc -l)
+          echo "unitypackage: $COUNT tar entries, $SIZE bytes"
+          [ "$SIZE" -gt 200000 ] || { echo "::error::unitypackage suspiciously small ($SIZE bytes)"; exit 1; }
+          [ "$COUNT" -gt 200 ] || { echo "::error::unitypackage has too few entries ($COUNT)"; exit 1; }
+
+      - name: Upload artifact
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReactiveUIToolKit-unitypackage-${{ steps.check.outputs.version }}
+          path: out/*.unitypackage
+
+      - name: Tag built version
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "store-v${{ steps.check.outputs.version }}"
+          git push origin "store-v${{ steps.check.outputs.version }}"
+
+      - name: Store upload reminder (no publish API)
+        if: steps.check.outputs.skip == 'false'
+        run: echo "::notice title=Unity Asset Store::Package built. Download the artifact, then from a Unity $UNITY_VERSION project run Tools -> Asset Store -> Uploader -> select the package draft -> Export and Upload, and Submit for review at publisher.unity.com (updates review in ~2 business days)."
+
+  # ════════════════════════════════════════════════════════════════════════════
   # Rider plugin — disabled until the Rider extension is ready for publishing
   # ════════════════════════════════════════════════════════════════════════════
   # publish-rider:
