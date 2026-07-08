@@ -9910,24 +9910,24 @@ component Comp {
             else if (node is ReactiveUITK.Language.Nodes.IfNode ifn)
             {
                 foreach (var br in ifn.Branches)
-                    CollectTags(br.Body, tags);
+                    CollectTags(br.Payload.Body, tags);
             }
             else if (node is ReactiveUITK.Language.Nodes.ForeachNode fe)
             {
-                CollectTags(fe.Body, tags);
+                CollectTags(fe.Payload.Body, tags);
             }
             else if (node is ReactiveUITK.Language.Nodes.SwitchNode sw)
             {
                 foreach (var c in sw.Cases)
-                    CollectTags(c.Body, tags);
+                    CollectTags(c.Payload.Body, tags);
             }
             else if (node is ReactiveUITK.Language.Nodes.ForNode fn)
             {
-                CollectTags(fn.Body, tags);
+                CollectTags(fn.Payload.Body, tags);
             }
             else if (node is ReactiveUITK.Language.Nodes.WhileNode wh)
             {
-                CollectTags(wh.Body, tags);
+                CollectTags(wh.Payload.Body, tags);
             }
         }
     }
@@ -10979,5 +10979,228 @@ component Comp {
         Assert.Contains("module UitkxTestFileDoNotTouch {", result);
         Assert.Contains("ContainerStyle", result);
         Assert.DoesNotContain("component Component", result);
+    }
+
+    // ── U-01: leading comments before `component` must survive a format ────────
+
+    [Fact]
+    public void LeadingLineComment_Header_Survives()
+    {
+        var source = "// My license header\ncomponent Foo {\n    return (\n        <Label text=\"hi\" />\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("// My license header", result);
+        Assert.StartsWith("// My license header", result);
+    }
+
+    [Fact]
+    public void LeadingLineComment_Header_IsIdempotent()
+    {
+        var source = "// My license header\ncomponent Foo {\n    return (\n        <Label text=\"hi\" />\n    );\n}\n";
+        var once = Format(source);
+        var twice = Format(once);
+        Assert.Equal(once, twice);
+    }
+
+    [Fact]
+    public void LeadingBlockComment_Header_Survives()
+    {
+        var source = "/* Copyright 2026 */\ncomponent Foo {\n    return (\n        <Label text=\"hi\" />\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("/* Copyright 2026 */", result);
+    }
+
+    [Fact]
+    public void LeadingComment_BetweenUsingLines_Survives()
+    {
+        var source = "using System;\n// keep this using too\nusing System.Linq;\ncomponent Foo {\n    return (\n        <Label text=\"hi\" />\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("// keep this using too", result);
+        Assert.Contains("@using System", result);
+        Assert.Contains("@using System.Linq", result);
+    }
+
+    [Fact]
+    public void LeadingComment_HookModuleFile_Survives()
+    {
+        var source = "// hook file header\nhook useCounter(int initial = 0) -> (int, Action) {\n    var (n, setN) = useState(initial);\n    return (n, () => setN(n + 1));\n}\n";
+        var result = Format(source);
+        Assert.Contains("// hook file header", result);
+        Assert.StartsWith("// hook file header", result);
+    }
+
+    // ── U-02: {expr}/comment children of inline-attribute JSX must survive ─────
+
+    [Fact]
+    public void InlineAttrJsx_ExpressionChild_Survives()
+    {
+        var source = "component Foo {\n    return (\n        <Box header={<Box><Label text=\"t\" />{1 + 1}</Box>} />\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("{1 + 1}", result);
+    }
+
+    [Fact]
+    public void InlineAttrJsx_ExpressionChild_IsIdempotent()
+    {
+        var source = "component Foo {\n    return (\n        <Box header={<Box><Label text=\"t\" />{1 + 1}</Box>} />\n    );\n}\n";
+        var once = Format(source);
+        var twice = Format(once);
+        Assert.Equal(once, twice);
+    }
+
+    [Fact]
+    public void InlineAttrJsx_CommentChild_Survives()
+    {
+        var source = "component Foo {\n    return (\n        <Box header={<Box>/* keep me */<Label text=\"t\" /></Box>} />\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("keep me", result);
+    }
+
+    // ── U-03: multi-line verbatim string interiors must not be re-indented ─────
+
+    [Fact]
+    public void VerbatimString_MultilineInterior_ByteIdentical()
+    {
+        var source = "component Foo {\n    var s = @\"line1\n    }\n  indented content\n\";\n    return (\n        <Label text={s} />\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("\n    }\n", result);
+        Assert.Contains("\n  indented content\n", result);
+    }
+
+    [Fact]
+    public void VerbatimString_MultilineInterior_IsIdempotent()
+    {
+        var source = "component Foo {\n    var s = @\"line1\n    }\n  indented content\n\";\n    return (\n        <Label text={s} />\n    );\n}\n";
+        var once = Format(source);
+        var twice = Format(once);
+        Assert.Equal(once, twice);
+    }
+
+    [Fact]
+    public void DollarAtVerbatimString_MultilineInterior_ByteIdentical()
+    {
+        var source = "component Foo {\n    var s = $@\"line1\n    }\n  indented {content}\n\";\n    return (\n        <Label text={s} />\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("\n    }\n", result);
+        Assert.Contains("\n  indented {content}\n", result);
+    }
+
+    // ── U-04: @case global::… must not corrupt the switch block ─────────────────
+
+    [Fact]
+    public void SwitchCase_GlobalQualifiedValue_NotMangled()
+    {
+        var source = "component Foo {\n    var mode = 1;\n    return (\n        <Box>\n            @switch (mode) {\n                @case global::System.StringComparison.Ordinal:\n                    <Label text=\"a\" />\n                @default:\n                    <Label text=\"b\" />\n            }\n        </Box>\n    );\n}\n";
+        var result = Format(source);
+        Assert.Contains("@case global::System.StringComparison.Ordinal:", result);
+        Assert.Contains("<Label text=\"a\" />", result);
+        Assert.Contains("<Label text=\"b\" />", result);
+    }
+
+    [Fact]
+    public void SwitchCase_GlobalQualifiedValue_IsIdempotent()
+    {
+        var source = "component Foo {\n    var mode = 1;\n    return (\n        <Box>\n            @switch (mode) {\n                @case global::System.StringComparison.Ordinal:\n                    <Label text=\"a\" />\n                @default:\n                    <Label text=\"b\" />\n            }\n        </Box>\n    );\n}\n";
+        var once = Format(source);
+        var twice = Format(once);
+        Assert.Equal(once, twice);
+    }
+
+    // ── U-36: setup-code JSX splice-index desync must not swap block content ───
+
+    private const string U36Repro =
+        "component Foo {\n" +
+        "    var cond = true;\n" +
+        "    var x = (@if (cond) { <Label text=\"a\" /> } @else { <Label text=\"b\" /> });\n" +
+        "    var y = (\n" +
+        "        <Box>\n" +
+        "            <Label text=\"real\" />\n" +
+        "        </Box>\n" +
+        "    );\n" +
+        "    return (\n" +
+        "        <Box>{y}</Box>\n" +
+        "    );\n" +
+        "}\n";
+
+    [Fact]
+    public void SetupJsx_TwoParenBlocks_YKeepsItsOwnMarkup()
+    {
+        var result = Format(U36Repro);
+        Assert.Contains("text=\"real\"", result);
+    }
+
+    [Fact]
+    public void SetupJsx_TwoParenBlocks_XKeepsItsOwnIfElse()
+    {
+        var result = Format(U36Repro);
+        Assert.Contains("@if (cond)", result);
+        Assert.Contains("@else", result);
+        Assert.Contains("text=\"a\"", result);
+        Assert.Contains("text=\"b\"", result);
+    }
+
+    [Fact]
+    public void SetupJsx_TwoParenBlocks_IsIdempotent()
+    {
+        var once = Format(U36Repro);
+        var twice = Format(once);
+        Assert.Equal(once, twice);
+    }
+
+    // ── U-07: block-comment-blind JSX-block detection corrupts comment interiors ─
+
+    [Fact]
+    public void CommentedOutJsx_InSetupCode_PreservedByteIdentical()
+    {
+        // No other real JSX in setup code — routes through EmitSetupCodeNormalized.
+        var source =
+            "component Foo {\n" +
+            "  /*\n" +
+            "    return (\n" +
+            "      <Label text={x} />\n" +
+            "    );\n" +
+            "  */\n" +
+            "  var x = 1;\n" +
+            "  return (\n" +
+            "    <Box />\n" +
+            "  );\n" +
+            "}\n";
+
+        var result = Format(source);
+
+        Assert.Contains("      <Label text={x} />", result);
+        var once = result;
+        var twice = Format(once);
+        Assert.Equal(once, twice);
+    }
+
+    [Fact]
+    public void CommentedOutJsx_AlongsideRealJsxInSetupCode_PreservedByteIdentical()
+    {
+        // A genuine JSX paren-block ALSO exists in setup code (var bla = (<Box/>);),
+        // so this routes through EmitSetupCodeWithJsx's raw-C#-reindent fallback —
+        // the exact path where the real UitkxTestFileDoNotTouch sample regressed.
+        var source =
+            "component Foo {\n" +
+            "  var myRef = 1;\n" +
+            "  {/*\n" +
+            "    return (\n" +
+            "      <Label text={myRef} />\n" +
+            "    ); */}\n" +
+            "\n" +
+            "  var bla = (\n" +
+            "    <Box />\n" +
+            "  );\n" +
+            "  return (\n" +
+            "    <Box>{bla}</Box>\n" +
+            "  );\n" +
+            "}\n";
+
+        var result = Format(source);
+
+        Assert.Contains("      <Label text={myRef} />", result);
+        Assert.Contains("<Box />", result);
+        var once = result;
+        var twice = Format(once);
+        Assert.Equal(once, twice);
     }
 }

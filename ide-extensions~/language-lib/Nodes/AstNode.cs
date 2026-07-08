@@ -132,17 +132,17 @@ namespace ReactiveUITK.Language.Nodes
     // ── Control flow ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// One branch of an <c>@if</c>/<c>@else if</c>/<c>@else</c> chain.
-    /// <see cref="Condition"/> is <c>null</c> for the <c>@else</c> branch.
+    /// U-33: the shared "body payload" for every control-flow block
+    /// (<see cref="IfBranch"/>, <see cref="ForeachNode"/>, <see cref="ForNode"/>,
+    /// <see cref="WhileNode"/>, <see cref="SwitchCase"/>) — previously five
+    /// hand-copied sets of the same five properties. Also the parser's own
+    /// internal result type for parsing one control block body (formerly a
+    /// private <c>UitkxParser.ControlBlockBody</c> struct), so a parsed body can
+    /// be assigned to a node's <c>Payload</c> directly with no field-by-field
+    /// unpacking at the construction site.
     /// </summary>
-    public sealed record IfBranch(string? Condition, int SourceLine)
+    public sealed record ControlBlockPayload
     {
-        /// <summary>
-        /// Absolute character offset in the .uitkx source where the trimmed condition
-        /// expression begins (after the opening <c>(</c>). 0 when not tracked (e.g. <c>@else</c>).
-        /// </summary>
-        public int ConditionOffset { get; init; } = 0;
-
         /// <summary>Complete body code (C# with return statements at any depth).</summary>
         public string? BodyCode { get; init; }
 
@@ -167,6 +167,22 @@ namespace ReactiveUITK.Language.Nodes
         /// </summary>
         public ImmutableArray<AstNode> Body { get; init; }
             = ImmutableArray<AstNode>.Empty;
+    }
+
+    /// <summary>
+    /// One branch of an <c>@if</c>/<c>@else if</c>/<c>@else</c> chain.
+    /// <see cref="Condition"/> is <c>null</c> for the <c>@else</c> branch.
+    /// </summary>
+    public sealed record IfBranch(string? Condition, int SourceLine)
+    {
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where the trimmed condition
+        /// expression begins (after the opening <c>(</c>). 0 when not tracked (e.g. <c>@else</c>).
+        /// </summary>
+        public int ConditionOffset { get; init; } = 0;
+
+        /// <summary>This branch's body — see <see cref="ControlBlockPayload"/>.</summary>
+        public ControlBlockPayload Payload { get; init; } = new();
     }
 
     /// <summary>
@@ -204,30 +220,8 @@ namespace ReactiveUITK.Language.Nodes
         /// </summary>
         public int ForeachExpressionOffset { get; init; } = 0;
 
-        /// <summary>Complete body code (C# with return statements at any depth).</summary>
-        public string? BodyCode { get; init; }
-
-        /// <summary>Absolute character offset in source where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeOffset { get; init; }
-
-        /// <summary>1-based line number where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeLine { get; init; }
-
-        /// <summary>Paren-wrapped JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyMarkupRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>Bare JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyBareJsxRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>
-        /// Parsed JSX elements extracted from <see cref="BodyMarkupRanges"/> and
-        /// <see cref="BodyBareJsxRanges"/> for IDE features (semantic tokens,
-        /// IntelliSense, diagnostics). Emitters use <see cref="BodyCode"/> instead.
-        /// </summary>
-        public ImmutableArray<AstNode> Body { get; init; }
-            = ImmutableArray<AstNode>.Empty;
+        /// <summary>This loop's body — see <see cref="ControlBlockPayload"/>.</summary>
+        public ControlBlockPayload Payload { get; init; } = new();
     }
 
     /// <summary>
@@ -246,30 +240,8 @@ namespace ReactiveUITK.Language.Nodes
         /// </summary>
         public int ForExpressionOffset { get; init; } = 0;
 
-        /// <summary>Complete body code (C# with return statements at any depth).</summary>
-        public string? BodyCode { get; init; }
-
-        /// <summary>Absolute character offset in source where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeOffset { get; init; }
-
-        /// <summary>1-based line number where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeLine { get; init; }
-
-        /// <summary>Paren-wrapped JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyMarkupRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>Bare JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyBareJsxRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>
-        /// Parsed JSX elements extracted from <see cref="BodyMarkupRanges"/> and
-        /// <see cref="BodyBareJsxRanges"/> for IDE features (semantic tokens,
-        /// IntelliSense, diagnostics). Emitters use <see cref="BodyCode"/> instead.
-        /// </summary>
-        public ImmutableArray<AstNode> Body { get; init; }
-            = ImmutableArray<AstNode>.Empty;
+        /// <summary>This loop's body — see <see cref="ControlBlockPayload"/>.</summary>
+        public ControlBlockPayload Payload { get; init; } = new();
     }
 
     /// <summary>
@@ -287,30 +259,8 @@ namespace ReactiveUITK.Language.Nodes
         /// </summary>
         public int ConditionOffset { get; init; } = 0;
 
-        /// <summary>Complete body code (C# with return statements at any depth).</summary>
-        public string? BodyCode { get; init; }
-
-        /// <summary>Absolute character offset in source where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeOffset { get; init; }
-
-        /// <summary>1-based line number where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeLine { get; init; }
-
-        /// <summary>Paren-wrapped JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyMarkupRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>Bare JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyBareJsxRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>
-        /// Parsed JSX elements extracted from <see cref="BodyMarkupRanges"/> and
-        /// <see cref="BodyBareJsxRanges"/> for IDE features (semantic tokens,
-        /// IntelliSense, diagnostics). Emitters use <see cref="BodyCode"/> instead.
-        /// </summary>
-        public ImmutableArray<AstNode> Body { get; init; }
-            = ImmutableArray<AstNode>.Empty;
+        /// <summary>This loop's body — see <see cref="ControlBlockPayload"/>.</summary>
+        public ControlBlockPayload Payload { get; init; } = new();
     }
 
     /// <summary>One <c>@case</c> or <c>@default</c> branch inside a switch block.</summary>
@@ -320,30 +270,8 @@ namespace ReactiveUITK.Language.Nodes
         int SourceLine
     )
     {
-        /// <summary>Complete body code (C# with return statements at any depth).</summary>
-        public string? BodyCode { get; init; }
-
-        /// <summary>Absolute character offset in source where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeOffset { get; init; }
-
-        /// <summary>1-based line number where <see cref="BodyCode"/> begins.</summary>
-        public int BodyCodeLine { get; init; }
-
-        /// <summary>Paren-wrapped JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyMarkupRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>Bare JSX ranges within <see cref="BodyCode"/>.</summary>
-        public ImmutableArray<(int Start, int End, int Line)> BodyBareJsxRanges { get; init; }
-            = ImmutableArray<(int Start, int End, int Line)>.Empty;
-
-        /// <summary>
-        /// Parsed JSX elements extracted from <see cref="BodyMarkupRanges"/> and
-        /// <see cref="BodyBareJsxRanges"/> for IDE features (semantic tokens,
-        /// IntelliSense, diagnostics). Emitters use <see cref="BodyCode"/> instead.
-        /// </summary>
-        public ImmutableArray<AstNode> Body { get; init; }
-            = ImmutableArray<AstNode>.Empty;
+        /// <summary>This case's body — see <see cref="ControlBlockPayload"/>.</summary>
+        public ControlBlockPayload Payload { get; init; } = new();
     };
 
     /// <summary>An <c>@switch (expr) { @case ... }</c> block.</summary>
@@ -352,5 +280,15 @@ namespace ReactiveUITK.Language.Nodes
         ImmutableArray<SwitchCase> Cases,
         int SourceLine,
         string SourceFile
-    ) : AstNode(SourceLine, SourceFile);
+    ) : AstNode(SourceLine, SourceFile)
+    {
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where <see cref="SwitchExpression"/>
+        /// begins (after the opening <c>(</c>). 0 when not tracked (U-33 — added for parity
+        /// with <see cref="IfBranch.ConditionOffset"/> / <see cref="ForeachNode.ForeachExpressionOffset"/>
+        /// / <see cref="ForNode.ForExpressionOffset"/> / <see cref="WhileNode.ConditionOffset"/>,
+        /// which all track their header expression's offset for column-accurate IDE mapping).
+        /// </summary>
+        public int SwitchExpressionOffset { get; init; } = 0;
+    }
 }

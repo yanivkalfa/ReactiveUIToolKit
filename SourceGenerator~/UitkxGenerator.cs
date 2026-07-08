@@ -37,13 +37,17 @@ namespace ReactiveUITK.SourceGenerator
         static UitkxGenerator() => LanguageLibResolver.EnsureRegistered();
 
         // Emitted once per assembly to confirm the generator DLL loaded.
+        // U-22: verified (empirically, across this audit's own dotnet build/test output)
+        // that this fires as a real build-log warning on every compile — pure informational
+        // noise ("the generator is alive") does not warrant Warning severity, which
+        // surfaces in build summaries and the Error List panel like a real issue.
         private static readonly DiagnosticDescriptor s_generatorAlive = new DiagnosticDescriptor(
             id: "UITKX0000",
             title: "ReactiveUITK.SourceGenerator is active",
             messageFormat: "ReactiveUITK.SourceGenerator loaded for assembly '{0}'. "
                 + "Found {1} .uitkx file(s) via disk scan.",
             category: "ReactiveUITK.SourceGenerator",
-            defaultSeverity: DiagnosticSeverity.Warning,
+            defaultSeverity: DiagnosticSeverity.Info,
             isEnabledByDefault: true
         );
 
@@ -171,7 +175,7 @@ namespace ReactiveUITK.SourceGenerator
                             continue;
                         if (!UitkxPipeline.IsOwnedByCompilation(txt.Path, compilation.AssemblyName))
                             continue;
-                        string? src = txt.GetText(ct)?.ToString();
+                        string? src = ReadUitkxSource(txt, ct);
                         if (src == null)
                             continue;
                         if (TryBuildPeerComponentInfo(src, txt.Path, out var peerInfo))
@@ -187,12 +191,14 @@ namespace ReactiveUITK.SourceGenerator
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
                     // UitkxCsprojPostprocessor, so they arrive here as AdditionalTexts.
+                    // Content is read disk-authoritative (see ReadUitkxSource) so a
+                    // stale AdditionalText from Unity doesn't produce stale output.
                     foreach (var txt in uitkxFiles)
                     {
                         ct.ThrowIfCancellationRequested();
                         if (IsInsideIgnoredFolder(txt.Path))
                             continue;
-                        string? source = txt.GetText(ct)?.ToString();
+                        string? source = ReadUitkxSource(txt, ct);
                         if (source == null)
                             continue;
                         results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers));
@@ -239,7 +245,8 @@ namespace ReactiveUITK.SourceGenerator
                         }
                     }
 
-                    // UITKX0001 — confirms generator ran for this assembly
+                    // UITKX0000 — confirms generator ran for this assembly (U-22: comment
+                    // previously said "UITKX0001", which doesn't match s_generatorAlive's id)
                     spc.ReportDiagnostic(
                         Diagnostic.Create(
                             s_generatorAlive,
@@ -272,6 +279,42 @@ namespace ReactiveUITK.SourceGenerator
                     return true;
             }
             return false;
+        }
+
+        // Reads the .uitkx source for generation, treating the ON-DISK file as the
+        // source of truth. Under Unity, the AdditionalText handed to the (reused)
+        // driver on a .uitkx-ONLY edit with Play/HMR off can lag the file on disk:
+        // the incremental pipeline re-runs (the Compilation changes every compile),
+        // but reads the STALE AdditionalText content, so the regenerated component
+        // still shows the pre-edit markup — a full reimport / Library clear / any
+        // .cs edit "fixes" it only because those force Unity to re-read the file.
+        // The generator's incremental cache itself is correct (verified with a
+        // reused-driver ReplaceAdditionalText probe: an AdditionalText content
+        // change DOES invalidate and re-emit), so the defect is the stale content
+        // Unity delivers, and the fix belongs here: when the on-disk content differs
+        // from what Unity provided, disk wins.
+        //
+        // Safe for the IDE (VS/Rider) path: those hosts update the AdditionalText to
+        // the saved buffer before compiling, so disk == AdditionalText and this is a
+        // no-op. On any read failure (file locked mid-save, path gone) it falls back
+        // to the AdditionalText content, and the next compile self-corrects.
+        private static string? ReadUitkxSource(AdditionalText txt, CancellationToken ct)
+        {
+            string? additional = txt.GetText(ct)?.ToString();
+            try
+            {
+                if (!string.IsNullOrEmpty(txt.Path) && File.Exists(txt.Path))
+                {
+                    string disk = File.ReadAllText(txt.Path);
+                    if (!string.Equals(disk, additional, StringComparison.Ordinal))
+                        return disk;
+                }
+            }
+            catch
+            {
+                // Keep the AdditionalText content on any disk-read failure.
+            }
+            return additional;
         }
 
         // Matches the component-name declaration in a .uitkx file:

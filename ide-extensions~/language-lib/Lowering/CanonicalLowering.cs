@@ -11,6 +11,13 @@ namespace ReactiveUITK.Language.Lowering;
 /// <c>CodeBlockNode</c>. Now that setup code is emitted directly by the
 /// emitters from <see cref="DirectiveSet.FunctionSetupCode"/>, this pass
 /// simply returns the parsed roots unchanged.
+///
+/// U-43 (2026-07-06): confirmed still a pure no-op pass-through, called from three
+/// sites (DiagnosticsPublisher, the HMR compiler, and UitkxPipeline). Deliberately kept
+/// rather than deleted — a lowering pass is a natural seam if/when a future canonical
+/// transform is needed (e.g. desugaring), and removing + re-adding a stage later is more
+/// churn than leaving this identity pass in place. If this comment is still accurate a
+/// year on with no lowering work planned, delete the stage and its three call sites.
 /// </summary>
 public static class CanonicalLowering
 {

@@ -217,7 +217,20 @@ namespace ReactiveUITK.Language.Parser
         /// Module declarations parsed from this file. Empty/default for component or directive-style files.
         /// </summary>
         ImmutableArray<ModuleDeclaration> ModuleDeclarations = default
-    );
+    )
+    {
+        /// <summary>
+        /// Comments (<c>//</c>, <c>/* */</c>, <c>&lt;!-- --&gt;</c>) consumed while skipping
+        /// leading trivia before the preamble (<c>@namespace</c>/<c>@using</c>/<c>@uss</c>/
+        /// <c>component</c>), in source order, each with its raw text (including delimiters)
+        /// and 1-based line. The formatter re-emits these verbatim so a license header or
+        /// other leading comment is not silently dropped on format (see
+        /// FINAL_AUDIT_UITKX_FINDINGS.md, finding U-01). Empty when not tracked (e.g. the
+        /// lightweight <c>LooksLikeFunctionStyleComponent</c> lookahead probe).
+        /// </summary>
+        public ImmutableArray<(string Text, bool IsBlock, int Line)> LeadingTrivia { get; init; }
+            = ImmutableArray<(string Text, bool IsBlock, int Line)>.Empty;
+    };
 
     // ── Full parse result ─────────────────────────────────────────────────────
 

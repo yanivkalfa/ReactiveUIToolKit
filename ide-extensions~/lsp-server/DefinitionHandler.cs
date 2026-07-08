@@ -467,7 +467,12 @@ public sealed class DefinitionHandler : IDefinitionHandler
                     var peerResult = peerVDoc.Map.ToUitkxOffset(span.Start);
                     if (peerResult.HasValue)
                     {
-                        var peerSource = File.Exists(peerPath) ? File.ReadAllText(peerPath) : "";
+                        // U-42: prefer the store (an open, possibly-unsaved buffer) over disk —
+                        // matching the primary-document read above — so navigating into a peer
+                        // file with unsaved edits doesn't compute the jump against stale text.
+                        string peerSource = _store.TryGetByPath(peerPath, out var live)
+                            ? live
+                            : File.Exists(peerPath) ? File.ReadAllText(peerPath) : "";
                         ServerLog.Log(
                             $"definition: Roslyn '{word}' → {peerPath} (via peer SourceMap)");
                         return MakeLocationFromOffset(peerPath, peerSource, peerResult.Value.UitkxOffset);
@@ -476,9 +481,9 @@ public sealed class DefinitionHandler : IDefinitionHandler
                     // The definition position is in the scaffold (e.g. a hook/module
                     // method signature).  Fall back to searching the peer .uitkx
                     // source for the symbol name (hook/module declaration keyword line).
-                    if (File.Exists(peerPath))
+                    if (_store.TryGetByPath(peerPath, out var peerSourceLive) || File.Exists(peerPath))
                     {
-                        var peerSource = File.ReadAllText(peerPath);
+                        var peerSource = peerSourceLive ?? File.ReadAllText(peerPath);
                         var (declLine, declCol) = FindDeclarationInUitkx(peerSource, word);
                         if (declLine > 0)
                         {

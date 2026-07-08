@@ -5,7 +5,6 @@
 @using UnityEngine.UIElements
 
 component ShowcaseDemoPage {
-  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var (inputText, setInputText) = useState(string.Empty);
   var (isOptionEnabled, setOptionEnabled) = useState(false);
   var (isRadioSingleSelected, setRadioSingleSelected) = useState(false);
@@ -30,7 +29,6 @@ component ShowcaseDemoPage {
 
   var rootRef = useRef<VisualElement?>(null);
 
-  // â”€â”€ Timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     var el = rootRef?.Current;
     if (el == null)
@@ -47,7 +45,6 @@ component ShowcaseDemoPage {
     };
   }, Array.Empty<object>());
 
-  // â”€â”€ Batch handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void BatchOnClick() {
     setBatchClicks(batchClicks + 1);
     setRepeatClickCount(v => v + 1);
@@ -57,7 +54,6 @@ component ShowcaseDemoPage {
     setOptionEnabled(!isOptionEnabled);
   }
 
-  // â”€â”€ Values for ValuesBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int totalListCount = treeDisplayCount + mctvDisplayCount + simpleListCount + mclvDisplayCount;
   var valuesItems = new List<KeyValuePair<string, string>> {
     new("TextField", inputText ?? string.Empty),
@@ -74,7 +70,6 @@ component ShowcaseDemoPage {
     new("ListCount", totalListCount.ToString()),
   };
 
-  // â”€â”€ Layout styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var outerStyle = new Style {
     (BackgroundColor, new Color(0.2f, 0.4f, 0.8f, 1f)),
     (FlexGrow, 1f),

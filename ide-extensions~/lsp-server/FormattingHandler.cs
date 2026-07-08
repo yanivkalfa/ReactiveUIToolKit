@@ -106,7 +106,11 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
             return Task.FromResult<TextEditContainer?>(null);
 
         // Build the replacement text from fmtLines[firstDiff..fmtEnd].
-        var newText = string.Join("\n", fmtLines, firstDiff, fmtEnd - firstDiff + 1);
+        // U-18: preserve the ORIGINAL file's line-ending convention — joining with a bare
+        // "\n" always turned a CRLF file's formatted block into LF, leaving the file with
+        // mixed line endings after every format-on-save.
+        bool isCrlf = text.IndexOf("\r\n", StringComparison.Ordinal) >= 0;
+        var newText = string.Join(isCrlf ? "\r\n" : "\n", fmtLines, firstDiff, fmtEnd - firstDiff + 1);
 
         // The single edit replaces origLines[firstDiff..origEnd] with the new text.
         var edit = new TextEdit

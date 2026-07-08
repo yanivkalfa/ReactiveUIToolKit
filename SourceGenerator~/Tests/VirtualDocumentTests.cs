@@ -127,6 +127,40 @@ public sealed class VirtualDocumentTests
         Assert.Equal(uitkxIdx, backToUitkx.Value.UitkxOffset);
     }
 
+    // ── U-33: @switch expression is now Roslyn-mapped ───────────────────────
+
+    [Fact]
+    public void SwitchExpression_MappedInVirtualDoc()
+    {
+        // Before U-33 the virtual doc never emitted the switch expression at
+        // all, so it had no Roslyn-backed hover/diagnostics/go-to-def.
+        var source =
+            "component C {\n  string mode = \"a\";\n  return (\n    @switch (mode) {\n      @case \"a\":\n        <Label/>\n    }\n  );\n}";
+        var doc = Generate(source);
+        Assert.Contains("mode", doc.Text);
+    }
+
+    [Fact]
+    public void SwitchExpression_SourceMap_RoundTrips()
+    {
+        var source =
+            "component C {\n  string switchVar = \"a\";\n  return (\n    @switch (switchVar) {\n      @case \"a\":\n        <Label/>\n    }\n  );\n}";
+        var doc = Generate(source);
+
+        int uitkxIdx = source.LastIndexOf("switchVar"); // the usage inside @switch(...), not the declaration
+        Assert.True(uitkxIdx >= 0);
+
+        var toVirtual = doc.Map.ToVirtualOffset(uitkxIdx);
+        Assert.NotNull(toVirtual);
+
+        var virtualSub = doc.Text.Substring(toVirtual.Value.VirtualOffset, "switchVar".Length);
+        Assert.Equal("switchVar", virtualSub);
+
+        var backToUitkx = doc.Map.ToUitkxOffset(toVirtual.Value.VirtualOffset);
+        Assert.NotNull(backToUitkx);
+        Assert.Equal(uitkxIdx, backToUitkx.Value.UitkxOffset);
+    }
+
     [Fact]
     public void SourceMap_NonCSharpRegion_ReturnsNull()
     {

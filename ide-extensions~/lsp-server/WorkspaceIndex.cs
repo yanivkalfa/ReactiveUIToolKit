@@ -128,8 +128,10 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
     // Matches public property declarations with a Pascal-case name.
     // E.g.  "public string Text {"  "public Action<int>? OnClick {"
+    // Also matches expression-bodied properties (U-34):
+    // "public string Foo => "bar";"  "public int Count => _items.Count;"
     private static readonly Regex s_propPattern = new(
-        @"^\s*public\s+(?<type>[\w<>\[\],\s\?]+?)\s+(?<name>[A-Z][A-Za-z0-9_]*)\s*\{",
+        @"^\s*public\s+(?<type>[\w<>\[\],\s\?]+?)\s+(?<name>[A-Z][A-Za-z0-9_]*)\s*(?:\{|=>)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant
     );
 

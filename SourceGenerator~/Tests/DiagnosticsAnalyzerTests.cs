@@ -300,13 +300,16 @@ public sealed class DiagnosticsAnalyzerTests
     // ── Severity checks ────────────────────────────────────────────────────
 
     [Fact]
-    public void MissingKey_IsSeverityError()
+    public void MissingKey_IsSeverityWarning()
     {
+        // U-12: must match the SourceGenerator's severity (UitkxDiagnostics.ForeachMissingKey
+        // = Warning). This was Error here — the editor blocked on something the build only
+        // warned about.
         var source = "component C {\n  return (\n    <Box>\n      @foreach (var x in items) {\n        <Label/>\n      }\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         var mk = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.MissingKey);
         Assert.NotNull(mk);
-        Assert.Equal(ParseSeverity.Error, mk.Severity);
+        Assert.Equal(ParseSeverity.Warning, mk.Severity);
     }
 
     // ── UITKX0211: const in module body breaks HMR ─────────────────────────
@@ -430,5 +433,97 @@ public sealed class DiagnosticsAnalyzerTests
         var source = "component Card {\n  return (\n    <Label text=\"hello\" />\n  );\n}";
         var diags = Analyze(source, "Assets/UI/Card.uitkx");
         Assert.False(HasDiag(diags, DiagnosticCodes.AssetNotFound));
+    }
+
+    // ── U-10: hook-rules scanning must not false-positive on comments/strings/
+    //          identifier-boundary matches ───────────────────────────────────
+
+    [Fact]
+    public void UITKX0013_CommentMentioningHook_NoFalsePositive()
+    {
+        var source =
+            "component Foo {\n"
+            + "    var (n, setN) = useState(0);\n"
+            + "    return (\n"
+            + "        <Box>\n"
+            + "            @if (n > 0) {\n"
+            + "                // TODO: maybe useState(1) here later\n"
+            + "                return (<Label text=\"pos\" />);\n"
+            + "            }\n"
+            + "        </Box>\n"
+            + "    );\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.False(HasDiag(diags, DiagnosticCodes.HookInConditional));
+    }
+
+    [Fact]
+    public void UITKX0013_UnderscorePrefixedIdentifier_NoFalsePositive()
+    {
+        var source =
+            "component Foo {\n"
+            + "    var (n, setN) = useState(0);\n"
+            + "    return (\n"
+            + "        <Box>\n"
+            + "            @if (n > 0) {\n"
+            + "                var z = _useState(1);\n"
+            + "                return (<Label text=\"pos\" />);\n"
+            + "            }\n"
+            + "        </Box>\n"
+            + "    );\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.False(HasDiag(diags, DiagnosticCodes.HookInConditional));
+    }
+
+    [Fact]
+    public void UITKX0013_HookMentionedInsideStringLiteral_NoFalsePositive()
+    {
+        var source =
+            "component Foo {\n"
+            + "    var (n, setN) = useState(0);\n"
+            + "    return (\n"
+            + "        <Box>\n"
+            + "            @if (n > 0) {\n"
+            + "                var label = \"useState(x) is a hook\";\n"
+            + "                return (<Label text={label} />);\n"
+            + "            }\n"
+            + "        </Box>\n"
+            + "    );\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.False(HasDiag(diags, DiagnosticCodes.HookInConditional));
+    }
+
+    [Fact]
+    public void UITKX0013_RealHookCallInsideIf_StillErrors()
+    {
+        var source =
+            "component Foo {\n"
+            + "    var flag = true;\n"
+            + "    return (\n"
+            + "        <Box>\n"
+            + "            @if (flag) {\n"
+            + "                var (n, setN) = useState(0);\n"
+            + "                return (<Label text=\"pos\" />);\n"
+            + "            }\n"
+            + "        </Box>\n"
+            + "    );\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.True(HasDiag(diags, DiagnosticCodes.HookInConditional));
+    }
+
+    [Fact]
+    public void UITKX0016_MemberAccessNamedUseState_NoFalsePositive()
+    {
+        var source =
+            "component Foo {\n"
+            + "    return (\n"
+            + "        <Button onClick={() => obj.useState(1)} />\n"
+            + "    );\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.False(HasDiag(diags, DiagnosticCodes.HookInEventHandler));
     }
 }

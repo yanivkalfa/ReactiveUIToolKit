@@ -134,9 +134,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// <summary>
         /// Triggers a re-render on all active fiber trees so components pick up
         /// new hook implementations. Used by hook HMR since any component might
-        /// call the changed hook.
+        /// call the changed hook. Also invoked directly by the controller after
+        /// a module-method swap on a module-only file (which has no hook
+        /// container and therefore never routes through <see cref="SwapHooks"/>).
         /// </summary>
-        private static void TriggerGlobalReRender()
+        internal static void TriggerGlobalReRender()
         {
             foreach (var renderer in EditorRootRendererUtility.GetAllRenderers())
             {

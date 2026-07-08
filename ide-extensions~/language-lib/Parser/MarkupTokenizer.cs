@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 
 namespace ReactiveUITK.Language.Parser
 {
@@ -85,8 +86,20 @@ namespace ReactiveUITK.Language.Parser
         /// current position. Returns <c>true</c> and advances past it if matched.
         /// Case-sensitive.
         /// </summary>
+        /// <remarks>
+        /// U-26: this calls <see cref="Advance"/> exactly <c>s.Length</c> times, but
+        /// <see cref="Advance"/> collapses a source <c>\r\n</c> pair into a single call
+        /// (advancing <see cref="_pos"/> by 2). If <paramref name="s"/> itself contained
+        /// an embedded <c>\r\n</c>, the loop would still run once per character of
+        /// <paramref name="s"/>, so the collapse would make it consume one character
+        /// past the intended match — a silent overshoot. Every current call site passes
+        /// a fixed punctuation/keyword literal (<c>"/>"</c>, <c>"//"</c>, …) that never
+        /// contains <c>\r</c>, so this is a latent trap rather than a live bug; the
+        /// assert below keeps it that way.
+        /// </remarks>
         public bool TryConsume(string s)
         {
+            Debug.Assert(s.IndexOf('\r') < 0, "TryConsume(string) must not be called with a literal containing '\\r' — see CRLF-overshoot remarks above.");
             if (_pos + s.Length > _source.Length)
                 return false;
             if (_source.IndexOf(s, _pos, s.Length, StringComparison.Ordinal) != _pos)
@@ -227,10 +240,20 @@ namespace ReactiveUITK.Language.Parser
         /// Used by the parser to populate <c>ExpressionOffset</c> on AST nodes.
         /// </summary>
         public (string Expression, int ContentOffset) ReadBraceExpressionWithOffset()
+            => ReadBraceExpressionWithOffset(out _);
+
+        /// <summary>
+        /// Like <see cref="ReadBraceExpressionWithOffset()"/> but also reports whether the
+        /// closing <c>}</c> was actually found (U-28).
+        /// </summary>
+        public (string Expression, int ContentOffset) ReadBraceExpressionWithOffset(out bool found)
         {
             if (IsEof || Current != '{')
+            {
+                found = false;
                 return (string.Empty, _pos);
-            var (expr, afterClose, contentOffset) = ExpressionExtractor.FromBraceWithOffset(_source, _pos);
+            }
+            var (expr, afterClose, contentOffset) = ExpressionExtractor.FromBraceWithOffset(_source, _pos, out found);
             AdvanceTo(afterClose);
             return (expr, contentOffset);
         }
@@ -371,6 +394,16 @@ namespace ReactiveUITK.Language.Parser
         /// Advances the position to <paramref name="targetPos"/>, counting
         /// newlines along the way so <see cref="Line"/> stays accurate.
         /// </summary>
+        /// <remarks>
+        /// U-26: like <see cref="TryConsume(string)"/>, this drives <see cref="Advance"/>
+        /// in a loop, and <see cref="Advance"/> collapses a <c>\r\n</c> pair into a
+        /// single 2-character step. If <paramref name="targetPos"/> ever landed strictly
+        /// between the <c>\r</c> and the <c>\n</c> of a pair, this would overshoot it by
+        /// one character. Every call site computes <paramref name="targetPos"/> as a
+        /// character offset into this same <c>_source</c> (e.g. the position of a
+        /// matched closing delimiter), so it can never fall inside a CRLF pair —
+        /// documented here so that invariant isn't broken by a future caller.
+        /// </remarks>
         public void AdvanceTo(int targetPos)
         {
             while (_pos < targetPos && _pos < _source.Length)
