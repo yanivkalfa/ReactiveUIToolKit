@@ -396,7 +396,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // removed when Family-handle indirection eliminated the
                 // cross-DLL identity bug that those mechanisms existed to
                 // work around (see Plans~/HMR_FAST_REFRESH_PLAN.md).
-                while (_compileQueue.Count > 0)
+                //
+                // H-02: dequeue exactly ONE item per invocation, not the whole
+                // queue in a single editor tick. A shared .uss edited by many
+                // components fans out to N queued compiles (see
+                // OnUssFileChanged) — draining all N synchronously here froze
+                // the editor for the duration of N Roslyn compiles. The
+                // delayCall tail below already re-invokes this method on the
+                // next tick whenever the queue is non-empty, so compiles still
+                // land one per tick without blocking the frame.
+                if (_compileQueue.Count > 0)
                 {
                     string next = _compileQueue.Dequeue();
                     _enqueued.Remove(next);
@@ -574,11 +583,29 @@ namespace ReactiveUITK.EditorSupport.HMR
                     catch { }
                 }
 
-                swapped = UitkxHmrDelegateSwapper.SwapHooks(
-                    result.LoadedAssembly,
-                    result.HookContainerClass,
-                    ns
-                );
+                // Only swap hook delegates when the file actually declared
+                // hooks. A module-ONLY file has no hook container, so calling
+                // SwapHooks would just log a spurious "Could not find hook
+                // container" warning and no-op.
+                int hookSwaps = result.HasHooks
+                    ? UitkxHmrDelegateSwapper.SwapHooks(
+                        result.LoadedAssembly,
+                        result.HookContainerClass,
+                        ns
+                    )
+                    : 0;
+
+                // Module-method edits: SwapModuleMethods (above) rebound the
+                // static trampoline delegates, but loaded consumers still hold
+                // render output produced by the OLD method bodies. SwapHooks
+                // fires the global re-render on its own success; a module-only
+                // file never runs it, so fire it here. Without this, a module
+                // method edit only becomes visible after an unrelated re-render
+                // (a consumer state change, or the next game-loop frame).
+                if (reInitedMethods > 0 && hookSwaps == 0)
+                    UitkxHmrDelegateSwapper.TriggerGlobalReRender();
+
+                swapped = hookSwaps;
 
                 // Drain Phase 1/3 dirty + force-remount queues populated by
                 // the hook's RegisterHook ModuleInitializer (just kicked by
@@ -594,6 +621,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 int refreshed = global::ReactiveUITK.Refresh.RefreshRuntime.PerformRefresh();
                 if (refreshed > swapped)
                     swapped = refreshed;
+
+                // Surface a module-only swap in the [HMR] notification even when
+                // no hook delegates or component families reported live
+                // instances (the change was applied via the global re-render).
+                if (reInitedMethods > 0 && swapped == 0)
+                    swapped = reInitedMethods;
             }
             else
             {
@@ -804,30 +837,76 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// the reverse mapping. Also called after every successful HMR compilation
         /// to keep the map up to date.
         /// </summary>
+        // H-03: asset-path resolution previously disagreed across four consumers
+        // (this method treated a bare path as project-root-relative; InjectIfResolved
+        // below left it unresolved; the editor's DiagnosticsAnalyzer and the
+        // SourceGenerator's CSharpEmitter both resolve it uitkx-dir-relative). The
+        // canonical rule now lives once in language-lib's AssetPathUtil; Editor/HMR
+        // cannot reference that assembly directly (its asmdef only references
+        // ReactiveUITK.Shared/ReactiveUITK.Runtime — language-lib is consumed via
+        // reflection against the committed analyzer DLL elsewhere in this feature).
+        // HmrAssetPathUtil is a byte-for-byte mirror of AssetPathUtil's algorithm —
+        // if you change one, change the other (see FINAL_AUDIT_UITKX_FINDINGS.md H-03).
+        internal static class HmrAssetPathUtil
+        {
+            public static string ResolveAssetPath(string uitkxDir, string rawPath)
+            {
+                if (string.IsNullOrEmpty(rawPath))
+                    return rawPath;
+
+                if (rawPath.StartsWith("Assets/", StringComparison.Ordinal) ||
+                    rawPath.StartsWith("Packages/", StringComparison.Ordinal))
+                    return rawPath;
+
+                string combined = string.IsNullOrEmpty(uitkxDir) ? rawPath : uitkxDir + "/" + rawPath;
+                var parts = combined.Replace('\\', '/').Split('/');
+                var stack = new List<string>();
+                foreach (var p in parts)
+                {
+                    if (p == "." || p == "") continue;
+                    if (p == ".." && stack.Count > 0)
+                        stack.RemoveAt(stack.Count - 1);
+                    else if (p != "..")
+                        stack.Add(p);
+                }
+                return string.Join("/", stack);
+            }
+
+            public static string GetAssetDir(string filePath)
+            {
+                string normalized = (filePath ?? string.Empty).Replace('\\', '/');
+                int assetsIdx = normalized.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
+                if (assetsIdx < 0)
+                {
+                    if (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int lastSlash = normalized.LastIndexOf('/');
+                        return lastSlash > 0 ? normalized.Substring(0, lastSlash) : "Assets";
+                    }
+                    return Path.GetDirectoryName(filePath)?.Replace('\\', '/') ?? "";
+                }
+
+                string assetPath = normalized.Substring(assetsIdx + 1);
+                int dirSlash = assetPath.LastIndexOf('/');
+                return dirSlash >= 0 ? assetPath.Substring(0, dirSlash) : "Assets";
+            }
+        }
+
         private void RegisterUssDependencies(string uitkxPath)
         {
             try
             {
                 string content = File.ReadAllText(uitkxPath);
-                string uitkxDir = Path.GetDirectoryName(uitkxPath);
+                string uitkxDir = HmrAssetPathUtil.GetAssetDir(uitkxPath);
+                string projectRoot = Path.GetFullPath(
+                    Path.Combine(UnityEngine.Application.dataPath, "..")
+                );
 
                 foreach (Match m in s_ussDirectiveRe.Matches(content))
                 {
                     string rawPath = m.Groups[1].Value;
-                    // Resolve relative paths to absolute
-                    string absoluteUss;
-                    if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
-                    {
-                        absoluteUss = Path.GetFullPath(Path.Combine(uitkxDir, rawPath));
-                    }
-                    else
-                    {
-                        // Assume Assets-relative path
-                        string projectRoot = Path.GetFullPath(
-                            Path.Combine(UnityEngine.Application.dataPath, "..")
-                        );
-                        absoluteUss = Path.GetFullPath(Path.Combine(projectRoot, rawPath));
-                    }
+                    string resolved = HmrAssetPathUtil.ResolveAssetPath(uitkxDir, rawPath);
+                    string absoluteUss = Path.GetFullPath(Path.Combine(projectRoot, resolved));
 
                     if (!_ussDependents.TryGetValue(absoluteUss, out var list))
                     {
@@ -886,6 +965,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 Debug.Log(
                     $"[HMR] Auto-discovered dependency: {missingName} → {Path.GetFileName(uitkxPath)}"
                 );
+                // H-06: this is a direct (re-entrant) ProcessFileChange call, not routed
+                // through the compile queue — it technically violates the "at most one
+                // ProcessFileChange in flight" invariant documented above (this method is
+                // itself only ever reached from within an in-flight ProcessFileChange).
+                // Safe today because auto-discovered dependencies are compiled
+                // synchronously one at a time right here (no concurrent queue drain can
+                // interleave); revisit if this path is ever made to fan out concurrently.
                 ProcessFileChange(uitkxPath);
 
                 if (_compiler.HmrAssemblyPaths.ContainsKey(missingName))
@@ -983,20 +1069,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (!File.Exists(uitkxPath))
                     return;
                 string content = File.ReadAllText(uitkxPath);
-
-                string normalized = uitkxPath.Replace('\\', '/');
-                int assetsIdx = normalized.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
-                string assetDir;
-                if (assetsIdx >= 0)
-                {
-                    string assetPath = normalized.Substring(assetsIdx + 1);
-                    int lastSlash = assetPath.LastIndexOf('/');
-                    assetDir = lastSlash >= 0 ? assetPath.Substring(0, lastSlash) : "Assets";
-                }
-                else
-                {
-                    assetDir = Path.GetDirectoryName(uitkxPath)?.Replace('\\', '/') ?? "";
-                }
+                string assetDir = HmrAssetPathUtil.GetAssetDir(uitkxPath);
 
                 foreach (Match m in s_ussDirectiveRe.Matches(content))
                     InjectIfResolved(assetDir, m.Groups[1].Value, "StyleSheet");
@@ -1031,27 +1104,9 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         private static void InjectIfResolved(string uitkxDir, string rawPath, string requestedType)
         {
-            string resolved;
-            if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
-            {
-                string combined = uitkxDir + "/" + rawPath;
-                var parts = combined.Replace('\\', '/').Split('/');
-                var stack = new List<string>();
-                foreach (var p in parts)
-                {
-                    if (p == "." || p == "")
-                        continue;
-                    if (p == ".." && stack.Count > 0)
-                        stack.RemoveAt(stack.Count - 1);
-                    else if (p != "..")
-                        stack.Add(p);
-                }
-                resolved = string.Join("/", stack);
-            }
-            else
-            {
-                resolved = rawPath;
-            }
+            // H-03: bare paths ("styles.uss", no "./" prefix) previously passed through
+            // unresolved here — see HmrAssetPathUtil's doc comment above RegisterUssDependencies.
+            string resolved = HmrAssetPathUtil.ResolveAssetPath(uitkxDir, rawPath);
 
             var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(resolved);
 

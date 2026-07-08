@@ -12,33 +12,32 @@ import {
 let client: LanguageClient | undefined;
 
 /**
- * Walk up from each workspace folder looking for uitkx.config.json,
- * return the explicit formatter.indentSize if found.
+ * Search the whole workspace for uitkx.config.json and return the explicit
+ * formatter.indentSize if found.
+ *
+ * U-19: this used to walk UP from each workspace folder toward the filesystem root —
+ * but the workspace folder IS the project root, so that walk only ever checked
+ * ancestors of the project, never anywhere INSIDE it. A config nested inside the
+ * project (e.g. Assets/UI/uitkx.config.json — the normal case, matching the server's
+ * own ConfigLoader.LoadFormatterOptions, which resolves the nearest config from the
+ * FILE's own directory) was never found.
  */
-function findConfigIndentSize(): number | undefined {
-  const folders = vscode.workspace.workspaceFolders;
-  if (!folders?.length) return undefined;
+async function findConfigIndentSize(): Promise<number | undefined> {
+  const matches = await vscode.workspace.findFiles(
+    '**/uitkx.config.json',
+    '**/{Library,node_modules,Temp}/**',
+    1
+  );
+  if (matches.length === 0) return undefined;
 
-  for (const folder of folders) {
-    let dir = folder.uri.fsPath;
-    while (dir) {
-      const configPath = path.join(dir, 'uitkx.config.json');
-      if (fs.existsSync(configPath)) {
-        try {
-          const content = fs.readFileSync(configPath, 'utf-8');
-          const json = JSON.parse(content);
-          const indentSize = json?.formatter?.indentSize;
-          if (typeof indentSize === 'number' && indentSize > 0) {
-            return indentSize;
-          }
-        } catch { /* ignore parse errors */ }
-        return undefined; // config found but no indentSize
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
+  try {
+    const content = fs.readFileSync(matches[0].fsPath, 'utf-8');
+    const json = JSON.parse(content);
+    const indentSize = json?.formatter?.indentSize;
+    if (typeof indentSize === 'number' && indentSize > 0) {
+      return indentSize;
     }
-  }
+  } catch { /* ignore parse errors */ }
   return undefined;
 }
 
@@ -105,10 +104,20 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const clientOptions: LanguageClientOptions = {
-    documentSelector: [{ scheme: 'file', language: 'uitkx' }],
+    // U-14: the server's TextSyncHandler also tracks .cs companion buffers (so an open,
+    // unsaved companion .cs file's live content is preferred over disk when a dependent
+    // .uitkx workspace rebuilds) — but the client never opened/synced .cs documents to the
+    // server at all, so that machinery was permanently dead in VS Code.
+    documentSelector: [
+      { scheme: 'file', language: 'uitkx' },
+      { scheme: 'file', language: 'csharp' },
+    ],
     synchronize: {
-      // Notify the server when a .uitkx file is saved
-      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.uitkx'),
+      // Notify the server when a .uitkx or companion .cs file is saved
+      fileEvents: [
+        vscode.workspace.createFileSystemWatcher('**/*.uitkx'),
+        vscode.workspace.createFileSystemWatcher('**/*.cs'),
+      ],
     },
     traceOutputChannel: vscode.window.createOutputChannel('UITKX LSP Trace'),
     middleware: {
@@ -203,8 +212,8 @@ export function activate(context: vscode.ExtensionContext): void {
   output.appendLine('[UITKX] DocumentFormattingEditProvider registered for uitkx');
 
   // ── Sync editor.tabSize with uitkx.config.json indentSize ──────────
-  function syncTabSize(): void {
-    const indentSize = findConfigIndentSize();
+  async function syncTabSize(): Promise<void> {
+    const indentSize = await findConfigIndentSize();
     if (indentSize == null) return;
 
     const editorCfg = vscode.workspace.getConfiguration('editor', { languageId: 'uitkx' });

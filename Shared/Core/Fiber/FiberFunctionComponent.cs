@@ -421,66 +421,6 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Schedule passive effects for a function component
-        /// </summary>
-        public static void SchedulePassiveEffects(FiberNode fiber)
-        {
-            var componentState = fiber.ComponentState;
-            if (componentState?.FunctionEffects == null)
-                return;
-
-            // For now, run effects immediately (React schedules these)
-            for (int i = 0; i < componentState.FunctionEffects.Count; i++)
-            {
-                var effect = componentState.FunctionEffects[i];
-                bool shouldRun =
-                    effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
-
-                if (shouldRun)
-                {
-                    int capturedIndex = i;
-                    var capturedEffect = effect;
-
-                    // Schedule effect run
-                    ScheduleEffect(() =>
-                    {
-                        // Cleanup previous
-                        try
-                        {
-                            capturedEffect.cleanup?.Invoke();
-                        }
-                        catch (Exception ex)
-                        {
-                            UnityEngine.Debug.LogError($"Effect cleanup error: {ex}");
-                        }
-
-                        // Run new effect
-                        Action newCleanup = null;
-                        try
-                        {
-                            newCleanup = capturedEffect.factory?.Invoke();
-                        }
-                        catch (Exception ex)
-                        {
-                            UnityEngine.Debug.LogError($"Effect error: {ex}");
-                        }
-
-                        // Update effect entry
-                        if (capturedIndex < componentState.FunctionEffects.Count)
-                        {
-                            componentState.FunctionEffects[capturedIndex] = (
-                                capturedEffect.factory,
-                                capturedEffect.deps,
-                                (object[])capturedEffect.deps?.Clone(),
-                                newCleanup
-                            );
-                        }
-                    });
-                }
-            }
-        }
-
-        /// <summary>
         /// Pass 1 of 2 for passive-effect flushing: run only the cleanup of each dirty effect.
         /// Must be called for ALL committed fibers before RunPassiveEffectSetups is called for any.
         /// </summary>
@@ -595,15 +535,6 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Schedule an effect to run (for now, runs immediately)
-        /// </summary>
-        private static void ScheduleEffect(Action effect)
-        {
-            // TODO: Use proper scheduler
-            effect?.Invoke();
         }
     }
 }

@@ -992,6 +992,29 @@ public class EmitterTests
     }
 
     [Fact]
+    public void Asset_BarePath_ResolvedUitkxDirRelative()
+    {
+        // H-03: a bare path (no "./" prefix) previously passed through unresolved in
+        // generated code while the LSP analyzer already resolved it uitkx-dir-relative —
+        // the editor showed no error while the build emitted an unresolvable path.
+        var src = """
+            component Card {
+                return (
+                    <label text={Asset<Texture2D>("avatar.png").name} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Card.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/avatar.png\""),
+            $"Expected bare path resolved to 'Assets/UI/avatar.png'. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
     public void Ast_RelativePath_Resolved()
     {
         var src = """
@@ -2048,5 +2071,94 @@ public class EmitterTests
                 $"Generated source:\n{result.GeneratedSource}"
             );
         }
+    }
+
+    // ── U-06: `cond && <Tag/>` desugar must apply in setup/body splice sites too ──
+    // Previously only SpliceExpressionMarkup (the `{expr}` child/attribute path)
+    // desugared this; setup-code and directive-body splice sites spliced raw JSX
+    // into `isOn && V.Badge(...)`, a hard CS0019 (bool && VirtualNode has no
+    // operator overload).
+
+    [Fact]
+    public void LogicalAnd_Jsx_InSetupCode_Desugars()
+    {
+        var src = """
+            component Foo {
+                var isOn = true;
+                var x = (isOn && <Label text="on" />);
+                return (
+                    <Box>{x}</Box>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Foo.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.Contains("isOn) ?", result.GeneratedSource);
+        Assert.Contains(": (global::ReactiveUITK.Core.VirtualNode?)null)", result.GeneratedSource);
+        Assert.DoesNotContain("isOn && global::ReactiveUITK.Core.V.", result.GeneratedSource);
+    }
+
+    [Fact]
+    public void LogicalAnd_Jsx_InExpressionChild_StillDesugars()
+    {
+        // Regression guard: the pre-existing `{expr}`-position desugar (the one
+        // working case before U-06) must still work after the shared-helper refactor.
+        var src = """
+            component Foo {
+                return (
+                    <Box>{true && <Label text="on" />}</Box>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Foo.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.Contains(": (global::ReactiveUITK.Core.VirtualNode?)null)", result.GeneratedSource);
+    }
+
+    // ── U-06/U-23: `=` must be an LHS boundary for the `&&` desugar walker ──────
+
+    [Fact]
+    public void LogicalAnd_Jsx_AfterAssignment_LhsStopsAtEquals()
+    {
+        var src = """
+            component Foo {
+                bool isOn;
+                var x = (isOn = true && <Label text="on" />);
+                return (
+                    <Box>{x}</Box>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Foo.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        // LHS of `&&` should be `true`, not `isOn = true` — i.e. the assignment
+        // `isOn =` must survive verbatim before the desugared ternary opens.
+        Assert.Contains("isOn = ((true) ?", result.GeneratedSource);
+    }
+
+    [Fact]
+    public void EqualityComparison_BeforeLogicalAnd_IsNotTreatedAsAssignmentBoundary()
+    {
+        // `==` must NOT be mistaken for the `=` assignment boundary.
+        var src = """
+            component Foo {
+                var mode = 1;
+                var x = (mode == 1 && <Label text="on" />);
+                return (
+                    <Box>{x}</Box>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Foo.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.Contains("((mode == 1) ?", result.GeneratedSource);
     }
 }

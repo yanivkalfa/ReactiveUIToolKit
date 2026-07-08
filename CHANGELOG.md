@@ -6,6 +6,116 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.6.5] - 2026-07-08
+
+### Fixed
+
+Correctness sweep across the `.uitkx` parser, formatter, source generator, and
+HMR pipeline (all shared by the committed `Analyzers/*.dll`, so every fix here
+ships to Unity even without an IDE-extension update). No syntax, API, or
+diagnostic-code removal — only bug fixes to existing behavior.
+
+#### Build & Hot-Module-Reload
+
+- **`.uitkx` edits are reflected again on a normal recompile (Play mode and HMR
+  off).** Since 0.5.10, saving a `.uitkx` that belongs to an `.asmdef` assembly
+  (anything but the default Assembly-CSharp) produced **stale** generated output
+  until a full Reimport / `Library` delete / any `.cs` edit — the change-watcher
+  only wrote its recompile trigger into Assembly-CSharp, which never dirties the
+  assembly the component actually lives in. (Regression from removing
+  `RequestScriptCompilationOptions.CleanBuildCache`, which had masked it by
+  force-rebuilding everything at a 30-40s cold-analyzer cost.) The watcher now
+  writes the trigger into the **owning assembly's** own folder, so only that
+  assembly recompiles — incrementally, analyzer stays warm, no stall — and is
+  skipped entirely while HMR is active.
+- **HMR of `@if` / `@foreach` / `@for` / `@while` / `@switch` bodies works
+  again.** The HMR emitter read the control-flow body fields off the wrong AST
+  node after they moved onto a shared `ControlBlockPayload`, so every
+  control-flow body silently vanished on hot-swap. It now dereferences
+  `.Payload` first (with a null-fallback for older language DLLs).
+- **HMR no longer hot-swaps UI from a syntactically-broken `.uitkx`.** The HMR
+  compiler filled a parse-diagnostic list but never read it, so a save with a
+  syntax error could emit valid C# from an error-recovered AST and hot-swap the
+  *wrong* UI silently. It now surfaces the parse error and leaves the running UI
+  untouched (matching the source generator's behavior).
+- **Editing a `module`'s static method now hot-swaps and refreshes its
+  consumers** without a domain reload, and no longer logs a spurious
+  `Could not find hook container` warning. The module-method swap itself worked
+  but its consumer re-render was coupled to the hook path, so a module-only edit
+  left static consumers showing stale output until an unrelated re-render; and
+  the hook swapper ran for module-only files that legitimately have no hooks.
+- **HMR resolves relative asset paths (`"./icon.png"`, `"../ui/theme.uss"`)
+  identically to the source generator.** Four consumers previously disagreed on
+  how a bare/relative asset path resolves (uitkx-dir-relative vs project-root vs
+  as-is), so the editor could show no error while the build emitted an
+  unresolvable path and HMR's USS map missed the file (theme edits stopped
+  hot-reloading). Unified into one rule in the shared language-lib
+  (`AssetPathUtil`), mirrored byte-for-byte by `HmrAssetPathUtil`.
+- **A shared `.uss` edited across many components no longer freezes the
+  editor.** The HMR compile queue drained the entire fan-out synchronously in a
+  single editor tick (N sequential Roslyn compiles in one frame); it now
+  compiles one item per tick.
+- HMR markup-fragment parsing hardened: the fragile synthetic-header parse
+  (three chained accidental behaviors) was replaced with a dedicated
+  `ParseMarkupFragment` path, so unrelated parser work can't silently break HMR
+  splicing.
+
+#### Parser, formatter & tooling
+
+- **Formatter no longer corrupts commented-out code.** `DirectiveParser.FindJsxBlockRanges`
+  and the formatter's `ScanJsxParenBlocks` had no `/* ... */` block-comment skip
+  (their sibling `FindBareJsxRanges` already did), so a `/* old UI: (<Label/>)
+  was removed */`-style comment was misdetected as live JSX: it could produce a
+  false `CS1002` in the IDE's virtual document, and the formatter re-indented
+  the comment's interior as if it were real code on every save. Fixed at the
+  root in both detectors, plus a new comment-interior line mask (mirroring the
+  existing multi-line-string mask) so comment content is now re-emitted
+  byte-verbatim, matching author-chosen indentation.
+- **Six independently-drifted mini-lexers consolidated** into one
+  shared, tested `CSharpLexFacts` class. Fixes a real lexing bug along the way:
+  `{ $@"{a("}")}" }` (a quoted `}` inside an interpolation hole) closed the
+  outer brace early and truncated the extracted expression.
+- **`x = cond && <Tag/>` and other logical-AND-before-JSX shapes** now desugar
+  correctly regardless of LHS shape (parenthesized, method-call, or preceded
+  by a real `==`/`!=`/`<=`/`>=` comparison instead of `=`).
+- **Literal `@` in text content** (e.g. `contact me @ home`) no longer
+  misparses as a directive attempt; genuine misspelled directives
+  (`@foreech (...)`) still error.
+- **Duplicate `@namespace`** now reports one clear diagnostic at the correct
+  line instead of a misleading whole-file error.
+- **`@switch`/`@else`/control-block edge cases**: Allman-style `@else`, `::`
+  namespace-qualified `@case` values, an unwrapped `return expr;` inside a
+  control block, and an unclosed `{`/`{expr}` in a snippet mini-parse all now
+  produce a correct diagnostic instead of silently mis-parsing.
+- **`attr={(<Tag/>)}`** (a paren-wrapped inline JSX attribute value) is now
+  recognized as JSX instead of being typed as opaque C#.
+- **Mismatched closing tag diagnostic** now anchors at the actual mismatched
+  tag (with a tracked column) instead of a stale line, and no longer claims a
+  fabricated "opened at line N" when the opening location isn't tracked.
+- **`WorkspaceIndex` prop indexing** now recognizes expression-bodied
+  properties (`public string Foo => ...;`), not just brace-bodied ones.
+- **`@switch` expression** is now mapped into the IDE's virtual document with
+  its own tracked offset, so it gets the same hover/diagnostics/go-to-def
+  support as `@if`/`@foreach`/`@for`/`@while` conditions already had.
+- Dead code removed: an unreachable inline-effect-scheduling path in the fiber
+  reconciler (`FiberFunctionComponent.ScheduleEffect` and its unused callers —
+  all committed passive effects already flow through the real two-pass
+  `_pendingPassiveEffects` scheduler), plus several already-unreferenced
+  parser/semantic-token helpers.
+- `cursor` (the one permanently-unsupported inline style key) is now
+  documented as such in the shared schema (`uitkx-schema.json`) instead of
+  only a code comment, so tooling has a single source of truth for it.
+
+### Notes
+
+- Full test suites green: SourceGenerator `1337/1337`, LSP server `82/82`
+  (includes a new `StaleAdditionalTextTests` regression guard: the generator
+  now reads `.uitkx` content disk-authoritative, so a stale `AdditionalText`
+  handed to the driver still yields fresh output).
+- IDE extensions ship in lockstep with the same underlying fixes (LSP server,
+  formatter, diagnostics) — see `ide-extensions~/changelog.json` for VS Code
+  1.2.18 / VS 2022 1.2.18, and the Rider plugin bumped to 1.0.1.
+
 ## [0.6.4] - 2026-06-19
 
 ### Fixed

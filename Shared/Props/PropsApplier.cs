@@ -666,7 +666,13 @@ namespace ReactiveUITK.Props
             styleSetters["filter"] = (e, v) => { };
             styleSetters["unityMaterial"] = (e, v) => { };
 #endif
-            // TODO: cursor — StyleCursor wraps Cursor struct (Texture2D + hotspot). Unity has no built-in cursor constants.
+            // cursor — permanently unsupported, not a TODO (C-05). Unity's Cursor struct is a
+            // Texture2D + hotspot pair with no named-cursor constants, so there is no typed
+            // Style.Cursor member; only the untyped Style["cursor"] escape hatch can reach this
+            // no-op. Documented as the schema source of truth in uitkx-schema.json's
+            // "unsupportedStyleProperties" (SchemaLoader.GetUnsupportedStyleInfo) for any future
+            // diagnostic — no diagnostic consumes it yet since flagging it needs cross-file
+            // (not just .uitkx) C# scanning for the raw-string indexer/Add call, out of scope here.
             styleSetters["cursor"] = (e, v) => { };
             // transition — CSS shorthand only, no IStyle.transition in Unity
             styleSetters["transition"] = (e, v) => { };

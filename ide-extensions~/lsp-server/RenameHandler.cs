@@ -12,6 +12,8 @@ using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using OmniSharp.Extensions.LanguageServer.Protocol.Window;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.Language.Roslyn;
 using UitkxLanguageServer.Roslyn;
@@ -43,12 +45,25 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
     private readonly DocumentStore _store;
     private readonly WorkspaceIndex _index;
     private readonly RoslynHost _roslynHost;
+    private readonly ILanguageServerFacade _server;
 
-    public RenameHandler(DocumentStore store, WorkspaceIndex index, RoslynHost roslynHost)
+    // U-37: whether the connected client declared support for the "rename" resource
+    // operation in WorkspaceEdit.DocumentChanges (LSP spec:
+    // ClientCapabilities.Workspace.WorkspaceEdit.ResourceOperations). Captured once at
+    // registration time; used to decide whether a component rename can include a
+    // RenameFile op or must fall back to text-only edits + a manual-rename message.
+    private bool _clientSupportsFileRename;
+
+    public RenameHandler(
+        DocumentStore store,
+        WorkspaceIndex index,
+        RoslynHost roslynHost,
+        ILanguageServerFacade server)
     {
         _store = store;
         _index = index;
         _roslynHost = roslynHost;
+        _server = server;
     }
 
     // ── Registration ──────────────────────────────────────────────────────────
@@ -56,8 +71,13 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
     public RenameRegistrationOptions GetRegistrationOptions(
         RenameCapability capability,
         ClientCapabilities clientCapabilities
-    ) =>
-        new RenameRegistrationOptions
+    )
+    {
+        var resourceOps = clientCapabilities.Workspace?.WorkspaceEdit.Value?.ResourceOperations;
+        _clientSupportsFileRename =
+            resourceOps != null && resourceOps.Contains(ResourceOperationKind.Rename);
+
+        return new RenameRegistrationOptions
         {
             DocumentSelector = new TextDocumentSelector(
                 new TextDocumentFilter { Pattern = "**/*.uitkx" },
@@ -65,6 +85,7 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
             ),
             PrepareProvider = true,
         };
+    }
 
     // ── textDocument/prepareRename ────────────────────────────────────────────
 
@@ -355,6 +376,7 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                 && word == parseResult.Directives.ComponentName;
 
             bool isTagRef = false;
+            string? declaringFilePath = isDeclaration ? localPath : null;
             if (!isDeclaration && IsOnTagName(text, offset, word))
             {
                 var elementInfo = _index.TryGetElementInfo(word);
@@ -364,12 +386,66 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                         ".uitkx",
                         StringComparison.OrdinalIgnoreCase
                     );
+                if (isTagRef)
+                    declaringFilePath = elementInfo!.FilePath;
             }
 
             if (isDeclaration || isTagRef)
             {
                 ServerLog.Log($"[Rename] Component rename: '{word}' → '{newName}'");
                 CollectComponentRenameEdits(word, newName, changes);
+
+                // U-37: F2-renaming a component only renamed the TEXT (declaration + tag
+                // references); the declaring .uitkx file itself kept its old name, so the
+                // component instantly violated the "file stem == component name" convention
+                // and the very next compile hit UITKX0103. When the declaring file follows
+                // that convention (OldName.uitkx), append a RenameFile op so the file moves
+                // in lockstep with the text edits — but only if the client declared support
+                // for the "rename" resource operation (LSP spec); VS2022's support for this
+                // is spotty, so the text-only fallback + manual-rename notice below is not
+                // a legacy code path, it is load-bearing there too.
+                if (
+                    declaringFilePath != null
+                    && string.Equals(
+                        Path.GetFileNameWithoutExtension(declaringFilePath),
+                        word,
+                        StringComparison.Ordinal)
+                )
+                {
+                    if (_clientSupportsFileRename)
+                    {
+                        var docChanges = new List<WorkspaceEditDocumentChange>();
+                        foreach (var (uri, edits) in changes)
+                        {
+                            docChanges.Add(new WorkspaceEditDocumentChange(new TextDocumentEdit
+                            {
+                                TextDocument = new OptionalVersionedTextDocumentIdentifier { Uri = uri },
+                                Edits = new TextEditContainer(edits),
+                            }));
+                        }
+
+                        var newFilePath = Path.Combine(
+                            Path.GetDirectoryName(declaringFilePath) ?? string.Empty,
+                            newName + ".uitkx");
+                        docChanges.Add(new WorkspaceEditDocumentChange(new RenameFile
+                        {
+                            OldUri = DocumentUri.FromFileSystemPath(declaringFilePath),
+                            NewUri = DocumentUri.FromFileSystemPath(newFilePath),
+                        }));
+
+                        ServerLog.Log($"[Rename] Renaming file: '{declaringFilePath}' → '{newFilePath}'");
+                        return new WorkspaceEdit { DocumentChanges = new Container<WorkspaceEditDocumentChange>(docChanges) };
+                    }
+
+                    _server.Window.ShowMessage(new ShowMessageParams
+                    {
+                        Type = MessageType.Info,
+                        Message = $"UITKX: renamed '{word}' → '{newName}' in code. Your editor doesn't support " +
+                            $"automatic file rename — rename '{Path.GetFileName(declaringFilePath)}' to " +
+                            $"'{newName}.uitkx' manually to match.",
+                    });
+                }
+
                 return new WorkspaceEdit { Changes = changes };
             }
 
@@ -840,6 +916,15 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         foreach (Match m in tagPattern.Matches(text))
         {
             var nameGroup = m.Groups[2];
+
+            // U-40: a plain regex scan renamed <OldName inside // and /* */ comments too
+            // (e.g. "// old UI: <OldName/>"). Note this does NOT catch <!-- --> HTML
+            // comments — CSharpLexFacts is a C#-literal/comment scanner, not a markup one —
+            // so a tag commented out that way still renames; that is a narrower, documented
+            // gap rather than the previous "renames inside any comment" behavior.
+            if (IsInsideCommentOrString(text, nameGroup.Index))
+                continue;
+
             AddEdit(
                 changes,
                 uri,
@@ -874,17 +959,21 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         string? skipFilePath = null
     )
     {
-        var dir = Path.GetDirectoryName(hookFilePath);
-        if (dir == null)
+        // U-38: hooks are consumed WORKSPACE-WIDE (any .uitkx file can `using static` a
+        // hook container and call the hook) — scanning only the declaring file's own
+        // directory silently missed every cross-directory call site. Mirrors
+        // CollectComponentRenameEdits's workspace-wide walk.
+        var workspaceRoot = _roslynHost.WorkspaceRoot;
+        if (string.IsNullOrEmpty(workspaceRoot))
             return;
 
         ServerLog.Log(
-            $"[Rename] CollectHookRenameEdits: '{oldName}' → '{newName}' in {dir}, skip={Path.GetFileName(skipFilePath ?? "none")}");
+            $"[Rename] CollectHookRenameEdits: '{oldName}' → '{newName}' (workspace-wide), skip={Path.GetFileName(skipFilePath ?? "none")}");
 
         IEnumerable<string> files;
         try
         {
-            files = Directory.EnumerateFiles(dir, "*.uitkx");
+            files = Directory.EnumerateFiles(workspaceRoot, "*.uitkx", SearchOption.AllDirectories);
         }
         catch
         {
@@ -893,6 +982,9 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
 
         foreach (var uitkxFile in files)
         {
+            if (IsInsideTildeFolder(uitkxFile))
+                continue;
+
             // Skip the file that Roslyn already handled (avoids double-edits)
             if (skipFilePath != null && string.Equals(
                     Path.GetFullPath(uitkxFile),
@@ -938,6 +1030,12 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                 if (linePrefix.StartsWith("hook ", StringComparison.Ordinal))
                     continue;
 
+                // U-38: a plain regex scan renamed `oldName(` occurrences inside comments
+                // and strings too (e.g. `// call useCounter() to see`) — token-boundary +
+                // comment/string awareness matches the U-10 fix's semantics.
+                if (IsInsideCommentOrString(fileText, m.Index))
+                    continue;
+
                 AddEdit(changes, uri, new TextEdit
                 {
                     Range = OffsetRangeToLspRange(fileText, m.Index, m.Index + m.Length),
@@ -945,6 +1043,27 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                 });
             }
         }
+    }
+
+    /// <summary>
+    /// U-38/U-40: true when <paramref name="pos"/> falls inside a comment or string/char
+    /// literal in <paramref name="text"/> — used to keep text-scan renames from touching
+    /// commented-out or quoted occurrences of an identifier.
+    /// </summary>
+    private static bool IsInsideCommentOrString(string text, int pos)
+    {
+        int i = 0;
+        while (i < pos && i < text.Length)
+        {
+            if (CSharpLexFacts.TrySkipNonCode(text, ref i, text.Length))
+            {
+                if (i > pos)
+                    return true;
+                continue;
+            }
+            i++;
+        }
+        return false;
     }
 
     // ── Peer symbol rename (module fields/styles) ─────────────────────────────

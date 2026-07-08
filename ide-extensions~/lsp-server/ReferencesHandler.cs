@@ -357,9 +357,18 @@ public sealed class ReferencesHandler : IReferencesHandler
                     var peerStartResult = peerVDoc.Map.ToUitkxOffset(span.Start);
                     if (peerStartResult.HasValue)
                     {
+                        // U-42: prefer the store (an open, possibly-unsaved buffer) over disk —
+                        // matching this file's own CollectComponentReferences/CollectHookReferences
+                        // pattern (lines ~438/508) — so a peer file with unsaved edits doesn't
+                        // compute the reference location against stale text.
                         string peerSource;
-                        try { peerSource = File.Exists(peerPath) ? File.ReadAllText(peerPath) : ""; }
-                        catch { break; }
+                        if (_store.TryGetByPath(peerPath, out var livePeerSource))
+                            peerSource = livePeerSource;
+                        else
+                        {
+                            try { peerSource = File.Exists(peerPath) ? File.ReadAllText(peerPath) : ""; }
+                            catch { break; }
+                        }
 
                         var peerEndResult = peerVDoc.Map.ToUitkxOffset(span.End);
                         int endOffset = peerEndResult.HasValue

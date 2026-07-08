@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -9,7 +9,7 @@ using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.Language.Roslyn
 {
-    // ── Collected expression ──────────────────────────────────────────────────
+    // -- Collected expression --------------------------------------------------
 
     /// <summary>
     /// A single C# expression (inline or attribute) gathered during the AST walk,
@@ -32,7 +32,7 @@ namespace ReactiveUITK.Language.Roslyn
         public SourceRegionKind Kind { get; init; }
     }
 
-    // ── Virtual document ──────────────────────────────────────────────────────
+    // -- Virtual document ------------------------------------------------------
 
     /// <summary>
     /// The generated virtual C# document for a single .uitkx file, together with
@@ -60,7 +60,7 @@ namespace ReactiveUITK.Language.Roslyn
         }
     }
 
-    // ── Builder (internal) ────────────────────────────────────────────────────
+    // -- Builder (internal) ----------------------------------------------------
 
     /// <summary>
     /// Stateful builder used during document generation.  Tracks the current
@@ -73,7 +73,7 @@ namespace ReactiveUITK.Language.Roslyn
         private readonly List<SourceMapEntry> _entries = new List<SourceMapEntry>();
         private int _virtualPos;
 
-        // ── Scaffold text (no source-map entry) ──────────────────────────────
+        // -- Scaffold text (no source-map entry) ------------------------------
 
         /// <summary>Appends generated-scaffold text that does not map to any .uitkx position.</summary>
         public void Scaffold(string text)
@@ -82,7 +82,7 @@ namespace ReactiveUITK.Language.Roslyn
             _virtualPos += text.Length;
         }
 
-        // ── Mapped region ────────────────────────────────────────────────────
+        // -- Mapped region ----------------------------------------------------
 
         /// <summary>
         /// Appends text that was copied verbatim from the .uitkx source, recording
@@ -109,7 +109,7 @@ namespace ReactiveUITK.Language.Roslyn
             );
         }
 
-        // ── Output ───────────────────────────────────────────────────────────
+        // -- Output -----------------------------------------------------------
 
         public VirtualDocument Build(string uitkxFilePath) =>
             new VirtualDocument(
@@ -121,7 +121,7 @@ namespace ReactiveUITK.Language.Roslyn
         public int CurrentPos => _virtualPos;
     }
 
-    // ── Generator ────────────────────────────────────────────────────────────
+    // -- Generator ------------------------------------------------------------
 
     /// <summary>
     /// Generates an in-memory C# source file (the "virtual document") from a
@@ -148,13 +148,13 @@ namespace ReactiveUITK.Language.Roslyn
     /// </summary>
     public sealed class VirtualDocumentGenerator
     {
-        // ── Standard using directives ─────────────────────────────────────────
+        // -- Standard using directives -----------------------------------------
 
         /// <summary>
         /// Usings always injected into every virtual document.
         /// These cover the types most commonly found in .uitkx @code blocks and
         /// expressions, preventing false CS0246 errors.
-        /// The list is intentionally conservative — only assemblies that the
+        /// The list is intentionally conservative - only assemblies that the
         /// Unity project always contains.
         /// </summary>
         private static readonly string[] s_standardUsings =
@@ -177,7 +177,7 @@ namespace ReactiveUITK.Language.Roslyn
             "using static ReactiveUITK.Props.Typed.StyleKeys;",
             "using static ReactiveUITK.Props.Typed.CssHelpers;",
             // Brings Asset<T>(...) and Ast<T>(...) into scope for component
-            // setup blocks, hook bodies, and module initializers — matches the
+            // setup blocks, hook bodies, and module initializers - matches the
             // using-static injected by every runtime emitter (CSharpEmitter,
             // ModuleEmitter, HookEmitter, HmrCSharpEmitter, HmrHookEmitter).
             "using static ReactiveUITK.AssetHelpers;",
@@ -200,7 +200,7 @@ namespace ReactiveUITK.Language.Roslyn
             "using Length = UnityEngine.UIElements.Length;",
             "using StyleKeyword = UnityEngine.UIElements.StyleKeyword;",
             "using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;",
-            // Unity 6.3+ types — guarded so the virtual document parses cleanly under both
+            // Unity 6.3+ types - guarded so the virtual document parses cleanly under both
             // 6.2- and 6.3+ targets (the LSP simply forwards the directives to Roslyn).
             "#if UNITY_6000_3_OR_NEWER",
             "using FilterFunction = UnityEngine.UIElements.FilterFunction;",
@@ -211,7 +211,7 @@ namespace ReactiveUITK.Language.Roslyn
             "#endif",
         };
 
-        // ── Public API ────────────────────────────────────────────────────────
+        // -- Public API --------------------------------------------------------
 
         /// <summary>
         /// Generates the virtual C# document for <paramref name="parseResult"/> and
@@ -238,20 +238,20 @@ namespace ReactiveUITK.Language.Roslyn
             var b = new VirtualDocBuilder();
             var d = parseResult.Directives;
 
-            // ── File header ──────────────────────────────────────────────────
+            // -- File header --------------------------------------------------
             b.Scaffold("// <auto-generated: UITKX Roslyn virtual document>\n");
             b.Scaffold($"// Source: {EscapeForComment(uitkxFilePath)}\n");
-            b.Scaffold("// DO NOT EDIT — regenerated on every document change.\n");
+            b.Scaffold("// DO NOT EDIT - regenerated on every document change.\n");
             b.Scaffold("#line hidden\n");
             b.Scaffold("#nullable enable annotations\n");
-            // CS0246 removed from global list — suppressed only on specific scaffold lines
+            // CS0246 removed from global list - suppressed only on specific scaffold lines
             // that are known to reference external types (event types, props type, injects).
             // This allows Roslyn to surface real CS0246 errors in user-authored C# regions.
             b.Scaffold(
                 "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0411, CS1660, CS1026, CS1513, CS8632, CS8974\n\n"
             );
 
-            // ── Using directives ─────────────────────────────────────────────
+            // -- Using directives ---------------------------------------------
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var u in s_standardUsings)
             {
@@ -269,13 +269,13 @@ namespace ReactiveUITK.Language.Roslyn
                 b.Scaffold(line + "\n");
             b.Scaffold("\n");
 
-            // ── Hook/module file dispatch ────────────────────────────────────
+            // -- Hook/module file dispatch ------------------------------------
             if (!d.HookDeclarations.IsDefaultOrEmpty)
                 return GenerateHookDocument(b, parseResult, source, uitkxFilePath);
             if (!d.ModuleDeclarations.IsDefaultOrEmpty)
                 return GenerateModuleDocument(b, parseResult, source, uitkxFilePath);
 
-            // ── Namespace + class header ─────────────────────────────────────
+            // -- Namespace + class header -------------------------------------
             string ns = !string.IsNullOrEmpty(d.Namespace)
                 ? d.Namespace!
                 : "ReactiveUITK.Generated";
@@ -292,17 +292,17 @@ namespace ReactiveUITK.Language.Roslyn
             //   - real ReactiveUITK.Core.Ref<T> when the runtime DLL is loaded
             //   - the polyfill stub in __UitkxPolyfill__.g.cs otherwise
             // Both share the same fully-qualified name so cross-document calls
-            // (e.g. component → peer hook(Ref<T>)) bind to a single nominal type.
+            // (e.g. component -> peer hook(Ref<T>)) bind to a single nominal type.
 
             EmitFunctionStyleBody(b, parseResult, source, escapedPath, propsTypes);
 
-            // ── Close class + namespace ──────────────────────────────────────
+            // -- Close class + namespace --------------------------------------
             b.Scaffold("    }\n}\n");
 
             return b.Build(uitkxFilePath);
         }
 
-        // ── Hook document ─────────────────────────────────────────────────────
+        // -- Hook document -----------------------------------------------------
 
         /// <summary>
         /// Generates a virtual C# document for a .uitkx file containing hook
@@ -322,8 +322,8 @@ namespace ReactiveUITK.Language.Roslyn
                 : "ReactiveUITK.Generated";
             string escapedPath = EscapePathForLineDirective(uitkxFilePath);
 
-            // Derive class name same as HookEmitter — take the part before
-            // the first dot so any middle segment (.hooks, .style, …) is ignored.
+            // Derive class name same as HookEmitter - take the part before
+            // the first dot so any middle segment (.hooks, .style, ...) is ignored.
             string fileName = System.IO.Path.GetFileNameWithoutExtension(uitkxFilePath);
             int dot = fileName.IndexOf('.');
             if (dot > 0)
@@ -339,13 +339,13 @@ namespace ReactiveUITK.Language.Roslyn
             // Ref<T> resolves to the workspace-shared canonical type
             // (see component-document scaffold for details).
 
-            // ── Hook stubs (same as component stubs) ──────────────────────────
+            // -- Hook stubs (same as component stubs) --------------------------
             // Sourced from ReactiveUITK.Core.HookRegistry so the IDE stubs
             // stay byte-identical with the (former) hand-maintained block here
             // and the matching instance-form block emitted below.
             b.Scaffold(global::ReactiveUITK.Core.HookRegistry.GenerateVirtualDocStubs(staticForm: true));
 
-            // ── Emit each hook as a method ────────────────────────────────────
+            // -- Emit each hook as a method ------------------------------------
             foreach (var hook in d.HookDeclarations)
             {
                 string genericSuffix = hook.GenericParams ?? string.Empty;
@@ -390,7 +390,7 @@ namespace ReactiveUITK.Language.Roslyn
             return b.Build(uitkxFilePath);
         }
 
-        // ── Module document ───────────────────────────────────────────────────
+        // -- Module document ---------------------------------------------------
 
         /// <summary>
         /// Generates a virtual C# document for a .uitkx file containing module
@@ -432,7 +432,7 @@ namespace ReactiveUITK.Language.Roslyn
             return b.Build(uitkxFilePath);
         }
 
-        // ── Function-style component ──────────────────────────────────────────
+        // -- Function-style component ------------------------------------------
 
         private static void EmitFunctionStyleBody(
             VirtualDocBuilder b,
@@ -479,7 +479,7 @@ namespace ReactiveUITK.Language.Roslyn
                 b.Scaffold("\n");
             }
 
-            // ── Hook shorthand stubs ──────────────────────────────────────────
+            // -- Hook shorthand stubs ------------------------------------------
             // The authoring shorthands useState / useMemo / useEffect etc. are NOT
             // rewritten before being fed to Roslyn, so we scaffold private methods
             // with the correct return types so Roslyn can type-check the setup code
@@ -489,12 +489,12 @@ namespace ReactiveUITK.Language.Roslyn
             //
             // State setter delegate: void __StateSetter__<T>(Func<T,T> updater).
             // The real API (StateSetter<T> + StateUpdate<T>) supports both
-            //   setX(newValue)        — direct value
-            //   setX(prev => prev+1)  — updater function
+            //   setX(newValue)        - direct value
+            //   setX(prev => prev+1)  - updater function
             // via implicit operators on StateUpdate<T>.
             //
             // We model the setter as a delegate accepting Func<T,T> so that
-            // Roslyn properly type-checks lambda bodies — the lambda parameter
+            // Roslyn properly type-checks lambda bodies - the lambda parameter
             // `prev` is correctly inferred as `T`, enabling full semantic analysis
             // inside updater lambdas.
             //
@@ -511,10 +511,10 @@ namespace ReactiveUITK.Language.Roslyn
             // for the design rationale (single source of truth across SG / HMR
             // / IDE / VDG).  The instance form differs only in the method
             // modifier (private vs private static) and the header-comment
-            // box-drawing tail length — both encoded inside the registry.
+            // box-drawing tail length - both encoded inside the registry.
             b.Scaffold(global::ReactiveUITK.Core.HookRegistry.GenerateVirtualDocStubs(staticForm: false));
 
-            // Collect markup nodes — skip non-rendering nodes.
+            // Collect markup nodes - skip non-rendering nodes.
             var markupOnlyNodes = ImmutableArray.CreateBuilder<AstNode>(
                 parseResult.RootNodes.Length
             );
@@ -525,7 +525,7 @@ namespace ReactiveUITK.Language.Roslyn
             // code are visible to expressions.
             // Return type is `object` (not void) so that JSX paren blocks replaced with
             // `return (object)null!` in conditional branches (e.g. `if (...) return (...)`)
-            // are valid C# — a void method can't return a value.
+            // are valid C# - a void method can't return a value.
             b.Scaffold("        private object __uitkx_render()\n        {\n");
 
             // __children is always available in every component's render scope
@@ -535,7 +535,7 @@ namespace ReactiveUITK.Language.Roslyn
             // ReactiveUITK assembly and without false-positive CS1061.
             b.Scaffold("            dynamic __children = null!;\n");
 
-            // Setup code — emitted in segments so that JSX paren blocks
+            // Setup code - emitted in segments so that JSX paren blocks
             // (e.g. `var x = (<Box>...</Box>)`) are replaced with a valid C#
             // placeholder and never seen by Roslyn as markup.
             int __exprCtr = 0;
@@ -580,10 +580,10 @@ namespace ReactiveUITK.Language.Roslyn
                 );
             }
 
-            // Expression checks — emitted in-scope so that loop variables declared
+            // Expression checks - emitted in-scope so that loop variables declared
             // in @for / @foreach / @while headers are visible inside the body.
             b.Scaffold(
-                "            // ── Expression type checks ─────────────────────────────────\n"
+                "            // -- Expression type checks ---------------------------------\n"
             );
             b.Scaffold("#pragma warning disable 0162\n");
             EmitNodeExpressionsScoped(
@@ -595,18 +595,30 @@ namespace ReactiveUITK.Language.Roslyn
                 ref __attrCtr,
                 propsTypes
             );
+
             b.Scaffold("#pragma warning restore 0162\n");
 
-            // Ensure all code paths return — components whose setup code only has
-            // conditional `return (object)null!` branches need a fallback.
+            // Ensure all code paths return - components whose setup code only has
+            // conditional `return (object)null!` branches need a fallback. This sentinel
+            // is ITSELF sometimes unreachable by design (e.g. an exhaustive @switch with a
+            // @default case, now emitted as a real switch/case above, always returns) — it
+            // needs its OWN tightly-scoped disable/restore pair (matching the pattern
+            // already used at the other two `return default!;` sentinel sites in this
+            // file), NOT reliance on the pragma above staying in effect: a `disable 0162`
+            // several statements earlier does NOT survive a nested `restore 0162` emitted
+            // in between (e.g. by EmitDirectiveBodyCode inside a switch case body) —
+            // pragma disable/restore is a flat, non-stacking toggle, so the LAST restore
+            // anywhere before this point wins, regardless of nesting.
+            b.Scaffold("#pragma warning disable CS0162\n");
             b.Scaffold("            return default!;\n");
+            b.Scaffold("#pragma warning restore CS0162\n");
             b.Scaffold("        }\n"); // close render method
         }
 
-        // ── Expression wrappers / statements ─────────────────────────────────
+        // -- Expression wrappers / statements ---------------------------------
 
         /// <summary>
-        /// Issue 1 (UITKX0112) — thread-static context that lets leaf expression
+        /// Issue 1 (UITKX0112) - thread-static context that lets leaf expression
         /// emitters (<see cref="EmitExpressionStatement"/>, <see cref="EmitTypedPropsCheck"/>,
         /// <see cref="EmitBodyWithReturnFix"/>) recover the source text and
         /// <see cref="DirectiveSet"/> needed to emit deferred Pattern-B JSX
@@ -630,7 +642,7 @@ namespace ReactiveUITK.Language.Roslyn
         private static JsxAttrCheckContext? t_jsxAttrContext;
 
         /// <summary>
-        /// Phase 1 — emit expression text into the virtual document, replacing
+        /// Phase 1 - emit expression text into the virtual document, replacing
         /// any embedded JSX literals with a <c>(VirtualNode)null!</c> stub so
         /// Roslyn can parse and type-check the surrounding C# without seeing
         /// JSX literals it does not understand.
@@ -638,12 +650,12 @@ namespace ReactiveUITK.Language.Roslyn
         /// <para>Mirrors <c>CSharpEmitter.SpliceExpressionMarkup</c> at the
         /// IDE/Roslyn layer. Where the source generator emits real
         /// <c>V.Tag(...)</c> calls, the virtual document emits typed-null
-        /// stubs — sufficient for Roslyn parsing. Source-mapped regions
+        /// stubs - sufficient for Roslyn parsing. Source-mapped regions
         /// surrounding the stub still produce column-precise diagnostics
         /// for the user's C# code outside the JSX.</para>
         ///
         /// <para>For the common case (no JSX), the helper falls through to a
-        /// single <see cref="VirtualDocBuilder.Mapped"/> call — same shape as
+        /// single <see cref="VirtualDocBuilder.Mapped"/> call - same shape as
         /// before Phase 1.</para>
         /// </summary>
         private static void EmitMappedExpressionStrippingJsx(
@@ -697,7 +709,7 @@ namespace ReactiveUITK.Language.Roslyn
                 if (s < prev)
                     continue;
 
-                // ── Logical-AND desugar parity (mirrors CSharpEmitter) ────
+                // -- Logical-AND desugar parity (mirrors CSharpEmitter) ----
                 // If the prefix text[prev..s] ends in `&&`, the runtime
                 // splicer rewrites to a ternary. To prevent a permanent
                 // CS0019 squiggle in the editor on the user's `&&` line,
@@ -739,7 +751,7 @@ namespace ReactiveUITK.Language.Roslyn
                 b.Scaffold("((global::ReactiveUITK.Core.VirtualNode)null!)");
                 // Record source-space range so callers (when source/directives
                 // are available) can emit a deferred Pattern-B JSX-subtree
-                // type-check block — preserves squiggles inside the dropped
+                // type-check block - preserves squiggles inside the dropped
                 // attribute-lambda JSX body.
                 deferredJsxRanges?.Add((uitkxOffset + s, uitkxOffset + e));
 
@@ -774,7 +786,7 @@ namespace ReactiveUITK.Language.Roslyn
         }
 
         /// <summary>
-        /// Issue 1 (UITKX0112) — emits a deferred Pattern-B JSX-subtree type-check
+        /// Issue 1 (UITKX0112) - emits a deferred Pattern-B JSX-subtree type-check
         /// block for a JSX literal that was stripped (replaced with a typed-null
         /// stub) inside an attribute-lambda body, an inline expression, a typed
         /// props expression, or a body-with-return-fix segment.
@@ -868,16 +880,16 @@ namespace ReactiveUITK.Language.Roslyn
             List<(int SrcStart, int SrcEnd)>? deferred = ctx != null ? new List<(int, int)>() : null;
 
             // Lambdas (`expr =>` / `_ =>` / `(x, y) =>`) cannot be stored as
-            // `object` — Roslyn emits CS1660 and a secondary "delegate type could
+            // `object` - Roslyn emits CS1660 and a secondary "delegate type could
             // not be inferred" diagnostic.  Cast to Action / Action<dynamic> so:
-            //  • Zero-arg lambdas `() => ...` → Action (no type param, no arg mismatch)
-            //  • One-arg lambdas `e => ...`   → Action<dynamic> so e.newValue etc. compile
-            //  • The lambda body is still type-checked against the surrounding scope
+            //  - Zero-arg lambdas `() => ...` -> Action (no type param, no arg mismatch)
+            //  - One-arg lambdas `e => ...`   -> Action<dynamic> so e.newValue etc. compile
+            //  - The lambda body is still type-checked against the surrounding scope
             if (expr.Text.Contains("=>"))
             {
                 // Block-body lambdas: `dm => { dm.AppendAction(..., _ => ...) }`
                 // Casting to Action<dynamic> makes the param `dynamic`, then passing
-                // a nested lambda to a dynamic method call triggers CS1977 — an error
+                // a nested lambda to a dynamic method call triggers CS1977 - an error
                 // that cannot be pragma-suppressed.  Skip emitting these entirely so
                 // no false squiggles appear; the body is not type-checked (acceptable).
                 int arrowIdx = expr.Text.IndexOf("=>");
@@ -887,7 +899,7 @@ namespace ReactiveUITK.Language.Roslyn
                 {
                     // Emit the block body with dynamic-typed parameters so the contents
                     // get completions and type-checking, while avoiding CS1977 (cannot
-                    // use a lambda as argument to a dynamically-dispatched call — a
+                    // use a lambda as argument to a dynamically-dispatched call - a
                     // compiler error that cannot be pragma-suppressed).
                     EmitBlockBodyLambda(b, expr, escapedPath, indent, arrowIdx);
                 }
@@ -942,7 +954,7 @@ namespace ReactiveUITK.Language.Roslyn
         /// #line hidden
         /// </code>
         /// If <c>Something</c> is <c>float</c> and the expected type is
-        /// <c>string</c>, Roslyn emits CS0029 — exactly matching the Unity build
+        /// <c>string</c>, Roslyn emits CS0029 - exactly matching the Unity build
         /// error.
         /// </para>
         /// <para>Uses a direct typed variable instead of a props-class assignment
@@ -964,14 +976,14 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold("#pragma warning disable CS0246\n");
 
             // Scaffold: direct typed variable assignment up to the expression.
-            // Props properties are nullable (int?, float?, bool? …) so the check
+            // Props properties are nullable (int?, float?, bool? ...) so the check
             // must accept both T and T? to match what Unity's compiler sees when
             // assigning into the object-initializer (e.g. new TabViewProps { SelectedIndex = expr }).
-            // For reference types under #nullable-enable, the extra ? is just an annotation.
+            // For reference types under #nullable-enable, the extra -> is just an annotation.
             b.Scaffold($"{indent}{{ {propType}? __uitkx_check = (");
 
             // Issue 1 (UITKX0112): collect stripped JSX subtree ranges for deferred
-            // type-checking — see comment in EmitExpressionStatement.
+            // type-checking - see comment in EmitExpressionStatement.
             var ctx = t_jsxAttrContext;
             List<(int SrcStart, int SrcEnd)>? deferred = ctx != null ? new List<(int, int)>() : null;
 
@@ -993,14 +1005,14 @@ namespace ReactiveUITK.Language.Roslyn
             }
         }
 
-        // ── AST expression collector ──────────────────────────────────────────
+        // -- AST expression collector ------------------------------------------
 
         /// <summary>
         /// Walks the entire AST and collects every C# expression that needs a
         /// type-checking wrapper in the virtual document:
         /// <list type="bullet">
-        ///   <item><c>{expr}</c> — <see cref="ExpressionNode"/></item>
-        ///   <item><c>attr={expr}</c> — <see cref="AttributeNode"/> with <see cref="CSharpExpressionValue"/></item>
+        ///   <item><c>{expr}</c> - <see cref="ExpressionNode"/></item>
+        ///   <item><c>attr={expr}</c> - <see cref="AttributeNode"/> with <see cref="CSharpExpressionValue"/></item>
         /// </list>
         /// Numbers each expression to produce unique method/variable names.
         /// </summary>
@@ -1090,29 +1102,29 @@ namespace ReactiveUITK.Language.Roslyn
 
                 case IfNode ifn:
                     foreach (var branch in ifn.Branches)
-                        CollectFromNodeList(branch.Body, output, ref exprCounter, ref attrCounter);
+                        CollectFromNodeList(branch.Payload.Body, output, ref exprCounter, ref attrCounter);
                     break;
 
                 case ForeachNode fe:
-                    CollectFromNodeList(fe.Body, output, ref exprCounter, ref attrCounter);
+                    CollectFromNodeList(fe.Payload.Body, output, ref exprCounter, ref attrCounter);
                     break;
 
                 case ForNode fo:
-                    CollectFromNodeList(fo.Body, output, ref exprCounter, ref attrCounter);
+                    CollectFromNodeList(fo.Payload.Body, output, ref exprCounter, ref attrCounter);
                     break;
 
                 case WhileNode wh:
-                    CollectFromNodeList(wh.Body, output, ref exprCounter, ref attrCounter);
+                    CollectFromNodeList(wh.Payload.Body, output, ref exprCounter, ref attrCounter);
                     break;
 
                 case SwitchNode sw:
                     foreach (var sc in sw.Cases)
-                        CollectFromNodeList(sc.Body, output, ref exprCounter, ref attrCounter);
+                        CollectFromNodeList(sc.Payload.Body, output, ref exprCounter, ref attrCounter);
                     break;
             }
         }
 
-        // ── Scoped expression emitter ─────────────────────────────────────────
+        // -- Scoped expression emitter -----------------------------------------
 
         /// <summary>
         /// Recursively walks <paramref name="nodes"/> and emits expression type-check
@@ -1257,15 +1269,15 @@ namespace ReactiveUITK.Language.Roslyn
                             b.Scaffold($"{indent}else {{\n");
                         }
                         b.Scaffold("#line hidden\n");
-                        if (branch.BodyCode != null)
+                        if (branch.Payload.BodyCode != null)
                         {
                             EmitDirectiveBodyCode(
                                 b,
-                                branch.BodyCode,
-                                branch.BodyCodeOffset,
-                                branch.BodyCodeLine,
-                                branch.BodyMarkupRanges,
-                                branch.BodyBareJsxRanges,
+                                branch.Payload.BodyCode,
+                                branch.Payload.BodyCodeOffset,
+                                branch.Payload.BodyCodeLine,
+                                branch.Payload.BodyMarkupRanges,
+                                branch.Payload.BodyBareJsxRanges,
                                 escapedPath,
                                 indent + "    ",
                                 ref exprCtr,
@@ -1293,15 +1305,15 @@ namespace ReactiveUITK.Language.Roslyn
                     );
                     b.Scaffold($") {{\n");
                     b.Scaffold("#line hidden\n");
-                    if (fe.BodyCode != null)
+                    if (fe.Payload.BodyCode != null)
                     {
                         EmitDirectiveBodyCode(
                             b,
-                            fe.BodyCode,
-                            fe.BodyCodeOffset,
-                            fe.BodyCodeLine,
-                            fe.BodyMarkupRanges,
-                            fe.BodyBareJsxRanges,
+                            fe.Payload.BodyCode,
+                            fe.Payload.BodyCodeOffset,
+                            fe.Payload.BodyCodeLine,
+                            fe.Payload.BodyMarkupRanges,
+                            fe.Payload.BodyBareJsxRanges,
                             escapedPath,
                             indent + "    ",
                             ref exprCtr,
@@ -1326,15 +1338,15 @@ namespace ReactiveUITK.Language.Roslyn
                     );
                     b.Scaffold($") {{\n");
                     b.Scaffold("#line hidden\n");
-                    if (fo.BodyCode != null)
+                    if (fo.Payload.BodyCode != null)
                     {
                         EmitDirectiveBodyCode(
                             b,
-                            fo.BodyCode,
-                            fo.BodyCodeOffset,
-                            fo.BodyCodeLine,
-                            fo.BodyMarkupRanges,
-                            fo.BodyBareJsxRanges,
+                            fo.Payload.BodyCode,
+                            fo.Payload.BodyCodeOffset,
+                            fo.Payload.BodyCodeLine,
+                            fo.Payload.BodyMarkupRanges,
+                            fo.Payload.BodyBareJsxRanges,
                             escapedPath,
                             indent + "    ",
                             ref exprCtr,
@@ -1359,15 +1371,15 @@ namespace ReactiveUITK.Language.Roslyn
                     );
                     b.Scaffold($") {{\n");
                     b.Scaffold("#line hidden\n");
-                    if (wh.BodyCode != null)
+                    if (wh.Payload.BodyCode != null)
                     {
                         EmitDirectiveBodyCode(
                             b,
-                            wh.BodyCode,
-                            wh.BodyCodeOffset,
-                            wh.BodyCodeLine,
-                            wh.BodyMarkupRanges,
-                            wh.BodyBareJsxRanges,
+                            wh.Payload.BodyCode,
+                            wh.Payload.BodyCodeOffset,
+                            wh.Payload.BodyCodeLine,
+                            wh.Payload.BodyMarkupRanges,
+                            wh.Payload.BodyBareJsxRanges,
                             escapedPath,
                             indent + "    ",
                             ref exprCtr,
@@ -1380,31 +1392,65 @@ namespace ReactiveUITK.Language.Roslyn
                     break;
 
                 case SwitchNode sw:
+                    // U-33: the switch expression itself was never emitted into the
+                    // virtual document, so it had no Roslyn-backed hover/diagnostics/
+                    // go-to-def in the editor. U-33 follow-up: the first cut emitted case
+                    // bodies as flat, sequential top-level statements (a discard statement
+                    // for the switch expression, then each case's body one after another,
+                    // each wrapped in `if (true) { }` for "isolation"). That doesn't work —
+                    // the C# spec special-cases a constant `if (true)` condition for
+                    // reachability analysis (same as `while (true)`), so Roslyn still saw
+                    // the FIRST case's `return` as unconditional and flagged every later
+                    // case's body as unreachable (CS0162 -> dimmed in the editor). Emitting
+                    // a REAL `switch (expr) { case ...: { ... } }` — mirroring the real
+                    // compiled output in CSharpEmitter.EmitSwitchNode exactly, including no
+                    // synthesized `break` (case bodies are required to end in their own
+                    // return/break already, same as the real emitter assumes) — gives
+                    // Roslyn genuine mutually-exclusive branches, so its reachability
+                    // analysis is correct instead of needing to be tricked.
+                    b.Scaffold($"#line {sw.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}switch (");
+                    b.Mapped(
+                        sw.SwitchExpression,
+                        sw.SwitchExpressionOffset + uitkxOffsetAdjust,
+                        SourceRegionKind.InlineExpression,
+                        sw.SourceLine
+                    );
+                    b.Scaffold($")\n{indent}{{\n");
+                    b.Scaffold("#line hidden\n");
                     foreach (var sc in sw.Cases)
                     {
-                        if (sc.BodyCode != null)
+                        b.Scaffold(
+                            sc.ValueExpression == null
+                                ? $"{indent}default:\n"
+                                : $"{indent}case {sc.ValueExpression}:\n"
+                        );
+                        b.Scaffold($"{indent}{{\n");
+                        if (sc.Payload.BodyCode != null)
                         {
                             EmitDirectiveBodyCode(
                                 b,
-                                sc.BodyCode,
-                                sc.BodyCodeOffset,
-                                sc.BodyCodeLine,
-                                sc.BodyMarkupRanges,
-                                sc.BodyBareJsxRanges,
+                                sc.Payload.BodyCode,
+                                sc.Payload.BodyCodeOffset,
+                                sc.Payload.BodyCodeLine,
+                                sc.Payload.BodyMarkupRanges,
+                                sc.Payload.BodyBareJsxRanges,
                                 escapedPath,
-                                indent,
+                                indent + "    ",
                                 ref exprCtr,
                                 ref attrCtr,
                                 propsTypes,
                                 uitkxOffsetAdjust
                             );
                         }
+                        b.Scaffold($"{indent}}}\n");
                     }
+                    b.Scaffold($"{indent}}}\n");
                     break;
             }
         }
 
-        // ── Directive body code emitter ───────────────────────────────────────
+        // -- Directive body code emitter ---------------------------------------
 
         /// <summary>
         /// Emits directive body code as mapped C# segments, replacing JSX ranges
@@ -1431,7 +1477,7 @@ namespace ReactiveUITK.Language.Roslyn
 
             if (!hasMarkup && !hasBare)
             {
-                // No JSX — emit entire body as a single mapped region
+                // No JSX - emit entire body as a single mapped region
                 b.Scaffold($"#line {bodyCodeLine} \"{escapedPath}\"\n");
                 b.Mapped(
                     bodyCode,
@@ -1504,7 +1550,7 @@ namespace ReactiveUITK.Language.Roslyn
                 b.Scaffold("#line hidden\n");
                 b.Scaffold($"{indent}(global::ReactiveUITK.Core.VirtualNode)null!\n");
 
-                // Defer expression checks — see comment on deferredChecks above.
+                // Defer expression checks - see comment on deferredChecks above.
                 deferredChecks.Add((absStart, absEnd));
 
                 prev = relEnd;
@@ -1651,7 +1697,7 @@ namespace ReactiveUITK.Language.Roslyn
             return line;
         }
 
-        // ── Utility helpers ───────────────────────────────────────────────────
+        // -- Utility helpers ---------------------------------------------------
 
         /// <summary>
         /// Returns the 0-based character offset of the start of <paramref name="line1"/>
@@ -1697,7 +1743,7 @@ namespace ReactiveUITK.Language.Roslyn
         private static string EscapeForComment(string text) =>
             text.Replace('\r', ' ').Replace('\n', ' ');
 
-        // ── Block-body lambda emitter ─────────────────────────────────────────
+        // -- Block-body lambda emitter -----------------------------------------
 
         /// <summary>
         /// Maps sanitised attribute names (as they appear in a <c>CollectedExpression.Label</c>)
@@ -1721,10 +1767,10 @@ namespace ReactiveUITK.Language.Roslyn
             System.StringComparer.Ordinal
         )
         {
-            // ── Value-change events ────────────────────────────────────────────
+            // -- Value-change events --------------------------------------------
             ["onChange"] = "global::UnityEngine.UIElements.ChangeEvent<dynamic>",
             ["onValueChanged"] = "global::UnityEngine.UIElements.ChangeEvent<dynamic>",
-            // ── Click / Pointer ───────────────────────────────────────────────
+            // -- Click / Pointer -----------------------------------------------
             ["onClick"] = "global::UnityEngine.UIElements.ClickEvent",
             ["onPointerDown"] = "global::UnityEngine.UIElements.PointerDownEvent",
             ["onPointerUp"] = "global::UnityEngine.UIElements.PointerUpEvent",
@@ -1732,7 +1778,7 @@ namespace ReactiveUITK.Language.Roslyn
             ["onPointerEnter"] = "global::UnityEngine.UIElements.PointerEnterEvent",
             ["onPointerLeave"] = "global::UnityEngine.UIElements.PointerLeaveEvent",
             ["onPointerCancel"] = "global::UnityEngine.UIElements.PointerCancelEvent",
-            // ── Mouse ─────────────────────────────────────────────────────────
+            // -- Mouse ---------------------------------------------------------
             ["onMouseDown"] = "global::UnityEngine.UIElements.MouseDownEvent",
             ["onMouseUp"] = "global::UnityEngine.UIElements.MouseUpEvent",
             ["onMouseMove"] = "global::UnityEngine.UIElements.MouseMoveEvent",
@@ -1742,39 +1788,39 @@ namespace ReactiveUITK.Language.Roslyn
             ["onMouseOver"] = "global::UnityEngine.UIElements.MouseOverEvent",
             ["onMouseCaptureOut"] = "global::UnityEngine.UIElements.MouseCaptureOutEvent",
             ["onContextClick"] = "global::UnityEngine.UIElements.ContextClickEvent",
-            // ── Keyboard ──────────────────────────────────────────────────────
+            // -- Keyboard ------------------------------------------------------
             ["onKeyDown"] = "global::UnityEngine.UIElements.KeyDownEvent",
             ["onKeyUp"] = "global::UnityEngine.UIElements.KeyUpEvent",
-            // ── Focus ─────────────────────────────────────────────────────────
+            // -- Focus ---------------------------------------------------------
             ["onFocus"] = "global::UnityEngine.UIElements.FocusEvent",
             ["onFocusIn"] = "global::UnityEngine.UIElements.FocusInEvent",
             ["onFocusOut"] = "global::UnityEngine.UIElements.FocusOutEvent",
             ["onBlur"] = "global::UnityEngine.UIElements.BlurEvent",
-            // ── Geometry / Style ──────────────────────────────────────────────
+            // -- Geometry / Style ----------------------------------------------
             ["onGeometryChanged"] = "global::UnityEngine.UIElements.GeometryChangedEvent",
             ["onCustomStyleResolved"] = "global::UnityEngine.UIElements.CustomStyleResolvedEvent",
-            // ── Panel lifecycle ───────────────────────────────────────────────
+            // -- Panel lifecycle -----------------------------------------------
             ["onAttachToPanel"] = "global::UnityEngine.UIElements.AttachToPanelEvent",
             ["onDetachFromPanel"] = "global::UnityEngine.UIElements.DetachFromPanelEvent",
-            // ── Custom rendering ──────────────────────────────────────────────
+            // -- Custom rendering ----------------------------------------------
             ["onGenerateVisualContent"] =
                 "global::UnityEngine.UIElements.MeshGenerationContext",
-            // ── Navigation ────────────────────────────────────────────────────
+            // -- Navigation ----------------------------------------------------
             ["onNavigationMove"] = "global::UnityEngine.UIElements.NavigationMoveEvent",
             ["onNavigationSubmit"] = "global::UnityEngine.UIElements.NavigationSubmitEvent",
             ["onNavigationCancel"] = "global::UnityEngine.UIElements.NavigationCancelEvent",
-            // ── Drag-and-drop ─────────────────────────────────────────────────
+            // -- Drag-and-drop -------------------------------------------------
             ["onDragEnter"] = "global::UnityEngine.UIElements.DragEnterEvent",
             ["onDragLeave"] = "global::UnityEngine.UIElements.DragLeaveEvent",
             ["onDragUpdated"] = "global::UnityEngine.UIElements.DragUpdatedEvent",
             ["onDragPerform"] = "global::UnityEngine.UIElements.DragPerformEvent",
             ["onDragExited"] = "global::UnityEngine.UIElements.DragExitedEvent",
-            // ── Input / Commands ──────────────────────────────────────────────
+            // -- Input / Commands ----------------------------------------------
             ["onInput"] = "global::UnityEngine.UIElements.InputEvent",
             ["onExecuteCommand"] = "global::UnityEngine.UIElements.ExecuteCommandEvent",
             ["onValidateCommand"] = "global::UnityEngine.UIElements.ValidateCommandEvent",
             ["onTooltip"] = "global::UnityEngine.UIElements.TooltipEvent",
-            // ── Capture-phase variants ────────────────────────────────────────
+            // -- Capture-phase variants ----------------------------------------
             ["onClickCapture"] = "global::UnityEngine.UIElements.ClickEvent",
             ["onPointerDownCapture"] = "global::UnityEngine.UIElements.PointerDownEvent",
             ["onPointerUpCapture"] = "global::UnityEngine.UIElements.PointerUpEvent",
@@ -1816,7 +1862,7 @@ namespace ReactiveUITK.Language.Roslyn
             int arrowIdx
         )
         {
-            // ── 1. Extract parameter names ────────────────────────────────────
+            // -- 1. Extract parameter names ------------------------------------
             // Everything before '=>', stripped of whitespace and outer parens.
             string paramPart = expr.Text.Substring(0, arrowIdx).Trim();
             if (paramPart.StartsWith("(") && paramPart.EndsWith(")"))
@@ -1831,7 +1877,7 @@ namespace ReactiveUITK.Language.Roslyn
                     paramNames.Add(p);
             }
 
-            // ── 2. Locate the opening brace of the block body  ────────────────
+            // -- 2. Locate the opening brace of the block body  ----------------
             int afterArrow = arrowIdx + 2;
             while (
                 afterArrow < expr.Text.Length
@@ -1850,7 +1896,7 @@ namespace ReactiveUITK.Language.Roslyn
                 return;
             }
 
-            // ── 3. Find the balanced closing brace ────────────────────────────
+            // -- 3. Find the balanced closing brace ----------------------------
             int bodyStart = afterArrow + 1; // first character after '{'
             int depth = 1;
             int k = bodyStart;
@@ -1870,7 +1916,7 @@ namespace ReactiveUITK.Language.Roslyn
             string bodyText = k > bodyStart ? expr.Text.Substring(bodyStart, k - bodyStart) : "";
             int bodyUitkxOffset = expr.UitkxOffset + bodyStart;
 
-            // ── 4. Determine callback parameter type ─────────────────────────
+            // -- 4. Determine callback parameter type -------------------------
             // For single-parameter lambdas on known UIElements event attributes,
             // use the actual event type so member completions (evt.newValue etc.)
             // are available.  Multi-param or unknown-attr lambdas use dynamic.
@@ -1885,8 +1931,8 @@ namespace ReactiveUITK.Language.Roslyn
                     paramCSharpType = evtType!;
             }
 
-            // ── 5. Emit as a local function so 'return' inside the body is valid ──
-            // A bare scoped block `{ return …; }` is illegal C# because `return`
+            // -- 5. Emit as a local function so 'return' inside the body is valid --
+            // A bare scoped block `{ return -; }` is illegal C# because `return`
             // targets the enclosing __uitkx_render() method whose type may not match.
             // A local function can return anything (`dynamic`) from its own scope.
             string funcName = $"__uitkx_h{b.CurrentPos}";
@@ -1902,10 +1948,10 @@ namespace ReactiveUITK.Language.Roslyn
             if (paramNames.Count > 0)
                 b.Scaffold("#pragma warning restore CS0246\n");
 
-            // ── 6. Map the body text verbatim ─────────────────────────────────
+            // -- 6. Map the body text verbatim ---------------------------------
             // Bare `return;` (no value) in a dynamic-returning local function is a
             // hard compiler error (CS0126).  Since #pragma warning disable cannot
-            // suppress actual errors, we emit the body in segments — replacing each
+            // suppress actual errors, we emit the body in segments - replacing each
             // standalone `return;` with `return default!;` as scaffolded text so the
             // rest of the body retains full source-map fidelity for completions/hover.
             if (!string.IsNullOrWhiteSpace(bodyText))
@@ -1964,12 +2010,12 @@ namespace ReactiveUITK.Language.Roslyn
             return true;
         }
 
-        // ── JSX-stripping setup-code emitter ──────────────────────────────────
+        // -- JSX-stripping setup-code emitter ----------------------------------
 
         /// <summary>
         /// Emits the function-style setup code in segments, replacing any
-        /// parenthesised JSX blocks — i.e. <c>(<Tag ...>...</Tag>)</c> or
-        /// <c>(<Tag .../> )</c> — with the scaffold placeholder <c>(null!)</c>.
+        /// parenthesised JSX blocks - i.e. <c>(<Tag ...>...</Tag>)</c> or
+        /// <c>(<Tag .../> )</c> - with the scaffold placeholder <c>(null!)</c>.
         ///
         /// <para>JSX paren blocks produce invalid C# when placed verbatim inside
         /// the generated <c>__uitkx_render()</c> method, causing cascading Roslyn
@@ -2007,7 +2053,7 @@ namespace ReactiveUITK.Language.Roslyn
 
             while (i < setupCode.Length)
             {
-                // ── Skip comments so branches never fire inside them ───────────
+                // -- Skip comments so branches never fire inside them -----------
                 // Block comment /* ... */
                 if (setupCode[i] == '/' && i + 1 < setupCode.Length && setupCode[i + 1] == '*')
                 {
@@ -2036,7 +2082,7 @@ namespace ReactiveUITK.Language.Roslyn
                         continue;
                 }
 
-                // ── Branch 0: return <Tag  (bare return with inline markup) ────
+                // -- Branch 0: return <Tag  (bare return with inline markup) ----
                 // Handles `return <Label text="..." />;` without wrapping parens.
                 if (
                     setupCode[i] == 'r'
@@ -2137,7 +2183,7 @@ namespace ReactiveUITK.Language.Roslyn
                     }
                 }
 
-                // ── Branch 0b: ? <Tag  or  : <Tag  (ternary branches) ──────────
+                // -- Branch 0b: ? <Tag  or  : <Tag  (ternary branches) ----------
                 // Handles `cond ? <Label .../> : <Other .../>;` without parens.
                 // Excluded: ?. (null-conditional), ?? (null-coalescing), :: (scope)
                 if (setupCode[i] == '?' || setupCode[i] == ':')
@@ -2215,7 +2261,7 @@ namespace ReactiveUITK.Language.Roslyn
                     }
                 }
 
-                // ── Branch 2: => <Tag  (lambda arrow with bare inline markup) ──
+                // -- Branch 2: => <Tag  (lambda arrow with bare inline markup) --
                 // Handles `() => <Label text="..." />` without wrapping parens.
                 if (setupCode[i] == '=' && i + 1 < setupCode.Length && setupCode[i + 1] == '>')
                 {
@@ -2278,7 +2324,7 @@ namespace ReactiveUITK.Language.Roslyn
                     }
                 }
 
-                // ── Branch 2b: = <Tag  (bare assignment with inline markup) ────
+                // -- Branch 2b: = <Tag  (bare assignment with inline markup) ----
                 // Handles `var x = <Label text="..." />` without wrapping parens.
                 // Must distinguish bare `=` from `=>`, `==`, `!=`, `<=`, `>=`.
                 if (
@@ -2356,7 +2402,7 @@ namespace ReactiveUITK.Language.Roslyn
                     }
                 }
 
-                // ── Branch 3: @( — strip @ so Roslyn sees plain (expr) ─────────
+                // -- Branch 3: @( - strip @ so Roslyn sees plain (expr) ---------
                 if (setupCode[i] == '@' && i + 1 < setupCode.Length && setupCode[i + 1] == '(')
                 {
                     if (i > segStart)
@@ -2379,13 +2425,13 @@ namespace ReactiveUITK.Language.Roslyn
                             ref attrCtr
                         );
                     }
-                    // Skip the `@` — the `(` will be re-processed next iteration.
+                    // Skip the `@` - the `(` will be re-processed next iteration.
                     segStart = i + 1;
                     i = i + 1;
                     continue;
                 }
 
-                // ── Branch 1: `(` that immediately precedes JSX ────────────────
+                // -- Branch 1: `(` that immediately precedes JSX ----------------
                 if (setupCode[i] != '(')
                 {
                     i++;
@@ -2411,7 +2457,7 @@ namespace ReactiveUITK.Language.Roslyn
                     continue;
                 }
 
-                // ── Found a JSX paren block starting at i ──────────────────
+                // -- Found a JSX paren block starting at i ------------------
 
                 // 1. Emit the C# segment that precedes this block.
                 if (i > segStart)
@@ -2555,7 +2601,7 @@ namespace ReactiveUITK.Language.Roslyn
                 return;
             }
 
-            // Find first ';' at paren-depth 0 — a true statement boundary.
+            // Find first ';' at paren-depth 0 - a true statement boundary.
             int splitPos = -1;
             int pd = 0;
             for (int k = 0; k < seg.Length; k++)
@@ -2577,7 +2623,7 @@ namespace ReactiveUITK.Language.Roslyn
 
             if (splitPos < 0)
             {
-                // No statement boundary — emit as-is, checks stay pending.
+                // No statement boundary - emit as-is, checks stay pending.
                 EmitMappedWithGap(
                     b,
                     seg,
@@ -2685,7 +2731,7 @@ namespace ReactiveUITK.Language.Roslyn
             {
                 // Wrap in a local function so any `return` statements inside
                 // directive bodies (e.g. @if/@else with `return (<JSX>)`) return
-                // from the local function — not from __uitkx_render(), which would
+                // from the local function - not from __uitkx_render(), which would
                 // make all subsequent setup code unreachable.
                 // This mirrors the EmitBlockBodyLambda pattern used for event handlers.
                 b.Scaffold("#line hidden\n");
@@ -2714,7 +2760,7 @@ namespace ReactiveUITK.Language.Roslyn
         /// <summary>
         /// Emits a mapped C# segment, splitting it at the gap boundary when the
         /// setup code was formed by concatenating disjoint source ranges (before
-        /// and after a removed <c>return (…);</c> statement).
+        /// and after a removed <c>return (...);</c> statement).
         /// </summary>
         private static void EmitMappedWithGap(
             VirtualDocBuilder b,
@@ -2733,7 +2779,7 @@ namespace ReactiveUITK.Language.Roslyn
 
             if (!hasGap || segEnd <= gapOffset)
             {
-                // No gap or entirely before the gap — emit directly.
+                // No gap or entirely before the gap - emit directly.
                 int uitkxOff = baseOffset + segStart;
                 b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
                 b.Mapped(seg, uitkxOff, SourceRegionKind.FunctionSetup, segLine);
@@ -2741,7 +2787,7 @@ namespace ReactiveUITK.Language.Roslyn
             }
             else if (segStart >= gapOffset)
             {
-                // Entirely after the gap — shift offset by gapLength.
+                // Entirely after the gap - shift offset by gapLength.
                 int uitkxOff = baseOffset + segStart + gapLength;
                 b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
                 b.Mapped(seg, uitkxOff, SourceRegionKind.FunctionSetup, segLine);
@@ -2749,7 +2795,7 @@ namespace ReactiveUITK.Language.Roslyn
             }
             else
             {
-                // Straddles the gap — split into two mapped regions.
+                // Straddles the gap - split into two mapped regions.
                 int splitAt = gapOffset - segStart;
                 string seg1 = seg.Substring(0, splitAt);
                 string seg2 = seg.Substring(splitAt);
@@ -2771,7 +2817,7 @@ namespace ReactiveUITK.Language.Roslyn
         }
 
         /// <summary>
-        /// Regex that matches a standalone <c>return;</c> statement — a bare return
+        /// Regex that matches a standalone <c>return;</c> statement - a bare return
         /// with no value, at a word boundary, with optional surrounding whitespace.
         /// Group 1 captures the text before <c>return;</c>, group 2 is the whitespace
         /// between <c>return</c> and <c>;</c>.
@@ -2801,7 +2847,7 @@ namespace ReactiveUITK.Language.Roslyn
             string escapedPath
         )
         {
-            // Fast path: no bare return; in body → emit entire block as one mapped segment.
+            // Fast path: no bare return; in body -> emit entire block as one mapped segment.
             if (!s_bareReturnRegex.IsMatch(bodyText))
             {
                 b.Scaffold($"#line {uitkxLine} \"{escapedPath}\"\n");
@@ -2833,7 +2879,7 @@ namespace ReactiveUITK.Language.Roslyn
                 }
 
                 // Scaffold the replacement (same newline count as original to keep
-                // Roslyn's #line tracking in sync — `return;` is always one line).
+                // Roslyn's #line tracking in sync - `return;` is always one line).
                 b.Scaffold("return default!;");
                 currentLine += CountNewlines(bodyText, m.Index, m.Index + m.Length);
 
@@ -2851,7 +2897,7 @@ namespace ReactiveUITK.Language.Roslyn
 
             if (deferred != null && deferred.Count > 0 && ctx != null)
             {
-                // Emitted at the body's outer indent — still inside the lambda's
+                // Emitted at the body's outer indent - still inside the lambda's
                 // local function, before its sentinel `return default!`.
                 foreach (var (s, e) in deferred)
                     EmitDeferredJsxAttributeChecks(b, ctx.Source, ctx.Directives, escapedPath, s, e, "        ");

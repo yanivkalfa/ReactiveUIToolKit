@@ -104,6 +104,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         private MethodInfo _directiveParse;
         private MethodInfo _uitkxParse;
         private MethodInfo _canonicalLower;
+        private MethodInfo _parseFragment; // optional — see H-04
         private MethodInfo _findJsxBlockRanges;
         private MethodInfo _findBareJsxRanges;
         private MethodInfo _findLhsStartForLogicalAnd;
@@ -292,7 +293,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (string.IsNullOrEmpty(componentName))
                 {
                     // ── Hook/module file path ────────────────────────────────
-                    return CompileHookModuleFile(directives, uitkxPath, sw, result);
+                    return CompileHookModuleFile(directives, diagList, uitkxPath, sw, result);
                 }
 
                 result.ComponentName = componentName;
@@ -317,6 +318,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 stepSw.Stop();
                 result.ParseMs = stepSw.Elapsed.TotalMilliseconds;
 
+                // H-01: never emit from an error-recovered AST — see TryGetParseErrorMessage.
+                if (TryGetParseErrorMessage(diagList, uitkxPath, out string parseErrorMsg))
+                {
+                    result.Error = parseErrorMsg;
+                    return result;
+                }
+
                 // ── 3. Canonical lowering + Emit C# ──────────────────────────
                 stepSw = Stopwatch.StartNew();
                 var lowered = InvokeWithDefaults(
@@ -330,29 +338,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Build a delegate that can parse standalone JSX fragments.
                 // Used by the emitter to splice embedded JSX in setup code.
                 HmrCSharpEmitter.MarkupParseFunc parseMarkup = (jsxText, path, startLine) =>
-                {
-                    string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
-                    var miniDiags = CreateDiagnosticList();
-                    var miniDir = InvokeWithDefaults(
-                        _directiveParse,
-                        null,
-                        synthetic,
-                        path,
-                        miniDiags,
-                        false
-                    );
-                    var nodes = InvokeWithDefaults(
-                        _uitkxParse,
-                        null,
-                        synthetic,
-                        path,
-                        miniDir,
-                        miniDiags,
-                        false,
-                        0
-                    );
-                    return GetItems(nodes);
-                };
+                    ParseMarkupFragment(jsxText, path, startLine);
 
                 // Phase 1: scanner delegates so the emitter can detect JSX
                 // literals embedded inside arbitrary C# expressions
@@ -562,6 +548,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 stepSw.Stop();
                 artifacts.ParseMs = stepSw.Elapsed.TotalMilliseconds;
 
+                // H-01: never emit from an error-recovered AST — see TryGetParseErrorMessage.
+                if (TryGetParseErrorMessage(diagList, uitkxPath, out string parseErrorMsg))
+                {
+                    error = parseErrorMsg;
+                    return null;
+                }
+
                 stepSw = Stopwatch.StartNew();
                 var lowered = InvokeWithDefaults(
                     _canonicalLower,
@@ -577,29 +570,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // reflection handles, so sharing them across batch members is
                 // safe (no per-file state inside).
                 HmrCSharpEmitter.MarkupParseFunc parseMarkup = (jsxText, path, startLine) =>
-                {
-                    string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
-                    var miniDiags = CreateDiagnosticList();
-                    var miniDir = InvokeWithDefaults(
-                        _directiveParse,
-                        null,
-                        synthetic,
-                        path,
-                        miniDiags,
-                        false
-                    );
-                    var nodes = InvokeWithDefaults(
-                        _uitkxParse,
-                        null,
-                        synthetic,
-                        path,
-                        miniDir,
-                        miniDiags,
-                        false,
-                        0
-                    );
-                    return GetItems(nodes);
-                };
+                    ParseMarkupFragment(jsxText, path, startLine);
                 HmrCSharpEmitter.FindJsxRangesFunc findJsxBlockRanges =
                     _findJsxBlockRanges == null
                         ? null
@@ -1023,6 +994,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         private HmrCompileResult CompileHookModuleFile(
             object directives,
+            object diagList,
             string uitkxPath,
             Stopwatch sw,
             HmrCompileResult result
@@ -1030,6 +1002,14 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             try
             {
+                // H-01: same error-first gate as the component path — a malformed hook/
+                // module signature must not silently emit from a recovered directive set.
+                if (TryGetParseErrorMessage(diagList, uitkxPath, out string parseErrorMsg))
+                {
+                    result.Error = parseErrorMsg;
+                    return result;
+                }
+
                 result.IsHookModuleFile = true;
                 string containerClass = HmrHookEmitter.DeriveContainerClassName(uitkxPath);
                 result.HookContainerClass = containerClass;
@@ -1043,6 +1023,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string hookCSharp = HmrHookEmitter.Emit(directives, uitkxPath, containerClass);
                 if (!string.IsNullOrEmpty(hookCSharp))
                     sources.Add(hookCSharp);
+                // Records whether a hook container was actually emitted, so the
+                // controller only runs SwapHooks for files that have hooks
+                // (a module-only file has no container to find).
+                result.HasHooks = !string.IsNullOrEmpty(hookCSharp);
 
                 string moduleCSharp = HmrHookEmitter.EmitModules(directives, uitkxPath);
                 if (!string.IsNullOrEmpty(moduleCSharp))
@@ -1402,12 +1386,87 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
             if (_canonicalLower == null)
                 throw new MissingMethodException("CanonicalLowering.LowerToRenderRoots not found");
+
+            // H-04: UitkxParser.ParseFragment (standalone JSX snippet parsing) replaces
+            // the fragile synthetic-header-prepend trick previously used to parse
+            // embedded JSX fragments. Optional — older Language.dll builds may lack it;
+            // HMR falls back to the synthetic-header path when missing (see parseMarkup
+            // delegates in Compile/BuildComponentArtifacts).
+            _parseFragment = upType.GetMethod("ParseFragment", BindingFlags.Public | BindingFlags.Static);
         }
 
         private object CreateDiagnosticList()
         {
             var listType = typeof(List<>).MakeGenericType(_parseDiagnosticType);
             return Activator.CreateInstance(listType);
+        }
+
+        /// <summary>
+        /// H-04: parses a standalone JSX fragment via <c>UitkxParser.ParseFragment</c>
+        /// when the loaded language-lib has it; falls back to the old fragile
+        /// synthetic-header-prepend trick for older committed DLLs that predate it.
+        /// </summary>
+        private IList ParseMarkupFragment(string jsxText, string path, int startLine)
+        {
+            if (_parseFragment != null)
+            {
+                var diags = CreateDiagnosticList();
+                var nodes = InvokeWithDefaults(_parseFragment, null, jsxText, path, startLine, diags);
+                return GetItems(nodes);
+            }
+
+            // ── Fallback: older Language.dll without ParseFragment ────────────
+            string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
+            var miniDiags = CreateDiagnosticList();
+            var miniDir = InvokeWithDefaults(_directiveParse, null, synthetic, path, miniDiags, false);
+            var legacyNodes = InvokeWithDefaults(
+                _uitkxParse, null, synthetic, path, miniDir, miniDiags, false, 0);
+            return GetItems(legacyNodes);
+        }
+
+        /// <summary>
+        /// H-01: HMR previously parsed a file, filled <c>diagList</c> with whatever
+        /// DirectiveParser/UitkxParser reported, and then emitted C# from the
+        /// error-recovered AST regardless of severity — unlike the SourceGenerator
+        /// pipeline (<c>UitkxPipeline.cs</c>), which converts every Error into a
+        /// <c>#line</c>/<c>#error</c> and stops. A save with a syntax error would
+        /// either produce a cryptic csc wall from the recovered AST's garbage output,
+        /// or — worse — valid C# that hot-swapped the WRONG UI silently. This gate
+        /// mirrors the SG pipeline's error-first policy for HMR.
+        /// </summary>
+        /// <returns>
+        /// <c>true</c> and a formatted, human-readable message (one line per error,
+        /// each "  CODE Lline: message") when <paramref name="diagList"/> contains at
+        /// least one <c>ParseSeverity.Error</c> entry; otherwise <c>false</c>.
+        /// </returns>
+        private bool TryGetParseErrorMessage(object diagList, string uitkxPath, out string errorMessage)
+        {
+            errorMessage = null;
+            if (diagList is not IEnumerable enumerable)
+                return false;
+
+            var lines = new List<string>();
+            foreach (var diag in enumerable)
+            {
+                var severity = GetProp(diag, "Severity");
+                if (severity == null)
+                    continue;
+                // ParseSeverity.Error == 0 (first enum member — see ParseDiagnostic.cs).
+                if (Convert.ToInt32(severity) != 0)
+                    continue;
+
+                string code = (GetProp(diag, "Code") as string) ?? "";
+                int line = Convert.ToInt32(GetProp(diag, "SourceLine") ?? 0);
+                string message = (GetProp(diag, "Message") as string) ?? "";
+                lines.Add($"  {code} L{line}: {message}");
+            }
+
+            if (lines.Count == 0)
+                return false;
+
+            errorMessage =
+                $"[HMR] {uitkxPath} has {lines.Count} parse error(s):\n" + string.Join("\n", lines);
+            return true;
         }
 
         private void BuildReferenceList()
@@ -3132,6 +3191,17 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// component fiber swapper.
         /// </summary>
         public bool IsHookModuleFile;
+
+        /// <summary>
+        /// True when this hook/module file actually declared one or more
+        /// <c>hook</c>s (i.e. the hook emitter produced a container class).
+        /// A module-ONLY file (only <c>module</c> bodies, no hooks) leaves this
+        /// false, so the controller skips <see cref="UitkxHmrDelegateSwapper.SwapHooks"/>
+        /// — which would otherwise log a spurious "Could not find hook container"
+        /// warning and no-op — and instead fires the global re-render itself
+        /// after the module-method swap.
+        /// </summary>
+        public bool HasHooks;
 
         /// <summary>
         /// Container class name for hook files (e.g. "CounterHooks").

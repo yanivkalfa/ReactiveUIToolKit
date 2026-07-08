@@ -202,6 +202,32 @@ public sealed class SchemaVersionTests
         var schema = CreateSchema();
         Assert.Null(schema.GetStyleVersionInfo("nonexistent"));
     }
+
+    // ── C-05: unsupported style properties ──────────────────────────────────
+
+    [Fact]
+    public void UnsupportedStyleProperties_ContainsCursor()
+    {
+        var schema = CreateSchema();
+        Assert.True(schema.Root.UnsupportedStyleProperties.ContainsKey("cursor"));
+        Assert.False(string.IsNullOrWhiteSpace(schema.Root.UnsupportedStyleProperties["cursor"].Reason));
+    }
+
+    [Fact]
+    public void GetUnsupportedStyleInfo_Cursor_ReturnsReason()
+    {
+        var schema = CreateSchema();
+        var info = schema.GetUnsupportedStyleInfo("cursor");
+        Assert.NotNull(info);
+        Assert.Contains("Cursor", info!.Reason);
+    }
+
+    [Fact]
+    public void GetUnsupportedStyleInfo_SupportedKey_ReturnsNull()
+    {
+        var schema = CreateSchema();
+        Assert.Null(schema.GetUnsupportedStyleInfo("flexDirection"));
+    }
 }
 
 /// <summary>

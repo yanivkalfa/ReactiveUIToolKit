@@ -53,14 +53,17 @@ public sealed class DiagnosticsPublisher
 
     // Per-URI snapshot of the last T1+T2 diagnostics pushed.
     // Key = local file path (normalised), Value = diagnostic list.
+    // LSP small: file paths are case-insensitive on Windows/macOS — Ordinal comparison let
+    // the same file be tracked under two different-cased keys (e.g. from a URI-cased vs.
+    // disk-cased path), leaking a stale entry that Forget() below could never evict.
     private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT1T2 =
-        new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
+        new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.OrdinalIgnoreCase);
 
     // Per-URI snapshot of the last T3 (Roslyn) diagnostics.
     // Carried forward in T1+T2 pushes so the error list never flashes empty
     // during the 300ms debounce gap between edits and Roslyn rebuild.
     private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT3 =
-        new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
+        new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.OrdinalIgnoreCase);
 
     // Debounce timer for IndexChanged → RevalidateOpenDocuments.
     // When many .cs files change in a burst (e.g. Unity recompilation),
@@ -104,6 +107,25 @@ public sealed class DiagnosticsPublisher
         _roslynHost = roslynHost;
     }
 
+    /// <summary>
+    /// LSP small: call on <c>textDocument/didClose</c> — evicts the closed file's cached
+    /// T1+T2/T3 diagnostic snapshots (otherwise they leak for the life of the server and
+    /// could be carried forward into a stale re-publish if the same path is reopened before
+    /// a full reparse) and pushes an empty diagnostics set so closed-file squiggles don't
+    /// linger in the client's Problems panel until the file is reopened.
+    /// </summary>
+    public void Forget(DocumentUri uri)
+    {
+        string? localPath = GetLocalPath(uri);
+        if (!string.IsNullOrEmpty(localPath))
+        {
+            _lastT1T2.TryRemove(localPath, out _);
+            _lastT3.TryRemove(localPath, out _);
+        }
+
+        PushToClient(uri, Array.Empty<ParseDiagnostic>());
+    }
+
     private void RevalidateOpenDocuments()
     {
         foreach (var (uriString, text) in _documentStore.GetAll())
@@ -124,9 +146,17 @@ public sealed class DiagnosticsPublisher
 
     private void ScheduleDebouncedRevalidation()
     {
-        _revalidateCts?.Cancel();
+        // LSP small: read-cancel-then-write on a plain field races when
+        // IndexChanged fires from multiple threads in a burst (e.g. a Unity
+        // recompile touching many .cs files) — two threads could each read the
+        // same _revalidateCts, both cancel it, then both overwrite the field,
+        // leaving one CTS never cancelled (double revalidation) or a lost
+        // reference. Interlocked.Exchange makes the swap atomic: whichever CTS
+        // this call displaces is the one it cancels, never one another thread
+        // already displaced.
         var cts = new CancellationTokenSource();
-        _revalidateCts = cts;
+        var old = Interlocked.Exchange(ref _revalidateCts, cts);
+        old?.Cancel();
         _ = Task.Delay(500, cts.Token).ContinueWith(_ =>
         {
             RevalidateOpenDocuments();
@@ -295,7 +325,8 @@ public sealed class DiagnosticsPublisher
         string uitkxFilePath,
         IReadOnlyList<(
             Microsoft.CodeAnalysis.Diagnostic Diagnostic,
-            SourceMapEntry? MapEntry
+            SourceMapEntry? MapEntry,
+            bool IsStateSetterCS1503
         )> roslynDiags,
         string? uitkxSource = null
     )
@@ -450,69 +481,15 @@ public sealed class DiagnosticsPublisher
             if (c == '\n') { currentLine++; i++; continue; }
             if (c == '\r') { i++; continue; }
 
-            // Skip strings
-            if (c == '"')
+            // Skip strings/chars/comments via the shared lexer (see U-20): the previous
+            // hand-rolled scan here had no verbatim-string (@"..."/@$".../$@"...) awareness
+            // at all, so a literal '{' or '}' inside a multi-line verbatim string body would
+            // corrupt the brace-depth tracking below and mis-anchor the diagnostic's range.
+            int before = i;
+            if (CSharpLexFacts.TrySkipNonCode(source, ref i, source.Length))
             {
-                i++;
-                if (i + 1 < source.Length && source[i] == '"' && source[i + 1] == '"')
-                {
-                    i += 2;
-                    while (i + 2 < source.Length)
-                    {
-                        if (source[i] == '\n') currentLine++;
-                        if (source[i] == '"' && source[i + 1] == '"' && source[i + 2] == '"')
-                        { i += 3; break; }
-                        i++;
-                    }
-                    continue;
-                }
-                while (i < source.Length && source[i] != '"' && source[i] != '\n')
-                {
-                    if (source[i] == '\\') i++;
-                    i++;
-                }
-                if (i < source.Length && source[i] == '"') i++;
-                continue;
-            }
-            if (c == '\'')
-            {
-                i++;
-                while (i < source.Length && source[i] != '\'' && source[i] != '\n')
-                {
-                    if (source[i] == '\\') i++;
-                    i++;
-                }
-                if (i < source.Length && source[i] == '\'') i++;
-                continue;
-            }
-            if (c == '$' && i + 1 < source.Length && source[i + 1] == '"')
-            {
-                i += 2;
-                while (i < source.Length && source[i] != '"' && source[i] != '\n')
-                {
-                    if (source[i] == '\\') i++;
-                    i++;
-                }
-                if (i < source.Length && source[i] == '"') i++;
-                continue;
-            }
-
-            // Skip comments
-            if (c == '/' && i + 1 < source.Length && source[i + 1] == '/')
-            {
-                while (i < source.Length && source[i] != '\n') i++;
-                continue;
-            }
-            if (c == '/' && i + 1 < source.Length && source[i + 1] == '*')
-            {
-                i += 2;
-                while (i + 1 < source.Length)
-                {
-                    if (source[i] == '\n') currentLine++;
-                    if (source[i] == '*' && source[i + 1] == '/')
-                    { i += 2; break; }
-                    i++;
-                }
+                for (int k = before; k < i; k++)
+                    if (source[k] == '\n') currentLine++;
                 continue;
             }
 

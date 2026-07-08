@@ -102,59 +102,51 @@ namespace ReactiveUITK.Language.Parser
             return nodes.ToImmutableArray();
         }
 
-        // ── Control block body parsing ───────────────────────────────────────
-
         /// <summary>
-        /// Parsed result of a control block body — the entire body is kept as
-        /// raw C# code, with JSX ranges identified for later splicing.
+        /// Parses a standalone JSX fragment (e.g. an embedded markup snippet extracted
+        /// from setup code) with a minimal, directly-constructed <see cref="DirectiveSet"/>
+        /// — no surrounding <c>@namespace</c>/<c>component</c> header text needed.
+        ///
+        /// Replaces the fragile "prepend a synthetic <c>@namespace __Tmp\n@component
+        /// __Tmp\n</c> header and rely on DirectiveParser rejecting it into a fallback
+        /// DirectiveSet" trick that HMR used to use (three accidental behaviors chained:
+        /// the synthetic header's specific rejection shape, MarkupStartIndex landing at 0,
+        /// and the markup parser's error-skipping of the bogus lines — see
+        /// FINAL_AUDIT_UITKX_FINDINGS.md, finding H-04).
         /// </summary>
-        private readonly struct ControlBlockBody
+        public static ImmutableArray<AstNode> ParseFragment(
+            string jsxText,
+            string filePath,
+            int startLine,
+            List<ParseDiagnostic> diagnostics
+        )
         {
-            /// <summary>Complete body code (C# with return statements at any depth).</summary>
-            public readonly string? BodyCode;
-
-            /// <summary>Absolute char offset in source where <see cref="BodyCode"/> begins.</summary>
-            public readonly int BodyCodeOffset;
-
-            /// <summary>1-based line number where <see cref="BodyCode"/> begins.</summary>
-            public readonly int BodyCodeLine;
-
-            /// <summary>Paren-wrapped JSX ranges (absolute positions) within source.</summary>
-            public readonly ImmutableArray<(int Start, int End, int Line)> BodyMarkupRanges;
-
-            /// <summary>Bare JSX ranges (absolute positions) within source.</summary>
-            public readonly ImmutableArray<(int Start, int End, int Line)> BodyBareJsxRanges;
-
-            /// <summary>
-            /// Parsed JSX elements from the body ranges, for IDE features
-            /// (semantic tokens, IntelliSense, diagnostics).
-            /// </summary>
-            public readonly ImmutableArray<AstNode> Body;
-
-            public ControlBlockBody(
-                string? bodyCode,
-                int bodyCodeOffset,
-                int bodyCodeLine,
-                ImmutableArray<(int Start, int End, int Line)> bodyMarkupRanges,
-                ImmutableArray<(int Start, int End, int Line)> bodyBareJsxRanges,
-                ImmutableArray<AstNode> body
-            )
-            {
-                BodyCode = bodyCode;
-                BodyCodeOffset = bodyCodeOffset;
-                BodyCodeLine = bodyCodeLine;
-                BodyMarkupRanges = bodyMarkupRanges;
-                BodyBareJsxRanges = bodyBareJsxRanges;
-                Body = body;
-            }
+            var directives = new DirectiveSet(
+                Namespace: null,
+                ComponentName: null,
+                PropsTypeName: null,
+                DefaultKey: null,
+                Usings: ImmutableArray<string>.Empty,
+                UssFiles: ImmutableArray<string>.Empty,
+                Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                MarkupStartLine: startLine,
+                MarkupStartIndex: 0,
+                MarkupEndIndex: jsxText?.Length ?? 0,
+                IsFunctionStyle: true
+            );
+            return Parse(jsxText ?? string.Empty, filePath, directives, diagnostics);
         }
+
+        // ── Control block body parsing ───────────────────────────────────────
 
         /// <summary>
         /// Parses a control block body: the text between <c>{</c> (already consumed)
         /// and its matching <c>}</c>.  Extracts the entire body as raw C# code
         /// and identifies embedded JSX ranges for later splicing by the emitters.
+        /// The result is assigned directly to a node's <c>Payload</c> — see
+        /// <see cref="ControlBlockPayload"/> (U-33).
         /// </summary>
-        private ControlBlockBody ParseControlBlockBody(
+        private ControlBlockPayload ParseControlBlockBody(
             int openBracePos,
             bool stopAtCase,
             string blockName
@@ -166,16 +158,27 @@ namespace ReactiveUITK.Language.Parser
             int closeBrace = ReturnFinder.FindMatchingBrace(_source, openBracePos, _source.Length);
             if (closeBrace < 0)
             {
+                // U-24: this recovery previously emitted no diagnostic at all — an
+                // unclosed `{if/@foreach/@switch/... body silently produced an empty
+                // ControlBlockPayload with no indication to the user why their markup vanished.
+                _diagnostics.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX0300",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = ReturnFinder.LineAtPos(_source, bodyStart) + _lineOffset,
+                    Message = $"Unclosed '{{' — missing '}}' closing the {blockName} body.",
+                });
+
                 // Unbalanced — skip to best-effort end
                 while (!_scanner.IsEof && _scanner.Current != '}')
                     _scanner.Advance();
                 _scanner.TryConsume('}');
-                return new ControlBlockBody(
-                    null, bodyStart, ReturnFinder.LineAtPos(_source, bodyStart) + _lineOffset,
-                    ImmutableArray<(int, int, int)>.Empty,
-                    ImmutableArray<(int, int, int)>.Empty,
-                    ImmutableArray<AstNode>.Empty
-                );
+                return new ControlBlockPayload
+                {
+                    BodyCode = null,
+                    BodyCodeOffset = bodyStart,
+                    BodyCodeLine = ReturnFinder.LineAtPos(_source, bodyStart) + _lineOffset,
+                };
             }
 
             int bodyEnd = closeBrace; // exclusive: position of '}'
@@ -210,10 +213,15 @@ namespace ReactiveUITK.Language.Parser
             _scanner.AdvanceTo(closeBrace);
             _scanner.TryConsume('}');
 
-            return new ControlBlockBody(
-                bodyCode, bodyCodeOffset, bodyCodeLine,
-                markupRanges, bareJsxRanges, bodyNodes
-            );
+            return new ControlBlockPayload
+            {
+                BodyCode = bodyCode,
+                BodyCodeOffset = bodyCodeOffset,
+                BodyCodeLine = bodyCodeLine,
+                BodyMarkupRanges = markupRanges,
+                BodyBareJsxRanges = bareJsxRanges,
+                Body = bodyNodes,
+            };
         }
 
         /// <summary>
@@ -350,7 +358,55 @@ namespace ReactiveUITK.Language.Parser
                 return nodes.ToImmutableArray();
             }
 
+            // U-11: `return someVar;` / an unwrapped ternary / anything else that isn't
+            // `return (...)`, `return <Tag/>;`, or `return null;` was silently invisible
+            // here — Body ends up empty with no diagnostic at all. Surface it instead.
+            int returnKwPos = FindTopLevelReturnKeyword(bodyCode);
+            if (returnKwPos >= 0)
+            {
+                int diagLine = bodyCodeLine + (ReturnFinder.LineAtPos(bodyCode, returnKwPos) - 1);
+                _diagnostics.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2102",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = diagLine,
+                    Message = "'return' in a directive body must use 'return (...)', 'return <Tag/>;', or 'return null;'.",
+                });
+            }
+
             return ImmutableArray<AstNode>.Empty;
+        }
+
+        /// <summary>
+        /// Finds the first token-boundary <c>return</c> keyword in <paramref name="code"/>,
+        /// skipping comments and string/char literals. Returns -1 if none. Used by
+        /// <see cref="ParseBodyForIde"/> (U-11) to distinguish "no return at all" (silently
+        /// fine — e.g. a guard clause elsewhere in the block) from "a return exists but its
+        /// shape is unsupported" (worth a diagnostic).
+        /// </summary>
+        private static int FindTopLevelReturnKeyword(string code)
+        {
+            int i = 0;
+            while (i < code.Length)
+            {
+                if (CSharpLexFacts.TrySkipNonCode(code, ref i, code.Length))
+                    continue;
+
+                if (code[i] == 'r' && i + 6 <= code.Length
+                    && string.CompareOrdinal(code, i, "return", 0, 6) == 0)
+                {
+                    char prev = i > 0 ? code[i - 1] : '\0';
+                    char next = i + 6 < code.Length ? code[i + 6] : '\0';
+                    bool isBoundary =
+                        !(char.IsLetterOrDigit(prev) || prev == '_')
+                        && !(char.IsLetterOrDigit(next) || next == '_');
+                    if (isBoundary)
+                        return i;
+                }
+
+                i++;
+            }
+            return -1;
         }
 
         /// <summary>
@@ -454,7 +510,16 @@ namespace ReactiveUITK.Language.Parser
                     )
                         break;
                     // Closing tag does not match expected — emit error and skip '<'
-                    _diagnostics.Add(ErrMismatchedTag(closing, stopTag ?? "?", _scanner.Line));
+                    // openLine is unknown here: this call site only has the expected tag
+                    // NAME (stopTag), not where it opened (U-13).
+                    _diagnostics.Add(
+                        ErrMismatchedTag(
+                            closing,
+                            stopTag ?? "?",
+                            _scanner.Line,
+                            foundCol: ColAtPos(_scanner.Pos)
+                        )
+                    );
                     _scanner.Advance();
                     continue;
                 }
@@ -484,7 +549,23 @@ namespace ReactiveUITK.Language.Parser
                 {
                     int exprLine = _scanner.Line;
                     int exprCol = ColAtPos(_scanner.Pos);
-                    var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset();
+                    var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset(out bool exprClosed);
+                    if (!exprClosed)
+                    {
+                        // U-28: an unclosed `{expr}` previously fell through to end-of-file
+                        // silently (the extractor treats EOF as an implicit close). Surface
+                        // it so the user sees where the missing '}' is.
+                        _diagnostics.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX0300",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = exprLine,
+                            SourceColumn = exprCol,
+                            EndLine = exprLine,
+                            EndColumn = exprCol + 1,
+                            Message = $"Unclosed '{{' expression at line {exprLine} in '{_filePath}'.",
+                        });
+                    }
                     if (!string.IsNullOrEmpty(expr))
                     {
                         nodes.Add(
@@ -512,6 +593,32 @@ namespace ReactiveUITK.Language.Parser
                 // ── Directive / control flow ────────────────────────────────
                 if (c == '@')
                 {
+                    // U-08: a literal '@' in text (e.g. "contact me @ home") is not a
+                    // directive attempt — only enter the directive branch for a KNOWN
+                    // keyword, or for an unknown identifier immediately followed by '('
+                    // or '{' (still error-worthy: catches typos like `@foreech (x in y) {`).
+                    if (!IsAtDirectiveAttempt())
+                    {
+                        // Consume a run of literal text starting at this '@', re-checking
+                        // the same test at any further '@' so "a @ b @ c" becomes one
+                        // TextNode instead of losing the whitespace between fragments to
+                        // the loop's SkipWhitespaceAndNewlines() on each re-entry.
+                        int textStart = _scanner.Pos;
+                        int textLine = _scanner.Line;
+                        while (!_scanner.IsEof)
+                        {
+                            char cc = _scanner.Current;
+                            if (cc == '<')
+                                break;
+                            if (cc == '@' && IsAtDirectiveAttempt())
+                                break;
+                            _scanner.Advance();
+                        }
+                        string literalText = _source.Substring(textStart, _scanner.Pos - textStart);
+                        nodes.Add(new TextNode(literalText, textLine, _filePath));
+                        continue;
+                    }
+
                     int atLine = _scanner.Line;
                     int atCol = ColAtPos(_scanner.Pos); // 0-based column of '@'
                     _scanner.Advance(); // consume '@'
@@ -624,9 +731,13 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
+                // U-29: capture the line BEFORE reading — ReadTextContent can span
+                // multiple lines (e.g. text wrapped across lines between elements), and
+                // _scanner.Line afterward is the line the text ENDS on, not where it starts.
+                int textStartLine = _scanner.Line;
                 string? text = _scanner.ReadTextContent();
                 if (text != null)
-                    nodes.Add(new TextNode(text, _scanner.Line, _filePath));
+                    nodes.Add(new TextNode(text, textStartLine, _filePath));
 
                 // Anti-infinite-loop: if nothing advanced the scanner, skip one char
                 if (_scanner.Pos == positionBefore)
@@ -730,7 +841,17 @@ namespace ReactiveUITK.Language.Parser
                 }
                 else
                 {
-                    _diagnostics.Add(ErrMismatchedTag(closing, tagName, openLine));
+                    // U-13: anchor at the mismatched CLOSING tag (_scanner.Line/Pos), not
+                    // the opening tag — openLine is still reported in the message text.
+                    _diagnostics.Add(
+                        ErrMismatchedTag(
+                            closing,
+                            tagName,
+                            _scanner.Line,
+                            openLine: openLine,
+                            foundCol: ColAtPos(_scanner.Pos)
+                        )
+                    );
                     SkipToTagEnd();
                 }
             }
@@ -808,12 +929,31 @@ namespace ReactiveUITK.Language.Parser
                     else if (!_scanner.IsEof && _scanner.Current == '{')
                     {
                         // Check if brace content is an inline JSX element: attr={<Tag />}
+                        // (also accepts a single paren wrapper: attr={(<Tag/>)} — U-25)
                         if (IsJsxInBraces())
                         {
                             _scanner.Advance(); // consume '{'
                             _scanner.SkipWhitespaceAndNewlines();
+                            bool parenWrapped = !_scanner.IsEof && _scanner.Current == '(';
+                            if (parenWrapped)
+                            {
+                                _scanner.Advance(); // consume '('
+                                _scanner.SkipWhitespaceAndNewlines();
+                            }
                             var element = ParseElement();
                             _scanner.SkipWhitespaceAndNewlines();
+                            if (parenWrapped)
+                            {
+                                if (!_scanner.TryConsume(')'))
+                                    _diagnostics.Add(
+                                        ErrUnexpectedToken(
+                                            _scanner.IsEof ? "EOF" : _scanner.Current.ToString(),
+                                            _scanner.Line,
+                                            "')' closing inline JSX attribute value"
+                                        )
+                                    );
+                                _scanner.SkipWhitespaceAndNewlines();
+                            }
                             if (!_scanner.TryConsume('}'))
                                 _diagnostics.Add(
                                     ErrUnexpectedToken(
@@ -900,12 +1040,7 @@ namespace ReactiveUITK.Language.Parser
                 new IfBranch(cond, firstLine)
                 {
                     ConditionOffset = condOffset,
-                    BodyCode = firstResult.BodyCode,
-                    BodyCodeOffset = firstResult.BodyCodeOffset,
-                    BodyCodeLine = firstResult.BodyCodeLine,
-                    BodyMarkupRanges = firstResult.BodyMarkupRanges,
-                    BodyBareJsxRanges = firstResult.BodyBareJsxRanges,
-                    Body = firstResult.Body,
+                    Payload = firstResult,
                 },
             };
 
@@ -951,17 +1086,15 @@ namespace ReactiveUITK.Language.Parser
                         new IfBranch(elseCond, elseLine)
                         {
                             ConditionOffset = elseCondOffset,
-                            BodyCode = elseIfResult.BodyCode,
-                            BodyCodeOffset = elseIfResult.BodyCodeOffset,
-                            BodyCodeLine = elseIfResult.BodyCodeLine,
-                            BodyMarkupRanges = elseIfResult.BodyMarkupRanges,
-                            BodyBareJsxRanges = elseIfResult.BodyBareJsxRanges,
-                            Body = elseIfResult.Body,
+                            Payload = elseIfResult,
                         }
                     );
                 }
                 else
                 {
+                    // U-05: Allman-style `@else\n{` — the `@else if` branch above already
+                    // tolerates newlines before its own '{'; this bare-`@else` branch didn't.
+                    _scanner.SkipWhitespaceAndNewlines();
                     if (!PeekAt('{'))
                     {
                         EmitExpected("'{' after @else", elseLine);
@@ -973,12 +1106,7 @@ namespace ReactiveUITK.Language.Parser
                     branches.Add(
                         new IfBranch(null, elseLine)
                         {
-                            BodyCode = elseResult.BodyCode,
-                            BodyCodeOffset = elseResult.BodyCodeOffset,
-                            BodyCodeLine = elseResult.BodyCodeLine,
-                            BodyMarkupRanges = elseResult.BodyMarkupRanges,
-                            BodyBareJsxRanges = elseResult.BodyBareJsxRanges,
-                            Body = elseResult.Body,
+                            Payload = elseResult,
                         }
                     );
                     break; // @else terminates the chain
@@ -1022,12 +1150,7 @@ namespace ReactiveUITK.Language.Parser
                 SourceColumn = startCol,
                 EndColumn = startCol + 4, // @for
                 ForExpressionOffset = forExprOffset,
-                BodyCode = result.BodyCode,
-                BodyCodeOffset = result.BodyCodeOffset,
-                BodyCodeLine = result.BodyCodeLine,
-                BodyMarkupRanges = result.BodyMarkupRanges,
-                BodyBareJsxRanges = result.BodyBareJsxRanges,
-                Body = result.Body,
+                Payload = result,
             };
         }
 
@@ -1061,12 +1184,7 @@ namespace ReactiveUITK.Language.Parser
                 SourceColumn = startCol,
                 EndColumn = startCol + 6, // @while
                 ConditionOffset = conditionOffset,
-                BodyCode = result.BodyCode,
-                BodyCodeOffset = result.BodyCodeOffset,
-                BodyCodeLine = result.BodyCodeLine,
-                BodyMarkupRanges = result.BodyMarkupRanges,
-                BodyBareJsxRanges = result.BodyBareJsxRanges,
-                Body = result.Body,
+                Payload = result,
             };
         }
 
@@ -1116,12 +1234,7 @@ namespace ReactiveUITK.Language.Parser
                 EndColumn = startCol + 8, // @foreach
                 ForeachExpression = foreachExpr,
                 ForeachExpressionOffset = foreachExprOffset,
-                BodyCode = result.BodyCode,
-                BodyCodeOffset = result.BodyCodeOffset,
-                BodyCodeLine = result.BodyCodeLine,
-                BodyMarkupRanges = result.BodyMarkupRanges,
-                BodyBareJsxRanges = result.BodyBareJsxRanges,
-                Body = result.Body,
+                Payload = result,
             };
         }
 
@@ -1137,7 +1250,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string switchExpr = _scanner.ReadParenExpression();
+            var (switchExpr, switchExprOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             if (!PeekAt('{'))
@@ -1182,13 +1295,23 @@ namespace ReactiveUITK.Language.Parser
                     {
                         _scanner.SkipInlineWhitespace();
                         int vStart = _scanner.Pos;
-                        while (
-                            !_scanner.IsEof
-                            && _scanner.Current != ':'
-                            && _scanner.Current != '\r'
-                            && _scanner.Current != '\n'
-                        )
+                        while (!_scanner.IsEof && _scanner.Current != '\r' && _scanner.Current != '\n')
+                        {
+                            if (_scanner.Current == ':')
+                            {
+                                // '::' (namespace-alias-qualifier, e.g. `global::Ns.Enum.Val`)
+                                // is part of the value, not the case-label terminator — only a
+                                // single ':' ends the label. See U-04.
+                                if (_scanner.Peek() == ':')
+                                {
+                                    _scanner.Advance();
+                                    _scanner.Advance();
+                                    continue;
+                                }
+                                break;
+                            }
                             _scanner.Advance();
+                        }
                         caseVal = _source.Substring(vStart, _scanner.Pos - vStart).Trim();
                     }
                     _scanner.TryConsume(':');
@@ -1252,12 +1375,15 @@ namespace ReactiveUITK.Language.Parser
                     cases.Add(
                         new SwitchCase(caseVal, caseLine)
                         {
-                            BodyCode = bodyCode,
-                            BodyCodeOffset = caseBodyStart,
-                            BodyCodeLine = bodyCodeLine,
-                            BodyMarkupRanges = markupRanges,
-                            BodyBareJsxRanges = bareJsxRanges,
-                            Body = bodyNodes,
+                            Payload = new ControlBlockPayload
+                            {
+                                BodyCode = bodyCode,
+                                BodyCodeOffset = caseBodyStart,
+                                BodyCodeLine = bodyCodeLine,
+                                BodyMarkupRanges = markupRanges,
+                                BodyBareJsxRanges = bareJsxRanges,
+                                Body = bodyNodes,
+                            },
                         }
                     );
                 }
@@ -1282,6 +1408,7 @@ namespace ReactiveUITK.Language.Parser
             {
                 SourceColumn = startCol,
                 EndColumn = startCol + 7, // @switch
+                SwitchExpressionOffset = switchExprOffset,
             };
         }
 
@@ -1309,16 +1436,6 @@ namespace ReactiveUITK.Language.Parser
             );
             var element = parser.ParseElement();
             return (element, parser._scanner.Pos);
-        }
-
-        /// <summary>Returns the 1-based line number for the given character offset in <c>_source</c>.</summary>
-        private int LineAtPos(int pos)
-        {
-            int line = 1;
-            for (int i = 0; i < pos && i < _source.Length; i++)
-                if (_source[i] == '\n')
-                    line++;
-            return line;
         }
 
         /// <summary>
@@ -1380,6 +1497,14 @@ namespace ReactiveUITK.Language.Parser
             int i = _scanner.Pos + 1; // past '{'
             while (i < _source.Length && char.IsWhiteSpace(_source[i]))
                 i++;
+            // A single parenthesis wrapper is still an inline JSX value:
+            // attr={(<Tag/>)} — peek past it (U-25) so it isn't typed as opaque C#.
+            if (i < _source.Length && _source[i] == '(')
+            {
+                i++;
+                while (i < _source.Length && char.IsWhiteSpace(_source[i]))
+                    i++;
+            }
             if (i >= _source.Length || _source[i] != '<')
                 return false;
             i++;
@@ -1394,6 +1519,35 @@ namespace ReactiveUITK.Language.Parser
         /// current scanner position — without consuming anything.
         /// Returns <c>null</c> if the current char is not '@'.
         /// </summary>
+        /// <summary>
+        /// True when the '@' at the current scanner position looks like a real directive
+        /// (a known keyword, or an unknown identifier immediately followed by '(' or '{' —
+        /// still error-worthy, catching typos like <c>@foreech (x in y) {</c>). False means
+        /// this '@' is literal text (see U-08). Assumes <c>_scanner.Current == '@'</c>.
+        /// </summary>
+        private bool IsAtDirectiveAttempt()
+        {
+            // `@(expr)` is the removed inline-expression syntax (use {expr} instead) —
+            // still a directive ATTEMPT so it hits the UITKX0306 "not supported" error,
+            // not silent literal-text treatment.
+            if (_scanner.Pos + 1 < _source.Length && _source[_scanner.Pos + 1] == '(')
+                return true;
+
+            string? keyword = PeekDirectiveKeyword();
+            bool isKnownKeyword = keyword is "if" or "foreach" or "for" or "while"
+                or "switch" or "break" or "continue" or "code" or "else" or "case" or "default";
+            if (isKnownKeyword)
+                return true;
+
+            int afterIdent = _scanner.Pos + 1 + (keyword?.Length ?? 0);
+            int afterWs = afterIdent;
+            while (afterWs < _source.Length && (_source[afterWs] == ' ' || _source[afterWs] == '\t'))
+                afterWs++;
+            return !string.IsNullOrEmpty(keyword)
+                && afterWs < _source.Length
+                && (_source[afterWs] == '(' || _source[afterWs] == '{');
+        }
+
         private string? PeekDirectiveKeyword()
         {
             int pos = _scanner.Pos;
@@ -1472,9 +1626,9 @@ namespace ReactiveUITK.Language.Parser
             )
                 return false;
 
-            // Skip inline whitespace after '@else'
+            // Skip whitespace (including newlines — U-05: Allman-style `@else\n{`) after '@else'
             int j = afterElse;
-            while (j < _source.Length && (_source[j] == ' ' || _source[j] == '\t'))
+            while (j < _source.Length && (_source[j] == ' ' || _source[j] == '\t' || _source[j] == '\r' || _source[j] == '\n'))
                 j++;
 
             if (j < _source.Length && _source[j] == '{')
@@ -1517,12 +1671,6 @@ namespace ReactiveUITK.Language.Parser
         private void SkipToEndOfLine()
         {
             while (!_scanner.IsEof && _scanner.Current != '\r' && _scanner.Current != '\n')
-                _scanner.Advance();
-        }
-
-        private void AdvanceScannerTo(int targetPos)
-        {
-            while (_scanner.Pos < targetPos && !_scanner.IsEof)
                 _scanner.Advance();
         }
 
@@ -1593,14 +1741,32 @@ namespace ReactiveUITK.Language.Parser
                     $"Tag '<{tagName}>' opened at line {line} in '{_filePath}' was never closed",
             };
 
-        private ParseDiagnostic ErrMismatchedTag(string got, string expected, int line) =>
+        /// <summary>
+        /// U-13: <paramref name="foundLine"/>/<paramref name="foundCol"/> anchor the
+        /// diagnostic at the mismatched CLOSING tag (where the squiggle should actually
+        /// appear). <paramref name="openLine"/> is the line the (expected) opening tag was
+        /// found on, purely for the "opened at line N" message text — omitted from the
+        /// message entirely when the caller doesn't track it (e.g. <c>ParseContent</c>'s
+        /// stop-tag check only knows the expected tag NAME, not where it opened).
+        /// </summary>
+        private ParseDiagnostic ErrMismatchedTag(
+            string got,
+            string expected,
+            int foundLine,
+            int? openLine = null,
+            int foundCol = 0
+        ) =>
             new ParseDiagnostic
             {
                 Code = "UITKX0302",
                 Severity = ParseSeverity.Error,
-                SourceLine = line,
-                Message =
-                    $"Found '</{got}>' but expected '</{expected}>' (opened at line {line}) in '{_filePath}'",
+                SourceLine = foundLine,
+                SourceColumn = foundCol,
+                EndLine = foundLine,
+                EndColumn = foundCol > 0 ? foundCol + got.Length + 3 : 0, // '</' + got + '>'
+                Message = openLine.HasValue
+                    ? $"Found '</{got}>' but expected '</{expected}>' (opened at line {openLine.Value}) in '{_filePath}'"
+                    : $"Found '</{got}>' but expected '</{expected}>' in '{_filePath}'",
             };
 
         private ParseDiagnostic ErrUnknownDirective(string keyword, int line, int col = 0) =>
@@ -1614,7 +1780,8 @@ namespace ReactiveUITK.Language.Parser
                 EndColumn = col > 0 ? col + 1 + keyword.Length : 0,
                 Message =
                     $"Unknown markup directive '@{keyword}' at line {line} in '{_filePath}'. "
-                    + "Valid directives are: if, else, foreach, for, while, switch, case, default, break, continue, code.",
+                    + "Valid directives are: if, else, foreach, for, while, switch, case, default, break, continue. "
+                    + "For a literal '@' in text, use {\"@\"}.",
             };
     }
 }

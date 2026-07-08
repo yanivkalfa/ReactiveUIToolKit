@@ -149,7 +149,8 @@ namespace ReactiveUITK.Language.Parser
 
             int i = 0;
             int line = 1;
-            SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+            var leadingTrivia = new List<(string Text, bool IsBlock, int Line)>();
+            SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
 
             // Parse optional leading `using X.Y.Z;` lines, `@uss "path"` lines,
             // AND an optional `@namespace X.Y` directive before the component keyword,
@@ -163,19 +164,36 @@ namespace ReactiveUITK.Language.Parser
                 parsedPreambleLine = false;
                 if (TryReadFunctionStyleUsing(source, ref i, ref line, usings))
                 {
-                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
                 }
                 if (TryReadFunctionStyleUss(source, ref i, ref line, ussFiles))
                 {
-                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
                 }
-                if (inlineNamespace == null
-                    && TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out string? parsedNs))
+                if (TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out string? parsedNs))
                 {
-                    inlineNamespace = parsedNs;
-                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    // U-09: a duplicate `@namespace` must still be CONSUMED (else the
+                    // preamble loop exits here, leaving the cursor stuck before the second
+                    // directive line — the component/hook/module keyword dispatch below then
+                    // finds neither, and the whole file fails with a misleading UITKX2105
+                    // rather than a targeted "duplicate @namespace" diagnostic).
+                    if (inlineNamespace == null)
+                    {
+                        inlineNamespace = parsedNs;
+                    }
+                    else
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2105",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = line,
+                            Message = "Duplicate @namespace directive — only one is allowed. The first one is used.",
+                        });
+                    }
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
                 }
             } while (parsedPreambleLine);
@@ -183,11 +201,13 @@ namespace ReactiveUITK.Language.Parser
             // ── Keyword dispatch: component / hook / module ─────────────────
             if (TryReadKeywordAt(source, i, "hook") || TryReadKeywordAt(source, i, "module"))
             {
-                return TryParseHookModuleFile(
+                bool hookModuleOk = TryParseHookModuleFile(
                     source, filePath, diagnosticBag, ref directiveSet,
                     ref i, ref line,
                     usings, ussFiles, inlineNamespace
                 );
+                directiveSet = directiveSet with { LeadingTrivia = leadingTrivia.ToImmutableArray() };
+                return hookModuleOk;
             }
 
             if (!TryReadKeyword(source, ref i, "component"))
@@ -264,7 +284,8 @@ namespace ReactiveUITK.Language.Parser
                     FunctionParams: functionParams,
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol
-                );
+                )
+                { LeadingTrivia = leadingTrivia.ToImmutableArray() };
                 return true;
             }
 
@@ -297,7 +318,8 @@ namespace ReactiveUITK.Language.Parser
                     FunctionParams: functionParams,
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol
-                );
+                )
+                { LeadingTrivia = leadingTrivia.ToImmutableArray() };
                 return true;
             }
 
@@ -357,7 +379,8 @@ namespace ReactiveUITK.Language.Parser
                     HasExplicitNamespace: inlineNamespace != null,
                     SetupCodeMarkupRanges: setupMarkupRanges1,
                     SetupCodeBareJsxRanges: bareJsxRanges1
-                );
+                )
+                { LeadingTrivia = leadingTrivia.ToImmutableArray() };
                 return true;
             }
 
@@ -429,7 +452,8 @@ namespace ReactiveUITK.Language.Parser
                 SetupCodeBareJsxRanges: bareJsxRanges2,
                 FunctionSetupGapOffset: setupGapOffset,
                 FunctionSetupGapLength: setupGapLength
-            );
+            )
+            { LeadingTrivia = leadingTrivia.ToImmutableArray() };
 
             if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
             {
@@ -1315,6 +1339,20 @@ namespace ReactiveUITK.Language.Parser
         }
 
         private static void SkipLeadingFunctionStyleTrivia(string source, ref int i, ref int line)
+            => SkipLeadingFunctionStyleTrivia(source, ref i, ref line, trivia: null);
+
+        /// <summary>
+        /// Skips whitespace and comments before the preamble/<c>component</c> keyword.
+        /// When <paramref name="trivia"/> is non-null, every consumed <c>//</c>, <c>/* */</c>,
+        /// or <c>&lt;!-- --&gt;</c> comment is appended (raw text incl. delimiters, whether it
+        /// is block-form, and its 1-based line) so callers can re-emit it verbatim on format
+        /// instead of silently discarding it (see finding U-01). Pass <c>null</c> for
+        /// lookahead-only probes (e.g. <see cref="LooksLikeFunctionStyleComponent"/>) that
+        /// never construct a <see cref="DirectiveSet"/>.
+        /// </summary>
+        private static void SkipLeadingFunctionStyleTrivia(
+            string source, ref int i, ref int line,
+            List<(string Text, bool IsBlock, int Line)>? trivia)
         {
             while (i < source.Length)
             {
@@ -1337,9 +1375,12 @@ namespace ReactiveUITK.Language.Parser
                     && source[i + 1] == '/'
                 )
                 {
+                    int start = i;
+                    int startLine = line;
                     i += 2;
                     while (i < source.Length && !IsNewline(source[i]))
                         i++;
+                    trivia?.Add((source.Substring(start, i - start), false, startLine));
                     continue;
                 }
 
@@ -1350,6 +1391,8 @@ namespace ReactiveUITK.Language.Parser
                     && source[i + 1] == '*'
                 )
                 {
+                    int start = i;
+                    int startLine = line;
                     i += 2;
                     while (i < source.Length)
                     {
@@ -1371,6 +1414,7 @@ namespace ReactiveUITK.Language.Parser
 
                         i++;
                     }
+                    trivia?.Add((source.Substring(start, i - start), true, startLine));
                     continue;
                 }
 
@@ -1383,6 +1427,8 @@ namespace ReactiveUITK.Language.Parser
                     && source[i + 3] == '-'
                 )
                 {
+                    int start = i;
+                    int startLine = line;
                     i += 4;
                     while (i < source.Length)
                     {
@@ -1405,6 +1451,7 @@ namespace ReactiveUITK.Language.Parser
 
                         i++;
                     }
+                    trivia?.Add((source.Substring(start, i - start), true, startLine));
                     continue;
                 }
 
@@ -1697,114 +1744,7 @@ namespace ReactiveUITK.Language.Parser
         }
 
         private static bool TrySkipNonCodeSpan(string source, ref int i, int limit)
-        {
-            if (i >= limit)
-                return false;
-
-            if (source[i] == '/' && i + 1 < limit)
-            {
-                if (source[i + 1] == '/')
-                {
-                    i += 2;
-                    while (i < limit && source[i] != '\n')
-                        i++;
-                    return true;
-                }
-
-                if (source[i + 1] == '*')
-                {
-                    i += 2;
-                    while (i + 1 < limit && !(source[i] == '*' && source[i + 1] == '/'))
-                        i++;
-                    i = i + 1 < limit ? i + 2 : limit;
-                    return true;
-                }
-            }
-
-            if (source[i] == '\'')
-            {
-                i++;
-                while (i < limit)
-                {
-                    if (source[i] == '\\')
-                    {
-                        i += 2;
-                        continue;
-                    }
-                    if (source[i] == '\'')
-                    {
-                        i++;
-                        break;
-                    }
-                    i++;
-                }
-                return true;
-            }
-
-            int quotePos = -1;
-            bool verbatim = false;
-
-            if (source[i] == '"')
-            {
-                quotePos = i;
-            }
-            else if ((source[i] == '@' || source[i] == '$') && i + 1 < limit && source[i + 1] == '"')
-            {
-                quotePos = i + 1;
-                verbatim = source[i] == '@';
-            }
-            else if (
-                (source[i] == '@' || source[i] == '$')
-                && i + 2 < limit
-                && (source[i + 1] == '@' || source[i + 1] == '$')
-                && source[i + 2] == '"'
-            )
-            {
-                quotePos = i + 2;
-                verbatim = source[i] == '@' || source[i + 1] == '@';
-            }
-
-            if (quotePos >= 0)
-            {
-                i = quotePos + 1;
-                while (i < limit)
-                {
-                    if (verbatim)
-                    {
-                        if (source[i] == '"')
-                        {
-                            if (i + 1 < limit && source[i + 1] == '"')
-                            {
-                                i += 2;
-                                continue;
-                            }
-                            i++;
-                            break;
-                        }
-                        i++;
-                        continue;
-                    }
-
-                    if (source[i] == '\\')
-                    {
-                        i += 2;
-                        continue;
-                    }
-
-                    if (source[i] == '"')
-                    {
-                        i++;
-                        break;
-                    }
-
-                    i++;
-                }
-
-                return true;
-            }
-
-            return false;
-        }
+            => CSharpLexFacts.TrySkipNonCode(source, ref i, limit);
 
         private static bool TryReadKeyword(string source, ref int i, string keyword)
         {
@@ -2162,6 +2102,16 @@ namespace ReactiveUITK.Language.Parser
                 if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '/')
                 {
                     while (i < rangeEnd && source[i] != '\n') i++;
+                    continue;
+                }
+
+                // Skip /* ... */ block comments (U-07: this method was previously
+                // block-comment-blind, unlike the sibling FindBareJsxRanges below,
+                // so a commented-out "(<Tag/>)" was misread as live JSX content).
+                if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '*')
+                {
+                    int end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = end >= 0 ? end + 2 : rangeEnd;
                     continue;
                 }
 
@@ -2605,6 +2555,24 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
+                // `=` assignment (U-06/U-23: excluding ==, !=, <=, >=, => — the
+                // multi-char operators containing '=' that are NOT an assignment
+                // boundary) so `x = cond && <T/>` yields LHS `cond`, not `x = cond`.
+                if (c == '=')
+                {
+                    char prevCh = i > sliceStart ? source[i - 1] : '\0';
+                    char nextCh = i + 1 < ampStart ? source[i + 1] : '\0';
+                    bool isCompoundEq =
+                        nextCh == '=' || nextCh == '>'
+                        || prevCh == '=' || prevCh == '!' || prevCh == '<' || prevCh == '>';
+                    if (!isCompoundEq)
+                    {
+                        i++;
+                        boundaries[depth] = i;
+                        continue;
+                    }
+                }
+
                 // `,` and `;`
                 if (c == ',' || c == ';')
                 {
@@ -2660,142 +2628,6 @@ namespace ReactiveUITK.Language.Parser
         /// within interpolation holes.
         /// </summary>
         internal static bool TrySkipStringOrCharLiteral(string source, int rangeEnd, ref int i)
-        {
-            if (i >= rangeEnd) return false;
-            char c0 = source[i];
-
-            // ── Char literal '...' ─────────────────────────────────────────
-            if (c0 == '\'')
-            {
-                int j = i + 1;
-                while (j < rangeEnd)
-                {
-                    if (source[j] == '\\') { j += 2; continue; }
-                    if (source[j] == '\'') { i = j + 1; return true; }
-                    j++;
-                }
-                i = rangeEnd;
-                return true;
-            }
-
-            // ── Detect string kind ─────────────────────────────────────────
-            bool isVerbatim = false;
-            bool isInterpolated = false;
-            int quotePos = -1;
-
-            if (c0 == '"')
-            {
-                quotePos = i;
-            }
-            else if (c0 == '$' && i + 1 < rangeEnd)
-            {
-                if (source[i + 1] == '"')
-                {
-                    isInterpolated = true;
-                    quotePos = i + 1;
-                }
-                else if (source[i + 1] == '@' && i + 2 < rangeEnd && source[i + 2] == '"')
-                {
-                    isInterpolated = true;
-                    isVerbatim = true;
-                    quotePos = i + 2;
-                }
-            }
-            else if (c0 == '@' && i + 1 < rangeEnd)
-            {
-                if (source[i + 1] == '"')
-                {
-                    isVerbatim = true;
-                    quotePos = i + 1;
-                }
-                else if (source[i + 1] == '$' && i + 2 < rangeEnd && source[i + 2] == '"')
-                {
-                    isInterpolated = true;
-                    isVerbatim = true;
-                    quotePos = i + 2;
-                }
-            }
-
-            if (quotePos < 0) return false;
-
-            // ── Scan to end of string ──────────────────────────────────────
-            int k = quotePos + 1;
-            int braceDepth = 0;
-
-            while (k < rangeEnd)
-            {
-                char ch = source[k];
-
-                // Inside an interpolation hole — track braces, skip nested strings
-                if (isInterpolated && braceDepth > 0)
-                {
-                    if (ch == '{') { braceDepth++; k++; continue; }
-                    if (ch == '}') { braceDepth--; k++; continue; }
-                    // Nested string or char literal inside interpolation
-                    if (ch == '"' || ch == '\'' || ch == '$' || ch == '@')
-                    {
-                        if (TrySkipStringOrCharLiteral(source, rangeEnd, ref k))
-                            continue;
-                    }
-                    // Skip // and /* */ inside interpolation
-                    if (ch == '/' && k + 1 < rangeEnd)
-                    {
-                        if (source[k + 1] == '/') { while (k < rangeEnd && source[k] != '\n') k++; continue; }
-                        if (source[k + 1] == '*')
-                        {
-                            int ce = source.IndexOf("*/", k + 2, StringComparison.Ordinal);
-                            k = ce >= 0 ? ce + 2 : rangeEnd;
-                            continue;
-                        }
-                    }
-                    k++;
-                    continue;
-                }
-
-                // Inside string text (braceDepth == 0)
-                if (isVerbatim)
-                {
-                    if (ch == '"')
-                    {
-                        if (k + 1 < rangeEnd && source[k + 1] == '"')
-                        { k += 2; continue; } // escaped ""
-                        i = k + 1; return true; // end of string
-                    }
-                    if (isInterpolated && ch == '{')
-                    {
-                        if (k + 1 < rangeEnd && source[k + 1] == '{')
-                        { k += 2; continue; } // escaped {{
-                        braceDepth++;
-                    }
-                    if (isInterpolated && ch == '}')
-                    {
-                        if (k + 1 < rangeEnd && source[k + 1] == '}')
-                        { k += 2; continue; } // escaped }}
-                    }
-                    k++;
-                    continue;
-                }
-
-                // Regular or interpolated non-verbatim
-                if (ch == '\\') { k += 2; continue; }
-                if (ch == '"') { i = k + 1; return true; }
-                if (isInterpolated && ch == '{')
-                {
-                    if (k + 1 < rangeEnd && source[k + 1] == '{')
-                    { k += 2; continue; } // escaped {{
-                    braceDepth++;
-                }
-                if (isInterpolated && ch == '}')
-                {
-                    if (k + 1 < rangeEnd && source[k + 1] == '}')
-                    { k += 2; continue; } // escaped }}
-                }
-                k++;
-            }
-
-            // Unterminated — advance to end
-            i = rangeEnd;
-            return true;
-        }
+            => CSharpLexFacts.TrySkipStringOrCharLiteral(source, rangeEnd, ref i);
     }
 }
