@@ -2,27 +2,20 @@
 
 ### Fix - `.uitkx` edits show up again on a plain recompile (Play + HMR off)
 
-**The baseline "edit, save, recompile, see the change" workflow is restored.** Since 0.5.10, saving a `.uitkx` that lives in an `.asmdef` assembly (anything but the default Assembly-CSharp - i.e. most real projects) produced **stale** generated output with Play mode and HMR off. The component kept rendering its old markup until a full Reimport / `Library` delete / any `.cs` edit forced the assembly to recompile - editing the `.uitkx` alone did nothing visible.
+**The "edit, save, recompile, see the change" baseline is restored.** Since 0.5.10, saving a `.uitkx` in an `.asmdef` assembly (most real projects) left generated output **stale** with Play/HMR off - the component kept its old markup until a full Reimport / `Library` delete / any `.cs` edit. The change-watcher only dirtied Assembly-CSharp, never the assembly your components live in, so the generator never re-ran. (Regression from 0.5.10 dropping `CleanBuildCache`.) It now writes its recompile trigger into the **owning assembly's own folder** - one incremental recompile, analyzer stays warm, no 30-40s stall, skipped while HMR is active.
 
-Root cause: the change-watcher wrote its recompile trigger into Assembly-CSharp only, which never dirties the assembly your components actually live in, so the source generator never re-ran on the edited file. (Regression from 0.5.10 dropping `CleanBuildCache` to cure the 30-40s HMR-Stop stall; that flag had been masking the problem by force-rebuilding everything.) The watcher now writes its trigger into the **owning assembly's own folder**, so only that one assembly recompiles - incrementally, analyzer stays warm, no stall - and it is skipped entirely while HMR is active. Belt-and-braces: the generator now reads `.uitkx` disk-authoritative, so even a stale `AdditionalText` handed to the compiler yields fresh output.
+### HMR pipeline
 
-### HMR pipeline - control-flow bodies, module methods, parse-error safety
+- **`@if` / `@foreach` / `@for` / `@while` / `@switch` bodies hot-swap again** (the emitter had been reading the body off the wrong AST node).
+- **`module` static-method edits refresh consumers** without a domain reload - and no more spurious `Could not find hook container` warning.
+- **No hot-swap from a syntactically-broken file** - a parse error now leaves your running UI untouched instead of swapping the wrong UI in silently.
+- Relative asset paths (`"./icon.png"`) resolve the same across editor, build, and HMR; a shared `.uss` edited across many components no longer freezes the editor.
 
-**`@if` / `@foreach` / `@for` / `@while` / `@switch` bodies hot-swap again.** The HMR emitter read the control-flow body fields off the wrong AST node after they moved onto a shared payload record, so every control-flow body silently vanished on hot-swap. Fixed - it now dereferences the payload first, with a null-fallback for older language DLLs.
+### Parser, formatter, IDE
 
-**Editing a `module`'s static method now hot-swaps and refreshes its consumers** without a domain reload - and without the spurious `Could not find hook container` warning it used to log on every module save. The method swap worked, but its consumer re-render was wired through the hook path, so a module-only edit left static consumers showing stale output until an unrelated re-render (a state change or the next game-loop frame).
+Formatter no longer corrupts commented-out code; `@switch (expr)` gets hover / diagnostics / go-to-def; six drifted mini-lexers consolidated into one; plus a batch of parser edge cases. All ship to Unity via the committed analyzer DLL - no IDE update required.
 
-**HMR no longer hot-swaps UI from a syntactically-broken `.uitkx`.** The compiler filled a parse-diagnostic list but never read it, so a save with a syntax error could emit valid C# from an error-recovered AST and swap the *wrong* UI in silently. It now surfaces the parse error and leaves your running UI untouched.
-
-**Two more:** relative asset paths (`"./icon.png"`, `"../ui/theme.uss"`) now resolve identically across the editor, the build, and HMR (four consumers previously disagreed, so theme edits could silently stop hot-reloading); and a shared `.uss` edited across many components no longer freezes the editor draining the whole compile fan-out in one tick - it compiles one per tick.
-
-### Correctness sweep - parser, formatter, IDE
-
-A batch of `.uitkx` tooling fixes, all shipping to Unity via the committed analyzer DLL (no IDE update required): the formatter no longer corrupts commented-out code; `@switch (expr)` gets hover / diagnostics / go-to-def like the other control-flow conditions; mismatched-closing-tag diagnostics anchor at the real tag; expression-bodied props are indexed; six drifted mini-lexers consolidated into one (fixing a quoted-`}`-in-interpolation truncation); plus a cluster of parser edge cases (literal `@` in text, duplicate `@namespace`, Allman `@else`, `::`-qualified `@case`, paren-wrapped inline JSX attributes, `cond && <Tag/>` shapes).
-
-**Tests.** SG `1337/1337`, LSP `82/82` green.
-
-VS Code **1.2.17 -> 1.2.18** | VS 2022 **1.2.17 -> 1.2.18** | Rider **1.0.0 -> 1.0.1** ship the analyzer + LSP fixes.
+SG `1337/1337`, LSP `82/82`. VS Code / VS 2022 **1.2.18**, Rider **1.0.1**.
 
 ---
 
