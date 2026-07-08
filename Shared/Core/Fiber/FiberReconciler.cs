@@ -1310,17 +1310,6 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Schedule passive effects
-        /// </summary>
-        private void SchedulePassiveEffects(FiberNode fiber)
-        {
-            if (fiber.Tag == FiberTag.FunctionComponent)
-            {
-                FiberFunctionComponent.SchedulePassiveEffects(fiber);
-            }
-        }
-
-        /// <summary>
         /// Commit deletion - remove element from DOM
         /// </summary>
         private void CommitDeletion(FiberNode fiber)

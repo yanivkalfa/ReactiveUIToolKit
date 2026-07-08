@@ -1,5 +1,23 @@
 # UITKX Router vs React Router DOM — Deep Comparison & Gap Analysis
 
+> **STATUS (updated 2026-06-19): MOSTLY IMPLEMENTED - this gap analysis is now largely historical.**
+> Verified against `Shared/Core/Router/`: 14 of the 18 parity gaps below have SHIPPED (0.4.14 - 0.6.x):
+> `<Outlet>`, `<Routes>` (first-match + ranking), layout routes, index routes, pathless prefix routes,
+> route specificity scoring, case-sensitive matching, `<NavLink>` active styling, `<Navigate>`,
+> `useSearchParams()` setter, `useMatches()`, `useOutletContext`, `basename`, and the single-router
+> invariant now THROWS (so the "silent shadowing" claim in section 2.D and the "Critical gaps / Outlet
+> story" in section 3 are OBSOLETE).
+>
+> **Still open (track in `V1_RELEASE_PLAN.md`, not here):**
+> 1. Optional segments (`:lang?`) - row 12.
+> 2. Per-route `errorElement` / error boundary - row 23.
+> 3. Navigation Action (PUSH/POP/REPLACE) tracking - section 2.C.
+> 4. `useNavigate` per-call `relative: "path"` mode (replace + state already done) - row 14.
+>
+> Intentionally out-of-scope data-mode rows (loaders/actions/fetchers, lazy, RSC, defer/Await,
+> viewTransition, browser/hash history) remain non-goals. The matrix below is the PRE-IMPLEMENTATION
+> snapshot, kept for history - **trust this banner over individual rows.**
+
 > Source basis
 > - **UITKX router**: every file under `Shared/Core/Router/` (9 source files, ~700 LOC total)
 >   read in full: `RouterComponents.cs`, `RouteMatcher.cs`, `RouterHooks.cs`, `RouterPath.cs`,

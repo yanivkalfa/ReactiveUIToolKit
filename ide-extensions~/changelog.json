@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-07-08",
+      "versions": {
+        "vscode": "1.2.18",
+        "vs2022": "1.2.18",
+        "rider": "1.0.1"
+      },
+      "shared": [
+        "Ships library 0.6.5's correctness fixes via the bundled analyzer DLL and the shared language-lib/LSP server. All bug fixes -- no new commands, settings, or diagnostic codes.\n\nFix: formatter no longer corrupts commented-out code. A `/* old UI: (<Label/>) was removed */`-style block comment could be misdetected as live JSX by the setup-code JSX-block scanners, producing a false CS1002 in the virtual document and re-indenting the comment's interior on every save. Both scanners now skip block comments (matching their sibling detector), and comment-interior lines are re-emitted byte-verbatim like the existing multi-line-string handling.\n\nFix: `@switch (expr)` now gets hover, diagnostics, and go-to-definition on its own expression in the editor, matching `@if`/`@foreach`/`@for`/`@while` conditions -- previously the switch expression was never mapped into the virtual document at all.\n\nFix: mismatched closing-tag diagnostic (UITKX0302) now anchors at the actual mismatched tag with a tracked column, instead of a stale line and a fabricated \"opened at line N\" when the opening location wasn't tracked.\n\nFix: hover/completion prop indexing now recognizes expression-bodied properties (`public string Foo => ...;`), not just brace-bodied ones.\n\nFix: several parser edge cases that could misfire live diagnostics or silently mis-parse: literal `@` in text content, duplicate `@namespace`, Allman-style `@else`, `::`-qualified `@case` values, an unwrapped `return expr;` inside a control block, an unclosed `{`/`{expr}` in a snippet, and `attr={(<Tag/>)}` (paren-wrapped inline JSX attribute) now recognized as JSX instead of opaque C#.\n\nFix: `x = cond && <Tag/>` and other logical-AND-before-JSX shapes now desugar correctly regardless of LHS shape.\n\nFix: a CRLF-handling edge case and a lexer drift (`{ $@\"{a(\"}\")}\" }` truncating the extracted expression) are covered by a consolidated, shared lexer used across the parser, formatter, and diagnostics -- six previously-independent copies could drift from each other after edits to just one.\n\nFix: editor asset-path diagnostics now resolve relative paths (`\"./icon.png\"`, `\"../ui/theme.uss\"`) with the same rule the build uses. Previously the analyzer, the generated code, and HMR could each resolve a bare or relative path differently, so the editor might show no error while the build emitted an unresolvable path.\n\nSG suite 1337/1337 passing, LSP suite 82/82 passing."
+      ]
+    },
+    {
       "date": "2026-06-13",
       "versions": {
         "vscode": "1.2.17",

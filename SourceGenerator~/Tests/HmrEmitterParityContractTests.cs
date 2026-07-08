@@ -1068,4 +1068,35 @@ public class HmrEmitterParityContractTests
         Assert.NotNull(output.GeneratedSource);
         Assert.Contains("Hooks.UseTransition(", output.GeneratedSource);
     }
+
+    // ── U-06 — `cond && <Tag/>` desugar must apply in setup code too ───────────
+
+    /// <summary>
+    /// SG's <c>SpliceSetupCodeMarkup</c> now shares <c>TryEmitLogicalAndDesugar</c>
+    /// with <c>SpliceExpressionMarkup</c> (previously only the latter desugared the
+    /// React <c>&amp;&amp;</c>-short-circuit idiom; setup code spliced raw JSX into
+    /// <c>isOn &amp;&amp; V.Badge(...)</c>, a hard CS0019). HMR's
+    /// <c>HmrCSharpEmitter.EmitCtx.SpliceSetupCodeMarkup</c> mirrors this via its own
+    /// <c>TryEmitLogicalAndDesugar</c> + <c>AppendIsolatedJsxEmission</c>. If SG's
+    /// ternary shape ever changes, HMR's mirror must change too.
+    /// </summary>
+    [Fact]
+    public void Sg_LogicalAndJsx_InSetupCode_DesugarsToTernary()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component BadgeUser {
+                var isOn = true;
+                var x = (isOn && <Label text="on" />);
+                return (<Box>{x}</Box>);
+            }
+            """
+        );
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("isOn) ?", output.GeneratedSource);
+        Assert.Contains(": (global::ReactiveUITK.Core.VirtualNode?)null)", output.GeneratedSource);
+        Assert.DoesNotContain("isOn && global::ReactiveUITK.Core.V.", output.GeneratedSource);
+    }
 }

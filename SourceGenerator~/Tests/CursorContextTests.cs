@@ -148,6 +148,40 @@ public sealed class CursorContextTests
         Assert.Equal(CursorKind.CSharpExpression, ctx.Kind);
     }
 
+    // ── U-32: multi-line child expression, resolved via real AST spans ──────
+
+    [Fact]
+    public void CSharpExpression_MultiLineChildExpression_ContinuationLine()
+    {
+        // The '{' opens on its own line; the cursor sits two lines later, still
+        // inside the same (unterminated-on-this-line) expression. Resolved via
+        // the ExpressionNode's tracked ExpressionOffset/ExpressionLength span,
+        // not a text-based brace scan.
+        var ctx = FindAtPipe(
+            "component C {\n  return (\n    <Box>\n      {\n        fl|ag\n          ? <Label/>\n          : null\n      }\n    </Box>\n  );\n}");
+        Assert.Equal(CursorKind.CSharpExpression, ctx.Kind);
+    }
+
+    [Fact]
+    public void CSharpExpression_MultiLineChildExpression_LastLine()
+    {
+        // Cursor on the line containing the closing '}' — still inside the span.
+        var ctx = FindAtPipe(
+            "component C {\n  return (\n    <Box>\n      {\n        flag\n          ? <Label/>\n          : nu|ll\n      }\n    </Box>\n  );\n}");
+        Assert.Equal(CursorKind.CSharpExpression, ctx.Kind);
+    }
+
+    [Fact]
+    public void CSharpExpression_OutsideMultiLineExpression_NotMisclassified()
+    {
+        // A cursor on a line OUTSIDE the expression's span (past the closing '}',
+        // inside the enclosing <Box>'s own body) must not be swept in by an
+        // overbroad match — regression guard for the reverted brace-depth attempt.
+        var ctx = FindAtPipe(
+            "component C {\n  return (\n    <Box>\n      {\n        flag\n          ? <Label/>\n          : null\n      }\n      <La|bel/>\n    </Box>\n  );\n}");
+        Assert.NotEqual(CursorKind.CSharpExpression, ctx.Kind);
+    }
+
     // ── Function-style component ───────────────────────────────────────────
 
     [Fact]

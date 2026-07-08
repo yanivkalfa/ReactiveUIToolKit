@@ -96,9 +96,28 @@ namespace ReactiveUITK.Language.IntelliSense
     /// within a tag).
     ///
     /// <para>
-    /// Because the parser does not yet fill <see cref="AstNode.SourceColumn"/>
-    /// (it is always 0), column-level positioning is resolved by scanning the
-    /// raw line text rather than reading node span data.
+    /// Column-level positioning within a tag/attribute is resolved by scanning
+    /// the raw line text rather than reading node span data — a deliberate
+    /// simplification, not a parser limitation (<see cref="AstNode.SourceColumn"/>
+    /// is populated for elements/attributes, see <c>SemanticTokensProvider</c>).
+    /// </para>
+    /// <para>
+    /// U-32: block "2a" of <see cref="Find"/> only finds an inline expression's
+    /// opening '{' when it lives on the SAME line as the cursor, so a cursor on a
+    /// continuation line of a multi-line child/attribute expression (a wrapped
+    /// ternary split across lines) used to fall through to plain tag/AST
+    /// classification instead of <see cref="CursorKind.CSharpExpression"/>. A first
+    /// attempt fixed this with a bounded backward TEXT scan counting unclosed '{'
+    /// — that was wrong: a plain brace-depth count can't distinguish an inline
+    /// expression's '{' from an enclosing STRUCTURAL one (the component body, an
+    /// <c>@if</c>/<c>@foreach</c> block, …), so it misclassified cursors near the
+    /// top of ordinary files (10 tests failed) and was reverted. Block "2b" instead
+    /// walks the ACTUAL parsed <c>ExpressionNode</c>/attribute
+    /// <c>CSharpExpressionValue</c> spans (each already carries an absolute
+    /// <c>ExpressionOffset</c> + length from the parser) and checks whether the
+    /// cursor's line falls inside one — exact, not heuristic, and structural braces
+    /// never produce an <c>ExpressionNode</c> in the first place so they can't be
+    /// mismatched for one.
     /// </para>
     /// </summary>
     public static class AstCursorContext
@@ -179,6 +198,30 @@ namespace ReactiveUITK.Language.IntelliSense
                             Word   = word,
                         };
                     }
+                }
+
+                // ── 2b. Multi-line inline expression (U-32) ─────────────────────
+                // Block 2a only finds the opening '{' when it lives on THIS line.
+                // A cursor on a continuation line of a multi-line child expression
+                // (e.g. a wrapped ternary split across lines) has no '{' of its
+                // own, so the block above never fires. Unlike a text-based brace
+                // scan (which can't tell an expression's '{' from an enclosing
+                // component/@if body's '{' and was reverted after breaking 10
+                // tests — see the class doc), this walks the ACTUAL parsed
+                // ExpressionNode/attribute spans (SourceLine + ExpressionOffset/
+                // ExpressionLength, already tracked by the parser) and checks
+                // whether line1 falls inside one. No heuristic: either a real
+                // expression node's span contains this line, or it doesn't.
+                if (braceOpen < 0
+                    && FindMultiLineExpressionSpan(parseResult.RootNodes, text, line1, out bool isAttrValueSpan)
+                    && !isAttrValueSpan)
+                {
+                    return new CursorContext
+                    {
+                        Kind   = CursorKind.CSharpExpression,
+                        Prefix = prefix,
+                        Word   = word,
+                    };
                 }
             }
             // ── 3. AST walk: find the element / attribute that owns this line ──
@@ -288,6 +331,118 @@ namespace ReactiveUITK.Language.IntelliSense
 
         private static bool IsIdentChar(char c) => char.IsLetterOrDigit(c) || c == '_';
 
+        // ── Multi-line expression span lookup (U-32) ──────────────────────────
+
+        /// <summary>
+        /// 1-based line number containing <paramref name="offset"/>, computed from the
+        /// start of <paramref name="text"/> — independent of any node's own SourceLine,
+        /// so it's exact even when a node's tracked expression content starts on a LATER
+        /// line than the node's own SourceLine (e.g. the opening '{' alone on its line,
+        /// with the expression content beginning on the next line).
+        /// </summary>
+        private static int LineOfOffset(string text, int offset)
+        {
+            int line = 1;
+            int limit = Math.Min(offset, text.Length);
+            for (int i = 0; i < limit; i++)
+                if (text[i] == '\n')
+                    line++;
+            return line;
+        }
+
+        /// <summary>
+        /// True when <paramref name="line1"/> falls on a CONTINUATION line (strictly
+        /// after the opening line) of a real parsed expression span — either a child
+        /// <see cref="ExpressionNode"/> or an <see cref="AttributeNode"/> whose value is
+        /// a <see cref="CSharpExpressionValue"/>. <paramref name="isAttributeValue"/>
+        /// distinguishes the two so the caller can mirror block 2a's exclusion (an
+        /// attribute value is classified elsewhere, not as a bare child expression).
+        /// Uses the parser-tracked absolute offset + length of the expression, so this
+        /// is exact — no brace-counting guesswork about which '{' owns which span.
+        /// </summary>
+        private static bool FindMultiLineExpressionSpan(
+            ImmutableArray<AstNode> nodes, string text, int line1, out bool isAttributeValue)
+        {
+            foreach (var node in nodes)
+            {
+                if (TryFindExpressionSpanInNode(node, text, line1, out isAttributeValue))
+                    return true;
+            }
+            isAttributeValue = false;
+            return false;
+        }
+
+        private static bool TryFindExpressionSpanInNode(
+            AstNode node, string text, int line1, out bool isAttributeValue)
+        {
+            isAttributeValue = false;
+            switch (node)
+            {
+                case ExpressionNode en:
+                    if (en.ExpressionLength > 0)
+                    {
+                        int endLine = LineOfOffset(text, en.ExpressionOffset + en.ExpressionLength);
+                        if (line1 > en.SourceLine && line1 <= endLine)
+                            return true;
+                    }
+                    return false;
+
+                case ElementNode el:
+                    foreach (var attr in el.Attributes)
+                    {
+                        if (attr.Value is CSharpExpressionValue cse && cse.ExpressionOffset > 0
+                            && cse.Expression.Length > 0)
+                        {
+                            int endLine = LineOfOffset(text, cse.ExpressionOffset + cse.Expression.Length);
+                            if (line1 > attr.SourceLine && line1 <= endLine)
+                            {
+                                isAttributeValue = true;
+                                return true;
+                            }
+                        }
+                    }
+                    foreach (var child in el.Children)
+                        if (TryFindExpressionSpanInNode(child, text, line1, out isAttributeValue))
+                            return true;
+                    return false;
+
+                case IfNode ifn:
+                    foreach (var branch in ifn.Branches)
+                        foreach (var n in branch.Payload.Body)
+                            if (TryFindExpressionSpanInNode(n, text, line1, out isAttributeValue))
+                                return true;
+                    return false;
+
+                case ForeachNode fe:
+                    foreach (var n in fe.Payload.Body)
+                        if (TryFindExpressionSpanInNode(n, text, line1, out isAttributeValue))
+                            return true;
+                    return false;
+
+                case ForNode fo:
+                    foreach (var n in fo.Payload.Body)
+                        if (TryFindExpressionSpanInNode(n, text, line1, out isAttributeValue))
+                            return true;
+                    return false;
+
+                case WhileNode wh:
+                    foreach (var n in wh.Payload.Body)
+                        if (TryFindExpressionSpanInNode(n, text, line1, out isAttributeValue))
+                            return true;
+                    return false;
+
+                case SwitchNode sw:
+                    foreach (var c in sw.Cases)
+                        foreach (var n in c.Payload.Body)
+                            if (TryFindExpressionSpanInNode(n, text, line1, out isAttributeValue))
+                                return true;
+                    return false;
+
+                default:
+                    return false;
+            }
+        }
+
         // ── AST structural context ────────────────────────────────────────────
 
         /// <summary>
@@ -350,20 +505,20 @@ namespace ReactiveUITK.Language.IntelliSense
                 }
                 case IfNode ifn:
                     foreach (var branch in ifn.Branches)
-                        WalkBody(branch.Body, line1, ref tagName, ref attrName);
+                        WalkBody(branch.Payload.Body, line1, ref tagName, ref attrName);
                     break;
                 case ForeachNode fe:
-                    WalkBody(fe.Body, line1, ref tagName, ref attrName);
+                    WalkBody(fe.Payload.Body, line1, ref tagName, ref attrName);
                     break;
                 case ForNode fo:
-                    WalkBody(fo.Body, line1, ref tagName, ref attrName);
+                    WalkBody(fo.Payload.Body, line1, ref tagName, ref attrName);
                     break;
                 case WhileNode wh:
-                    WalkBody(wh.Body, line1, ref tagName, ref attrName);
+                    WalkBody(wh.Payload.Body, line1, ref tagName, ref attrName);
                     break;
                 case SwitchNode sw:
                     foreach (var c in sw.Cases)
-                        WalkBody(c.Body, line1, ref tagName, ref attrName);
+                        WalkBody(c.Payload.Body, line1, ref tagName, ref attrName);
                     break;
             }
         }

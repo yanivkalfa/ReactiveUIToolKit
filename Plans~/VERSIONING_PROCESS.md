@@ -230,10 +230,10 @@ Status: `✅` = supported, `⬜` = not yet implemented, `🚫` = not applicable,
 | textShadow | 6000.0 | ✅ | — | floor |
 | top | 6000.0 | ✅ | — | floor |
 | transformOrigin | 6000.0 | ✅ | — | floor |
-| transitionDelay | 6000.0 | ⬜ | — | No-op stub (StyleList diffing issue) |
-| transitionDuration | 6000.0 | ⬜ | — | No-op stub (StyleList diffing issue) |
-| transitionProperty | 6000.0 | ⬜ | — | No-op stub (StyleList diffing issue) |
-| transitionTimingFunction | 6000.0 | ⬜ | — | No-op stub (StyleList diffing issue) |
+| transitionDelay | 6000.0 | ✅ | — | Implemented. StyleList<TimeValue>. |
+| transitionDuration | 6000.0 | ✅ | — | Implemented. StyleList<TimeValue>. |
+| transitionProperty | 6000.0 | ✅ | — | Implemented. StyleList<StylePropertyName>. |
+| transitionTimingFunction | 6000.0 | ✅ | — | Implemented. StyleList<EasingFunction> (+ string parse). |
 | translate | 6000.0 | ✅ | — | floor |
 | unityBackgroundImageTintColor | 6000.0 | ✅ | — | floor |
 | ~~unityEditorTextRenderingMode~~ | — | 🚫 | — | NOT in IStyle. Was listed based on docs; assembly diff confirmed absent through 6000.3. |
@@ -250,7 +250,7 @@ Status: `✅` = supported, `⬜` = not yet implemented, `🚫` = not applicable,
 | unitySliceTop | 6000.0 | ✅ | — | floor |
 | unitySliceType | 6000.0 | ✅ | — | floor |
 | unityTextAlign | 6000.0 | ✅ | — | floor |
-| unityTextAutoSize | 6000.2 | ⬜ | — | Floor property. Assembly diff: added in 6000.2 (not 6.3 as originally documented). |
+| unityTextAutoSize | 6000.2 | ✅ | — | Implemented (TextAutoSizeMode). Floor property added in 6000.2 (not 6.3 as originally documented). |
 | ~~unityTextGenerator~~ | — | 🚫 | — | NOT in IStyle. Was listed based on docs; assembly diff confirmed absent through 6000.3. |
 | unityTextOutlineColor | 6000.0 | ✅ | — | floor |
 | unityTextOutlineWidth | 6000.0 | ✅ | — | floor |

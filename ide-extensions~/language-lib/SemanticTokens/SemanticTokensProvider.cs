@@ -22,9 +22,11 @@ namespace ReactiveUITK.Language.SemanticTokens
     ///   <item>Inline expression delimiters (<c>@(</c>)</item>
     /// </list>
     ///
-    /// Column positions are resolved by scanning the raw source text because
-    /// <see cref="AstNode.SourceColumn"/> defaults to 0 in the current parser
-    /// version.
+    /// Element/attribute open-tag columns prefer the parser-tracked
+    /// <see cref="AstNode.SourceColumn"/> where available (U-31); most other token
+    /// kinds (directive keywords, close tags, control-flow keywords) still resolve
+    /// their column by scanning the raw source text, since <c>SourceColumn</c> is
+    /// not tracked for every node kind.
     /// </summary>
     public sealed class SemanticTokensProvider
     {
@@ -250,25 +252,31 @@ namespace ReactiveUITK.Language.SemanticTokens
 
                 case ForeachNode fe:
                     EmitKeyword(tokens, source, lineStarts, fe.SourceLine, "@foreach");
-                    CollectBodyNodes(fe.Body, source, lineStarts, tokens, knownElements);
+                    CollectBodyNodes(fe.Payload.Body, source, lineStarts, tokens, knownElements);
                     break;
 
                 case ForNode fo:
                     EmitKeyword(tokens, source, lineStarts, fo.SourceLine, "@for");
-                    CollectBodyNodes(fo.Body, source, lineStarts, tokens, knownElements);
+                    CollectBodyNodes(fo.Payload.Body, source, lineStarts, tokens, knownElements);
                     break;
 
                 case WhileNode wh:
                     EmitKeyword(tokens, source, lineStarts, wh.SourceLine, "@while");
-                    CollectBodyNodes(wh.Body, source, lineStarts, tokens, knownElements);
+                    CollectBodyNodes(wh.Payload.Body, source, lineStarts, tokens, knownElements);
                     break;
 
                 case SwitchNode sw:
                     CollectSwitchTokens(sw, source, lineStarts, tokens, knownElements);
                     break;
 
-                case ExpressionNode ex:
-                    EmitKeyword(tokens, source, lineStarts, ex.SourceLine, "@(");
+                // U-30: ExpressionNode always originates from {expr} syntax (curly braces) —
+                // `@(expr)` is removed syntax that never parses into an ExpressionNode (see
+                // UitkxParser's AtExprNotSupported diagnostic). This case searched the source
+                // line for the literal "@(" and, since that text is never actually there,
+                // always silently found nothing — dead code that could, in the rare case an
+                // unrelated "@(" substring appeared elsewhere on the same line (e.g. inside a
+                // verbatim string), have highlighted the wrong text as a directive token.
+                case ExpressionNode:
                     break;
 
                 case CommentNode jc:
@@ -306,8 +314,15 @@ namespace ReactiveUITK.Language.SemanticTokens
         {
             var mods = s_noMods;
 
-            // Open-tag name column (search for '<TagName', not '</TagName')
-            int openNameCol = FindOpenTagName(source, lineStarts, el.SourceLine, el.TagName);
+            // Open-tag name column. Prefer the parser-tracked SourceColumn (U-31):
+            // ParseElement always records the 0-based column of the opening '<', so
+            // the tag name starts one character past it. Falling back to a textual
+            // "<TagName" search (below) finds the FIRST occurrence on the line and
+            // collides when two elements with the same tag name share a line, e.g.
+            // <Label text="a" /><Label text="b" />.
+            int openNameCol = el.SourceColumn > 0
+                ? el.SourceColumn + 1
+                : FindOpenTagName(source, lineStarts, el.SourceLine, el.TagName);
             if (openNameCol >= 0)
                 EmitToken(
                     tokens,
@@ -407,7 +422,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                     }
                 }
 
-                CollectBodyNodes(branch.Body, source, lineStarts, tokens, knownElements);
+                CollectBodyNodes(branch.Payload.Body, source, lineStarts, tokens, knownElements);
             }
         }
 
@@ -428,35 +443,9 @@ namespace ReactiveUITK.Language.SemanticTokens
                 string kw = c.ValueExpression != null ? "@case" : "@default";
                 EmitKeyword(tokens, source, lineStarts, c.SourceLine, kw);
 
-                CollectBodyNodes(c.Body, source, lineStarts, tokens, knownElements);
+                CollectBodyNodes(c.Payload.Body, source, lineStarts, tokens, knownElements);
             }
         }
-
-        // ── @code body C# tokenizer ─────────────────────────────────────────
-
-        /// <summary>
-        /// Composite tokeniser for C# source inside <c>@code { }</c> blocks.
-        /// Groups (tried left-to-right, so earlier groups win):
-        ///   str  — string / interpolated string / verbatim string literal
-        ///   num  — numeric literal
-        ///   kw   — C# keyword or built-in type alias
-        ///   func — identifier immediately followed by (
-        ///   type — PascalCase identifier (class / type name)
-        ///   var  — camelCase / underscore identifier
-        /// </summary>
-        private static readonly Regex s_codeBodyTokenRegex = new Regex(
-            @"(?<str>\$?@?""(?:[^""\\]|\\.)*"")"
-                + @"|(?<num>\b\d+(?:\.\d+)?[fFdDmMuUlL]*\b)"
-                + @"|(?<kw>\b(?:var|int|string|bool|float|double|decimal|long|uint|ulong|byte|char|object|void"
-                + @"|return|await|async|if|else|for|foreach|while|do|break|continue|in|new|this"
-                + @"|null|true|false|typeof|nameof|is|as|out|ref|readonly|const|static|using"
-                + @"|throw|catch|finally|params|class|interface|struct|enum|record"
-                + @"|private|public|protected|internal|abstract|override|virtual|sealed)\b)"
-                + @"|(?<func>[a-zA-Z_][A-Za-z0-9_]*)(?=\s*\()"
-                + @"|(?<type>\b[A-Z][A-Za-z0-9]*\b)"
-                + @"|(?<var>\b[a-z_][A-Za-z0-9_]*\b)",
-            RegexOptions.Compiled
-        );
 
         // ── @code body scanner ────────────────────────────────────────────────
 
@@ -552,16 +541,6 @@ namespace ReactiveUITK.Language.SemanticTokens
             }
         }
 
-        private static int OffsetToLine1(int[] lineStarts, int offset)
-        {
-            int idx = Array.BinarySearch(lineStarts, offset);
-            if (idx < 0)
-                idx = (~idx) - 1;
-            if (idx < 0)
-                idx = 0;
-            return idx + 1;
-        }
-
         private static (int Line0, int Col0) OffsetToLineCol0(int[] lineStarts, int offset)
         {
             int idx = Array.BinarySearch(lineStarts, offset);
@@ -575,39 +554,6 @@ namespace ReactiveUITK.Language.SemanticTokens
                 col = 0;
 
             return (idx, col);
-        }
-
-        private static bool IsLikelyEmbeddedMarkupLine(string segment)
-        {
-            string trimmed = segment.TrimStart();
-            if (trimmed.Length == 0)
-                return false;
-
-            if (trimmed.StartsWith("<", StringComparison.Ordinal))
-                return true;
-
-            return trimmed.StartsWith("@if", StringComparison.Ordinal)
-                || trimmed.StartsWith("@else", StringComparison.Ordinal)
-                || trimmed.StartsWith("@for", StringComparison.Ordinal)
-                || trimmed.StartsWith("@foreach", StringComparison.Ordinal)
-                || trimmed.StartsWith("@while", StringComparison.Ordinal)
-                || trimmed.StartsWith("@switch", StringComparison.Ordinal)
-                || trimmed.StartsWith("@case", StringComparison.Ordinal)
-                || trimmed.StartsWith("@default", StringComparison.Ordinal);
-        }
-
-        private static bool IsLikelyMarkupCloserLine(string trimmed)
-        {
-            if (trimmed.Length == 0)
-                return false;
-
-            return trimmed == "}"
-                || trimmed == ")"
-                || trimmed == ");"
-                || trimmed.StartsWith("};", StringComparison.Ordinal)
-                || trimmed.StartsWith(");", StringComparison.Ordinal)
-                || trimmed.StartsWith("}", StringComparison.Ordinal)
-                || trimmed.StartsWith(")", StringComparison.Ordinal);
         }
 
         // ── Position helpers ──────────────────────────────────────────────────

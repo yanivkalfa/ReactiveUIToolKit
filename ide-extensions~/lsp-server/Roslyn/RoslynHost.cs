@@ -336,18 +336,27 @@ namespace UitkxLanguageServer.Roslyn
             var state = _files.GetOrAdd(uitkxFilePath, _ => new FileState());
             state.LastParseResult = parseResult;
 
-            // Cancel any previously-scheduled rebuild for this file
-            state.DebounceTimer?.Dispose();
-            state.DebounceTimer = new Timer(
-                callback: _ =>
-                {
-                    // Fire-and-forget async rebuild
-                    _ = RebuildAsync(uitkxFilePath, source, parseResult, publisher, state);
-                },
-                state: null,
-                dueTime: DebounceMs,
-                period: Timeout.Infinite
-            );
+            // LSP small: dispose-then-assign on a plain field races when EnqueueRebuild is
+            // called concurrently for the SAME file (e.g. two rapid keystrokes) — two threads
+            // could both read the old timer, both dispose it, then both create a new one and
+            // race to store it, leaking whichever timer loses the write (it still fires,
+            // causing a double rebuild). Locking on `state` (one lock per open file, not
+            // global) serialises the dispose+create sequence per file.
+            lock (state)
+            {
+                // Cancel any previously-scheduled rebuild for this file
+                state.DebounceTimer?.Dispose();
+                state.DebounceTimer = new Timer(
+                    callback: _ =>
+                    {
+                        // Fire-and-forget async rebuild
+                        _ = RebuildAsync(uitkxFilePath, source, parseResult, publisher, state);
+                    },
+                    state: null,
+                    dueTime: DebounceMs,
+                    period: Timeout.Infinite
+                );
+            }
         }
 
         /// <summary>Removes a file from the host (called on <c>textDocument/didClose</c>).</summary>
@@ -368,7 +377,8 @@ namespace UitkxLanguageServer.Roslyn
         /// </summary>
         public IReadOnlyList<(
             Diagnostic Diagnostic,
-            SourceMapEntry? MapEntry
+            SourceMapEntry? MapEntry,
+            bool IsStateSetterCS1503
         )> GetLatestDiagnostics(string uitkxFilePath)
         {
             if (
@@ -377,20 +387,20 @@ namespace UitkxLanguageServer.Roslyn
                 || state.DocumentId == null
                 || state.VirtualDoc == null
             )
-                return Array.Empty<(Diagnostic, SourceMapEntry?)>();
+                return Array.Empty<(Diagnostic, SourceMapEntry?, bool)>();
 
             try
             {
                 var doc = state.Workspace.CurrentSolution.GetDocument(state.DocumentId);
                 if (doc == null)
-                    return Array.Empty<(Diagnostic, SourceMapEntry?)>();
+                    return Array.Empty<(Diagnostic, SourceMapEntry?, bool)>();
 
                 var semantic = doc.GetSemanticModelAsync().GetAwaiter().GetResult();
                 if (semantic == null)
-                    return Array.Empty<(Diagnostic, SourceMapEntry?)>();
+                    return Array.Empty<(Diagnostic, SourceMapEntry?, bool)>();
 
                 var map = state.VirtualDoc.Map;
-                var result = new List<(Diagnostic, SourceMapEntry?)>();
+                var result = new List<(Diagnostic, SourceMapEntry?, bool)>();
 
                 foreach (var diag in semantic.GetDiagnostics())
                 {
@@ -415,7 +425,21 @@ namespace UitkxLanguageServer.Roslyn
 
                     // Map back to uitkx coordinates via source-map or #line info
                     var mapped = TryMapDiagnostic(diag, map);
-                    result.Add((diag, mapped));
+
+                    // U-39: a CS1503 whose invoked expression's static type is the
+                    // `__StateSetter__<T>` scaffold delegate (see HookRegistry.cs) is the
+                    // "setCount(5) instead of setCount(n => n+1)" false positive — computed
+                    // HERE (where the semantic model is available) rather than by matching
+                    // the diagnostic MESSAGE text in RoslynDiagnosticMapper: a genuine user
+                    // CS1503 against any OTHER same-shape Func<T,T> parameter (e.g.
+                    // `void Foo(Func<int,int> f); Foo(5);`) produces the byte-identical
+                    // message "cannot convert from 'int' to 'System.Func<int, int>'" — the
+                    // message alone cannot distinguish the two (probe-verified; the
+                    // previously-suggested `msg.Contains("__StateSetter__")` string never
+                    // actually appears in the message and would have suppressed nothing).
+                    bool isStateSetterCs1503 = diag.Id == "CS1503" && IsStateSetterInvocation(diag, semantic);
+
+                    result.Add((diag, mapped, isStateSetterCs1503));
                 }
 
                 // ── Data-flow analysis: unused-variable detection ─────────────
@@ -509,7 +533,7 @@ namespace UitkxLanguageServer.Roslyn
                                     loc,
                                     local.Name
                                 );
-                                result.Add((synthDiag, mapResult.Value.Entry));
+                                result.Add((synthDiag, mapResult.Value.Entry, false));
                             }
                         }
                     }
@@ -526,8 +550,62 @@ namespace UitkxLanguageServer.Roslyn
             catch (Exception ex)
             {
                 ServerLog.Log($"[RoslynHost] GetLatestDiagnostics error: {ex.Message}");
-                return Array.Empty<(Diagnostic, SourceMapEntry?)>();
+                return Array.Empty<(Diagnostic, SourceMapEntry?, bool)>();
             }
+        }
+
+        /// <summary>
+        /// U-39 (revised — the first version over-suppressed real errors, see below):
+        /// true when <paramref name="diag"/> (a CS1503) is the HARMLESS argument-mismatch
+        /// produced by calling a <c>__StateSetter__&lt;T&gt;</c>-typed setter directly with a
+        /// value instead of an updater function (e.g. <c>setCount(5)</c> instead of
+        /// <c>setCount(n =&gt; n + 1)</c>). The scaffold in <c>HookRegistry.cs</c> models the
+        /// setter parameter as <c>Func&lt;T,T&gt;</c> only, so <em>every</em> direct-value call —
+        /// valid or not — produces a CS1503 in the virtual document (the real generator
+        /// rewrites this call shape into <c>.Set(_ =&gt; value)</c> sugar, so a value whose
+        /// type matches <c>T</c> compiles fine for real). Suppressing unconditionally on
+        /// "callee type is <c>__StateSetter__</c>" (the original fix) hid genuine mismatches
+        /// too — <c>setSnapshot(42)</c> against a <c>string</c>-typed <c>useState</c> produced
+        /// no diagnostic at all, because it looks identical to the harmless sugar case from
+        /// the callee's type alone.
+        /// <para>
+        /// This version additionally resolves <c>T</c> from the callee's generic type
+        /// argument and classifies the actual ARGUMENT's type against it. Only suppress when
+        /// the argument is implicitly convertible to <c>T</c> (the harmless sugar case);
+        /// otherwise the mismatch is real and the CS1503 must surface.
+        /// </para>
+        /// </summary>
+        private static bool IsStateSetterInvocation(Diagnostic diag, SemanticModel semantic)
+        {
+            var root = diag.Location.SourceTree?.GetRoot();
+            if (root == null)
+                return false;
+
+            SyntaxNode node;
+            try { node = root.FindNode(diag.Location.SourceSpan); }
+            catch { return false; }
+
+            var invocation = node.FirstAncestorOrSelf<InvocationExpressionSyntax>();
+            if (invocation == null)
+                return false;
+
+            if (semantic.GetTypeInfo(invocation.Expression).Type is not INamedTypeSymbol calleeType
+                || calleeType.Name != "__StateSetter__"
+                || calleeType.TypeArguments.Length != 1)
+                return false;
+
+            var stateType = calleeType.TypeArguments[0];
+
+            var args = invocation.ArgumentList?.Arguments;
+            if (args is null || args.Value.Count != 1)
+                return false;
+
+            var argType = semantic.GetTypeInfo(args.Value[0].Expression).Type;
+            if (argType == null)
+                return false;
+
+            var conversion = semantic.Compilation.ClassifyConversion(argType, stateType);
+            return conversion.Exists && (conversion.IsIdentity || conversion.IsImplicit);
         }
 
         /// <summary>
@@ -741,6 +819,18 @@ namespace UitkxLanguageServer.Roslyn
         public void SetCompanionOverlay(string csPath, string text)
         {
             _companionOverlay[csPath] = text;
+        }
+
+        /// <summary>
+        /// U-15: clears a companion-overlay entry (called on <c>textDocument/didClose</c>
+        /// for a <c>.cs</c> file). Without this, an overlay set by a rename or an edit could
+        /// linger indefinitely if no dependent <c>.uitkx</c> workspace ever rebuilds again —
+        /// harmless memory-wise, but capable of re-surfacing stale post-rename text on a
+        /// later reopen if the file was renamed AGAIN before any rebuild consumed it.
+        /// </summary>
+        public void ClearCompanionOverlay(string csPath)
+        {
+            _companionOverlay.TryRemove(csPath, out _);
         }
 
         /// <summary>
@@ -1104,9 +1194,22 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     try
                     {
-                        // Prefer overlay (set after a rename) over disk to
-                        // avoid reading stale content from an unsaved file.
-                        if (!_companionOverlay.TryRemove(companionPath, out var companionText))
+                        // U-15: prefer the live editor buffer (DocumentStore — matches
+                        // ReadPeerSource) over the overlay over disk. Previously this used
+                        // TryRemove on the overlay, consuming it on the FIRST rebuild to run —
+                        // if multiple .uitkx files share the same companion (e.g. a
+                        // Foo.style.uitkx used by several components), only the first
+                        // consumer's rebuild saw the fresh content; the rest silently fell
+                        // back to (possibly stale) disk content. The overlay is now read
+                        // non-destructively (TryGetValue) and is only truly needed right
+                        // after a rename, before the client reopens the renamed file — see
+                        // ClearCompanionOverlay for its cleanup on didClose.
+                        string companionText;
+                        if (_documentStore != null && _documentStore.TryGetByPath(companionPath, out var liveCompanionText))
+                            companionText = liveCompanionText;
+                        else if (_companionOverlay.TryGetValue(companionPath, out var overlayText))
+                            companionText = overlayText;
+                        else
                             companionText = System.IO.File.ReadAllText(companionPath);
                         var newDocId = DocumentId.CreateNewId(
                             state.ProjectId!,

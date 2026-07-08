@@ -118,10 +118,12 @@
 //  What this does NOT cover (intentional, follow-up work)
 //  ──────────────────────────────────────────────────────
 //
-//    • Static *methods* in modules (e.g. `StyleExtensions.Extend(...)`) — would
-//      need synthesized `__hmr_*` delegate fields like hooks/components have.
-//      Currently changes to a module's static methods only take effect after
-//      a full assembly reload.
+//    • Static *methods* in modules ARE covered — see UitkxHmrModuleMethodSwapper
+//      (called from UitkxHmrController alongside this field swapper), which
+//      re-binds `__hmr_*` delegate slots for static module methods so a method
+//      body edit takes effect without a full assembly reload. (H-06: this
+//      header previously claimed method swapping was unsupported follow-up
+//      work — stale since UitkxHmrModuleMethodSwapper shipped.)
 //
 //    • Newly-added `static readonly` fields the user introduces during a
 //      session — they exist in the HMR assembly but have no slot in the
