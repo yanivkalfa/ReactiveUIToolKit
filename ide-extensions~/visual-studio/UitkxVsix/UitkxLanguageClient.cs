@@ -28,8 +28,14 @@ internal sealed class UitkxCustomMessageTarget
 }
 
 /// <summary>LSP language client for .uitkx files.</summary>
+// U-14: also register for the built-in "CSharp" content type. The server's
+// TextSyncHandler tracks .cs companion buffers so an open, unsaved companion .cs file's
+// live content is preferred over disk when a dependent .uitkx workspace rebuilds — but
+// without this, VS never opened/synced .cs documents to the server, so that machinery was
+// permanently dead here (same gap as the VS Code client — see extension.ts). The server
+// never publishes diagnostics for .cs documents, so this adds no visible C# squiggles.
 [Export(typeof(ILanguageClient))]
-[LanguageClientContentType("uitkx")]
+[LanguageClientContentType("uitkx", "CSharp")]
 public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage2, IDisposable
 {
     // Exposed for UitkxCompletionSource and UitkxHoverSource to call LSP directly.

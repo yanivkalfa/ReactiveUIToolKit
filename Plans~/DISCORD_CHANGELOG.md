@@ -1,4 +1,25 @@
-﻿## [0.6.4] - 2026-06-19
+﻿## [0.6.5] - 2026-07-08
+
+### Fix - `.uitkx` edits show up again on a plain recompile (Play + HMR off)
+
+**The "edit, save, recompile, see the change" baseline is restored.** Since 0.5.10, saving a `.uitkx` in an `.asmdef` assembly (most real projects) left generated output **stale** with Play/HMR off - the component kept its old markup until a full Reimport / `Library` delete / any `.cs` edit. The change-watcher only dirtied Assembly-CSharp, never the assembly your components live in, so the generator never re-ran. (Regression from 0.5.10 dropping `CleanBuildCache`.) It now writes its recompile trigger into the **owning assembly's own folder** - one incremental recompile, analyzer stays warm, no 30-40s stall, skipped while HMR is active.
+
+### HMR pipeline
+
+- **`@if` / `@foreach` / `@for` / `@while` / `@switch` bodies hot-swap again** (the emitter had been reading the body off the wrong AST node).
+- **`module` static-method edits refresh consumers** without a domain reload - and no more spurious `Could not find hook container` warning.
+- **No hot-swap from a syntactically-broken file** - a parse error now leaves your running UI untouched instead of swapping the wrong UI in silently.
+- Relative asset paths (`"./icon.png"`) resolve the same across editor, build, and HMR; a shared `.uss` edited across many components no longer freezes the editor.
+
+### Parser, formatter, IDE
+
+Formatter no longer corrupts commented-out code; `@switch (expr)` gets hover / diagnostics / go-to-def; six drifted mini-lexers consolidated into one; plus a batch of parser edge cases. All ship to Unity via the committed analyzer DLL - no IDE update required.
+
+SG `1337/1337`, LSP `82/82`. VS Code / VS 2022 **1.2.18**, Rider **1.0.1**.
+
+---
+
+## [0.6.4] - 2026-06-19
 
 ### Fix - interrupted renders no longer duplicate UI, strand routes, or freeze the editor
 

@@ -74,6 +74,34 @@ public sealed class SemanticTokenTests
             "Expected Label to be a uitkxElement token");
     }
 
+    // ── U-31: SourceColumn preferred over first-occurrence text search ─────
+
+    [Fact]
+    public void DuplicateTagNamesOnSameLine_GetDistinctColumns()
+    {
+        // Before U-31 both "Label" tokens resolved via FindOnLine, which always
+        // finds the FIRST occurrence — so the second element's tag-name token
+        // collided with the first element's column instead of its own.
+        var source = "component C {\n  return (\n    <Label text=\"a\"/><Label text=\"b\"/>\n  );\n}";
+        var tokens = GetTokens(source);
+        var lines = source.Split('\n');
+        int lineIdx = 2;
+
+        var labelTokens = tokens
+            .Where(t => t.TokenType == SemanticTokenTypes.Element && t.Line == lineIdx)
+            .Where(t => lines[t.Line].Substring(t.Column, t.Length) == "Label")
+            .OrderBy(t => t.Column)
+            .ToArray();
+
+        Assert.Equal(2, labelTokens.Length);
+        Assert.NotEqual(labelTokens[0].Column, labelTokens[1].Column);
+
+        int firstLt = lines[lineIdx].IndexOf('<');
+        int secondLt = lines[lineIdx].IndexOf('<', firstLt + 1);
+        Assert.Equal(firstLt + 1, labelTokens[0].Column);
+        Assert.Equal(secondLt + 1, labelTokens[1].Column);
+    }
+
     // ── Control flow tests ─────────────────────────────────────────────────
 
     [Fact]

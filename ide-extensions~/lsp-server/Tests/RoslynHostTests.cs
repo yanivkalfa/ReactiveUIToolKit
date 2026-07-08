@@ -255,6 +255,87 @@ public sealed class RoslynHostTests : IAsyncLifetime
         Assert.DoesNotContain(diags, d => d.Diagnostic.Id == "UITKX0112");
     }
 
+    // ── U-39: state-setter CS1503 must be flagged, a real Func<T,T> mismatch must not ──
+
+    [Fact]
+    public async Task StateSetterDirectValueCall_IsFlaggedAsStateSetterCS1503()
+    {
+        // setCount is __StateSetter__<int> — calling it with a plain int (instead of a
+        // Func<int,int> updater) produces CS1503. RoslynHost must flag this via the
+        // semantic model (invoked expression's static type == "__StateSetter__"), not by
+        // matching the diagnostic message (which is identical to a real Func<T,T> mismatch
+        // — see IsStateSetterInvocation's doc comment).
+        var source =
+            "component Test {\n  var (count, setCount) = useState(0);\n  setCount(5);\n  return (\n    <Label text=\"hi\" />\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.Contains(diags, d => d.Diagnostic.Id == "CS1503" && d.IsStateSetterCS1503);
+    }
+
+    [Fact]
+    public async Task StateSetterMismatchedValueType_IsNotSuppressed()
+    {
+        // Regression guard: the first cut of IsStateSetterInvocation suppressed EVERY
+        // direct-value call to a __StateSetter__<T> (matching on the callee's type alone),
+        // which hid genuine mismatches too — setSnapshot(42) on a string-typed useState
+        // produced NO diagnostic at all in the live IDE. The scaffold parameter is
+        // Func<T,T> for every direct-value call (valid or not), so the callee-type check
+        // alone can't tell "42 fits string" from "5 fits int" — it must also classify the
+        // argument's type against T. Only a value assignable to T is the harmless
+        // .Set(_ => value) sugar case; this is not.
+        var source =
+            "component Test {\n  var (snapshot, setSnapshot) = useState(\"a\");\n  setSnapshot(42);\n  return (\n    <Label text=\"hi\" />\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.Contains(diags, d => d.Diagnostic.Id == "CS1503" && !d.IsStateSetterCS1503);
+    }
+
+    [Fact]
+    public async Task RealFuncMismatch_NotStateSetter_IsNotFlagged()
+    {
+        // A genuine user CS1503 against an ordinary Func<int,int> parameter (not the
+        // __StateSetter__<T> scaffold delegate) must NOT be flagged as a state-setter
+        // mismatch — its message is byte-identical to the state-setter case, so only the
+        // semantic-model check (the invoked expression's static type) can tell them apart.
+        var source =
+            "component Test {\n  void Foo(System.Func<int,int> f) { }\n  Foo(5);\n  return (\n    <Label text=\"hi\" />\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.Contains(diags, d => d.Diagnostic.Id == "CS1503" && !d.IsStateSetterCS1503);
+    }
+
+    // ── U-33 follow-up: @switch case bodies must not look like dead code ─────
+
+    [Fact]
+    public async Task SwitchCaseBodies_WithReturns_NoUnreachableCodeWarning()
+    {
+        // Regression guard: case bodies were emitted as flat, sequential top-level
+        // statements in the virtual document with no real branching between cases, so
+        // an unconditional `return` in an earlier case made Roslyn treat every later
+        // case's `return` as unreachable (CS0162) — rendered dimmed in the editor via
+        // the Unnecessary diagnostic tag, even though the real generated switch (see
+        // CSharpEmitter.EmitSwitchNode) has proper case branching and compiles fine.
+        var source =
+            "component Test {\n"
+            + "  string mode = \"a\";\n"
+            + "  return (\n"
+            + "    @switch (mode) {\n"
+            + "      @case \"a\":\n"
+            + "        return <Label text=\"empty\" />;\n"
+            + "      @default:\n"
+            + "        return <Label text=\"has snapshot\" />;\n"
+            + "    }\n"
+            + "  );\n"
+            + "}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.DoesNotContain(diags, d => d.Diagnostic.Id == "CS0162");
+    }
+
     [Fact]
     public async Task UITKX0112_CapturedByLambda_NoFalsePositive()
     {

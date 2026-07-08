@@ -94,29 +94,32 @@ namespace UitkxLanguageServer.Roslyn
         /// removed; only diagnostics that map into user-authored C# regions are returned.
         /// </returns>
         public IReadOnlyList<ParseDiagnostic> Map(
-            IReadOnlyList<(Diagnostic Diagnostic, SourceMapEntry? MapEntry)> diagnosticsWithMap,
+            IReadOnlyList<(Diagnostic Diagnostic, SourceMapEntry? MapEntry, bool IsStateSetterCS1503)> diagnosticsWithMap,
             string uitkxFilePath,
             string? uitkxSource = null
         )
         {
             var result = new List<ParseDiagnostic>(diagnosticsWithMap.Count);
 
-            // Pre-scan: detect whether the batch contains CS1503 errors from
-            // state-setter direct-value calls (e.g. setGrid(newGrid)).  When
-            // present, any CS1662 "cannot convert lambda" error in the same
-            // batch is a cascade artefact — Roslyn marks the enclosing lambda
-            // as having an error return type when the body contains CS1503.
-            bool hasStateSetterCS1503 = false;
-            foreach (var (diag, _) in diagnosticsWithMap)
+            // U-39: pre-scan the SPANS of suppressed state-setter CS1503 diagnostics
+            // (IsStateSetterCS1503 is computed in RoslynHost.GetLatestDiagnostics via the
+            // semantic model — see IsStateSetterInvocation's doc comment for why matching
+            // the diagnostic MESSAGE text cannot distinguish a state-setter mismatch from a
+            // genuine user CS1503 against any other Func<T,T>-typed parameter: both produce
+            // the byte-identical message "cannot convert from 'int' to 'System.Func<int,
+            // int>'"). A CS1662 "cannot convert lambda" error whose span CONTAINS one of
+            // these spans is a cascade artefact — Roslyn marks the enclosing lambda as
+            // having an error return type when its body contains the suppressed CS1503.
+            // Checking span containment (not "any CS1503 anywhere in the batch") means an
+            // unrelated real CS1662 elsewhere in the same file is still correctly reported.
+            var stateSetterCs1503Spans = new List<Microsoft.CodeAnalysis.Text.TextSpan>();
+            foreach (var (diag, _, isStateSetterCS1503) in diagnosticsWithMap)
             {
-                if (diag.Id == "CS1503" && diag.GetMessage().Contains("Func<"))
-                {
-                    hasStateSetterCS1503 = true;
-                    break;
-                }
+                if (diag.Id == "CS1503" && isStateSetterCS1503)
+                    stateSetterCs1503Spans.Add(diag.Location.SourceSpan);
             }
 
-            foreach (var (diag, mapEntry) in diagnosticsWithMap)
+            foreach (var (diag, mapEntry, isStateSetterCS1503) in diagnosticsWithMap)
             {
                 // Drop hidden diagnostics
                 if (diag.Severity == RoslynDiagnosticSeverity.Hidden)
@@ -126,23 +129,33 @@ namespace UitkxLanguageServer.Roslyn
                 if (s_suppressedIds.Contains(diag.Id))
                     continue;
 
-                // CS1503: suppress when caused by state-setter direct-value calls
-                // (e.g. setCount(5) — passes int to __StateSetter__<int>(Func<int,int>)).
-                // Real CS1503 errors (wrong argument types) don't mention 'Func<'.
-                if (diag.Id == "CS1503")
+                // CS1503: suppress ONLY when the invoked expression's static type is the
+                // __StateSetter__<T> scaffold delegate AND the argument's type is actually
+                // valid for T (e.g. setCount(5) on a useState<int> — passes int to
+                // __StateSetter__<int>(Func<int,int>), which is real sugar for .Set(_ => 5)
+                // and compiles fine for real). IsStateSetterInvocation additionally checks
+                // argument-to-T assignability so a genuine mismatch (e.g. setSnapshot(42) on
+                // a useState<string>) is NOT suppressed — see its doc comment for the
+                // over-suppression bug this replaced.
+                if (diag.Id == "CS1503" && isStateSetterCS1503)
+                    continue;
+
+                // CS1662: suppress only when its span CONTAINS a suppressed state-setter
+                // CS1503 span (that CS1503 sits inside this CS1662's enclosing lambda).
+                if (diag.Id == "CS1662")
                 {
-                    var msg = diag.GetMessage();
-                    if (msg.Contains("Func<"))
+                    bool cascadesFromStateSetter = false;
+                    foreach (var span in stateSetterCs1503Spans)
+                    {
+                        if (diag.Location.SourceSpan.Contains(span))
+                        {
+                            cascadesFromStateSetter = true;
+                            break;
+                        }
+                    }
+                    if (cascadesFromStateSetter)
                         continue;
                 }
-
-                // CS1662: suppress when it cascades from state-setter CS1503.
-                // Roslyn reports "cannot convert lambda expression to intended
-                // delegate type" on the enclosing lambda when its body contains
-                // CS1503 errors from __StateSetter__<T>(Func<T,T>) calls.
-                // This is not a real user error — the lambda shape is correct.
-                if (diag.Id == "CS1662" && hasStateSetterCS1503)
-                    continue;
 
                 // ── Resolve position ─────────────────────────────────────────
 

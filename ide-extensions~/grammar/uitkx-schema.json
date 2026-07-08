@@ -2239,5 +2239,10 @@
     "unityMaterial": {
       "sinceUnity": "6000.3"
     }
+  },
+  "unsupportedStyleProperties": {
+    "cursor": {
+      "reason": "Unity's UI Toolkit Cursor struct is a Texture2D + hotspot pair with no built-in named-cursor constants (unlike CSS's \"pointer\"/\"default\"/etc.), so there is no typed Style.Cursor member. The untyped escape hatch (Style[\"cursor\"] = value, or the (StyleKeys.Key, value) tuple form with a raw \"cursor\" string) is accepted without a compile error but is silently ignored at runtime."
+    }
   }
 }

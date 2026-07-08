@@ -118,6 +118,24 @@ public sealed class UitkxSchema
         [JsonPropertyName("styleVersions")]
         public Dictionary<string, VersionInfo> StyleVersions { get; set; } =
             new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Style keys that are accepted by the untyped <c>Style</c> escape hatch
+        /// (<c>Style["key"] = value</c>) but have no typed <c>Style</c> member and are
+        /// silently no-op'd by <c>PropsApplier.ApplyStyle</c> at runtime (C-05). This is
+        /// the schema-side source of truth for that gap; no diagnostic consumes it yet —
+        /// see the reason text for why building one is deferred.
+        /// </summary>
+        [JsonPropertyName("unsupportedStyleProperties")]
+        public Dictionary<string, UnsupportedStyleInfo> UnsupportedStyleProperties { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Documents why a style key is accepted but silently ignored at runtime.</summary>
+    public sealed class UnsupportedStyleInfo
+    {
+        [JsonPropertyName("reason")]
+        public string Reason { get; set; } = "";
     }
 
     /// <summary>
@@ -223,6 +241,13 @@ public sealed class UitkxSchema
     /// </summary>
     public VersionInfo? GetStyleVersionInfo(string camelCaseKey) =>
         Root.StyleVersions.TryGetValue(camelCaseKey, out var info) ? info : null;
+
+    /// <summary>
+    /// Returns why <paramref name="camelCaseKey"/> is silently ignored by
+    /// <c>PropsApplier.ApplyStyle</c> at runtime, or <c>null</c> if it's fully supported.
+    /// </summary>
+    public UnsupportedStyleInfo? GetUnsupportedStyleInfo(string camelCaseKey) =>
+        Root.UnsupportedStyleProperties.TryGetValue(camelCaseKey, out var info) ? info : null;
 
     /// <summary>
     /// Checks whether an element is available for the given Unity version.

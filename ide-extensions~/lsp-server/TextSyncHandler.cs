@@ -122,7 +122,27 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         // Release Roslyn workspace resources for this file.
         var localPath = request.TextDocument.Uri.ToUri().LocalPath;
         if (!string.IsNullOrEmpty(localPath))
+        {
             _roslynHost.CloseDocument(localPath);
+
+            // U-15: closing a companion .cs file must clear its overlay (else stale
+            // post-rename text could re-surface on a later reopen) and re-publish
+            // dependents so their workspace picks up the DocumentStore/disk content
+            // instead of a now-orphaned overlay — mirrors DidChange's .cs branch.
+            if (localPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                _roslynHost.ClearCompanionOverlay(localPath);
+                foreach (var uitkxPath in _roslynHost.FindUitkxFilesForCompanion(localPath))
+                {
+                    var uitkxUri = DocumentUri.FromFileSystemPath(uitkxPath);
+                    if (_store.TryGet(uitkxUri, out var uitkxText) && uitkxText != null)
+                        _diagnostics.Publish(uitkxUri, uitkxText, _roslynHost);
+                }
+            }
+        }
+        // LSP small: evict cached diagnostics + clear the client's Problems panel for this
+        // file (see DiagnosticsPublisher.Forget's doc comment).
+        _diagnostics.Forget(request.TextDocument.Uri);
         return Unit.Task;
     }
 }

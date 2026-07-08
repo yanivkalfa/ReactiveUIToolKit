@@ -68,6 +68,336 @@ public class ParserTests
         Assert.Contains("useState", set.FunctionSetupCode ?? string.Empty);
     }
 
+    // ── U-09: duplicate @namespace must not fail the whole file ─────────────────
+
+    [Fact]
+    public void DuplicateNamespace_YieldsTargetedDiagnostic_NotWholeFileFailure()
+    {
+        const string src =
+            "@namespace First.Ns\n@namespace Second.Ns\ncomponent Foo {\n    return (\n        <Label text=\"x\" />\n    );\n}\n";
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.Single(diags, d => d.Code == "UITKX2105");
+        Assert.Equal("First.Ns", set.Namespace);
+        Assert.True(set.IsFunctionStyle);
+        Assert.Equal("Foo", set.ComponentName);
+    }
+
+    [Fact]
+    public void DuplicateNamespace_MarkupStillParses()
+    {
+        const string src =
+            "@namespace First.Ns\n@namespace Second.Ns\ncomponent Foo {\n    return (\n        <Label text=\"x\" />\n    );\n}\n";
+
+        var nodes = ParseMarkup(src, out var diags);
+        Assert.Single(nodes);
+    }
+
+    // ── H-04: ParseFragment (standalone JSX snippet, no header text needed) ────
+
+    [Fact]
+    public void ParseFragment_SimpleElement_ParsesOneRoot()
+    {
+        var diags = new List<ParseDiagnostic>();
+        var nodes = UitkxParser.ParseFragment("<Label text=\"hi\" />", "test.uitkx", 1, diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Single(nodes);
+        var el = Assert.IsType<ElementNode>(nodes[0]);
+        Assert.Equal("Label", el.TagName);
+    }
+
+    [Fact]
+    public void ParseFragment_NestedElement_ParsesChildren()
+    {
+        var diags = new List<ParseDiagnostic>();
+        var nodes = UitkxParser.ParseFragment(
+            "<Box><Label text=\"a\" /><Label text=\"b\" /></Box>", "test.uitkx", 1, diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Single(nodes);
+        var box = Assert.IsType<ElementNode>(nodes[0]);
+        Assert.Equal(2, box.Children.Length);
+    }
+
+    [Fact]
+    public void ParseFragment_StartLine_OffsetsDiagnosticLines()
+    {
+        // An unclosed tag should report an error anchored at the fragment's
+        // startLine offset, not line 1 of the fragment text in isolation.
+        var diags = new List<ParseDiagnostic>();
+        UitkxParser.ParseFragment("<Box>", "test.uitkx", 42, diags);
+
+        Assert.Contains(diags, d => d.Severity == ParseSeverity.Error && d.SourceLine >= 42);
+    }
+
+    // ── U-25: attr={(<Tag/>)} — paren-wrapped inline JSX attribute value ────────
+
+    [Fact]
+    public void Attribute_ParenWrappedJsx_ParsesAsJsxExpressionValue()
+    {
+        var diags = new List<ParseDiagnostic>();
+        var nodes = UitkxParser.ParseFragment(
+            "<Box icon={(<Label text=\"hi\" />)} />", "test.uitkx", 1, diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        var box = Assert.IsType<ElementNode>(Assert.Single(nodes));
+        var attr = Assert.Single(box.Attributes);
+        var jsxValue = Assert.IsType<JsxExpressionValue>(attr.Value);
+        Assert.NotNull(jsxValue.Element);
+        Assert.Equal("Label", jsxValue.Element!.TagName);
+    }
+
+    [Fact]
+    public void Attribute_BareJsx_StillParsesAsJsxExpressionValue()
+    {
+        // Regression guard: the U-25 paren-peek must not disturb the
+        // pre-existing unwrapped form attr={<Tag/>}.
+        var diags = new List<ParseDiagnostic>();
+        var nodes = UitkxParser.ParseFragment(
+            "<Box icon={<Label text=\"hi\" />} />", "test.uitkx", 1, diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        var box = Assert.IsType<ElementNode>(Assert.Single(nodes));
+        var attr = Assert.Single(box.Attributes);
+        var jsxValue = Assert.IsType<JsxExpressionValue>(attr.Value);
+        Assert.Equal("Label", jsxValue.Element!.TagName);
+    }
+
+    [Fact]
+    public void Attribute_ParenWrappedNonJsxExpression_StillOpaqueCSharp()
+    {
+        // A plain parenthesised C# expression (no '<' after unwrapping) must
+        // NOT be misdetected as JSX — only `(<Tag` triggers the JSX path.
+        var diags = new List<ParseDiagnostic>();
+        var nodes = UitkxParser.ParseFragment(
+            "<Box count={(1 + 2)} />", "test.uitkx", 1, diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        var box = Assert.IsType<ElementNode>(Assert.Single(nodes));
+        var attr = Assert.Single(box.Attributes);
+        var csValue = Assert.IsType<CSharpExpressionValue>(attr.Value);
+        Assert.Equal("(1 + 2)", csValue.Expression);
+    }
+
+    // ── U-05: Allman-style @else must parse like Allman @if ─────────────────────
+
+    [Fact]
+    public void AllmanElse_AfterAllmanIf_ParsesCleanly()
+    {
+        const string src =
+            """
+            component Foo {
+                return (
+                    <Box>
+                        @if (true)
+                        {
+                            <Label text="a" />
+                        }
+                        @else
+                        {
+                            <Label text="b" />
+                        }
+                    </Box>
+                );
+            }
+            """;
+
+        var nodes = ParseMarkup(src, out var diags);
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+    }
+
+    [Fact]
+    public void AllmanElseIf_ThenAllmanElse_ParsesCleanly()
+    {
+        const string src =
+            """
+            component Foo {
+                return (
+                    <Box>
+                        @if (true)
+                        {
+                            <Label text="a" />
+                        }
+                        @else if (false)
+                        {
+                            <Label text="b" />
+                        }
+                        @else
+                        {
+                            <Label text="c" />
+                        }
+                    </Box>
+                );
+            }
+            """;
+
+        var nodes = ParseMarkup(src, out var diags);
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+    }
+
+    // ── U-08: literal '@' in text must not error ────────────────────────────────
+
+    [Fact]
+    public void LiteralAtSign_InText_NoDiagnostic()
+    {
+        var nodes = ParseMarkup(Wrap("<Label>contact me @ home</Label>"), out var diags);
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0305");
+    }
+
+    [Fact]
+    public void LiteralAtSign_InText_PreservedInOutput()
+    {
+        var nodes = ParseMarkup(Wrap("<Label>contact me @ home</Label>"), out var diags);
+        var label = Assert.IsType<ElementNode>(nodes[0]);
+        string combined = string.Concat(
+            label.Children.OfType<TextNode>().Select(t => t.Content));
+        Assert.Contains("@", combined);
+        Assert.Equal("contact me @ home", combined);
+    }
+
+    [Fact]
+    public void RealIfDirective_StillParsesAfterAtSignFix()
+    {
+        var nodes = ParseMarkup(
+            Wrap("<Box>@if (true) { <Label text=\"a\" /> }</Box>"), out var diags);
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+    }
+
+    [Fact]
+    public void MisspelledDirectiveTypo_FollowedByParen_StillErrors()
+    {
+        // `@foreech (x in y) {` — an unknown identifier immediately followed by
+        // '(' still looks like an attempted (misspelled) directive, not literal text.
+        var nodes = ParseMarkup(
+            Wrap("<Box>@foreech (x in y) { <Label text=\"a\" /> }</Box>"), out var diags);
+        Assert.Contains(diags, d => d.Code == "UITKX0305");
+    }
+
+    // ── U-13: mismatched closing tag anchors at the found tag, with a column ──
+
+    [Fact]
+    public void MismatchedClosingTag_ReportsFoundLineAndColumn_NoFalseOpenLine()
+    {
+        // <Label> is never closed; the next closing tag encountered while looking
+        // for </Label> is </Box>, which doesn't match — the diagnostic must anchor
+        // at the CLOSING tag's line/column (not the opening tag's), and must not
+        // claim a bogus "opened at line" when the opening line isn't tracked at
+        // this call site (ParseContent's stop-tag check only has the tag NAME).
+        var src = Wrap("<Box>\n  <Label>\n  </Box>");
+        var nodes = ParseMarkup(src, out var diags);
+
+        var mismatch = Assert.Single(diags, d => d.Code == "UITKX0302");
+        Assert.Equal(5, mismatch.SourceLine); // line of </Box>
+        Assert.Equal(2, mismatch.SourceColumn); // "  </Box>" — '<' is 2 spaces in
+        Assert.True(mismatch.EndColumn > mismatch.SourceColumn, "Expected EndColumn to span the closing tag");
+        Assert.Contains("Found '</Box>' but expected '</Label>'", mismatch.Message);
+        Assert.DoesNotContain("opened at line", mismatch.Message);
+    }
+
+    // ── U-11: unwrapped `return expr;` in a control-block body must not be
+    //          silently invisible ─────────────────────────────────────────────
+
+    [Fact]
+    public void UnwrappedReturnExpression_InIfBody_EmitsDiagnostic()
+    {
+        var src = Wrap("@if (x) { return items.First(); }");
+        var diags = new List<ParseDiagnostic>();
+        var directives = DirectiveParser.Parse(src, "test.uitkx", diags);
+        UitkxParser.Parse(src, "test.uitkx", directives, diags);
+
+        Assert.Contains(diags, d => d.Code == "UITKX2102" && d.Severity == ParseSeverity.Error);
+    }
+
+    [Fact]
+    public void ProperReturnParen_InIfBody_NoUitkx2102()
+    {
+        var src = Wrap("@if (x) { return (<Label text=\"a\" />); }");
+        var diags = new List<ParseDiagnostic>();
+        var directives = DirectiveParser.Parse(src, "test.uitkx", diags);
+        UitkxParser.Parse(src, "test.uitkx", directives, diags);
+
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX2102");
+    }
+
+    // ── U-24: unbalanced '{' in a control-block body must emit a diagnostic ────
+    // Uses ParseFragment (a bounded, self-contained "source") so the unclosed brace
+    // genuinely has no matching '}' to find anywhere — reproducing the snippet
+    // mini-parse scenario the finding describes (in a full top-level component parse,
+    // there is always at least the component's OWN closing '}' later in the file for
+    // the naive brace-counter to (mis)match against).
+
+    [Fact]
+    public void UnclosedIfBody_InFragment_EmitsDiagnostic()
+    {
+        var diags = new List<ParseDiagnostic>();
+        UitkxParser.ParseFragment("<Box>@if (true) { <Label text=\"a\" />", "test.uitkx", 1, diags);
+
+        Assert.Contains(diags, d => d.Code == "UITKX0300" && d.Severity == ParseSeverity.Error);
+    }
+
+    // ── U-28: unclosed '{expr}' must emit a diagnostic, not silently EOF-close ──
+
+    [Fact]
+    public void UnclosedExpression_InFragment_EmitsDiagnostic()
+    {
+        // A child expression {expr} (not an attribute value) — the code path this
+        // fix touches (UitkxParser.ParseContent's '{' branch).
+        var diags = new List<ParseDiagnostic>();
+        UitkxParser.ParseFragment("<Box>{x.ToString()", "test.uitkx", 1, diags);
+
+        Assert.Contains(diags, d => d.Code == "UITKX0300" && d.Message.Contains("Unclosed"));
+    }
+
+    [Fact]
+    public void ClosedExpression_NoUnclosedDiagnostic()
+    {
+        var src = Wrap("<Box>{1 + 1}</Box>");
+        var diags = new List<ParseDiagnostic>();
+        var directives = DirectiveParser.Parse(src, "test.uitkx", diags);
+        UitkxParser.Parse(src, "test.uitkx", directives, diags);
+
+        Assert.DoesNotContain(diags, d => d.Message.Contains("Unclosed"));
+    }
+
+    // ── U-29: multi-line text content's TextNode.SourceLine is the START line ───
+
+    [Fact]
+    public void MultilineTextContent_ReportsStartLine()
+    {
+        const string src =
+            "component Foo {\n    return (\n        <Label>\n            line one\n            line two\n        </Label>\n    );\n}\n";
+        var nodes = ParseMarkup(src, out _);
+        var label = Assert.IsType<ElementNode>(nodes[0]);
+        var textNode = Assert.IsType<TextNode>(label.Children[0]);
+        // The text starts on the line right after <Label> (line 4, 1-based) — not the
+        // line it ends on (line 5, where "line two" sits before the closing tag).
+        Assert.Equal(4, textNode.SourceLine);
+    }
+
+    [Fact]
+    public void KAndRElse_StillParsesCleanly()
+    {
+        const string src =
+            """
+            component Foo {
+                return (
+                    <Box>
+                        @if (true) {
+                            <Label text="a" />
+                        } @else {
+                            <Label text="b" />
+                        }
+                    </Box>
+                );
+            }
+            """;
+
+        var nodes = ParseMarkup(src, out var diags);
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+    }
+
     [Fact]
     public void Directives_FunctionStyle_InfersNamespace_FromCompanionPartialClass()
     {
@@ -533,5 +863,62 @@ public class ParserTests
 
         var cs1002 = diags.Where(d => d.Code == "CS1002").ToList();
         Assert.Empty(cs1002);
+    }
+
+    // ── U-07: block-comment-blind JSX-block detection → false CS1002 ─────────
+
+    [Fact]
+    public void SetupCode_CommentedOutJsx_NoFalseCS1002()
+    {
+        // The exact repro from the audit doc (P3b): a block comment containing
+        // old removed JSX must not be misdetected as a live JSX paren-block by
+        // DirectiveParser.FindJsxBlockRanges — which previously had no '/* */'
+        // skip (unlike its sibling FindBareJsxRanges), so the comment's content
+        // leaked into the JSX-splice scaffold and broke Roslyn's scaffold parse.
+        const string src =
+            """
+            component Counter(int count = 0) {
+              /* old UI: (<Label/>) was removed */
+              var x = count;
+
+              return (<Box />);
+            }
+            """;
+
+        var diags = new List<ParseDiagnostic>();
+        DirectiveParser.Parse(src, "test.uitkx", diags);
+
+        var cs1002 = diags.Where(d => d.Code == "CS1002").ToList();
+        Assert.Empty(cs1002);
+    }
+
+    [Fact]
+    public void SetupCode_CommentedOutJsx_NotInMarkupRanges()
+    {
+        // Directly pins the root cause: the comment's parenthesised content must
+        // not appear in SetupCodeMarkupRanges at all.
+        const string src =
+            """
+            component Counter(int count = 0) {
+              /* old UI: (<Label/>) was removed */
+              var x = count;
+
+              return (<Box />);
+            }
+            """;
+
+        var diags = new List<ParseDiagnostic>();
+        var set = DirectiveParser.Parse(src, "test.uitkx", diags);
+
+        int commentParenStart = src.IndexOf("(<Label/>)", System.StringComparison.Ordinal);
+        Assert.True(commentParenStart >= 0);
+
+        if (!set.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+        {
+            foreach (var (s, e, _) in set.SetupCodeMarkupRanges)
+                Assert.False(
+                    s >= commentParenStart && s <= commentParenStart + "(<Label/>)".Length,
+                    "Commented-out JSX must not appear in SetupCodeMarkupRanges");
+        }
     }
 }
