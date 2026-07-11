@@ -10,6 +10,23 @@ permissions:
   contents: read
 
 jobs:
+  # TD-009 family-corpus drift gate: the .uitkx scanner corpus familyCore tiers must hash to the
+  # frozen family value shared byte-identically across the Unreal/Godot/Unity repos. Engine-free
+  # (node only) so it runs even though the Unity build job is heavier.
+  corpus-hash-gate:
+    name: Family Corpus Hash Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check family-core corpus hash (drift = fail)
+        run: node scripts/corpus-hash.mjs --check
+
   source-generator-tests:
     name: Source Generator Tests
     runs-on: ubuntu-latest
