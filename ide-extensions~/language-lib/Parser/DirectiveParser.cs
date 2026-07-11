@@ -208,8 +208,15 @@ namespace ReactiveUITK.Language.Parser
             // (scan-side family diagnostic, per the frozen emit split).
             ReportDuplicateImports(imports, diagnosticBag);
 
-            // ── Keyword dispatch: component / hook / module ─────────────────
-            if (TryReadKeywordAt(source, i, "hook") || TryReadKeywordAt(source, i, "module"))
+            // ── Keyword dispatch: [export] component / hook / module ─────────
+            // Peek past an optional leading `export ` to decide the declaration kind. Hook/module
+            // files consume the per-declaration `export` inside their own loop; the component path
+            // consumes it here.
+            int dispatchPeek = i;
+            if (TryReadKeyword(source, ref dispatchPeek, "export"))
+                SkipSpaces(source, ref dispatchPeek);
+
+            if (TryReadKeywordAt(source, dispatchPeek, "hook") || TryReadKeywordAt(source, dispatchPeek, "module"))
             {
                 bool hookModuleOk = TryParseHookModuleFile(
                     source, filePath, diagnosticBag, ref directiveSet,
@@ -224,6 +231,13 @@ namespace ReactiveUITK.Language.Parser
                 return hookModuleOk;
             }
 
+            bool componentExported = false;
+            if (dispatchPeek != i && TryReadKeywordAt(source, dispatchPeek, "component"))
+            {
+                // A leading `export` applies to this component; consume up to `component`.
+                componentExported = true;
+                i = dispatchPeek;
+            }
             if (!TryReadKeyword(source, ref i, "component"))
                 return false;
 
@@ -470,6 +484,29 @@ namespace ReactiveUITK.Language.Parser
             {
                 LeadingTrivia = leadingTrivia.ToImmutableArray(),
                 Imports = imports.ToImmutableArray(),
+                ComponentDeclarations = ImmutableArray.Create(
+                    new ComponentDeclaration(
+                        Name: componentName,
+                        IsExported: componentExported,
+                        PropsTypeName: functionPropsTypeName,
+                        DefaultKey: null,
+                        FunctionParams: functionParams,
+                        FunctionSetupCode: setupCode.Trim(),
+                        FunctionSetupStartLine: LineAtPos(source, fseTrimStart2),
+                        FunctionSetupStartOffset: fseTrimStart2,
+                        MarkupStartLine: markupLine,
+                        MarkupStartIndex: markupStart,
+                        MarkupEndIndex: markupEnd,
+                        DeclarationLine: componentLine,
+                        NameColumn: componentNameCol,
+                        ReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
+                        BodyEndLine: LineAtPos(source, bodyEndExclusive))
+                    {
+                        SetupCodeMarkupRanges = setupMarkupRanges2,
+                        SetupCodeBareJsxRanges = bareJsxRanges2,
+                        FunctionSetupGapOffset = setupGapOffset,
+                        FunctionSetupGapLength = setupGapLength,
+                    }),
             };
 
             if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
@@ -663,13 +700,29 @@ namespace ReactiveUITK.Language.Parser
                 SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
                 if (i >= source.Length) break;
 
+                // Optional per-declaration `export` prefix (import/export grammar, leg 3).
+                bool declExported = false;
+                {
+                    int afterExport = i;
+                    if (TryReadKeyword(source, ref afterExport, "export"))
+                    {
+                        SkipSpaces(source, ref afterExport);
+                        if (TryReadKeywordAt(source, afterExport, "hook") ||
+                            TryReadKeywordAt(source, afterExport, "module"))
+                        {
+                            declExported = true;
+                            i = afterExport;
+                        }
+                    }
+                }
+
                 if (TryReadKeyword(source, ref i, "hook"))
                 {
-                    ParseSingleHook(source, filePath, diagnosticBag, hooks, ref i, ref line);
+                    ParseSingleHook(source, filePath, diagnosticBag, hooks, ref i, ref line, declExported);
                 }
                 else if (TryReadKeyword(source, ref i, "module"))
                 {
-                    ParseSingleModule(source, filePath, diagnosticBag, modules, ref i, ref line);
+                    ParseSingleModule(source, filePath, diagnosticBag, modules, ref i, ref line, declExported);
                 }
                 else
                 {
@@ -727,7 +780,8 @@ namespace ReactiveUITK.Language.Parser
             List<ParseDiagnostic> diagnosticBag,
             List<HookDeclaration> hooks,
             ref int i,
-            ref int line
+            ref int line,
+            bool isExported
         )
         {
             int hookLine = line;
@@ -839,7 +893,8 @@ namespace ReactiveUITK.Language.Parser
                 BodyStartLine: bodyStartLine,
                 BodyStartOffset: actualBodyStart,
                 BodyEndOffset: bodyEnd
-            ));
+            )
+            { IsExported = isExported });
 
             i = bodyCloseExclusive; // advance past '}'
         }
@@ -854,7 +909,8 @@ namespace ReactiveUITK.Language.Parser
             List<ParseDiagnostic> diagnosticBag,
             List<ModuleDeclaration> modules,
             ref int i,
-            ref int line
+            ref int line,
+            bool isExported
         )
         {
             int moduleLine = line;
@@ -920,7 +976,8 @@ namespace ReactiveUITK.Language.Parser
                 BodyStartLine: bodyStartLine,
                 BodyStartOffset: actualBodyStart,
                 BodyEndOffset: bodyEnd
-            ));
+            )
+            { IsExported = isExported });
 
             i = bodyCloseExclusive; // advance past '}'
         }
