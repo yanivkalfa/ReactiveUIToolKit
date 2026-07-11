@@ -157,6 +157,7 @@ namespace ReactiveUITK.Language.Parser
             // in any order.
             var usings = new List<string>();
             var ussFiles = new List<string>();
+            var imports = new List<ImportDeclaration>();
             string? inlineNamespace = null;
             bool parsedPreambleLine;
             do
@@ -196,7 +197,16 @@ namespace ReactiveUITK.Language.Parser
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
                 }
+                if (TryReadFunctionStyleImport(source, ref i, ref line, imports))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
+                    parsedPreambleLine = true;
+                }
             } while (parsedPreambleLine);
+
+            // Import/export grammar (leg 3): a name imported twice anywhere in the file → UITKX2303
+            // (scan-side family diagnostic, per the frozen emit split).
+            ReportDuplicateImports(imports, diagnosticBag);
 
             // ── Keyword dispatch: component / hook / module ─────────────────
             if (TryReadKeywordAt(source, i, "hook") || TryReadKeywordAt(source, i, "module"))
@@ -206,7 +216,11 @@ namespace ReactiveUITK.Language.Parser
                     ref i, ref line,
                     usings, ussFiles, inlineNamespace
                 );
-                directiveSet = directiveSet with { LeadingTrivia = leadingTrivia.ToImmutableArray() };
+                directiveSet = directiveSet with
+                {
+                    LeadingTrivia = leadingTrivia.ToImmutableArray(),
+                    Imports = imports.ToImmutableArray(),
+                };
                 return hookModuleOk;
             }
 
@@ -453,11 +467,25 @@ namespace ReactiveUITK.Language.Parser
                 FunctionSetupGapOffset: setupGapOffset,
                 FunctionSetupGapLength: setupGapLength
             )
-            { LeadingTrivia = leadingTrivia.ToImmutableArray() };
+            {
+                LeadingTrivia = leadingTrivia.ToImmutableArray(),
+                Imports = imports.ToImmutableArray(),
+            };
 
             if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
             {
-                if (IsDirectiveHeaderAt(source, trailingPos))
+                if (TryReadKeywordAt(source, trailingPos, "import"))
+                {
+                    // Frozen family code: imports are preamble-only.
+                    diagnosticBag.Add(new ParseDiagnostic
+                    {
+                        Code = "UITKX2309",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = LineAtPos(source, trailingPos),
+                        Message = "import must appear in the preamble, before the first declaration",
+                    });
+                }
+                else if (IsDirectiveHeaderAt(source, trailingPos))
                 {
                     diagnosticBag.Add(new ParseDiagnostic
                     {
@@ -480,6 +508,116 @@ namespace ReactiveUITK.Language.Parser
             }
 
             return true;
+        }
+
+        // ── Import preamble reader (import/export grammar, leg 3) ─────────────
+
+        /// <summary>
+        /// Reads a single preamble <c>import { A, B } from "specifier"</c> line at the cursor,
+        /// appending an <see cref="ImportDeclaration"/> to <paramref name="imports"/> and advancing
+        /// the cursor past it. Named imports only; single-line; extensionless specifier captured
+        /// verbatim (resolution/validation is a later stage). Returns false (restoring the cursor)
+        /// when the cursor is not at a well-formed <c>import</c> line, so the caller's dispatch can
+        /// report it as it would any non-declaration.
+        /// </summary>
+        private static bool TryReadFunctionStyleImport(
+            string source, ref int i, ref int line, List<ImportDeclaration> imports)
+        {
+            if (!TryReadKeywordAt(source, i, "import"))
+                return false;
+
+            int savedI = i, savedLine = line;
+            int importLine = line;
+            int importCol = ColAtPos(source, i);
+
+            i += "import".Length;
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] != '{')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            i++; // past '{'
+
+            var names = new List<string>();
+            var nameCols = new List<int>();
+            while (true)
+            {
+                SkipSpaces(source, ref i);
+                if (i < source.Length && source[i] == '}') { i++; break; }
+                int nameCol = ColAtPos(source, i);
+                if (!TryReadIdentifier(source, ref i, out string name))
+                {
+                    i = savedI; line = savedLine; return false;
+                }
+                names.Add(name);
+                nameCols.Add(nameCol);
+                SkipSpaces(source, ref i);
+                if (i < source.Length && source[i] == ',') { i++; continue; }
+                if (i < source.Length && source[i] == '}') { i++; break; }
+                i = savedI; line = savedLine; return false;
+            }
+
+            SkipSpaces(source, ref i);
+            if (!TryReadKeyword(source, ref i, "from"))
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            i++; // past opening quote
+            int specStart = i;
+            while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                i++;
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false; // unterminated specifier
+            }
+            string specifier = source.Substring(specStart, i - specStart);
+            i++; // past closing quote
+
+            imports.Add(new ImportDeclaration(
+                names.ToImmutableArray(),
+                specifier,
+                importLine,
+                importCol,
+                nameCols.ToImmutableArray()));
+            return true;
+        }
+
+        /// <summary>
+        /// UITKX2303: a name imported more than once anywhere in the file. Keyed on the imported
+        /// NAME (the frozen family semantics — duplicate binding, not duplicate specifier).
+        /// </summary>
+        private static void ReportDuplicateImports(
+            List<ImportDeclaration> imports, List<ParseDiagnostic> diagnosticBag)
+        {
+            if (imports.Count == 0) return;
+            var seen = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal);
+            foreach (var imp in imports)
+            {
+                for (int k = 0; k < imp.Names.Length; k++)
+                {
+                    string name = imp.Names[k];
+                    if (seen.TryGetValue(name, out string? firstSpec))
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2303",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = imp.Line,
+                            SourceColumn = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column,
+                            Message = $"duplicate import of `{name}` (already imported from {firstSpec})",
+                        });
+                    }
+                    else
+                    {
+                        seen[name] = imp.Specifier;
+                    }
+                }
+            }
         }
 
         // ── Hook / Module file parser ─────────────────────────────────────────
@@ -1116,8 +1254,10 @@ namespace ReactiveUITK.Language.Parser
             int i = start;
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
-            // Skip any leading `using X.Y.Z;`, `@uss "path"`, and `@namespace X.Y` lines, in any order.
+            // Skip any leading `using X.Y.Z;`, `@uss "path"`, `@namespace X.Y`, and
+            // `import { … } from "…"` lines, in any order.
             var dummy = new List<string>();
+            var dummyImports = new List<ImportDeclaration>();
             bool skippedSomething;
             do
             {
@@ -1133,6 +1273,11 @@ namespace ReactiveUITK.Language.Parser
                     skippedSomething = true;
                 }
                 if (TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out _))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+                if (TryReadFunctionStyleImport(source, ref i, ref line, dummyImports))
                 {
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
                     skippedSomething = true;
