@@ -127,8 +127,20 @@ namespace ReactiveUITK.Language.Formatter
                 _sb.Append('\n');
             }
 
-            // -- Preamble: re-emit @namespace / using lines before the component block -
+            // -- Preamble: re-emit import / @namespace / using lines before the component block -
+            // A7f data-loss guard: the formatter re-prints the preamble from DirectiveSet fields and
+            // DROPS anything it does not model, so import lines MUST be re-emitted here (order:
+            // LeadingTrivia, imports, @namespace, @using, @uss) or a format pass would delete them.
             bool hasPreamble = false;
+
+            if (!directives.Imports.IsDefaultOrEmpty)
+            {
+                foreach (var imp in directives.Imports)
+                {
+                    Ln($"import {{ {string.Join(", ", imp.Names)} }} from \"{imp.Specifier}\"");
+                    hasPreamble = true;
+                }
+            }
 
             if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
             {
@@ -167,7 +179,13 @@ namespace ReactiveUITK.Language.Formatter
                 paramList = $"({string.Join(", ", parts)})";
             }
 
-            string headerLine = $"component {componentName}{paramList} {{";
+            // A7f: re-emit the `export ` prefix (import/export grammar) or a format pass drops it.
+            string exportPrefix =
+                !directives.ComponentDeclarations.IsDefaultOrEmpty
+                && directives.ComponentDeclarations[0].IsExported
+                    ? "export "
+                    : "";
+            string headerLine = $"{exportPrefix}component {componentName}{paramList} {{";
             if (paramList.Length > 0 && headerLine.Length > _opts.PrintWidth)
             {
                 // Wrap params one-per-line, each indented one level
@@ -176,7 +194,7 @@ namespace ReactiveUITK.Language.Formatter
                         ? $"{p.Type} {p.Name} = {p.DefaultValue}"
                         : $"{p.Type} {p.Name}"
                 );
-                _sb.Append($"component {componentName}(\n");
+                _sb.Append($"{exportPrefix}component {componentName}(\n");
                 _indent++;
                 var paramArray = parts.ToArray();
                 for (int pi = 0; pi < paramArray.Length; pi++)
@@ -315,7 +333,18 @@ namespace ReactiveUITK.Language.Formatter
             }
 
             // -- Preamble ------------------------------------------------------
+            // A7f data-loss guard: re-emit import lines (see the component path) so a format pass
+            // does not delete them. @uss is not part of the hook/module preamble.
             bool hasPreamble = false;
+
+            if (!directives.Imports.IsDefaultOrEmpty)
+            {
+                foreach (var imp in directives.Imports)
+                {
+                    Ln($"import {{ {string.Join(", ", imp.Names)} }} from \"{imp.Specifier}\"");
+                    hasPreamble = true;
+                }
+            }
 
             if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
             {
@@ -359,7 +388,7 @@ namespace ReactiveUITK.Language.Formatter
                     if (i > 0 || !directives.HookDeclarations.IsDefaultOrEmpty)
                         _sb.Append('\n');
                     var mod = directives.ModuleDeclarations[i];
-                    Ln($"module {mod.Name} {{");
+                    Ln($"{(mod.IsExported ? "export " : "")}module {mod.Name} {{");
                     _indent++;
                     EmitSetupCodeNormalized(mod.Body.Trim(), tabExp);
                     _indent--;
@@ -396,6 +425,8 @@ namespace ReactiveUITK.Language.Formatter
             // ) {
 
             var prefix = new StringBuilder();
+            if (hook.IsExported)
+                prefix.Append("export ");
             prefix.Append("hook ");
             prefix.Append(hook.Name);
             if (!string.IsNullOrEmpty(hook.GenericParams))
@@ -460,6 +491,8 @@ namespace ReactiveUITK.Language.Formatter
         private static string BuildHookHeaderSingleLine(HookDeclaration hook)
         {
             var sb = new StringBuilder();
+            if (hook.IsExported)
+                sb.Append("export ");
             sb.Append("hook ");
             sb.Append(hook.Name);
             if (!string.IsNullOrEmpty(hook.GenericParams))
