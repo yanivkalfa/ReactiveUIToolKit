@@ -44,9 +44,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             @"^\s*@namespace\s+([A-Za-z_][\w.]*)\s*;?\s*$",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-        // Top-level `hook NameOfHook(...)` declaration.
+        // Top-level `[export] hook NameOfHook(...)` declaration (import/export grammar, leg 3:
+        // the optional `export ` prefix must be tolerated or exported hooks are missed here).
         private static readonly Regex s_hookRegex = new Regex(
-            @"^\s*hook\s+[A-Za-z_]\w*\s*\(",
+            @"^\s*(?:export\s+)?hook\s+[A-Za-z_]\w*\s*\(",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
         // ── State ───────────────────────────────────────────────────────────

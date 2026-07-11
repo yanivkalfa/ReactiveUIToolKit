@@ -138,7 +138,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // Matches function-style component declarations inside a .uitkx file:
     //   component FooBar {
     private static readonly Regex s_uitkxComponentPattern = new(
-        @"^component\s+([A-Z][A-Za-z0-9_]*)",
+        @"^(?:export\s+)?component\s+([A-Z][A-Za-z0-9_]*)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -146,7 +146,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // Group "name" = component name.  Group "params" = raw param list if present.
     //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
     private static readonly Regex s_uitkxDeclPattern = new(
-        @"^component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
+        @"^(?:export\s+)?component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -156,7 +156,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // import. Multiline so `^` matches each logical line start; the directive
     // grammar prohibits leading whitespace before `module`/`hook` keywords.
     private static readonly Regex s_uitkxModuleOrHookPattern = new(
-        @"^(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])",
+        @"^(?:export\s+)?(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
