@@ -360,7 +360,9 @@ namespace ReactiveUITK.SourceGenerator
             var throwawayDiags = new List<ParseDiagnostic>();
             var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
             string? name = ds.ComponentName ?? ExtractComponentName(source);
-            string? ns = ds.Namespace;
+            // Resolve through the same seam the emitter uses so peer namespaces match the
+            // emitted namespace when strict imports flip on (no-op with the flag off).
+            string? ns = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
             if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(ns))
             {
                 peerInfo = default!;
@@ -394,7 +396,8 @@ namespace ReactiveUITK.SourceGenerator
         {
             var throwawayDiags = new List<ParseDiagnostic>();
             var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
-            if (ds.HookDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(ds.Namespace))
+            string? hookNs = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
+            if (ds.HookDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(hookNs))
             {
                 hookInfo = default!;
                 return false;
@@ -405,7 +408,7 @@ namespace ReactiveUITK.SourceGenerator
                     exportedHooks.Add(h.Name);
 
             hookInfo = new PeerHookContainerInfo(
-                ds.Namespace!,
+                hookNs!,
                 Emitter.HookEmitter.DeriveContainerClassName(filePath)
             )
             {

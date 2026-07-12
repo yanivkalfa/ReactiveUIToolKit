@@ -52,6 +52,12 @@ namespace ReactiveUITK.SourceGenerator
             // ── Stage 1: Directive parsing ────────────────────────────────────
             DirectiveSet directives = DirectiveParser.Parse(source, filePath, parseDiags);
 
+            // ── Stage 1b: Effective-namespace seam (import/export grammar, §4) ─
+            // Single point where namespace identity is resolved for every downstream
+            // emitter/peer read. No-op with the feature flag off (returns the parsed
+            // value); path-derived when strict imports are on.
+            directives = directives with { Namespace = ResolveEffectiveNamespace(directives, filePath) };
+
             ct.ThrowIfCancellationRequested();
 
             // ── Short-circuit: hook/module files (no markup) ──────────────────
@@ -334,6 +340,60 @@ namespace ReactiveUITK.SourceGenerator
                 // Never crash the generator on filesystem errors.
             }
             return null;
+        }
+
+        /// <summary>
+        /// Directory of the nearest owning <c>*.asmdef</c> walking up from <paramref name="uitkxFilePath"/>,
+        /// or <c>null</c> when none is found before the <c>Assets</c> boundary. This is the anchor for the
+        /// path-derived namespace (<see cref="NamespaceDerivation"/>): the derived namespace segments are
+        /// the file's directory relative to this. Mirrors the walk in
+        /// <see cref="FindOwningAsmdefAssemblyName"/> but returns the containing directory, not the name.
+        /// </summary>
+        internal static string? FindOwningAsmdefDir(string uitkxFilePath)
+        {
+            try
+            {
+                string? dir = Path.GetDirectoryName(uitkxFilePath);
+                while (!string.IsNullOrEmpty(dir))
+                {
+                    if (Directory.GetFiles(dir, "*.asmdef").Length > 0)
+                        return dir;
+
+                    string dirName = Path.GetFileName(dir);
+                    if (string.Equals(dirName, "Assets", StringComparison.OrdinalIgnoreCase))
+                        break;
+
+                    dir = Path.GetDirectoryName(dir);
+                }
+            }
+            catch
+            {
+                // Never crash the generator on filesystem errors.
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// The effective C# namespace for a parsed <c>.uitkx</c> file (import/export grammar, leg 3, §4).
+        /// The single seam controlling namespace identity:
+        /// <list type="bullet">
+        ///   <item><description>Flag OFF (default) → the legacy value the parser already produced
+        ///   (explicit <c>@namespace</c>, else companion-<c>.cs</c> inference / hard-coded fallback).
+        ///   Byte-identical to pre-feature output.</description></item>
+        ///   <item><description>Flag ON → explicit <c>@namespace</c> wins; otherwise the path-derived
+        ///   default anchored at the owning asmdef. A <c>null</c> derivation (no owning asmdef) is the
+        ///   UITKX2310 condition — the caller reports it; this falls back to the legacy value so the
+        ///   emit never produces a null namespace.</description></item>
+        /// </list>
+        /// </summary>
+        internal static string? ResolveEffectiveNamespace(DirectiveSet directives, string filePath)
+        {
+            if (!UitkxFeatureFlags.StrictImports)
+                return directives.Namespace;
+            if (directives.HasExplicitNamespace)
+                return directives.Namespace;
+            string? derived = NamespaceDerivation.Derive(filePath, FindOwningAsmdefDir(filePath));
+            return derived ?? directives.Namespace;
         }
 
         /// <summary>
