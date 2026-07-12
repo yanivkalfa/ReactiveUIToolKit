@@ -117,7 +117,7 @@ export const UitkxReferencePage: FC = () => (
           <TableRow>
             <TableCell><code>@component</code></TableCell>
             <TableCell><code>@component MyButton</code></TableCell>
-            <TableCell>Component class name. Matching it to the filename is a lint-tier convention (<code>UITKX2313</code>), not a hard rule.</TableCell>
+            <TableCell>Component class name. Matching it to the filename is a recommended convention (see <a href="#/imports">Imports &amp; Exports</a>), not a compiler-enforced rule.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>@using</code></TableCell>

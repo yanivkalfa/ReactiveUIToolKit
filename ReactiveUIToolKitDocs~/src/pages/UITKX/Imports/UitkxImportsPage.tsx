@@ -37,7 +37,6 @@ const DIAGS: [string, string][] = [
   ['UITKX2309', 'import must appear in the preamble, before the first declaration'],
   ['UITKX2311', 'export mismatch across parts merging into one type (e.g. a `component` and a same-named `module` disagree) — the component wins; align them (warning)'],
   ['UITKX2312', 'hook-container merge conflict: same-named containers in two files disagree (duplicate hook or accessibility)'],
-  ['UITKX2313', 'convention lint (warning): multi-component file, hooks outside a `.hooks` file, or filename ≠ component name'],
   ['UITKX2314', '`~/` root is not configured or the path resolves outside the project — set `"root"` in uitkx.config.json'],
 ]
 
@@ -85,10 +84,40 @@ export const UitkxImportsPage: FC = () => (
       Mixed declarations
     </Typography>
     <Typography variant="body1" paragraph>
-      The old &ldquo;one component per file&rdquo; and companion-file naming rules are now
-      lint-tier conventions — a file can declare any mix of components, hooks, and modules.
+      A file can declare any mix of components, hooks, and modules, in any order. The old
+      &ldquo;one component per file&rdquo; and companion-file naming rules are no longer enforced
+      by the compiler — they are documentation conventions (see below).
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_MIXED} />
+
+    <Typography variant="h5" component="h2" gutterBottom>
+      Conventions &amp; best practices
+    </Typography>
+    <Typography variant="body1" paragraph>
+      Because cross-file references are now explicit, the file-layout rules that used to be
+      enforced are <strong>recommendations</strong>, not diagnostics. Nothing below produces a
+      warning — they just keep a project easy to navigate:
+    </Typography>
+    <List>
+      <ListItem>
+        <ListItemText
+          primary="One component per file (with its companions)"
+          secondary="A component plus its .hooks/.style/etc. companions per folder stays readable and maps cleanly to HMR. Group several small, tightly-related components in one file when it genuinely reads better."
+        />
+      </ListItem>
+      <ListItem>
+        <ListItemText
+          primary="Hooks in a .hooks file, modules in a .style/.types/.utils file"
+          secondary="Keeping reusable hooks and modules in their own companion files signals intent and keeps component files focused. Inlining a small local hook/module in the component file is fine."
+        />
+      </ListItem>
+      <ListItem>
+        <ListItemText
+          primary="Match the filename to the primary component"
+          secondary="Naming Foo.uitkx after its main component Foo makes it findable. With multiple components in a file this is naturally looser."
+        />
+      </ListItem>
+    </List>
 
     <Typography variant="h5" component="h2" gutterBottom>
       Strict resolution

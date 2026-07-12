@@ -28,10 +28,10 @@ export const UitkxDiagnosticsPage: FC = () => (
     </Typography>
     <Typography variant="body2" paragraph>
       Emitted at compile time by the Roslyn source generator when processing{' '}
-      <code>.uitkx</code> files. Several structural codes (e.g. <code>UITKX0103</code>,{' '}
-      <code>UITKX0104</code>, <code>UITKX0106</code>, <code>UITKX0108</code>,{' '}
-      <code>UITKX0109</code>, <code>UITKX0120</code>, <code>UITKX0121</code>) fire both here and
-      live in the editor — they also appear in the language-server table below.
+      <code>.uitkx</code> files. Several structural codes (e.g. <code>UITKX0104</code>,{' '}
+      <code>UITKX0106</code>, <code>UITKX0108</code>, <code>UITKX0109</code>,{' '}
+      <code>UITKX0120</code>, <code>UITKX0121</code>) fire both here and live in the editor —
+      they also appear in the language-server table below.
     </Typography>
     <TableContainer>
       <Table size="small" sx={Styles.table}>
@@ -61,12 +61,6 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Missing required directive</TableCell>
             <TableCell>Add the missing <code>@namespace</code> or <code>@component</code> directive.</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell><Chip label="UITKX0103" size="small" color="warning" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
-            <TableCell>@component name mismatch</TableCell>
-            <TableCell>Rename <code>@component</code> to match the file name, or rename the file.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0008" size="small" color="warning" variant="outlined" /></TableCell>
@@ -194,10 +188,10 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Add <code>@component YourComponentName</code> or use function-style syntax.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0103" size="small" color="error" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>@component name does not match filename</TableCell>
-            <TableCell>Rename <code>@component</code> to match the file name.</TableCell>
+            <TableCell><Chip label="UITKX0103" size="small" color="default" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Removed" size="small" /></TableCell>
+            <TableCell>Filename ≠ component name — no longer flagged</TableCell>
+            <TableCell>A file may declare several components, so a filename-match rule is meaningless. Matching the filename is now a documentation convention (see <a href="#/imports">Imports &amp; Exports</a>), not a diagnostic.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0104" size="small" color="error" variant="outlined" /></TableCell>
@@ -529,10 +523,10 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Same-named hook containers in two files disagree (duplicate hook name or accessibility). Rename or consolidate.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX2313" size="small" color="warning" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
-            <TableCell>Convention lint</TableCell>
-            <TableCell>Advisory only: multiple components in one file, hooks declared outside a <code>.hooks</code> file, or a filename that doesn&rsquo;t match the component name.</TableCell>
+            <TableCell><Chip label="UITKX2313" size="small" color="default" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Reserved" size="small" /></TableCell>
+            <TableCell>Layout conventions — not emitted</TableCell>
+            <TableCell>One component per file, hooks in a <code>.hooks</code> file, and filename == component are documentation best-practices (see <a href="#/imports">Imports &amp; Exports</a>), not code-enforced warnings.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2314" size="small" color="error" variant="outlined" /></TableCell>

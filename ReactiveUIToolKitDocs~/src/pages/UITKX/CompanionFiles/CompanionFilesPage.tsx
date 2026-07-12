@@ -46,9 +46,10 @@ export const CompanionFilesPage: FC = () => (
         <strong>As of 0.7.0</strong>, cross-file references are explicit — a component{' '}
         <code>import</code>s the hooks and modules it uses, and the file-kind naming rules
         below (one component per file, <code>.hooks</code>/<code>.style</code> suffixes,
-        filename == component) are now <strong>lint-tier conventions</strong> rather than hard
-        requirements. A single file may declare any mix of components, hooks, and modules. See{' '}
-        <a href="#/imports">Imports &amp; Exports</a> for the model and the migration codemod.
+        filename == component) are now <strong>documentation conventions</strong> rather than
+        compiler-enforced requirements. A single file may declare any mix of components, hooks,
+        and modules. See <a href="#/imports">Imports &amp; Exports</a> for the model, the
+        recommended conventions, and the migration codemod.
       </Typography>
     </Box>
 

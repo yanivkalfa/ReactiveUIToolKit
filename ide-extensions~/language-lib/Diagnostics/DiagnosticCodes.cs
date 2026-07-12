@@ -246,7 +246,11 @@ namespace ReactiveUITK.Language.Diagnostics
         /// <summary>`Hook container '{0}' merge conflict between '{1}' and '{2}' (duplicate hook / accessibility).` (Unity-local).</summary>
         public const string HookContainerMergeConflict = "UITKX2312";
 
-        /// <summary>`Convention: {0}.` — multi-component file / hooks outside .hooks / filename mismatch (Warning, Unity-local).</summary>
+        /// <summary>Reserved, INTENTIONALLY NOT EMITTED. The layout conventions it would have
+        /// covered (one component per file, hooks in a <c>.hooks</c> file, filename == component)
+        /// are documentation best-practices, not code-enforced diagnostics — a file may legally
+        /// declare any mix of components/hooks/modules in any order. Kept as a reserved slot in
+        /// the frozen family band so the number is never reused.</summary>
         public const string ConventionLint = "UITKX2313";
 
         /// <summary>`'~/' root is not configured or resolves outside the project ('{0}').` (Unity-local).</summary>
