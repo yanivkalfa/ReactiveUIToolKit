@@ -168,6 +168,7 @@ namespace ReactiveUITK.SourceGenerator
                     // same pass via GetTypeByMetadataName).
                     var peerComponentsBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                     var peerHookContainersBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
+                    var peerModulesBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
                     foreach (var txt in uitkxFiles)
                     {
                         ct.ThrowIfCancellationRequested();
@@ -182,11 +183,14 @@ namespace ReactiveUITK.SourceGenerator
                             peerComponentsBuilder.Add(peerInfo);
                         if (TryBuildPeerHookContainerInfo(src, txt.Path, out var hookInfo))
                             peerHookContainersBuilder.Add(hookInfo);
+                        CollectPeerModuleInfos(src, txt.Path, peerModulesBuilder);
                     }
                     ImmutableArray<PeerComponentInfo> peerComponents =
                         peerComponentsBuilder.ToImmutable();
                     ImmutableArray<PeerHookContainerInfo> peerHookContainers =
                         peerHookContainersBuilder.ToImmutable();
+                    ImmutableArray<PeerModuleInfo> peerModules =
+                        peerModulesBuilder.ToImmutable();
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
@@ -201,7 +205,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = ReadUitkxSource(txt, ct);
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -218,6 +222,7 @@ namespace ReactiveUITK.SourceGenerator
                             // Pre-scan for peer component names (same as the AdditionalTexts path)
                             var diskPeerBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                             var diskHookBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
+                            var diskModuleBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
                             foreach (string fp in diskFiles)
                             {
                                 if (IsInsideIgnoredFolder(fp)) continue;
@@ -228,11 +233,14 @@ namespace ReactiveUITK.SourceGenerator
                                     diskPeerBuilder.Add(peerInfo);
                                 if (TryBuildPeerHookContainerInfo(raw, fp, out var hookInfo))
                                     diskHookBuilder.Add(hookInfo);
+                                CollectPeerModuleInfos(raw, fp, diskModuleBuilder);
                             }
                             ImmutableArray<PeerComponentInfo> diskPeerComponents =
                                 diskPeerBuilder.ToImmutable();
                             ImmutableArray<PeerHookContainerInfo> diskPeerHookContainers =
                                 diskHookBuilder.ToImmutable();
+                            ImmutableArray<PeerModuleInfo> diskPeerModules =
+                                diskModuleBuilder.ToImmutable();
 
                             foreach (string filePath in diskFiles)
                             {
@@ -240,7 +248,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules));
                             }
                         }
                     }
@@ -416,6 +424,24 @@ namespace ReactiveUITK.SourceGenerator
                 ExportedHookNames = exportedHooks.ToImmutable(),
             };
             return true;
+        }
+
+        /// <summary>
+        /// Appends a <see cref="PeerModuleInfo"/> for every <c>module</c> declared in the file
+        /// (import/export grammar, leg 3, M6b/strict). Module edges had no peer table before.
+        /// </summary>
+        private static void CollectPeerModuleInfos(
+            string source, string filePath, ImmutableArray<PeerModuleInfo>.Builder builder)
+        {
+            var throwawayDiags = new List<ParseDiagnostic>();
+            var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
+            if (ds.ModuleDeclarations.IsDefaultOrEmpty)
+                return;
+            string? ns = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
+            if (string.IsNullOrEmpty(ns))
+                return;
+            foreach (var m in ds.ModuleDeclarations)
+                builder.Add(new PeerModuleInfo(m.Name, ns!, m.IsExported) { SourceFilePath = filePath });
         }
     }
 }

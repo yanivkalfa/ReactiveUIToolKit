@@ -39,7 +39,8 @@ namespace ReactiveUITK.SourceGenerator
             Compilation compilation,
             CancellationToken ct,
             ImmutableArray<PeerComponentInfo>? peerComponents = null,
-            ImmutableArray<PeerHookContainerInfo>? peerHookContainers = null
+            ImmutableArray<PeerHookContainerInfo>? peerHookContainers = null,
+            ImmutableArray<PeerModuleInfo>? peerModules = null
         )
         {
             ct.ThrowIfCancellationRequested();
@@ -107,6 +108,15 @@ namespace ReactiveUITK.SourceGenerator
                     hookModuleDiags.ToImmutableArray()
                 );
             }
+
+            // ── Stage 1c: strict reference detector (StrictImports seam, §6) ──
+            // Reports 2305/2307 for peer-exported names referenced without an import. Appended to
+            // the parse-diag bag BEFORE the bridge/#error block below so strict errors surface in
+            // the Unity console the same way parse errors do. Dormant with the flag off.
+            if (UitkxFeatureFlags.StrictImports)
+                AppendStrictReferenceDiags(
+                    directives, source, filePath,
+                    peerComponents, peerHookContainers, peerModules, parseDiags);
 
             // ── Stage 2: Markup parsing ───────────────────────────────────────
             ImmutableArray<AstNode> parsedNodes = UitkxParser.Parse(
@@ -460,6 +470,63 @@ namespace ReactiveUITK.SourceGenerator
 
         private static string NormalizeAbs(string? p) =>
             (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
+
+        // Builtin/ambient hook names (from the single-source HookRegistry) that need no import.
+        private static readonly HashSet<string> s_builtinHooks =
+            new HashSet<string>(global::ReactiveUITK.Core.HookRegistry.CanonicalNames, StringComparer.Ordinal);
+
+        /// <summary>
+        /// Runs <see cref="StrictImportDetector"/> over <paramref name="source"/> and appends its
+        /// 2305/2307 findings to <paramref name="parseDiags"/>. The peer export table is built from
+        /// the pre-scan peer arrays (exported names only — the frozen "exported-names ledger"). Only
+        /// invoked when <see cref="UitkxFeatureFlags.StrictImports"/> is on.
+        /// </summary>
+        private static void AppendStrictReferenceDiags(
+            DirectiveSet directives,
+            string source,
+            string filePath,
+            ImmutableArray<PeerComponentInfo>? peerComponents,
+            ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
+            ImmutableArray<PeerModuleInfo>? peerModules,
+            List<ParseDiagnostic> parseDiags)
+        {
+            var peerExports = new List<StrictImportDetector.PeerExport>();
+
+            if (peerComponents != null)
+                foreach (var pc in peerComponents.Value)
+                    if (pc.IsExported && !string.IsNullOrEmpty(pc.SourceFilePath))
+                        peerExports.Add(new StrictImportDetector.PeerExport(
+                            pc.Name, pc.SourceFilePath!, StrictImportDetector.ExportKind.Component));
+
+            if (peerHookContainers != null)
+                foreach (var ph in peerHookContainers.Value)
+                    if (!string.IsNullOrEmpty(ph.SourceFilePath))
+                        foreach (var hookName in ph.ExportedHookNames)
+                            peerExports.Add(new StrictImportDetector.PeerExport(
+                                hookName, ph.SourceFilePath!, StrictImportDetector.ExportKind.Hook));
+
+            if (peerModules != null)
+                foreach (var pm in peerModules.Value)
+                    if (pm.IsExported && !string.IsNullOrEmpty(pm.SourceFilePath))
+                        peerExports.Add(new StrictImportDetector.PeerExport(
+                            pm.Name, pm.SourceFilePath!, StrictImportDetector.ExportKind.Module));
+
+            if (peerExports.Count == 0)
+                return;
+
+            string scannable = StrictImportDetector.ScrubNonCode(source);
+            var findings = StrictImportDetector.Detect(
+                directives, filePath, scannable, peerExports, s_builtinHooks.Contains);
+
+            foreach (var f in findings)
+                parseDiags.Add(new ParseDiagnostic
+                {
+                    Code = f.Code,
+                    Severity = f.Code == "UITKX2304" ? ParseSeverity.Warning : ParseSeverity.Error,
+                    SourceLine = f.Line,
+                    Message = f.Message,
+                });
+        }
 
         /// <summary>
         /// Returns <c>true</c> when the given path contains an <c>Editor</c>
