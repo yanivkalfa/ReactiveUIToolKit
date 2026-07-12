@@ -87,6 +87,19 @@ public class EmitterTests
     }
 
     [Fact]
+    public void DuplicateComponentName_InSameFile_RaisesUitkx0113_AndStaysValid()
+    {
+        // Two `component Foo` in one file would emit duplicate partial classes/members
+        // (CS0111/CS0101). UITKX0113 flags it and the duplicate is skipped so the
+        // surviving output is still syntactically valid.
+        var src = "component Foo {\n  return (<Box />);\n}\ncomponent Foo {\n  return (<Label text=\"x\" />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "UITKX0113");
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
     public void HookAndModuleOnlyFile_EmitsSeparateValidUnits()
     {
         // A file with a hook AND a module but NO component takes the short-circuit

@@ -376,9 +376,23 @@ namespace ReactiveUITK.SourceGenerator
                 ? ImmutableArray<ComponentDeclaration>.Empty
                 : directives.ComponentDeclarations;
             string? primarySource = null;
+            var emittedComponentNames = new HashSet<string>(StringComparer.Ordinal);
             for (int ci = 0; ci < componentsToEmit.Length; ci++)
             {
                 ct.ThrowIfCancellationRequested();
+
+                // Two components with the same name in one file would emit duplicate
+                // partial classes / members (CS0111/CS0101/CS0579). Flag UITKX0113 and
+                // skip the duplicate so the generated code still compiles for the rest.
+                if (!emittedComponentNames.Add(componentsToEmit[ci].Name))
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        UitkxDiagnostics.DuplicateComponentInFile,
+                        Location.None,
+                        componentsToEmit[ci].Name));
+                    continue;
+                }
+
                 var cd = SynthesizePerComponent(directives, componentsToEmit[ci]);
 
                 ImmutableArray<AstNode> cRoots;
