@@ -151,11 +151,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
                 if (mergesWithComponent && componentIsExported != module.IsExported)
                 {
+                    // Warning, not Error: the module now emits no modifier and DEFERS to the
+                    // component's accessibility (so there is no CS0262 to break the build) — the
+                    // module's own `export`/non-export was just ignored. Advise the user to align
+                    // them. (Surfaced via #warning by the pipeline — Location.None alone is dropped.)
                     diagnostics.Add(Diagnostic.Create(
                         new DiagnosticDescriptor(
                             "UITKX2311", "Export accessibility mismatch",
-                            $"Export accessibility mismatch across parts merging into '{module.Name}'.",
-                            "ReactiveUITK.Imports", DiagnosticSeverity.Error, true),
+                            $"Export mismatch merging into '{module.Name}': the component's accessibility is used; align the module's export.",
+                            "ReactiveUITK.Imports", DiagnosticSeverity.Warning, true),
                         Location.None));
                 }
 

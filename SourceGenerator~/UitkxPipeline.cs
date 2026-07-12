@@ -88,26 +88,13 @@ namespace ReactiveUITK.SourceGenerator
                     });
                 }
 
-                // 2310 — the path-derived namespace (§4) has NO anchor at all: not under an
-                // owning .asmdef AND not under a resolvable project root (i.e. ResolveDerivationAnchor
-                // is null → NamespaceDerivation.Derive is null). A no-asmdef file under Assets is NOT
-                // this case — it anchors at the config root and derives fine — so the mainstream
-                // default-Assembly-CSharp setup no longer hard-errors. Real on-disk files only;
-                // synthetic inline-source paths (no project root) are exempt via File.Exists.
-                if (!directives.HasExplicitNamespace
-                    && !string.IsNullOrEmpty(filePath)
-                    && File.Exists(filePath)
-                    && AssetPathUtil.GetProjectRoot(filePath) != null
-                    && NamespaceDerivation.Derive(filePath, ResolveDerivationAnchor(filePath)) == null)
-                {
-                    parseDiags.Add(new ParseDiagnostic
-                    {
-                        Code = "UITKX2310",
-                        Severity = ParseSeverity.Error,
-                        SourceLine = 1,
-                        Message = $"Cannot derive a namespace for '{fileName}'; add @namespace.",
-                    });
-                }
+                // UITKX2310 (no derivable namespace) is RETIRED by design: §4 now anchors
+                // path-derivation at the nearest .asmdef, else the config root (see
+                // ResolveDerivationAnchor), and ResolveEffectiveNamespace additionally falls
+                // back to the legacy namespace — so every file Unity actually compiles (under
+                // a project root) always resolves a namespace. The code slot stays reserved in
+                // the frozen family table (2310) but is never emitted; a hard #error on the
+                // mainstream no-asmdef Assembly-CSharp setup would have been a false positive.
             }
 
             // ── Short-circuit: hook/module files (no markup) ──────────────────
@@ -151,11 +138,16 @@ namespace ReactiveUITK.SourceGenerator
                 // the component injection seam (Stage 3d), so without this an imported
                 // useX()/module member resolves to nothing → CS0103/CS0246 even though the
                 // strict reference detector is satisfied (the name IS imported).
-                directives = directives with
-                {
-                    Usings = ResolveInjectedUsings(
-                        directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports, peerModules)
-                };
+                // Gated behind StrictImports: with the flag OFF a hook/module-only file got
+                // NO injection historically (there was no import syntax), and the flag-OFF
+                // ResolveInjectedUsings exposes EVERY container — injecting them here would
+                // change legacy output and risk CS0121 in the body. Flag ON only.
+                if (UitkxFeatureFlags.StrictImports)
+                    directives = directives with
+                    {
+                        Usings = ResolveInjectedUsings(
+                            directives, peerHookContainers, filePath, strict: true, peerModules)
+                    };
 
                 // Emit hooks and modules as SEPARATE compilation units (each merges as a
                 // partial across CUs). Concatenating them — as this path used to — places
@@ -163,6 +155,7 @@ namespace ReactiveUITK.SourceGenerator
                 string hmExtraHint(string section) =>
                     hintName.Substring(0, hintName.Length - ".g.cs".Length) + "." + section + ".g.cs";
                 var hmExtra = ImmutableArray.CreateBuilder<(string, string)>();
+                int hmDiagStart = hookModuleDiags.Count; // emit-stage diags (e.g. UITKX2311) start here
                 string? hookSource = !directives.HookDeclarations.IsDefaultOrEmpty
                     ? HookEmitter.Emit(filePath, directives, hookModuleDiags) : null;
                 string? moduleSource = !directives.ModuleDeclarations.IsDefaultOrEmpty
@@ -178,6 +171,9 @@ namespace ReactiveUITK.SourceGenerator
                     else
                         hmExtra.Add((hmExtraHint("inlinemodules"), moduleSource!));
                 }
+                // Surface emit-stage Location.None diagnostics (e.g. UITKX2311 on a module-only
+                // file) that Unity would otherwise drop.
+                hmPrimary = SurfaceLocationlessDiagnostics(hmPrimary, hookModuleDiags, hmDiagStart);
                 return new UitkxPipelineResult(
                     hintName,
                     hmPrimary,
@@ -293,6 +289,11 @@ namespace ReactiveUITK.SourceGenerator
 
             ct.ThrowIfCancellationRequested();
 
+            // Diagnostics added from here on are EMIT-STAGE; the Location.None ones among
+            // them (UITKX0113, UITKX2311, later-component parse errors) would be silently
+            // dropped by Unity, so they are re-surfaced as #error/#warning before returning.
+            int emitDiagStart = diagnostics.Count;
+
             // ── Stage 3: PropsResolver ────────────────────────────────────────
             var resolver = new PropsResolver(compilation, peerComponents);
 
@@ -407,25 +408,35 @@ namespace ReactiveUITK.SourceGenerator
                 {
                     var cThrow = new List<ParseDiagnostic>();
                     var cParsed = UitkxParser.Parse(source, filePath, cd, cThrow);
-                    // Surface the later component's own parse errors (it is parsed
-                    // here for the first time — the first component owns rootNodes).
-                    // Without this bridge a syntax error past the first component is
-                    // silently swallowed and emits malformed C#.
+                    // Later components own their OWN setup-code JSX ranges (the first
+                    // component owns rootNodes + setupJsxNodes), so parse + validate them
+                    // here too — otherwise a Rules-of-Hooks / structural violation inside a
+                    // later component's setup JSX is silently unreported.
+                    var cSetupJsx = ParseSetupCodeJsx(source, filePath, cd, cThrow);
+                    // Surface the later component's own parse errors (markup + setup JSX).
                     foreach (var pd in cThrow)
                         diagnostics.Add(ParseDiagToRoslyn(pd));
                     cRoots = CanonicalLowering.LowerToRenderRoots(cd, cParsed, filePath);
                     HooksValidator.Validate(cRoots, filePath, diagnostics);
+                    if (!cSetupJsx.IsEmpty)
+                        HooksValidator.Validate(cSetupJsx, filePath, diagnostics);
                     StructureValidator.Validate(cRoots, filePath, diagnostics, cd);
+                    if (!cSetupJsx.IsEmpty)
+                        StructureValidator.ValidateNodes(cSetupJsx, filePath, diagnostics);
                 }
 
                 string compSrc = CSharpEmitter.Emit(filePath, cd, cRoots, resolver, diagnostics);
                 if (ci == 0)
                     primarySource = compSrc; // main component keeps the canonical {file}.g.cs hint
                 else
-                    extraSources.Add((ExtraHint(cd.ComponentName ?? ("c" + ci)), compSrc));
+                    // Index-PREFIXED so a component named "inlinehooks"/"inlinemodules" can
+                    // never collide with those fixed section labels (→ duplicate AddSource
+                    // hint → throw), and two components always get distinct hints via the index.
+                    extraSources.Add((ExtraHint("c" + ci + "_" + (cd.ComponentName ?? "")), compSrc));
             }
 
             ct.ThrowIfCancellationRequested();
+            primarySource = SurfaceLocationlessDiagnostics(primarySource, diagnostics, emitDiagStart);
             return new UitkxPipelineResult(
                 hintName,
                 primarySource,
@@ -930,6 +941,39 @@ namespace ReactiveUITK.SourceGenerator
                 isEnabledByDefault: true
             );
             return Diagnostic.Create(desc, Location.None);
+        }
+
+        /// <summary>
+        /// Prepends <c>#error</c>/<c>#warning</c> directives to a generated source for every
+        /// EMIT-STAGE diagnostic (from <paramref name="fromIndex"/> onward) that was created with
+        /// <see cref="Location.None"/>. Unity silently drops Location.None diagnostics on a .uitkx
+        /// (it is not a C# SyntaxTree) — the same reason the directive/parse-error path emits
+        /// <c>#error</c>. Real-location diagnostics (the validators' <c>Location.Create</c>) surface
+        /// on their own and are left untouched. Covers UITKX0113 (duplicate component, warning),
+        /// UITKX2311 (export mismatch, warning), and later-component parse errors (error, halts).
+        /// </summary>
+        private static string? SurfaceLocationlessDiagnostics(
+            string? source, IReadOnlyList<Diagnostic> diagnostics, int fromIndex)
+        {
+            if (source == null)
+                return null;
+            System.Text.StringBuilder? sb = null;
+            for (int i = fromIndex; i < diagnostics.Count; i++)
+            {
+                var d = diagnostics[i];
+                if (d.Location != Location.None)
+                    continue; // real location → Unity surfaces it directly
+                string? directive = d.Severity == DiagnosticSeverity.Error ? "#error"
+                    : d.Severity == DiagnosticSeverity.Warning ? "#warning"
+                    : null;
+                if (directive == null)
+                    continue;
+                (sb ??= new System.Text.StringBuilder())
+                    .Append(directive).Append(' ')
+                    .Append(d.Id).Append(": ")
+                    .AppendLine(d.GetMessage().Replace('\n', ' ').Replace('\r', ' '));
+            }
+            return sb == null ? source : sb.ToString() + source;
         }
 
         private static string BuildHintName(string filePath)

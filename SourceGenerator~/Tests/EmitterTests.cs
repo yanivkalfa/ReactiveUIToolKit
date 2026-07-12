@@ -97,6 +97,38 @@ public class EmitterTests
 
         Assert.Contains(result.Diagnostics, d => d.Id == "UITKX0113");
         Assert.Empty(result.SyntaxErrors());
+        // The Location.None diagnostic is re-surfaced as a #warning so Unity shows it
+        // (Unity silently drops Location.None diagnostics on a .uitkx).
+        Assert.Contains(result.AllSources, s => s.Text.Contains("#warning UITKX0113"));
+    }
+
+    [Fact]
+    public void MultiComponent_SiblingReference_NoFalseUnknownComponentWarning()
+    {
+        // Card references its same-file sibling CardList. Both must be registered as
+        // peers, else CardList resolves as unknown → false UITKX0008.
+        var src = "component CardList {\n  return (<Label text=\"x\" />);\n}\ncomponent Card {\n  return (<CardList />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0008");
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void ComponentNamedLikeSectionLabel_NoAddSourceHintCollision()
+    {
+        // A component named "Inlinehooks" (PascalCase — lowercase is rejected by UITKX2100)
+        // would, without index-prefixed hints, collide CASE-INSENSITIVELY with the
+        // inline-hooks section's "inlinehooks" hint (a duplicate hint throws during
+        // generation). Index-prefixed labels ("c2_Inlinehooks") keep them disjoint.
+        var src = "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\n"
+            + "hook useLocal() {\n  return 0;\n}\n"
+            + "component Inlinehooks {\n  return (<Label text=\"x\" />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.Empty(result.SyntaxErrors());
+        Assert.Contains(result.AllSources, s => s.Text.Contains("partial class Inlinehooks"));
     }
 
     [Fact]

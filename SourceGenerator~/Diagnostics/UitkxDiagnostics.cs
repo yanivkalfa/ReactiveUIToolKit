@@ -188,17 +188,19 @@ namespace ReactiveUITK.SourceGenerator
             description: "Each sibling should have a unique key to allow the reconciler to track elements across renders."
         );
 
-        /// <summary>UITKX0113 — the same file declares two components with the same name.
-        /// Emitting both would be CS0111/CS0101 (duplicate members / duplicate type). Matches
-        /// the LSP's cross-file duplicate-component id; here it is the same-file case.</summary>
+        /// <summary>UITKX0113 — a component name is declared more than once. Shares the id +
+        /// <b>Warning</b> severity of the LSP's cross-file duplicate-component diagnostic; this
+        /// is the same-file variant. The generator recovers by skipping the duplicate (so the
+        /// file still compiles with the first declaration), which is why it is a warning rather
+        /// than an error.</summary>
         public static readonly DiagnosticDescriptor DuplicateComponentInFile = new DiagnosticDescriptor(
             id: "UITKX0113",
             title: "Duplicate component declaration",
-            messageFormat: "Component '{0}' is declared more than once in the same file",
+            messageFormat: "Component '{0}' is declared more than once; the duplicate is ignored",
             category: Category,
-            defaultSeverity: DiagnosticSeverity.Error,
+            defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true,
-            description: "Each component name must be unique within a file; emitting duplicate partial classes would fail to compile."
+            description: "Each component name should be unique; the generator emits only the first declaration and ignores later ones."
         );
 
         /// <summary>UITKX0012 — @namespace must be declared before @component.</summary>

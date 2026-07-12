@@ -181,8 +181,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? src = ReadUitkxSource(txt, ct);
                         if (src == null)
                             continue;
-                        if (TryBuildPeerComponentInfo(src, txt.Path, out var peerInfo))
-                            peerComponentsBuilder.Add(peerInfo);
+                        CollectPeerComponentInfos(src, txt.Path, peerComponentsBuilder);
                         if (TryBuildPeerHookContainerInfo(src, txt.Path, out var hookInfo))
                             peerHookContainersBuilder.Add(hookInfo);
                         CollectPeerModuleInfos(src, txt.Path, peerModulesBuilder);
@@ -236,8 +235,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (!UitkxPipeline.IsOwnedByCompilation(fp, compilation.AssemblyName))
                                     continue;
                                 string raw = File.ReadAllText(fp);
-                                if (TryBuildPeerComponentInfo(raw, fp, out var peerInfo))
-                                    diskPeerBuilder.Add(peerInfo);
+                                CollectPeerComponentInfos(raw, fp, diskPeerBuilder);
                                 if (TryBuildPeerHookContainerInfo(raw, fp, out var hookInfo))
                                     diskHookBuilder.Add(hookInfo);
                                 CollectPeerModuleInfos(raw, fp, diskModuleBuilder);
@@ -377,41 +375,64 @@ namespace ReactiveUITK.SourceGenerator
         private static bool HasFunctionStyleParams(string source)
             => s_funcParamsRe.IsMatch(source);
 
-        private static bool TryBuildPeerComponentInfo(
+        /// <summary>
+        /// Adds a <see cref="PeerComponentInfo"/> for EVERY component declared in the file
+        /// (not just the first) so the shared resolver + strict-import tables see all of a
+        /// multi-component file's components. Registering only the first left references to a
+        /// same-file sibling component resolving as unknown (false UITKX0008) and made those
+        /// siblings un-importable / invisible to the value-cycle detector.
+        /// </summary>
+        private static void CollectPeerComponentInfos(
             string source,
             string filePath,
-            out PeerComponentInfo peerInfo
+            ImmutableArray<PeerComponentInfo>.Builder builder
         )
         {
             var throwawayDiags = new List<ParseDiagnostic>();
             var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
-            string? name = ds.ComponentName ?? ExtractComponentName(source);
-            // Resolve through the same seam the emitter uses so peer namespaces match the
-            // emitted namespace when strict imports flip on (no-op with the flag off).
+            // All components in one file share the file's effective namespace (resolved
+            // through the same seam the emitter uses, so peer namespaces match the emit).
             string? ns = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
-            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(ns))
+            if (string.IsNullOrEmpty(ns))
+                return;
+
+            if (!ds.ComponentDeclarations.IsDefaultOrEmpty)
             {
-                peerInfo = default!;
-                return false;
+                foreach (var cd in ds.ComponentDeclarations)
+                {
+                    if (string.IsNullOrEmpty(cd.Name))
+                        continue;
+                    builder.Add(new PeerComponentInfo(
+                        cd.Name,
+                        ns!,
+                        !cd.FunctionParams.IsDefaultOrEmpty,
+                        cd.FunctionParams.IsDefault
+                            ? ImmutableArray<FunctionParam>.Empty
+                            : cd.FunctionParams)
+                    {
+                        SourceFilePath = filePath,
+                        IsExported = cd.IsExported,
+                    });
+                }
+                return;
             }
 
-            bool emitsGeneratedProps = !ds.FunctionParams.IsDefaultOrEmpty;
-
-            peerInfo = new PeerComponentInfo(
-                name,
-                ns,
-                emitsGeneratedProps,
+            // Fallback: a parser path (or the regex-only extractor) set ComponentName
+            // without populating ComponentDeclarations. Preserves the pre-multi behavior.
+            string? name = ds.ComponentName ?? ExtractComponentName(source);
+            if (string.IsNullOrEmpty(name))
+                return;
+            builder.Add(new PeerComponentInfo(
+                name!,
+                ns!,
+                !ds.FunctionParams.IsDefaultOrEmpty,
                 ds.FunctionParams.IsDefault
                     ? ImmutableArray<FunctionParam>.Empty
-                    : ds.FunctionParams
-            )
+                    : ds.FunctionParams)
             {
                 SourceFilePath = filePath,
-                IsExported = ds.ComponentDeclarations.IsDefaultOrEmpty
-                    ? true
-                    : ds.ComponentDeclarations[0].IsExported,
-            };
-            return true;
+                IsExported = true,
+            });
         }
 
         private static bool TryBuildPeerHookContainerInfo(
