@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using ReactiveUITK.Language;
 using ReactiveUITK.Language.Parser;
 
-namespace ReactiveUITK.SourceGenerator
+namespace ReactiveUITK.Language
 {
     /// <summary>
     /// The strict-mode reference detector (import/export grammar, leg 3, plan §6 "strict detector").
@@ -17,14 +16,14 @@ namespace ReactiveUITK.SourceGenerator
     ///   <item><description><b>UITKX2307</b> — a <c>useX()</c> hook-shaped call resolves to no peer
     ///   export and is not an ambient/builtin hook (hand-written C# hooks are exempt, A4).</description></item>
     /// </list>
-    /// Pure and host-agnostic (filesystem + builtin allowlists injected) so it is directly unit-testable
-    /// and only runs when <see cref="Language.UitkxFeatureFlags.StrictImports"/> is on.
+    /// Pure and host-agnostic (filesystem + builtin allowlists injected) so it is shared by the source
+    /// generator (build) and the LSP (live editor diagnostics) and is directly unit-testable.
     /// </summary>
     public static class StrictImportDetector
     {
         public enum ExportKind { Component, Hook, Module }
 
-        /// <summary>An exported name in a peer file of the same asmdef (built from the SG pre-scan).</summary>
+        /// <summary>An exported name in a peer file of the same asmdef.</summary>
         public sealed record PeerExport(string Name, string TargetFilePath, ExportKind Kind);
 
         /// <summary>One strict-mode finding: the frozen code, the rendered message, and its source line.</summary>
@@ -88,29 +87,29 @@ namespace ReactiveUITK.SourceGenerator
 
             var reported = new HashSet<string>(StringComparer.Ordinal);
 
-            void Report(string code, string message, string dedupeKey)
+            void Report(string code, string message, int line, string dedupeKey)
             {
                 if (reported.Add(dedupeKey))
-                    findings.Add(new Finding(code, message, 1));
+                    findings.Add(new Finding(code, message, line));
             }
 
             string importerDir = DirOf(importerFilePath);
 
-            void FlagUnimportedPeer(string name, ExportKind kind)
+            void FlagUnimportedPeer(string name, ExportKind kind, int line)
             {
                 if (selfNames.Contains(name) || imported.Contains(name)) return;
                 if (!byKind[kind].TryGetValue(name, out var pe)) return;
                 string spec = RelativeSpecifier(importerDir, pe.TargetFilePath);
                 Report("UITKX2305",
                     $"`{name}` is defined in {ShortName(pe.TargetFilePath)} but not imported — add: import {{ {name} }} from \"{spec}\"",
-                    "2305:" + name);
+                    line, "2305:" + name);
             }
 
             foreach (System.Text.RegularExpressions.Match m in s_tagRe.Matches(scannableCode))
-                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Component);
+                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Component, LineAt(scannableCode, m.Index));
 
             foreach (System.Text.RegularExpressions.Match m in s_moduleRe.Matches(scannableCode))
-                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Module);
+                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Module, LineAt(scannableCode, m.Index));
 
             foreach (System.Text.RegularExpressions.Match m in s_hookRe.Matches(scannableCode))
             {
@@ -118,7 +117,7 @@ namespace ReactiveUITK.SourceGenerator
                 if (selfNames.Contains(name) || imported.Contains(name)) continue;
                 if (byKind[ExportKind.Hook].ContainsKey(name))
                 {
-                    FlagUnimportedPeer(name, ExportKind.Hook);
+                    FlagUnimportedPeer(name, ExportKind.Hook, LineAt(scannableCode, m.Index));
                 }
                 else if (!isBuiltinHook(name))
                 {
@@ -127,7 +126,7 @@ namespace ReactiveUITK.SourceGenerator
                     // so this only fires when the name matches no known hook at all.
                     Report("UITKX2307",
                         $"`{name}` is used like a uitkx component/hook but no file exports it",
-                        "2307:" + name);
+                        LineAt(scannableCode, m.Index), "2307:" + name);
                 }
             }
 
@@ -206,6 +205,16 @@ namespace ReactiveUITK.SourceGenerator
                 i++;
             }
             return sb.ToString();
+        }
+
+        /// <summary>1-based line of <paramref name="index"/> in <paramref name="text"/>.</summary>
+        private static int LineAt(string text, int index)
+        {
+            int line = 1;
+            int end = Math.Min(index, text.Length);
+            for (int i = 0; i < end; i++)
+                if (text[i] == '\n') line++;
+            return line;
         }
 
         private static string ShortName(string path)

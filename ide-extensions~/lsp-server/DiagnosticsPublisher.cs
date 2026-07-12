@@ -2,7 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using OmniSharp.Extensions.LanguageServer.Protocol;
@@ -173,6 +175,109 @@ public sealed class DiagnosticsPublisher
     /// (pass <c>null</c> to skip, e.g. in unit tests).
     /// </summary>
     /// <returns>The <see cref="ParseResult"/> produced during this invocation.</returns>
+    // Builtin/ambient hooks (from the single-source HookRegistry) that need no import.
+    private static readonly HashSet<string> s_builtinHooks =
+        new HashSet<string>(global::ReactiveUITK.Core.HookRegistry.CanonicalNames, StringComparer.Ordinal);
+
+    private static readonly Regex s_asmdefNameRe =
+        new(@"""name""\s*:\s*""([^""]+)""", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Strict import diagnostics for the live editor (import/export grammar, leg 3): the reference
+    /// detector (2305/2307) + import validation (2300/2301/2308/2314), fed by the workspace export
+    /// table (<see cref="WorkspaceIndex.GetPeerExports"/>). Returns empty unless
+    /// <see cref="UitkxFeatureFlags.StrictImports"/> is on and the file is on disk under an asmdef.
+    /// </summary>
+    private List<ParseDiagnostic> ComputeStrictImportDiagnostics(
+        DirectiveSet directives, string localPath, string text)
+    {
+        var diags = new List<ParseDiagnostic>();
+        if (!UitkxFeatureFlags.StrictImports || string.IsNullOrEmpty(localPath))
+            return diags;
+        if (!_index.HasCompletedInitialScan)
+            return diags; // avoid false 2305 before peers are indexed
+
+        string? asmdefDir = FindAsmdefDir(localPath);
+        var peerExports = _index.GetPeerExports(localPath, asmdefDir);
+
+        ParseDiagnostic ToDiag(StrictImportDetector.Finding f) => new ParseDiagnostic
+        {
+            Code = f.Code,
+            Severity = f.Code == "UITKX2304" ? ParseSeverity.Warning : ParseSeverity.Error,
+            SourceLine = f.Line,
+            Message = f.Message,
+        };
+
+        // 2305 / 2307 — references without an import.
+        string scannable = StrictImportDetector.ScrubNonCode(text);
+        foreach (var f in StrictImportDetector.Detect(
+                     directives, localPath, scannable, peerExports, s_builtinHooks.Contains))
+            diags.Add(ToDiag(f));
+
+        // 2300 / 2301 / 2308 / 2314 — imports that don't resolve.
+        if (!directives.Imports.IsDefaultOrEmpty)
+        {
+            string importerDir = (Path.GetDirectoryName(localPath) ?? string.Empty).Replace('\\', '/');
+            string? projectRoot = AssetPathUtil.GetProjectRoot(localPath);
+            string rootDir = projectRoot != null ? projectRoot + "/Assets" : importerDir;
+            string? importerAsmdef = FindAsmdefName(localPath);
+
+            var exportedSet = new HashSet<(string Path, string Name)>();
+            foreach (var pe in peerExports)
+                exportedSet.Add((pe.TargetFilePath.Replace('\\', '/'), pe.Name));
+            bool IsExportedByFile(string name, string targetPath) =>
+                exportedSet.Contains((targetPath.Replace('\\', '/'), name));
+
+            foreach (var f in StrictImportDetector.ValidateImports(
+                         directives, importerDir, rootDir, importerAsmdef,
+                         File.Exists, FindAsmdefName, IsExportedByFile))
+                diags.Add(ToDiag(f));
+        }
+
+        return diags;
+    }
+
+    /// <summary>Directory of the nearest owning <c>*.asmdef</c> walking up from a file, or null.</summary>
+    private static string? FindAsmdefDir(string filePath)
+    {
+        try
+        {
+            string? dir = Path.GetDirectoryName(filePath);
+            while (!string.IsNullOrEmpty(dir))
+            {
+                if (Directory.GetFiles(dir, "*.asmdef").Length > 0)
+                    return dir;
+                if (string.Equals(Path.GetFileName(dir), "Assets", StringComparison.OrdinalIgnoreCase))
+                    break;
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>Assembly name of the nearest owning <c>*.asmdef</c>, or null (default assembly).</summary>
+    private static string? FindAsmdefName(string filePath)
+    {
+        try
+        {
+            string? dir = Path.GetDirectoryName(filePath);
+            while (!string.IsNullOrEmpty(dir))
+            {
+                foreach (string asmdef in Directory.GetFiles(dir, "*.asmdef"))
+                {
+                    var m = s_asmdefNameRe.Match(File.ReadAllText(asmdef));
+                    if (m.Success) return m.Groups[1].Value.Trim();
+                }
+                if (string.Equals(Path.GetFileName(dir), "Assets", StringComparison.OrdinalIgnoreCase))
+                    break;
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+        catch { }
+        return null;
+    }
+
     public ParseResult Publish(DocumentUri uri, string text, RoslynHost? roslynHost = null)
     {
         string localPath = GetLocalPath(uri) ?? string.Empty;
@@ -254,6 +359,11 @@ public sealed class DiagnosticsPublisher
         var duplicateDiags = ComputeDuplicateComponentDiagnostics(
             directives, parseResult, localPath, text);
 
+        // ── Strict import diagnostics (2300/2301/2305/2307/2308/2314) ────────
+        // Live editor parity with the build: reference detector + import validation, fed by the
+        // workspace export table. Only when StrictImports is on and the file is on disk.
+        var strictDiags = ComputeStrictImportDiagnostics(directives, localPath, text);
+
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Suppress T1 parser diagnostics that fall inside unreachable regions
@@ -282,7 +392,7 @@ public sealed class DiagnosticsPublisher
             });
         }
 
-        var t1t2 = filteredT1.Concat(t2Diags).Concat(versionDiags).Concat(duplicateDiags).ToList();
+        var t1t2 = filteredT1.Concat(t2Diags).Concat(versionDiags).Concat(duplicateDiags).Concat(strictDiags).ToList();
         if (!string.IsNullOrEmpty(localPath))
             _lastT1T2[localPath] = t1t2;
 

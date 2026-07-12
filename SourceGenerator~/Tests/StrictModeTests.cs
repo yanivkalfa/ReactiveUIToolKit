@@ -5,7 +5,7 @@ using System.Linq;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.SourceGenerator;
 using Xunit;
-using static ReactiveUITK.SourceGenerator.StrictImportDetector;
+using static ReactiveUITK.Language.StrictImportDetector;
 
 namespace ReactiveUITK.SourceGenerator.Tests
 {
