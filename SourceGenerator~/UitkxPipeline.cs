@@ -88,21 +88,24 @@ namespace ReactiveUITK.SourceGenerator
                     });
                 }
 
-                // 2310 — no owning .asmdef, so the path-derived namespace has no anchor (§4). Only
-                // for a real on-disk Unity file under Assets with no explicit @namespace; synthetic
-                // (non-existent) inline-source paths are exempt so the derivation fallback stays silent.
+                // 2310 — the path-derived namespace (§4) has NO anchor at all: not under an
+                // owning .asmdef AND not under a resolvable project root (i.e. ResolveDerivationAnchor
+                // is null → NamespaceDerivation.Derive is null). A no-asmdef file under Assets is NOT
+                // this case — it anchors at the config root and derives fine — so the mainstream
+                // default-Assembly-CSharp setup no longer hard-errors. Real on-disk files only;
+                // synthetic inline-source paths (no project root) are exempt via File.Exists.
                 if (!directives.HasExplicitNamespace
                     && !string.IsNullOrEmpty(filePath)
                     && File.Exists(filePath)
                     && AssetPathUtil.GetProjectRoot(filePath) != null
-                    && FindOwningAsmdefDir(filePath) == null)
+                    && NamespaceDerivation.Derive(filePath, ResolveDerivationAnchor(filePath)) == null)
                 {
                     parseDiags.Add(new ParseDiagnostic
                     {
                         Code = "UITKX2310",
                         Severity = ParseSeverity.Error,
                         SourceLine = 1,
-                        Message = $"Cannot derive a namespace for '{fileName}' (no owning .asmdef); add @namespace.",
+                        Message = $"Cannot derive a namespace for '{fileName}'; add @namespace.",
                     });
                 }
             }
@@ -545,8 +548,30 @@ namespace ReactiveUITK.SourceGenerator
                 return directives.Namespace;
             if (directives.HasExplicitNamespace)
                 return directives.Namespace;
-            string? derived = NamespaceDerivation.Derive(filePath, FindOwningAsmdefDir(filePath));
+            string? derived = NamespaceDerivation.Derive(filePath, ResolveDerivationAnchor(filePath));
             return derived ?? directives.Namespace;
+        }
+
+        /// <summary>
+        /// The directory the path-derived namespace (§4) is anchored at: the nearest owning
+        /// <c>.asmdef</c> directory, else — for a file in the default <c>Assembly-CSharp</c>
+        /// (no asmdef anywhere, a fully valid Unity setup) — the configured project root
+        /// (<c>Assets</c> by default). Anchoring no-asmdef files at the root gives them a stable
+        /// <c>ReactiveUITK.Uitkx.&lt;RootRelPath&gt;</c> namespace instead of a build-breaking
+        /// UITKX2310. Returns <c>null</c> only when the file is under no resolvable project root
+        /// at all (e.g. outside the project) — the sole remaining 2310 case. The package's own
+        /// samples all live under asmdefs, so this fallback never changes their derived namespace.
+        /// </summary>
+        private static string? ResolveDerivationAnchor(string filePath)
+        {
+            string? asmdefDir = FindOwningAsmdefDir(filePath);
+            if (asmdefDir != null)
+                return asmdefDir;
+            string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
+            if (projectRoot == null)
+                return null;
+            string dir = Path.GetDirectoryName(filePath) ?? filePath;
+            return (projectRoot + "/" + UitkxConfig.LoadRoot(dir)).Replace('\\', '/').TrimEnd('/');
         }
 
         /// <summary>
