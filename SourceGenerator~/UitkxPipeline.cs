@@ -240,24 +240,14 @@ namespace ReactiveUITK.SourceGenerator
             // Asmdef ownership is already enforced one layer up in UitkxGenerator's
             // pre-scan via IsOwnedByCompilation, so every entry in peerHookContainers
             // belongs to the current Unity assembly.
-            if (peerHookContainers != null && !peerHookContainers.Value.IsDefaultOrEmpty)
+            // Injection form is the StrictImports seam (§6.2): flag OFF exposes every container
+            // (legacy, byte-identical); flag ON exposes only imported containers. See
+            // ResolveInjectedUsings.
+            directives = directives with
             {
-                var seen = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var u in directives.Usings)
-                    seen.Add(u);
-
-                var extraUsings = ImmutableArray.CreateBuilder<string>(
-                    directives.Usings.Length + peerHookContainers.Value.Length);
-                extraUsings.AddRange(directives.Usings);
-                foreach (var phc in peerHookContainers.Value)
-                {
-                    string fqn = $"static {phc.Namespace}.{phc.ClassName}";
-                    if (seen.Add(fqn))
-                        extraUsings.Add(fqn);
-                }
-                if (extraUsings.Count > directives.Usings.Length)
-                    directives = directives with { Usings = extraUsings.ToImmutable() };
-            }
+                Usings = ResolveInjectedUsings(
+                    directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports)
+            };
 
             // ── Stage 4: CSharpEmitter ────────────────────────────────────────
             string generatedSource = CSharpEmitter.Emit(
@@ -395,6 +385,81 @@ namespace ReactiveUITK.SourceGenerator
             string? derived = NamespaceDerivation.Derive(filePath, FindOwningAsmdefDir(filePath));
             return derived ?? directives.Namespace;
         }
+
+        /// <summary>
+        /// The full <c>using</c> list for a component file after hook-container injection (§6.2).
+        /// The single seam controlling which hook containers a component sees:
+        /// <list type="bullet">
+        ///   <item><description>Flag OFF (<paramref name="strict"/> = false) → the legacy behavior:
+        ///   every hook container in the asmdef is exposed via <c>using static</c> (the pre-feature,
+        ///   CS0121-prone form). Byte-identical to prior output.</description></item>
+        ///   <item><description>Flag ON → only the container(s) whose source file is named by one of
+        ///   this file's <c>import</c> declarations (specifier → path via <see cref="ImportResolver"/>,
+        ///   matched against the peer <see cref="PeerHookContainerInfo.SourceFilePath"/>). C# has no
+        ///   per-method static import, so the whole matched container is exposed; per-NAME strictness
+        ///   stays a uitkx diagnostic.</description></item>
+        /// </list>
+        /// Returns <see cref="DirectiveSet.Usings"/> plus the injected <c>static …</c> entries, order-
+        /// and dedup-preserving. Pure/host-agnostic so both modes are directly unit-testable.
+        /// </summary>
+        public static ImmutableArray<string> ResolveInjectedUsings(
+            DirectiveSet directives,
+            ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
+            string filePath,
+            bool strict)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var result = ImmutableArray.CreateBuilder<string>();
+            foreach (var u in directives.Usings)
+                if (seen.Add(u))
+                    result.Add(u);
+
+            if (peerHookContainers == null || peerHookContainers.Value.IsDefaultOrEmpty)
+                return result.ToImmutable();
+
+            if (!strict)
+            {
+                foreach (var phc in peerHookContainers.Value)
+                {
+                    string fqn = $"static {phc.Namespace}.{phc.ClassName}";
+                    if (seen.Add(fqn))
+                        result.Add(fqn);
+                }
+                return result.ToImmutable();
+            }
+
+            // Strict: expose only the container(s) this file actually imports.
+            if (directives.Imports.IsDefaultOrEmpty)
+                return result.ToImmutable();
+
+            string importerDir = NormalizeAbs(Path.GetDirectoryName(filePath));
+            string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
+            string rootDir = projectRoot != null ? NormalizeAbs(projectRoot + "/Assets") : importerDir;
+
+            var importedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var imp in directives.Imports)
+            {
+                string? candidate = ImportResolver.MapSpecifierToPath(
+                    importerDir, imp.Specifier, rootDir, out _);
+                if (candidate != null)
+                    importedFiles.Add(NormalizeAbs(candidate));
+            }
+
+            foreach (var phc in peerHookContainers.Value)
+            {
+                if (phc.SourceFilePath == null)
+                    continue;
+                if (!importedFiles.Contains(NormalizeAbs(phc.SourceFilePath)))
+                    continue;
+                string fqn = $"static {phc.Namespace}.{phc.ClassName}";
+                if (seen.Add(fqn))
+                    result.Add(fqn);
+            }
+            return result.ToImmutable();
+        }
+
+        private static string NormalizeAbs(string? p) =>
+            (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
 
         /// <summary>
         /// Returns <c>true</c> when the given path contains an <c>Editor</c>
