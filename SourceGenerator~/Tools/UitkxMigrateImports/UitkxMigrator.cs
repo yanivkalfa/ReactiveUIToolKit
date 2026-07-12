@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using ReactiveUITK.Language;
+using ReactiveUITK.Language.Formatter;
 using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.SourceGenerator.Tools
@@ -267,7 +268,22 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 sb.Append(line);
             }
 
-            return sb.ToString();
+            string result = sb.ToString();
+            if (string.Equals(result, text, StringComparison.Ordinal))
+                return result; // no semantic change → leave the file (and its formatting) untouched
+
+            // Canonicalize on change: adding `export`/imports can push a header past PrintWidth so
+            // the params/return wrap, meaning the raw insertion is not formatter-stable. A final
+            // format pass guarantees format(output) == output (plan §11/§16 acceptance). Idempotent:
+            // re-running makes no semantic change, so this pass never fires twice on a migrated file.
+            try
+            {
+                return new AstFormatter(FormatterOptions.Default).Format(result, pf.File.AbsPath);
+            }
+            catch
+            {
+                return result; // never fail the migration on a formatter hiccup
+            }
         }
 
         /// <summary>Insert <c>export </c> before the first component/hook/module keyword on the line.</summary>
