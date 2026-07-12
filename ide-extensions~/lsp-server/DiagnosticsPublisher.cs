@@ -234,7 +234,85 @@ public sealed class DiagnosticsPublisher
                 diags.Add(ToDiag(f));
         }
 
+        // 2306 — value-import cycle (hooks/modules load eagerly). Only compute when THIS file
+        // imports a hook/module (a necessary condition for it to be part of a value cycle).
+        var cycleDiag = ComputeValueCycleDiagnostic(directives, localPath, asmdefDir);
+        if (cycleDiag != null)
+            diags.Add(cycleDiag);
+
         return diags;
+    }
+
+    /// <summary>
+    /// UITKX2306 for a value-import cycle through <paramref name="localPath"/> (import/export
+    /// grammar §6). Edges are import relationships where the imported name is a HOOK or MODULE
+    /// (components load lazily and are exempt). Returns null when this file has no value-imports or
+    /// is not part of a cycle.
+    /// </summary>
+    private ParseDiagnostic? ComputeValueCycleDiagnostic(DirectiveSet directives, string localPath, string? asmdefDir)
+    {
+        if (directives.Imports.IsDefaultOrEmpty)
+            return null;
+
+        // Necessary condition: this file imports at least one hook/module.
+        bool hasValueImport = false;
+        foreach (var imp in directives.Imports)
+        {
+            string dir = (Path.GetDirectoryName(localPath) ?? string.Empty).Replace('\\', '/');
+            string? root = AssetPathUtil.GetProjectRoot(localPath) is string pr ? pr + "/Assets" : dir;
+            string? tgt = ImportResolver.MapSpecifierToPath(dir, imp.Specifier, root, out _);
+            if (tgt != null && ImportsValueName(tgt, imp.Names)) { hasValueImport = true; break; }
+        }
+        if (!hasValueImport)
+            return null;
+
+        // Build the asmdef-wide value-edge graph.
+        var edges = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (file, specifier, names) in _index.GetImportEdges(asmdefDir))
+        {
+            string dir = (Path.GetDirectoryName(file) ?? string.Empty).Replace('\\', '/');
+            string? root = AssetPathUtil.GetProjectRoot(file) is string pr ? pr + "/Assets" : dir;
+            string? tgt = ImportResolver.MapSpecifierToPath(dir, specifier, root, out _);
+            if (tgt == null || !ImportsValueName(tgt, names))
+                continue;
+            // Normalize BOTH endpoints to forward slashes: MapSpecifierToPath yields forward-slashed
+            // targets, but the index keys are OS-native — a mismatch would disconnect the graph.
+            string key = file.Replace('\\', '/');
+            string dst = tgt.Replace('\\', '/');
+            if (!edges.TryGetValue(key, out var list))
+                edges[key] = list = new List<string>();
+            ((List<string>)list).Add(dst);
+        }
+
+        var cycle = UitkxImportGraph.FindCycle(edges);
+        if (cycle == null)
+            return null;
+
+        string norm(string p) => p.Replace('\\', '/').TrimEnd('/');
+        bool involvesSelf = cycle.Any(c => string.Equals(norm(c), norm(localPath), StringComparison.OrdinalIgnoreCase));
+        if (!involvesSelf)
+            return null;
+
+        string chain = string.Join(" -> ", cycle.Select(c => Path.GetFileName(c)));
+        return new ParseDiagnostic
+        {
+            Code = "UITKX2306",
+            Severity = ParseSeverity.Error,
+            SourceLine = directives.Imports[0].Line,
+            Message = $"value-import cycle: {chain} (hooks/modules load eagerly — break the chain or move to component refs)",
+        };
+    }
+
+    /// <summary>True when any of <paramref name="names"/> is exported as a hook or module by <paramref name="targetFile"/>.</summary>
+    private bool ImportsValueName(string targetFile, IReadOnlyList<string> names)
+    {
+        foreach (var n in names)
+        {
+            var kind = _index.GetExportKind(targetFile, n);
+            if (kind == StrictImportDetector.ExportKind.Hook || kind == StrictImportDetector.ExportKind.Module)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>Directory of the nearest owning <c>*.asmdef</c> walking up from a file, or null.</summary>

@@ -105,6 +105,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     private readonly Dictionary<string, List<(string Name, StrictImportDetector.ExportKind Kind)>> _exportsByFile =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Import declarations per .uitkx file (import/export grammar, leg 3): file path -> its imports
+    // (specifier + names). Feeds the value-import cycle detector (UITKX2306). Same lifecycle as
+    // _exportsByFile (populated in IndexUitkxFile, evicted with the file).
+    private readonly Dictionary<string, List<(string Specifier, string[] Names)>> _importsByFile =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // Workspace-wide set of all indexed *.cs file paths. Consumed by
     // RoslynHost.FindCompanionFiles to load partial-class members and types
     // declared in any .cs file belonging to the same asmdef as the .uitkx
@@ -322,6 +328,51 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             _lock.ExitReadLock();
         }
         return result;
+    }
+
+    /// <summary>
+    /// Import declarations of every indexed <c>.uitkx</c> file under <paramref name="owningAsmdefDir"/>
+    /// (all files when null): <c>(sourceFile, specifier, importedNames)</c>. Feeds the value-import
+    /// cycle detector (UITKX2306).
+    /// </summary>
+    public IReadOnlyList<(string File, string Specifier, IReadOnlyList<string> Names)> GetImportEdges(
+        string? owningAsmdefDir)
+    {
+        var result = new List<(string, string, IReadOnlyList<string>)>();
+        string? scope = owningAsmdefDir is null ? null : NormPath(owningAsmdefDir);
+        _lock.EnterReadLock();
+        try
+        {
+            foreach (var kv in _importsByFile)
+            {
+                if (scope != null && !NormPath(kv.Key).StartsWith(scope + "/", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                foreach (var (specifier, names) in kv.Value)
+                    result.Add((kv.Key, specifier, names));
+            }
+        }
+        finally { _lock.ExitReadLock(); }
+        return result;
+    }
+
+    /// <summary>The kind an <paramref name="name"/> is exported as by <paramref name="filePath"/>, or null.</summary>
+    public StrictImportDetector.ExportKind? GetExportKind(string filePath, string name)
+    {
+        string t = NormPath(filePath);
+        _lock.EnterReadLock();
+        try
+        {
+            foreach (var kv in _exportsByFile)
+            {
+                if (!string.Equals(NormPath(kv.Key), t, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                foreach (var (n, kind) in kv.Value)
+                    if (string.Equals(n, name, StringComparison.Ordinal))
+                        return kind;
+            }
+        }
+        finally { _lock.ExitReadLock(); }
+        return null;
     }
 
     private static string NormPath(string p) => p.Replace('\\', '/').TrimEnd('/');
@@ -647,6 +698,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             // Exported declarations (import/export grammar): parse with the real directive parser so
             // the `export` flag + hook/module names (which the regex index doesn't capture) are known.
             var exports = new List<(string Name, StrictImportDetector.ExportKind Kind)>();
+            var imports = new List<(string Specifier, string[] Names)>();
             try
             {
                 var diags = new List<ParseDiagnostic>();
@@ -660,8 +712,11 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 if (!ds.ModuleDeclarations.IsDefaultOrEmpty)
                     foreach (var mod in ds.ModuleDeclarations)
                         if (mod.IsExported) exports.Add((mod.Name, StrictImportDetector.ExportKind.Module));
+                if (!ds.Imports.IsDefaultOrEmpty)
+                    foreach (var imp in ds.Imports)
+                        imports.Add((imp.Specifier, imp.Names.ToArray()));
             }
-            catch { /* parse hiccup — leave this file with no exports */ }
+            catch { /* parse hiccup — leave this file with no exports/imports */ }
 
             _lock.EnterWriteLock();
             try
@@ -671,6 +726,9 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
                 if (exports.Count > 0) _exportsByFile[filePath] = exports;
                 else _exportsByFile.Remove(filePath);
+
+                if (imports.Count > 0) _importsByFile[filePath] = imports;
+                else _importsByFile.Remove(filePath);
             }
             finally { _lock.ExitWriteLock(); }
 
@@ -900,6 +958,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         try
         {
             _exportsByFile.Remove(filePath); // import/export grammar: drop this file's exports too
+            _importsByFile.Remove(filePath);
 
             if (!_elementsByFile.TryGetValue(filePath, out var names))
                 return;
