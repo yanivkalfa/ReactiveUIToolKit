@@ -884,18 +884,27 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     // Register the union DLL under every batch component's
                     // name so future single-file cross-refs see it.
-                    if (
-                        _hmrAssemblyPaths.TryGetValue(art.ComponentName, out var oldDll)
-                        && !string.Equals(oldDll, asm.Location, StringComparison.OrdinalIgnoreCase)
-                        && File.Exists(oldDll)
-                    )
+                    bool hadOld = _hmrAssemblyPaths.TryGetValue(art.ComponentName, out var oldDll);
+                    bool pathChanged = !hadOld
+                        || !string.Equals(oldDll, asm.Location, StringComparison.OrdinalIgnoreCase);
+                    if (pathChanged)
                     {
-                        try
+                        // Invalidate this member's cached cross-ref MetadataReference —
+                        // it points at the OLD DLL. The single-file paths do this at
+                        // ~2397/2693; the batch path used to omit it, so an importer
+                        // compiled after a union recompile bound the member's stale
+                        // (now-deleted) DLL — CS0117/CS0246 on added members, silent
+                        // staleness on changed values, or CS0433 duplicate types.
+                        _crossRefCache.Remove(art.ComponentName);
+                        if (hadOld && File.Exists(oldDll))
                         {
-                            File.Delete(oldDll);
-                        }
-                        catch
-                        { /* may be locked */
+                            try
+                            {
+                                File.Delete(oldDll);
+                            }
+                            catch
+                            { /* may be locked */
+                            }
                         }
                     }
                     _hmrAssemblyPaths[art.ComponentName] = asm.Location;
