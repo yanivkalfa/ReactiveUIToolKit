@@ -115,7 +115,37 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Don't emit [UitkxSource] — the module may extend a component
                 // class that already has it, and the attribute isn't allowed
                 // to appear twice on the same type.
-                sb.AppendLine($"    public partial class {module.Name}");
+                //
+                // Accessibility (§6): a module that MERGES with a same-named component partial emits
+                // NO modifier (that component's partial is the authority — a mismatched modifier would
+                // be CS0262); otherwise export → public, else internal. If the merging parts disagree
+                // on exportedness → UITKX2311. Standalone exported modules stay `public` (byte-identical
+                // to before), so the migrated Samples are unaffected.
+                bool mergesWithComponent = false;
+                bool componentIsExported = false;
+                if (!directives.ComponentDeclarations.IsDefaultOrEmpty)
+                    foreach (var comp in directives.ComponentDeclarations)
+                        if (comp.Name == module.Name)
+                        {
+                            mergesWithComponent = true;
+                            componentIsExported = comp.IsExported;
+                            break;
+                        }
+
+                if (mergesWithComponent && componentIsExported != module.IsExported)
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        new DiagnosticDescriptor(
+                            "UITKX2311", "Export accessibility mismatch",
+                            $"Export accessibility mismatch across parts merging into '{module.Name}'.",
+                            "ReactiveUITK.Imports", DiagnosticSeverity.Error, true),
+                        Location.None));
+                }
+
+                string moduleAccess = mergesWithComponent
+                    ? string.Empty
+                    : (module.IsExported ? "public " : "internal ");
+                sb.AppendLine($"    {moduleAccess}partial class {module.Name}");
                 sb.AppendLine("    {");
                 if (rewriteResult.ParseFailed)
                 {

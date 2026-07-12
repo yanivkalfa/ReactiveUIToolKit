@@ -80,6 +80,36 @@ public class EmitterTests
         Assert.True(result.SourceContains("useLocal"), "Expected the hook container with useLocal");
     }
 
+    // ── Accessibility (§6): export → public, else internal ────────────────────
+
+    [Fact]
+    public void ExportedComponent_IsPublic()
+    {
+        var result = GeneratorTestHelper.Run("export component Foo {\n  return (<Box />);\n}");
+        Assert.True(result.SourceContains("public partial class Foo"), "Expected public for exported component");
+    }
+
+    [Fact]
+    public void NonExportedComponent_IsInternal()
+    {
+        var result = GeneratorTestHelper.Run("component Foo {\n  return (<Box />);\n}");
+        Assert.True(result.SourceContains("internal partial class Foo"), "Expected internal for non-exported component");
+    }
+
+    [Fact]
+    public void ExportedModule_IsPublic()
+    {
+        var result = GeneratorTestHelper.Run("export module Styles {\n  public const int Gap = 4;\n}");
+        Assert.True(result.SourceContains("public partial class Styles"), "Expected public for exported module");
+    }
+
+    [Fact]
+    public void NonExportedModule_IsInternal()
+    {
+        var result = GeneratorTestHelper.Run("module Styles {\n  public const int Gap = 4;\n}");
+        Assert.True(result.SourceContains("internal partial class Styles"), "Expected internal for non-exported module");
+    }
+
     // ── Namespace / class structure ──────────────────────────────────────────
 
     [Fact]
