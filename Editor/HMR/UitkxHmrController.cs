@@ -412,6 +412,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                     if (visited.Add(importer))
                     {
                         queue.Enqueue(importer);
+                        // Force this importer to recompile FRESH so it rebinds the changed
+                        // dependency's new DLL. Without this, the incremental path reuses the
+                        // importer's cached compilation (which holds the dependency's stale
+                        // reference) for every importer past the first in this cascade.
+                        _compiler?.InvalidateCompilationForFile(importer);
                         OnUitkxFileChanged(importer, fanOutToImporters: false);
                     }
                 }

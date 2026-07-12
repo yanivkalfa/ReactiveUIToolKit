@@ -1277,6 +1277,43 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
         }
 
+        /// <summary>
+        /// Drops the cached (incremental) compilation for the component / hook-container
+        /// owned by <paramref name="uitkxPath"/> so its NEXT compile rebuilds FRESH, thereby
+        /// re-applying cross-references. The import reverse-edge fan-out
+        /// (<see cref="UitkxHmrController.FanOutToImporters"/>) calls this before recompiling
+        /// each importer of a changed dependency: the incremental path
+        /// (<see cref="TryBuildIncremental"/>) reuses a cached compilation's references
+        /// verbatim, and the cache-miss signal is consumed by the FIRST importer (it
+        /// repopulates <c>_crossRefCache</c>), so later importers in the same cascade would
+        /// otherwise reuse a compilation bound to the dependency's stale DLL. Forcing fresh
+        /// here is strictly safe — at worst it forgoes incremental reuse for this one compile,
+        /// and it only fires on the (rare) dependency-change path, never on a normal
+        /// single-component edit. Best-effort: a parse failure leaves the cache untouched.
+        /// </summary>
+        public void InvalidateCompilationForFile(string uitkxPath)
+        {
+            if (string.IsNullOrEmpty(uitkxPath))
+                return;
+            try
+            {
+                string source = ReadTextWithRetry(uitkxPath);
+                var diag = CreateDiagnosticList();
+                var directives = InvokeWithDefaults(_directiveParse, null, source, uitkxPath, diag, true);
+                if (directives == null)
+                    return;
+                string componentName = (string)GetProp(directives, "ComponentName");
+                if (string.IsNullOrEmpty(componentName))
+                    componentName = HmrHookEmitter.DeriveContainerClassName(uitkxPath); // hook/module-only file
+                if (!string.IsNullOrEmpty(componentName))
+                {
+                    _cachedCompilations.Remove(componentName);
+                    _cachedSyntaxTrees.Remove(componentName);
+                }
+            }
+            catch { /* best-effort — fresh vs incremental self-corrects on the emit result */ }
+        }
+
         public void Dispose()
         {
             Reset();
