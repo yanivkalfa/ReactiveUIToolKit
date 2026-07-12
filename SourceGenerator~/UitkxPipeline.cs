@@ -166,7 +166,7 @@ namespace ReactiveUITK.SourceGenerator
                 string? hookSource = !directives.HookDeclarations.IsDefaultOrEmpty
                     ? HookEmitter.Emit(filePath, directives, hookModuleDiags) : null;
                 string? moduleSource = !directives.ModuleDeclarations.IsDefaultOrEmpty
-                    ? ModuleEmitter.Emit(filePath, directives, hookModuleDiags) : null;
+                    ? ModuleEmitter.Emit(filePath, directives, hookModuleDiags, peerComponents) : null;
 
                 string? hmPrimary = null;
                 if (!string.IsNullOrEmpty(hookSource))
@@ -370,7 +370,7 @@ namespace ReactiveUITK.SourceGenerator
             }
             if (!directives.ModuleDeclarations.IsDefaultOrEmpty)
             {
-                string moduleSrc = ModuleEmitter.Emit(filePath, directives, diagnostics);
+                string moduleSrc = ModuleEmitter.Emit(filePath, directives, diagnostics, peerComponents);
                 if (!string.IsNullOrEmpty(moduleSrc))
                     extraSources.Add((ExtraHint("inlinemodules"), moduleSrc));
             }

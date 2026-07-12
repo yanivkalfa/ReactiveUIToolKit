@@ -209,6 +209,29 @@ public class EmitterTests
     }
 
     [Fact]
+    public void CrossFileCompanionModule_DefersAccessibilityToComponent_NoCS0262Modifier()
+    {
+        // The common companion pattern: a component in one file + a same-named module in a
+        // SIBLING file (same effective namespace) become partials of ONE type. A non-exported
+        // component (internal) + an exported module (public) would be conflicting explicit
+        // modifiers → CS0262. The module must defer to the component (emit no modifier).
+        var files = new[]
+        {
+            ("SettingsPage.uitkx", "component SettingsPage {\n  return (<Box />);\n}"),
+            ("SettingsPageStyle.uitkx", "export module SettingsPage {\n  public const int Gap = 4;\n}"),
+        };
+        var result = GeneratorTestHelper.RunMultiple(files, primaryFileName: "SettingsPageStyle.uitkx");
+
+        var moduleUnit = result.AllSources.Single(s => s.Text.Contains("Gap = 4"));
+        // Module part emits NO access modifier (component is the authority) — not the
+        // `public` its own `export` would otherwise give, which would clash with the
+        // component's `internal`.
+        Assert.Contains("    partial class SettingsPage", moduleUnit.Text);
+        Assert.DoesNotContain("public partial class SettingsPage", moduleUnit.Text);
+        Assert.DoesNotContain("internal partial class SettingsPage", moduleUnit.Text);
+    }
+
+    [Fact]
     public void ExportMatch_ComponentAndMergingModule_NoUitkx2311()
     {
         // Both exported → no mismatch. Pins 2311 to the disagreement case alone.

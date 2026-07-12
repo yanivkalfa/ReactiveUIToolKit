@@ -22,7 +22,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         public static string Emit(
             string filePath,
             DirectiveSet directives,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            ImmutableArray<PeerComponentInfo>? peerComponents = null
         )
         {
             if (directives.ModuleDeclarations.IsDefaultOrEmpty)
@@ -129,6 +130,22 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         {
                             mergesWithComponent = true;
                             componentIsExported = comp.IsExported;
+                            break;
+                        }
+                // Cross-file merge (the common companion pattern: Foo.uitkx `component Foo`
+                // + Foo.style.uitkx `module Foo`). A same-named component in ANY file that
+                // resolves to the same effective namespace becomes the same partial type, so
+                // the module part must defer its access modifier to the component — otherwise a
+                // non-exported component (internal) + an exported module (public) are two
+                // partials of one type with conflicting EXPLICIT modifiers → CS0262, which the
+                // same-file-only check never caught.
+                if (!mergesWithComponent && peerComponents != null)
+                    foreach (var pc in peerComponents.Value)
+                        if (pc.Name == module.Name
+                            && string.Equals(pc.Namespace, ns, StringComparison.Ordinal))
+                        {
+                            mergesWithComponent = true;
+                            componentIsExported = pc.IsExported;
                             break;
                         }
 

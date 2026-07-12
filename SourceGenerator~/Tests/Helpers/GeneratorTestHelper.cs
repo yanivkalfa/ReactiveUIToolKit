@@ -150,23 +150,24 @@ internal static class GeneratorTestHelper
         foreach (var r in runResult.Results)
             allDiags = allDiags.AddRange(r.Diagnostics);
 
-        // Find the generated source for the primary file
+        // Find the generated source for the primary file + collect all real sources.
         string? generatedSource = null;
         string primaryBase = Path.GetFileNameWithoutExtension(primaryFileName); // e.g. "Parent"
+        var allSources = ImmutableArray.CreateBuilder<(string, string)>();
         foreach (var r in runResult.Results)
         {
             foreach (var src in r.GeneratedSources)
             {
+                if (src.HintName.Contains("ModuleInitializerPolyfill"))
+                    continue;
                 string text = src.SourceText.ToString();
+                if (!(text.Contains("partial class") || text.Contains("namespace ")))
+                    continue;
+                allSources.Add((src.HintName, text));
                 // Match by hint name containing the primary component name
-                if (src.HintName.Contains(primaryBase) &&
-                    (text.Contains("partial class") || text.Contains("namespace ")))
-                {
+                if (generatedSource == null && src.HintName.Contains(primaryBase))
                     generatedSource = text;
-                    break;
-                }
             }
-            if (generatedSource != null) break;
         }
 
         // Fallback: first source with component code (skipping the
@@ -190,7 +191,7 @@ internal static class GeneratorTestHelper
             }
         }
 
-        return new GeneratorRunOutput(allDiags, generatedSource);
+        return new GeneratorRunOutput(allDiags, generatedSource, allSources.ToImmutable());
     }
 
     /// <summary>
