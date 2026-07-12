@@ -280,6 +280,13 @@ namespace ReactiveUITK.SourceGenerator
                             spc.ReportDiagnostic(diag);
                         if (result.Source is not null)
                             spc.AddSource(result.HintName, result.Source);
+                        // Mixed-decl / multi-component files emit one additional
+                        // standalone compilation unit per extra section (see
+                        // UitkxPipelineResult.ExtraSources) — each merges as a
+                        // partial across CUs, so they must NOT be concatenated.
+                        if (!result.ExtraSources.IsDefaultOrEmpty)
+                            foreach (var (extraHint, extraSource) in result.ExtraSources)
+                                spc.AddSource(extraHint, extraSource);
                     }
                 }
             );

@@ -1165,10 +1165,15 @@ public class HmrEmitterParityContractTests
         );
 
         Assert.NotNull(output.GeneratedSource);
+        // First is the primary unit; Second is emitted as its own compilation unit
+        // (ExtraSources) that merges as a partial across CUs — NOT concatenated
+        // (concatenation would place Second's usings after First's namespace → CS1529).
         Assert.Contains("partial class First", output.GeneratedSource);
-        Assert.Contains("partial class Second", output.GeneratedSource);
+        Assert.Contains(output.AllSources, s => s.Text.Contains("partial class Second"));
         // Both bodies emitted — not one collapsed away.
-        Assert.Contains("V.Box(", output.GeneratedSource);
-        Assert.Contains("V.Label(", output.GeneratedSource);
+        Assert.Contains(output.AllSources, s => s.Text.Contains("V.Box("));
+        Assert.Contains(output.AllSources, s => s.Text.Contains("V.Label("));
+        // Every unit is syntactically valid.
+        Assert.Empty(output.SyntaxErrors());
     }
 }

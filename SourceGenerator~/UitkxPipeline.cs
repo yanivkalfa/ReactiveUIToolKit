@@ -321,15 +321,33 @@ namespace ReactiveUITK.SourceGenerator
                 return new UitkxPipelineResult(hintName, generatedSource, diagnostics.ToImmutableArray());
             }
 
-            var msb = new StringBuilder();
+            // Mixed-decl / multi-component: emit each section as its OWN standalone
+            // compilation unit (its own using preamble + namespace block) via a
+            // separate AddSource, NOT concatenated into one file. Each unit merges
+            // with the others as a `partial` across compilation units — identical to
+            // how sibling .uitkx files already compose. Concatenating self-contained
+            // units would place later `using` directives after a namespace → CS1529.
+            string ExtraHint(string section) =>
+                hintName.Substring(0, hintName.Length - ".g.cs".Length) + "." + section + ".g.cs";
+
+            var extraSources = ImmutableArray.CreateBuilder<(string, string)>();
             if (!directives.HookDeclarations.IsDefaultOrEmpty)
-                msb.Append(HookEmitter.Emit(filePath, directives, diagnostics) ?? string.Empty);
+            {
+                string hookSrc = HookEmitter.Emit(filePath, directives, diagnostics);
+                if (!string.IsNullOrEmpty(hookSrc))
+                    extraSources.Add((ExtraHint("inlinehooks"), hookSrc));
+            }
             if (!directives.ModuleDeclarations.IsDefaultOrEmpty)
-                msb.Append(ModuleEmitter.Emit(filePath, directives, diagnostics) ?? string.Empty);
+            {
+                string moduleSrc = ModuleEmitter.Emit(filePath, directives, diagnostics);
+                if (!string.IsNullOrEmpty(moduleSrc))
+                    extraSources.Add((ExtraHint("inlinemodules"), moduleSrc));
+            }
 
             var componentsToEmit = directives.ComponentDeclarations.IsDefaultOrEmpty
                 ? ImmutableArray<ComponentDeclaration>.Empty
                 : directives.ComponentDeclarations;
+            string? primarySource = null;
             for (int ci = 0; ci < componentsToEmit.Length; ci++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -344,19 +362,30 @@ namespace ReactiveUITK.SourceGenerator
                 {
                     var cThrow = new List<ParseDiagnostic>();
                     var cParsed = UitkxParser.Parse(source, filePath, cd, cThrow);
+                    // Surface the later component's own parse errors (it is parsed
+                    // here for the first time — the first component owns rootNodes).
+                    // Without this bridge a syntax error past the first component is
+                    // silently swallowed and emits malformed C#.
+                    foreach (var pd in cThrow)
+                        diagnostics.Add(ParseDiagToRoslyn(pd));
                     cRoots = CanonicalLowering.LowerToRenderRoots(cd, cParsed, filePath);
                     HooksValidator.Validate(cRoots, filePath, diagnostics);
                     StructureValidator.Validate(cRoots, filePath, diagnostics, cd);
                 }
 
-                msb.Append(CSharpEmitter.Emit(filePath, cd, cRoots, resolver, diagnostics));
+                string compSrc = CSharpEmitter.Emit(filePath, cd, cRoots, resolver, diagnostics);
+                if (ci == 0)
+                    primarySource = compSrc; // main component keeps the canonical {file}.g.cs hint
+                else
+                    extraSources.Add((ExtraHint(cd.ComponentName ?? ("c" + ci)), compSrc));
             }
 
             ct.ThrowIfCancellationRequested();
             return new UitkxPipelineResult(
                 hintName,
-                msb.Length > 0 ? msb.ToString() : null,
-                diagnostics.ToImmutableArray());
+                primarySource,
+                diagnostics.ToImmutableArray(),
+                extraSources.ToImmutable());
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────

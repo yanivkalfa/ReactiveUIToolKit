@@ -78,6 +78,7 @@ internal static class GeneratorTestHelper
             allDiags = allDiags.AddRange(r.Diagnostics);
 
         string? generatedSource = null;
+        var allSources = ImmutableArray.CreateBuilder<(string, string)>();
         if (runResult.Results.Length > 0)
         {
             // Skip UITKX_Loaded.g.cs (the always-present marker stub) and
@@ -91,13 +92,14 @@ internal static class GeneratorTestHelper
                     continue;
                 if (text.Contains("partial class") || text.Contains("namespace "))
                 {
-                    generatedSource = text;
-                    break;
+                    allSources.Add((src.HintName, text));
+                    if (generatedSource == null)
+                        generatedSource = text;
                 }
             }
         }
 
-        return new GeneratorRunOutput(allDiags, generatedSource);
+        return new GeneratorRunOutput(allDiags, generatedSource, allSources.ToImmutable());
     }
 
     /// <summary>
@@ -258,9 +260,15 @@ internal static class GeneratorTestHelper
 
 /// <param name="Diagnostics">All diagnostics emitted by the generator run.</param>
 /// <param name="GeneratedSource">The first generated C# source text, or <c>null</c>.</param>
+/// <param name="AllSources">
+/// Every generated .g.cs (hint + text) except the always-present marker/polyfill
+/// stubs — so multi-source mixed-decl output is fully inspectable and each unit
+/// can be syntax-checked. Empty when <see cref="Run"/> did not capture it.
+/// </param>
 internal sealed record GeneratorRunOutput(
     ImmutableArray<Diagnostic> Diagnostics,
-    string? GeneratedSource
+    string? GeneratedSource,
+    ImmutableArray<(string HintName, string Text)> AllSources = default
 )
 {
     public bool HasDiagnostic(string id) => Diagnostics.Any(d => d.Id == id);
@@ -272,6 +280,27 @@ internal sealed record GeneratorRunOutput(
         GeneratedSource?.Contains(text, StringComparison.Ordinal) == true;
 
     public bool SourceWasProduced => GeneratedSource != null;
+
+    /// <summary>
+    /// Parses EVERY captured generated source and returns the Error-severity
+    /// syntax diagnostics (CS-codes produced at parse time — e.g. CS1529
+    /// misplaced-using, CS1002/CS1513 malformed C#). This is a cheap guard that
+    /// does NOT require the Unity reference stubs: a generator that emits
+    /// syntactically-invalid C# (as the concatenated mixed-decl path did) is
+    /// caught here even though full semantic binding is out of scope.
+    /// </summary>
+    public ImmutableArray<Diagnostic> SyntaxErrors()
+    {
+        var errs = ImmutableArray.CreateBuilder<Diagnostic>();
+        foreach (var (_, text) in AllSources)
+        {
+            var tree = CSharpSyntaxTree.ParseText(text);
+            foreach (var d in tree.GetDiagnostics())
+                if (d.Severity == DiagnosticSeverity.Error)
+                    errs.Add(d);
+        }
+        return errs.ToImmutable();
+    }
 }
 
 /// <summary>An in-memory <see cref="AdditionalText"/> backed by a plain string.</summary>

@@ -65,8 +65,13 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
+        // First is the primary source; Second lands in an ExtraSources unit.
         Assert.True(result.SourceContains("class First"), "Expected the First partial class");
-        Assert.True(result.SourceContains("class Second"), "Expected the Second partial class");
+        Assert.Contains(result.AllSources, s => s.Text.Contains("class Second"));
+        // Every emitted unit must be syntactically valid C# — the concatenated
+        // path produced CS1529 (misplaced using after a namespace); the
+        // per-section AddSource path must not.
+        Assert.Empty(result.SyntaxErrors());
     }
 
     [Fact]
@@ -77,7 +82,30 @@ public class EmitterTests
 
         Assert.True(result.SourceWasProduced);
         Assert.True(result.SourceContains("class Screen"), "Expected the Screen component partial");
-        Assert.True(result.SourceContains("useLocal"), "Expected the hook container with useLocal");
+        Assert.Contains(result.AllSources, s => s.Text.Contains("useLocal"));
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void MixedComponentHookAndModule_AllUnitsAreSyntacticallyValid()
+    {
+        // Regression for the CS1529 concat bug: a component + hook + module in one
+        // file previously emitted a single concatenated unit whose 2nd/3rd
+        // sections' `using` directives followed a namespace. Now each section is
+        // its own compilation unit; all must parse clean.
+        var src =
+            "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\n"
+            + "hook useLocal() {\n  return 0;\n}\n"
+            + "module Helpers {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        var syntaxErrors = result.SyntaxErrors();
+        Assert.True(syntaxErrors.IsEmpty,
+            "Mixed-decl emit must be syntactically valid; got: "
+                + string.Join("; ", syntaxErrors.Select(d => d.ToString())));
+        // Three distinct units: component (primary) + inline hooks + inline modules.
+        Assert.True(result.AllSources.Length >= 3, "Expected component + hooks + modules units");
     }
 
     // ── Accessibility (§6): export → public, else internal ────────────────────
@@ -124,10 +152,17 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
+        // Component partial (primary unit) carries the public modifier.
         Assert.True(result.SourceContains("public partial class Foo"), "Component partial should carry the public modifier");
-        Assert.True(result.SourceContains("    partial class Foo"), "Merging module part must emit no access modifier");
-        Assert.False(result.SourceContains("internal partial class Foo"), "Merging module must not re-declare a conflicting modifier");
-        Assert.True(result.SourceContains("Gap = 4"), "Module body should still be emitted into the merged partial");
+        // Module part is a separate compilation unit (ExtraSources) that merges as a
+        // partial. It must emit NO access modifier (4-space indent, bare `partial`),
+        // else the two parts would conflict (CS0262). Search across all units.
+        var moduleUnit = result.AllSources.Single(s => s.Text.Contains("Gap = 4"));
+        Assert.Contains("    partial class Foo", moduleUnit.Text);
+        Assert.DoesNotContain("internal partial class Foo", moduleUnit.Text);
+        Assert.DoesNotContain("public partial class Foo", moduleUnit.Text);
+        // All emitted units are syntactically valid.
+        Assert.Empty(result.SyntaxErrors());
     }
 
     [Fact]
