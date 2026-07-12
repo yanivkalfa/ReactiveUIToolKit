@@ -499,6 +499,16 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// If <paramref name="uitkxPath"/> is a companion file (e.g. Foo.style.uitkx,
         /// Foo.hooks.uitkx), returns the parent component file path (Foo.uitkx).
         /// Otherwise returns the original path unchanged.
+        ///
+        /// Mixed-decl note (plan §8): with multi-component / mixed-decl files a companion
+        /// no longer maps 1:1 to a single owning component, and a hook/module may be
+        /// consumed across files via <c>import</c>. This resolver is deliberately kept
+        /// ADDITIVE — it recompiles the same-stem parent when one exists, which is always
+        /// a superset of the historically-correct behavior — rather than trying to infer
+        /// the true owner set and prune. Cross-file consumers are covered separately by the
+        /// import reverse-edge fan-out (<see cref="FanOutToImporters"/>), so an over-broad
+        /// (never a too-narrow) recompile here is the safe failure mode. Deleting this blind
+        /// would risk a CS0103 (missing partial) on the pre-import single-file convention.
         /// </summary>
         private static string ResolveParentComponentFile(string uitkxPath)
         {
