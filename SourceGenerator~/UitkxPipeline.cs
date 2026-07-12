@@ -296,22 +296,67 @@ namespace ReactiveUITK.SourceGenerator
                     directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports)
             };
 
-            // ── Stage 4: CSharpEmitter ────────────────────────────────────────
-            string generatedSource = CSharpEmitter.Emit(
-                filePath,
-                directives,
-                rootNodes,
-                resolver,
-                diagnostics
-            );
+            // Mixed-decl (§7): a file with hooks/modules AND a component needs the file's OWN hook
+            // container exposed too, so a component can call a hook declared in the same file. The
+            // per-import injection above only covers IMPORTED containers.
+            if (!directives.HookDeclarations.IsDefaultOrEmpty
+                && !directives.ComponentDeclarations.IsDefaultOrEmpty)
+            {
+                string ownContainer = $"static {directives.Namespace}.{HookEmitter.DeriveContainerClassName(filePath)}";
+                if (!directives.Usings.Contains(ownContainer))
+                    directives = directives with { Usings = directives.Usings.Add(ownContainer) };
+            }
+
+            // ── Stage 4: CSharpEmitter (one partial per component; mixed = concat) ──
+            bool multiOrMixed =
+                (directives.ComponentDeclarations.IsDefaultOrEmpty ? 0 : directives.ComponentDeclarations.Length) > 1
+                || !directives.HookDeclarations.IsDefaultOrEmpty
+                || !directives.ModuleDeclarations.IsDefaultOrEmpty;
+
+            if (!multiOrMixed)
+            {
+                // Single component, no hooks/modules — byte-identical to the pre-mixed-decl path.
+                string generatedSource = CSharpEmitter.Emit(filePath, directives, rootNodes, resolver, diagnostics);
+                ct.ThrowIfCancellationRequested();
+                return new UitkxPipelineResult(hintName, generatedSource, diagnostics.ToImmutableArray());
+            }
+
+            var msb = new StringBuilder();
+            if (!directives.HookDeclarations.IsDefaultOrEmpty)
+                msb.Append(HookEmitter.Emit(filePath, directives, diagnostics) ?? string.Empty);
+            if (!directives.ModuleDeclarations.IsDefaultOrEmpty)
+                msb.Append(ModuleEmitter.Emit(filePath, directives, diagnostics) ?? string.Empty);
+
+            var componentsToEmit = directives.ComponentDeclarations.IsDefaultOrEmpty
+                ? ImmutableArray<ComponentDeclaration>.Empty
+                : directives.ComponentDeclarations;
+            for (int ci = 0; ci < componentsToEmit.Length; ci++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var cd = SynthesizePerComponent(directives, componentsToEmit[ci]);
+
+                ImmutableArray<AstNode> cRoots;
+                if (ci == 0)
+                {
+                    cRoots = rootNodes; // the first component's markup is already parsed + validated
+                }
+                else
+                {
+                    var cThrow = new List<ParseDiagnostic>();
+                    var cParsed = UitkxParser.Parse(source, filePath, cd, cThrow);
+                    cRoots = CanonicalLowering.LowerToRenderRoots(cd, cParsed, filePath);
+                    HooksValidator.Validate(cRoots, filePath, diagnostics);
+                    StructureValidator.Validate(cRoots, filePath, diagnostics, cd);
+                }
+
+                msb.Append(CSharpEmitter.Emit(filePath, cd, cRoots, resolver, diagnostics));
+            }
 
             ct.ThrowIfCancellationRequested();
-
             return new UitkxPipelineResult(
-                HintName: hintName,
-                Source: generatedSource,
-                Diagnostics: diagnostics.ToImmutableArray()
-            );
+                hintName,
+                msb.Length > 0 ? msb.ToString() : null,
+                diagnostics.ToImmutableArray());
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
@@ -509,6 +554,39 @@ namespace ReactiveUITK.SourceGenerator
 
         private static string NormalizeAbs(string? p) =>
             (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
+
+        /// <summary>
+        /// Project a mixed-decl <see cref="DirectiveSet"/> down to a single component for emission
+        /// (§7): the singular component fields are set from <paramref name="c"/>, and the hook/module
+        /// declarations are cleared (they are emitted once by HookEmitter/ModuleEmitter, not per
+        /// component). The shared preamble — injected <c>Usings</c>, <c>Imports</c>, <c>Namespace</c>,
+        /// <c>@uss</c>, <c>@inject</c> — is preserved.
+        /// </summary>
+        private static DirectiveSet SynthesizePerComponent(DirectiveSet baseDir, ComponentDeclaration c) =>
+            baseDir with
+            {
+                ComponentName = c.Name,
+                PropsTypeName = c.PropsTypeName,
+                DefaultKey = c.DefaultKey,
+                FunctionParams = c.FunctionParams,
+                FunctionSetupCode = c.FunctionSetupCode,
+                FunctionSetupStartLine = c.FunctionSetupStartLine,
+                FunctionSetupStartOffset = c.FunctionSetupStartOffset,
+                MarkupStartLine = c.MarkupStartLine,
+                MarkupStartIndex = c.MarkupStartIndex,
+                MarkupEndIndex = c.MarkupEndIndex,
+                ComponentDeclarationLine = c.DeclarationLine,
+                ComponentNameColumn = c.NameColumn,
+                FunctionReturnEndLine = c.ReturnEndLine,
+                FunctionBodyEndLine = c.BodyEndLine,
+                SetupCodeMarkupRanges = c.SetupCodeMarkupRanges,
+                SetupCodeBareJsxRanges = c.SetupCodeBareJsxRanges,
+                FunctionSetupGapOffset = c.FunctionSetupGapOffset,
+                FunctionSetupGapLength = c.FunctionSetupGapLength,
+                HookDeclarations = ImmutableArray<HookDeclaration>.Empty,
+                ModuleDeclarations = ImmutableArray<ModuleDeclaration>.Empty,
+                ComponentDeclarations = ImmutableArray.Create(c),
+            };
 
         // Builtin/ambient hook names (from the single-source HookRegistry) that need no import.
         private static readonly HashSet<string> s_builtinHooks =

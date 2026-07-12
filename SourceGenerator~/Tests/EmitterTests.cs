@@ -56,6 +56,30 @@ public class EmitterTests
         Assert.True(result.SourceContains("V.Label("), "Expected V.Label call inside box");
     }
 
+    // ── Mixed-decl emit (§7) ──────────────────────────────────────────────────
+
+    [Fact]
+    public void MultiComponent_BothPartialClassesEmitted()
+    {
+        var src = "component First {\n  return (<Box />);\n}\ncomponent Second {\n  return (<Label text=\"x\" />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("class First"), "Expected the First partial class");
+        Assert.True(result.SourceContains("class Second"), "Expected the Second partial class");
+    }
+
+    [Fact]
+    public void MixedComponentAndHook_BothEmitted()
+    {
+        var src = "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\nhook useLocal() {\n  return 0;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("class Screen"), "Expected the Screen component partial");
+        Assert.True(result.SourceContains("useLocal"), "Expected the hook container with useLocal");
+    }
+
     // ── Namespace / class structure ──────────────────────────────────────────
 
     [Fact]
