@@ -509,42 +509,325 @@ namespace ReactiveUITK.Language.Parser
                     }),
             };
 
-            if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
+            // ── Continuation: additional [export] component/hook/module decls ──
+            // Mixed-decl v1 (leg 3): a file is a SEQUENCE of declarations in any order.
+            // Parse every subsequent top-level declaration into the plural arrays. The
+            // historical "one component per file" limitation was the trailing-2105 error
+            // below; a valid second declaration is now ACCEPTED (TD-02 family reconcile).
+            // A trailing NON-declaration keeps the historical diagnostics
+            // (2309 import-after-decl, 2104 directive-header-mix, 2105 invalid statement).
+            i = bodyCloseExclusive;
+            line = LineAtPos(source, bodyCloseExclusive);
+            var tailComponents = new List<ComponentDeclaration>();
+            var tailHooks = new List<HookDeclaration>();
+            var tailModules = new List<ModuleDeclaration>();
+            while (true)
             {
-                if (TryReadKeywordAt(source, trailingPos, "import"))
+                SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                if (i >= source.Length)
+                    break;
+
+                bool tailExported = false;
                 {
-                    // Frozen family code: imports are preamble-only.
-                    diagnosticBag.Add(new ParseDiagnostic
+                    int afterExport = i;
+                    if (TryReadKeyword(source, ref afterExport, "export"))
                     {
-                        Code = "UITKX2309",
-                        Severity = ParseSeverity.Error,
-                        SourceLine = LineAtPos(source, trailingPos),
-                        Message = "import must appear in the preamble, before the first declaration",
-                    });
+                        SkipSpaces(source, ref afterExport);
+                        if (TryReadKeywordAt(source, afterExport, "component")
+                            || TryReadKeywordAt(source, afterExport, "hook")
+                            || TryReadKeywordAt(source, afterExport, "module"))
+                        {
+                            tailExported = true;
+                            i = afterExport;
+                        }
+                    }
                 }
-                else if (IsDirectiveHeaderAt(source, trailingPos))
+
+                if (TryReadKeywordAt(source, i, "component"))
                 {
-                    diagnosticBag.Add(new ParseDiagnostic
-                    {
-                        Code = "UITKX2104",
-                        Severity = ParseSeverity.Error,
-                        SourceLine = LineAtPos(source, trailingPos),
-                        Message = "Function-style form cannot be mixed with directive header form.",
-                    });
+                    var tailDecl = ParseSingleComponent(
+                        source, filePath, diagnosticBag,
+                        ref i, ref line, tailExported, useLastReturn, out bool tailHardStop);
+                    if (tailDecl != null)
+                        tailComponents.Add(tailDecl);
+                    if (tailHardStop)
+                        break;
+                }
+                else if (TryReadKeyword(source, ref i, "hook"))
+                {
+                    ParseSingleHook(source, filePath, diagnosticBag, tailHooks, ref i, ref line, tailExported);
+                }
+                else if (TryReadKeyword(source, ref i, "module"))
+                {
+                    ParseSingleModule(source, filePath, diagnosticBag, tailModules, ref i, ref line, tailExported);
                 }
                 else
                 {
-                    diagnosticBag.Add(new ParseDiagnostic
+                    if (TryReadKeywordAt(source, i, "import"))
                     {
-                        Code = "UITKX2105",
-                        Severity = ParseSeverity.Error,
-                        SourceLine = LineAtPos(source, trailingPos),
-                        Message = "Invalid top-level statement after function-style component declaration.",
-                    });
+                        // Frozen family code: imports are preamble-only.
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2309",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            Message = "import must appear in the preamble, before the first declaration",
+                        });
+                    }
+                    else if (IsDirectiveHeaderAt(source, i))
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2104",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            Message = "Function-style form cannot be mixed with directive header form.",
+                        });
+                    }
+                    else
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2105",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            Message = "Invalid top-level statement after function-style component declaration.",
+                        });
+                    }
+                    break;
                 }
             }
 
+            if (tailComponents.Count > 0 || tailHooks.Count > 0 || tailModules.Count > 0)
+            {
+                directiveSet = directiveSet with
+                {
+                    ComponentDeclarations = directiveSet.ComponentDeclarations.AddRange(tailComponents),
+                    HookDeclarations = tailHooks.ToImmutableArray(),
+                    ModuleDeclarations = tailModules.ToImmutableArray(),
+                };
+            }
+
             return true;
+        }
+
+        /// <summary>
+        /// Parses a single <c>component</c> declaration at the cursor (which must be at the
+        /// <c>component</c> keyword; the optional <c>export</c> prefix is consumed by the caller
+        /// and passed via <paramref name="isExported"/>). Captures the full setup/markup span set
+        /// into a <see cref="ComponentDeclaration"/> and advances <paramref name="i"/> past the
+        /// component body. Returns <c>null</c> on a structural error that prevents forming a
+        /// declaration; sets <paramref name="hardStop"/> when the error is terminal for the rest
+        /// of the file (missing/unbalanced braces) so the declaration loop must stop.
+        ///
+        /// This mirrors <see cref="ParseSingleHook"/> / <see cref="ParseSingleModule"/> for the
+        /// mixed-decl v1 continuation loop (leg 3). The FIRST component of a component-first file
+        /// is still parsed inline by <see cref="TryParseFunctionStyle"/> (it also populates the
+        /// singular back-compat <see cref="DirectiveSet"/> fields); this handles the 2nd+ ones.
+        /// </summary>
+        private static ComponentDeclaration? ParseSingleComponent(
+            string source,
+            string filePath,
+            List<ParseDiagnostic> diagnosticBag,
+            ref int i,
+            ref int line,
+            bool isExported,
+            bool useLastReturn,
+            out bool hardStop)
+        {
+            hardStop = false;
+            if (!TryReadKeyword(source, ref i, "component"))
+            {
+                hardStop = true;
+                return null;
+            }
+
+            int componentLine = line;
+
+            SkipSpaces(source, ref i);
+            int nameStartI = i;
+            if (!TryReadIdentifier(source, ref i, out string componentName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Expected PascalCase component name after 'component'.",
+                });
+                componentName = Path.GetFileNameWithoutExtension(filePath);
+            }
+
+            if (!IsPascalCase(componentName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2100",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = $"Function-style component name '{componentName}' must be PascalCase.",
+                });
+            }
+
+            int componentNameCol = ColAtPos(source, nameStartI);
+
+            SkipSpaces(source, ref i);
+            var functionParams = ImmutableArray<FunctionParam>.Empty;
+            string? functionPropsTypeName = null;
+            if (i < source.Length && source[i] == '(')
+            {
+                functionParams = ParseFunctionParamList(source, ref i, ref line, componentLine, diagnosticBag);
+                if (!functionParams.IsEmpty)
+                    functionPropsTypeName = componentName + "Props";
+            }
+
+            SkipWhitespaceAndNewlines(source, ref i, ref line);
+            if (i >= source.Length || source[i] != '{')
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Expected '{' after function-style component declaration.",
+                });
+                hardStop = true;
+                return null;
+            }
+
+            int bodyOpen = i;
+            if (!TryReadBalancedBlock(source, bodyOpen, out int bodyCloseExclusive))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Unclosed function-style component body. Missing '}'.",
+                });
+                hardStop = true;
+                return null;
+            }
+
+            int bodyStart = bodyOpen + 1;
+            int bodyEndExclusive = bodyCloseExclusive - 1;
+
+            if (
+                !TryFindTopLevelReturn(
+                    source,
+                    bodyStart,
+                    bodyEndExclusive,
+                    out int returnStart,
+                    out int returnOpenParen,
+                    out int returnCloseParen,
+                    out int returnStmtEndExclusive,
+                    useLastReturn
+                )
+            )
+            {
+                int malformedReturnPos = FindTopLevelReturnAfter(source, bodyStart, bodyEndExclusive);
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = malformedReturnPos >= 0 ? "UITKX2102" : "UITKX2101",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = malformedReturnPos >= 0 ? LineAtPos(source, malformedReturnPos) : componentLine,
+                    SourceColumn = malformedReturnPos >= 0 ? 0 : componentNameCol,
+                    EndColumn    = malformedReturnPos >= 0 ? 0 : componentNameCol + componentName.Length,
+                    Message = malformedReturnPos >= 0
+                        ? "'return' must return UITKX markup using 'return (...)'."
+                        : "Function-style component must contain exactly one top-level 'return (...)' statement.",
+                });
+
+                int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
+                var setupMarkupRanges1 = FindJsxBlockRanges(source, bodyStart, bodyEndExclusive);
+                var bareJsxRanges1 = FindBareJsxRanges(source, bodyStart, bodyEndExclusive);
+                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag, setupMarkupRanges1, bareJsxRanges1);
+                CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
+                i = bodyCloseExclusive;
+                return new ComponentDeclaration(
+                    Name: componentName,
+                    IsExported: isExported,
+                    PropsTypeName: functionPropsTypeName,
+                    DefaultKey: null,
+                    FunctionParams: functionParams,
+                    FunctionSetupCode: source.Substring(bodyStart, Math.Max(0, bodyEndExclusive - bodyStart)).Trim(),
+                    FunctionSetupStartLine: LineAtPos(source, fseTrimStart1),
+                    FunctionSetupStartOffset: fseTrimStart1,
+                    MarkupStartLine: componentLine,
+                    MarkupStartIndex: source.Length,
+                    MarkupEndIndex: source.Length,
+                    DeclarationLine: componentLine,
+                    NameColumn: componentNameCol,
+                    ReturnEndLine: -1,
+                    BodyEndLine: LineAtPos(source, bodyEndExclusive))
+                {
+                    SetupCodeMarkupRanges = setupMarkupRanges1,
+                    SetupCodeBareJsxRanges = bareJsxRanges1,
+                };
+            }
+
+            int markupStart = returnOpenParen + 1;
+            int markupEnd = returnCloseParen;
+            int markupLine = LineAtPos(source, markupStart);
+
+            if (!LooksLikeMarkupRoot(source, markupStart, markupEnd))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2102",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = markupLine,
+                    Message = "'return' must return UITKX markup.",
+                });
+                markupStart = markupEnd;
+            }
+
+            string setupCode =
+                source.Substring(bodyStart, Math.Max(0, returnStart - bodyStart))
+                + source.Substring(
+                    returnStmtEndExclusive,
+                    Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
+                );
+
+            int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
+            int setupGapOffset = returnStart - fseTrimStart2;
+            int setupGapLength = returnStmtEndExclusive - returnStart;
+            var setupMarkupRanges2 = FindJsxBlockRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
+            var bareJsxRanges2 = FindBareJsxRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
+
+            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+            CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
+
+            i = bodyCloseExclusive;
+            return new ComponentDeclaration(
+                Name: componentName,
+                IsExported: isExported,
+                PropsTypeName: functionPropsTypeName,
+                DefaultKey: null,
+                FunctionParams: functionParams,
+                FunctionSetupCode: setupCode.Trim(),
+                FunctionSetupStartLine: LineAtPos(source, fseTrimStart2),
+                FunctionSetupStartOffset: fseTrimStart2,
+                MarkupStartLine: markupLine,
+                MarkupStartIndex: markupStart,
+                MarkupEndIndex: markupEnd,
+                DeclarationLine: componentLine,
+                NameColumn: componentNameCol,
+                ReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
+                BodyEndLine: LineAtPos(source, bodyEndExclusive))
+            {
+                SetupCodeMarkupRanges = setupMarkupRanges2,
+                SetupCodeBareJsxRanges = bareJsxRanges2,
+                FunctionSetupGapOffset = setupGapOffset,
+                FunctionSetupGapLength = setupGapLength,
+            };
         }
 
         // ── Import preamble reader (import/export grammar, leg 3) ─────────────

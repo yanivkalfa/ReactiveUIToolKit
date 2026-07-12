@@ -527,6 +527,78 @@ public class ParserTests
         Assert.Contains(diags, d => d.Code == "UITKX2104");
     }
 
+    // ── Mixed-decl v1 (leg 3): a file is a SEQUENCE of declarations ──────────────
+
+    [Fact]
+    public void MixedDecl_TwoComponentsInOneFile_BothParsedNoError()
+    {
+        const string src =
+            """
+            component First {
+                return (<Box />);
+            }
+            component Second {
+                return (<Label text="x" />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Equal(2, set.ComponentDeclarations.Length);
+        Assert.Equal("First", set.ComponentDeclarations[0].Name);
+        Assert.Equal("Second", set.ComponentDeclarations[1].Name);
+        // Singular back-compat fields still track the FIRST component.
+        Assert.Equal("First", set.ComponentName);
+    }
+
+    [Fact]
+    public void MixedDecl_ComponentThenHookAndModule_AllParsed()
+    {
+        const string src =
+            """
+            component Screen {
+                return (<Box />);
+            }
+            export hook useCounter(int start) {
+                return start;
+            }
+            module Styles {
+                public static int Gap = 4;
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Single(set.ComponentDeclarations);
+        Assert.Single(set.HookDeclarations);
+        Assert.Single(set.ModuleDeclarations);
+        Assert.True(set.HookDeclarations[0].IsExported);
+        Assert.False(set.ModuleDeclarations[0].IsExported);
+    }
+
+    [Fact]
+    public void MixedDecl_ExportedSecondComponent_MarkedExported()
+    {
+        const string src =
+            """
+            component First {
+                return (<Box />);
+            }
+            export component Second {
+                return (<Label text="x" />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Equal(2, set.ComponentDeclarations.Length);
+        Assert.False(set.ComponentDeclarations[0].IsExported);
+        Assert.True(set.ComponentDeclarations[1].IsExported);
+    }
+
     [Fact]
     public void Directives_FunctionStyle_LeadingUsingLines_AreParsedIntoDirectiveSet()
     {
