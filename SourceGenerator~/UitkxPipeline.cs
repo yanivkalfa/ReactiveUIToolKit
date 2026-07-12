@@ -581,6 +581,7 @@ namespace ReactiveUITK.SourceGenerator
             string scannable = StrictImportDetector.ScrubNonCode(source);
             var findings = StrictImportDetector.Detect(
                 directives, filePath, scannable, peerExports, s_builtinHooks.Contains);
+            findings.AddRange(StrictImportDetector.DetectUnusedImports(directives, scannable));
 
             foreach (var f in findings)
                 parseDiags.Add(new ParseDiagnostic

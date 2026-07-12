@@ -154,6 +154,24 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.Single(findings, f => f.Code == "UITKX2308");
         }
 
+        // ── DetectUnusedImports (2304) ──────────────────────────────────────────
+
+        [Fact]
+        public void ImportedNameNeverReferenced_Emits2304()
+        {
+            var ds = DsWithImports((new[] { "StatusChip" }, "./StatusChip"));
+            var findings = DetectUnusedImports(ds, "<Box />");
+            Assert.Single(findings, f => f.Code == "UITKX2304" && f.Message.Contains("StatusChip"));
+        }
+
+        [Fact]
+        public void ImportedNameReferenced_No2304()
+        {
+            var ds = DsWithImports((new[] { "StatusChip" }, "./StatusChip"));
+            var findings = DetectUnusedImports(ds, "<StatusChip />");
+            Assert.Empty(findings);
+        }
+
         [Fact]
         public void TildeEscapesRoot_Emits2314()
         {

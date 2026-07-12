@@ -214,6 +214,10 @@ public sealed class DiagnosticsPublisher
                      directives, localPath, scannable, peerExports, s_builtinHooks.Contains))
             diags.Add(ToDiag(f));
 
+        // 2304 — imported name never referenced (warning).
+        foreach (var f in StrictImportDetector.DetectUnusedImports(directives, scannable))
+            diags.Add(ToDiag(f));
+
         // 2300 / 2301 / 2308 / 2314 — imports that don't resolve.
         if (!directives.Imports.IsDefaultOrEmpty)
         {

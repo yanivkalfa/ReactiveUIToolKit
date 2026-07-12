@@ -188,6 +188,32 @@ namespace ReactiveUITK.Language
             return findings;
         }
 
+        /// <summary>
+        /// UITKX2304 (warning): an imported name never referenced in the file. <paramref name="scannableCode"/>
+        /// is the string/comment-scrubbed setup + markup text. Pure and unit-testable.
+        /// </summary>
+        public static List<Finding> DetectUnusedImports(DirectiveSet directives, string scannableCode)
+        {
+            var findings = new List<Finding>();
+            if (directives.Imports.IsDefaultOrEmpty)
+                return findings;
+
+            var referenced = new HashSet<string>(StringComparer.Ordinal);
+            foreach (System.Text.RegularExpressions.Match m in s_tagRe.Matches(scannableCode))
+                referenced.Add(m.Groups[1].Value);
+            foreach (System.Text.RegularExpressions.Match m in s_hookRe.Matches(scannableCode))
+                referenced.Add(m.Groups[1].Value);
+            foreach (System.Text.RegularExpressions.Match m in s_moduleRe.Matches(scannableCode))
+                referenced.Add(m.Groups[1].Value);
+
+            foreach (var imp in directives.Imports)
+                foreach (var name in imp.Names)
+                    if (!referenced.Contains(name))
+                        findings.Add(new Finding("UITKX2304", $"unused import `{name}`", imp.Line));
+
+            return findings;
+        }
+
         /// <summary>Blank C# string/char literals + comments (offset-preserving) so the scan ignores them.</summary>
         public static string ScrubNonCode(string text)
         {
