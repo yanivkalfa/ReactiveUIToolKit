@@ -530,6 +530,19 @@ public class ParserTests
     // ── Mixed-decl v1 (leg 3): a file is a SEQUENCE of declarations ──────────────
 
     [Fact]
+    public void HookFile_WithUss_NoLongerErrors_2210Lifted()
+    {
+        // §5 (import/export grammar): @uss is legal in any file — the old UITKX2210 hard error
+        // (hook/module files may not carry @uss) is lifted.
+        const string src =
+            "@uss \"styles.uss\"\nhook useThing() {\n    return 0;\n}\n";
+
+        ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX2210");
+    }
+
+    [Fact]
     public void MixedDecl_TwoComponentsInOneFile_BothParsedNoError()
     {
         const string src =

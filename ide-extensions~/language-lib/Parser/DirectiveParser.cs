@@ -962,17 +962,10 @@ namespace ReactiveUITK.Language.Parser
         {
             string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
 
-            // Validate preamble: @uss is not allowed in hook/module files
-            if (ussFiles.Count > 0)
-            {
-                diagnosticBag.Add(new ParseDiagnostic
-                {
-                    Code = "UITKX2210",
-                    Severity = ParseSeverity.Error,
-                    SourceLine = line,
-                    Message = "@uss is not allowed in hook/module files. Stylesheets can only be attached to component files.",
-                });
-            }
+            // @uss is legal in ANY file (import/export grammar, leg 3, §5): a stylesheet attaches to
+            // every component declared in the file. A hook/module-only file has no component, so the
+            // sheet attaches to nothing — a lint-tier concern (2313 "uss without component"), not the
+            // hard 2210 error it used to be.
 
             var hooks = new List<HookDeclaration>();
             var modules = new List<ModuleDeclaration>();
