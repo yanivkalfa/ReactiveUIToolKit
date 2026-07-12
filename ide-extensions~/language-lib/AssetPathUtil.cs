@@ -35,16 +35,16 @@ namespace ReactiveUITK.Language
         /// <summary>The UI source root a <c>~/</c> asset path resolves against (engine default).</summary>
         public const string DefaultRoot = "Assets";
 
-        public static string ResolveAssetPath(string uitkxDir, string rawPath)
+        public static string ResolveAssetPath(string uitkxDir, string rawPath, string? root = null)
         {
             if (string.IsNullOrEmpty(rawPath))
                 return rawPath;
 
             // ~/ (root alias, import/export grammar, leg 3) resolves against the UI source root.
-            // Engine default is "Assets"; a uitkx.config.json "root" override is applied by the
-            // caller (config walk-up) before this point in a later step.
+            // Engine default is "Assets"; callers that walk uitkx.config.json pass its "root" here
+            // (nearest-config-wins, see UitkxConfig.LoadRoot). Null → the default.
             if (rawPath.StartsWith("~/", StringComparison.Ordinal))
-                return Collapse(DefaultRoot + "/" + rawPath.Substring(2));
+                return Collapse((string.IsNullOrEmpty(root) ? DefaultRoot : root) + "/" + rawPath.Substring(2));
 
             if (rawPath.StartsWith("Assets/", StringComparison.Ordinal) ||
                 rawPath.StartsWith("Packages/", StringComparison.Ordinal))

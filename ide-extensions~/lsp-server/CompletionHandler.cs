@@ -1562,7 +1562,7 @@ public sealed class CompletionHandler : ICompletionHandler
 
         string importerDir = (Path.GetDirectoryName(importerPath) ?? string.Empty).Replace('\\', '/');
         string? projectRoot = AssetPathUtil.GetProjectRoot(importerPath);
-        string rootDir = projectRoot != null ? projectRoot + "/Assets" : importerDir;
+        string rootDir = projectRoot != null ? projectRoot + "/" + UitkxConfig.LoadRoot(importerDir) : importerDir;
         string? target = ImportResolver.MapSpecifierToPath(importerDir, spec.Groups[1].Value, rootDir, out _);
         if (target is null || !File.Exists(target)) return empty;
 

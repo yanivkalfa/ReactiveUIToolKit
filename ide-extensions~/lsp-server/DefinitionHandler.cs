@@ -417,7 +417,7 @@ public sealed class DefinitionHandler : IDefinitionHandler
     {
         string importerDir = (Path.GetDirectoryName(localPath) ?? string.Empty).Replace('\\', '/');
         string? projectRoot = AssetPathUtil.GetProjectRoot(localPath);
-        string rootDir = projectRoot != null ? projectRoot + "/Assets" : importerDir;
+        string rootDir = projectRoot != null ? projectRoot + "/" + UitkxConfig.LoadRoot(importerDir) : importerDir;
         // Absolute dirs in → absolute candidate path out (MapSpecifierToPath is pure path arithmetic).
         return ImportResolver.MapSpecifierToPath(importerDir, specifier, rootDir, out _);
     }

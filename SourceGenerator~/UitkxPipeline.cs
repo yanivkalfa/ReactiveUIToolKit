@@ -449,7 +449,9 @@ namespace ReactiveUITK.SourceGenerator
 
             string importerDir = NormalizeAbs(Path.GetDirectoryName(filePath));
             string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
-            string rootDir = projectRoot != null ? NormalizeAbs(projectRoot + "/Assets") : importerDir;
+            string rootDir = projectRoot != null
+                ? NormalizeAbs(projectRoot + "/" + UitkxConfig.LoadRoot(importerDir))
+                : importerDir;
 
             var importedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var imp in directives.Imports)
@@ -499,7 +501,9 @@ namespace ReactiveUITK.SourceGenerator
 
             string importerDir = NormalizeAbs(Path.GetDirectoryName(filePath));
             string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
-            string rootDir = projectRoot != null ? NormalizeAbs(projectRoot + "/Assets") : importerDir;
+            string rootDir = projectRoot != null
+                ? NormalizeAbs(projectRoot + "/" + UitkxConfig.LoadRoot(importerDir))
+                : importerDir;
             string? importerAsmdef = FindOwningAsmdefAssemblyName(filePath);
 
             bool IsExportedByFile(string name, string targetPath)

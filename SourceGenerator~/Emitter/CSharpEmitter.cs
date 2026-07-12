@@ -285,7 +285,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     // H-03: same canonical rule as ResolveAssetPaths - bare paths resolve
                     // uitkx-dir-relative too, not just explicitly "./"/"../"-prefixed ones.
                     string resolved = ReactiveUITK.Language.AssetPathUtil.ResolveAssetPath(
-                        GetUitkxAssetDir(_filePath), rawPath);
+                        GetUitkxAssetDir(_filePath), rawPath,
+                        ReactiveUITK.Language.UitkxConfig.LoadRoot(System.IO.Path.GetDirectoryName(_filePath)));
                     _sb.Append($"\"{resolved}\"");
 
                     // Validate file existence at compile time (UITKX0022)
@@ -3893,7 +3894,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     string requestedType = match.Groups[1].Value;
                     string rawPath = match.Groups[2].Value;
                     string uitkxDir = GetUitkxAssetDir(filePath);
-                    string resolved = ReactiveUITK.Language.AssetPathUtil.ResolveAssetPath(uitkxDir, rawPath);
+                    string resolved = ReactiveUITK.Language.AssetPathUtil.ResolveAssetPath(
+                        uitkxDir, rawPath,
+                        ReactiveUITK.Language.UitkxConfig.LoadRoot(System.IO.Path.GetDirectoryName(filePath)));
 
                     // Validate file existence at compile time
                     string projectRoot = GetProjectRoot(filePath);

@@ -223,7 +223,7 @@ public sealed class DiagnosticsPublisher
         {
             string importerDir = (Path.GetDirectoryName(localPath) ?? string.Empty).Replace('\\', '/');
             string? projectRoot = AssetPathUtil.GetProjectRoot(localPath);
-            string rootDir = projectRoot != null ? projectRoot + "/Assets" : importerDir;
+            string rootDir = projectRoot != null ? projectRoot + "/" + UitkxConfig.LoadRoot(importerDir) : importerDir;
             string? importerAsmdef = FindAsmdefName(localPath);
 
             var exportedSet = new HashSet<(string Path, string Name)>();
