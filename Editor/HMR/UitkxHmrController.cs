@@ -854,11 +854,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (string.IsNullOrEmpty(rawPath))
                     return rawPath;
 
-                if (rawPath.StartsWith("Assets/", StringComparison.Ordinal) ||
-                    rawPath.StartsWith("Packages/", StringComparison.Ordinal))
-                    return rawPath;
-
-                string combined = string.IsNullOrEmpty(uitkxDir) ? rawPath : uitkxDir + "/" + rawPath;
+                // BYTE-FOR-BYTE MIRROR of AssetPathUtil.ResolveAssetPath (language-lib). ~/ (root
+                // alias) resolves against the UI source root (engine default "Assets") then collapses.
+                string combined;
+                if (rawPath.StartsWith("~/", StringComparison.Ordinal))
+                {
+                    combined = "Assets/" + rawPath.Substring(2);
+                }
+                else
+                {
+                    if (rawPath.StartsWith("Assets/", StringComparison.Ordinal) ||
+                        rawPath.StartsWith("Packages/", StringComparison.Ordinal))
+                        return rawPath;
+                    combined = string.IsNullOrEmpty(uitkxDir) ? rawPath : uitkxDir + "/" + rawPath;
+                }
                 var parts = combined.Replace('\\', '/').Split('/');
                 var stack = new List<string>();
                 foreach (var p in parts)
