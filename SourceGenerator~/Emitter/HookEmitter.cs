@@ -25,7 +25,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         public static string Emit(
             string filePath,
             DirectiveSet directives,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            IReadOnlyDictionary<string, string>? hookKeyMap = null
         )
         {
             if (directives.HookDeclarations.IsDefaultOrEmpty)
@@ -108,18 +109,37 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // render body — they are invoked through the static trampoline
             // emitted above — so we use the signature-only RegisterHook
             // entry point.
-            EmitHookRefreshCompanion(sb, directives, containerClass, ns);
+            EmitHookRefreshCompanion(sb, directives, containerClass, ns, hookKeyMap);
 
             sb.AppendLine("}"); // close namespace
 
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Maps each bare custom-hook name to its PATH-QUALIFIED family key via
+        /// <paramref name="map"/> (built by the pipeline from the peer-container table +
+        /// this file's imports + its own container). A name with no mapping (e.g. an
+        /// unresolved reference) falls back to the bare name. Keeping the same map on the
+        /// producer and every consumer is what makes the runtime string-match work.
+        /// </summary>
+        internal static string[] QualifyKeys(
+            string[] bareKeys, IReadOnlyDictionary<string, string>? map)
+        {
+            if (bareKeys == null || bareKeys.Length == 0 || map == null || map.Count == 0)
+                return bareKeys ?? Array.Empty<string>();
+            var result = new string[bareKeys.Length];
+            for (int i = 0; i < bareKeys.Length; i++)
+                result[i] = map.TryGetValue(bareKeys[i], out var qualified) ? qualified : bareKeys[i];
+            return result;
+        }
+
         private static void EmitHookRefreshCompanion(
             StringBuilder sb,
             DirectiveSet directives,
             string containerClass,
-            string ns)
+            string ns,
+            IReadOnlyDictionary<string, string>? hookKeyMap)
         {
             if (directives.HookDeclarations.IsDefaultOrEmpty)
                 return;
@@ -137,23 +157,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             sb.AppendLine("        {");
             foreach (var hook in directives.HookDeclarations)
             {
-                // Family key = literal hook name (bare). Consumer components emit
-                // `customHookFamilyKeys = new[] { "useFoo" }` from a syntactic scan
-                // of their setup code; matching here on the same bare name avoids
-                // the cross-asmdef container-FQN resolution problem.
+                // Family key (§7) = PATH-QUALIFIED `{EffectiveNs}.{Container}::{HookName}` — the
+                // convention the runtime documents (RefreshRuntime.RegisterHook). This disambiguates
+                // two same-named hooks in different containers (common once imports let any file
+                // export a `useData`/`useController`). Consumers re-derive the identical key by
+                // resolving each called hook's import against the peer-container table — see
+                // hookKeyMap (built in UitkxPipeline from PeerHookContainerInfo, which uses the SAME
+                // ResolveEffectiveNamespace + DeriveContainerClassName, so producer and consumer
+                // strings match by construction). `ns` + `containerClass` here are the same two
+                // values, so this producer id equals what a consumer computes for this hook.
                 string sig = EmitContext.ExtractHookSignature(hook.Body) ?? string.Empty;
                 string[] hookCustomKeys = EmitContext.ExtractCustomHookFamilyKeys(hook.Body);
-                // §7 asks for a path-qualified family key (`{ns}.{Container}::{name}`). DELIBERATELY
-                // NOT applied: it requires every CONSUMER (component setup + hook bodies, in BOTH the
-                // SG and the HMR emitters) to re-derive the identical key by resolving each called
-                // hook's import — a multi-site byte-parity change where ANY mismatch SILENTLY breaks
-                // HMR hot-swap for all hooks, uncatchable by compile or test (only a Unity runtime
-                // test reveals it). The bare-name key is the existing deliberate design and is correct
-                // for every sample (unique hook names); it collides only for two same-named custom
-                // hooks in different containers used across components — a rare case worth the
-                // qualified key only when it can be runtime-verified in a Unity-in-the-loop session.
-                string familyKey = hook.Name;
-                string keysLit = EmitContext.RenderCustomHookFamilyKeysLiteral(hookCustomKeys);
+                string familyKey = $"{ns}.{containerClass}::{hook.Name}";
+                string keysLit = EmitContext.RenderCustomHookFamilyKeysLiteral(
+                    QualifyKeys(hookCustomKeys, hookKeyMap));
                 sb.AppendLine(
                     $"            global::ReactiveUITK.Refresh.RefreshRuntime.RegisterHook(" +
                     $"\"{EscapeStringLiteral(familyKey)}\", " +

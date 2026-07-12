@@ -112,7 +112,30 @@ internal static class GeneratorTestHelper
         string primaryFileName
     )
     {
-        string testDir = Path.Combine(Path.GetTempPath(), "uitkx_tests");
+        // Write the files to a UNIQUE temp dir so cross-file `import` resolution (which
+        // checks the file exists on disk) works. The generator reads content
+        // disk-authoritative, so the on-disk copy is what matters.
+        string testDir = Path.Combine(
+            Path.GetTempPath(), "uitkx_tests_" + System.Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testDir);
+        try
+        {
+            foreach (var f in files)
+                File.WriteAllText(Path.Combine(testDir, f.fileName), f.content);
+            return RunMultipleCore(files, primaryFileName, testDir);
+        }
+        finally
+        {
+            try { Directory.Delete(testDir, recursive: true); } catch { }
+        }
+    }
+
+    private static GeneratorRunOutput RunMultipleCore(
+        (string fileName, string content)[] files,
+        string primaryFileName,
+        string testDir
+    )
+    {
         string stubPath = Path.Combine(testDir, "_Stubs.g.cs");
 
         var stubTree = CSharpSyntaxTree.ParseText(StubSource, path: stubPath);

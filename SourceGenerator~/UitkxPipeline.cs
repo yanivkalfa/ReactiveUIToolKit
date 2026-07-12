@@ -60,6 +60,11 @@ namespace ReactiveUITK.SourceGenerator
             // value); path-derived when strict imports are on.
             directives = directives with { Namespace = ResolveEffectiveNamespace(directives, filePath) };
 
+            // §7 — the file's bare-hook-name → path-qualified-family-key map. Built once from the
+            // now-resolved namespace + this file's own hooks + its imports; threaded into every
+            // emitter (producer + consumer) so RegisterHook ids and customHookFamilyKeys agree.
+            var hookFamilyKeyMap = BuildHookFamilyKeyMap(directives, peerHookContainers, filePath);
+
             ct.ThrowIfCancellationRequested();
 
             // ── Stage 1c: strict import diagnostics (StrictImports seam, §6) ──
@@ -157,7 +162,7 @@ namespace ReactiveUITK.SourceGenerator
                 var hmExtra = ImmutableArray.CreateBuilder<(string, string)>();
                 int hmDiagStart = hookModuleDiags.Count; // emit-stage diags (e.g. UITKX2311) start here
                 string? hookSource = !directives.HookDeclarations.IsDefaultOrEmpty
-                    ? HookEmitter.Emit(filePath, directives, hookModuleDiags) : null;
+                    ? HookEmitter.Emit(filePath, directives, hookModuleDiags, hookFamilyKeyMap) : null;
                 string? moduleSource = !directives.ModuleDeclarations.IsDefaultOrEmpty
                     ? ModuleEmitter.Emit(filePath, directives, hookModuleDiags, peerComponents) : null;
 
@@ -348,7 +353,7 @@ namespace ReactiveUITK.SourceGenerator
             if (!multiOrMixed)
             {
                 // Single component, no hooks/modules — byte-identical to the pre-mixed-decl path.
-                string generatedSource = CSharpEmitter.Emit(filePath, directives, rootNodes, resolver, diagnostics);
+                string generatedSource = CSharpEmitter.Emit(filePath, directives, rootNodes, resolver, diagnostics, hookFamilyKeyMap);
                 ct.ThrowIfCancellationRequested();
                 return new UitkxPipelineResult(hintName, generatedSource, diagnostics.ToImmutableArray());
             }
@@ -365,7 +370,7 @@ namespace ReactiveUITK.SourceGenerator
             var extraSources = ImmutableArray.CreateBuilder<(string, string)>();
             if (!directives.HookDeclarations.IsDefaultOrEmpty)
             {
-                string hookSrc = HookEmitter.Emit(filePath, directives, diagnostics);
+                string hookSrc = HookEmitter.Emit(filePath, directives, diagnostics, hookFamilyKeyMap);
                 if (!string.IsNullOrEmpty(hookSrc))
                     extraSources.Add((ExtraHint("inlinehooks"), hookSrc));
             }
@@ -425,7 +430,7 @@ namespace ReactiveUITK.SourceGenerator
                         StructureValidator.ValidateNodes(cSetupJsx, filePath, diagnostics);
                 }
 
-                string compSrc = CSharpEmitter.Emit(filePath, cd, cRoots, resolver, diagnostics);
+                string compSrc = CSharpEmitter.Emit(filePath, cd, cRoots, resolver, diagnostics, hookFamilyKeyMap);
                 if (ci == 0)
                     primarySource = compSrc; // main component keeps the canonical {file}.g.cs hint
                 else
@@ -696,6 +701,65 @@ namespace ReactiveUITK.SourceGenerator
                 }
 
             return result.ToImmutable();
+        }
+
+        /// <summary>
+        /// Maps each custom-hook name callable in <paramref name="filePath"/> to its PATH-QUALIFIED
+        /// family key <c>{EffectiveNs}.{Container}::{HookName}</c> (§7). Same-file hooks qualify
+        /// against this file's own effective namespace + container; imported hooks resolve the import
+        /// specifier to the owning peer container (which was built with the SAME
+        /// <see cref="ResolveEffectiveNamespace"/> + <c>DeriveContainerClassName</c> the producer uses,
+        /// so producer id and consumer key are byte-identical). Consumers (component setup + hook
+        /// bodies) qualify their extracted bare names through this map; the runtime matches producer
+        /// ids to consumer keys by ordinal string equality, so the two MUST agree exactly.
+        /// </summary>
+        internal static Dictionary<string, string> BuildHookFamilyKeyMap(
+            DirectiveSet directives,
+            ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
+            string filePath)
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            string ns = directives.Namespace ?? string.Empty;
+
+            // Same-file hooks (mixed-decl) → this file's own container.
+            if (!directives.HookDeclarations.IsDefaultOrEmpty)
+            {
+                string ownContainer = HookEmitter.DeriveContainerClassName(filePath);
+                foreach (var h in directives.HookDeclarations)
+                    if (!string.IsNullOrEmpty(h.Name))
+                        map[h.Name] = $"{ns}.{ownContainer}::{h.Name}";
+            }
+
+            // Imported hooks → resolve each import specifier to its owning peer container.
+            if (peerHookContainers != null && !peerHookContainers.Value.IsDefaultOrEmpty
+                && !directives.Imports.IsDefaultOrEmpty)
+            {
+                string importerDir = NormalizeAbs(Path.GetDirectoryName(filePath));
+                string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
+                string rootDir = projectRoot != null
+                    ? NormalizeAbs(projectRoot + "/" + UitkxConfig.LoadRoot(importerDir))
+                    : importerDir;
+
+                foreach (var imp in directives.Imports)
+                {
+                    string? candidate = ImportResolver.MapSpecifierToPath(
+                        importerDir, imp.Specifier, rootDir, out _);
+                    if (candidate == null)
+                        continue;
+                    string candN = NormalizeAbs(candidate);
+                    foreach (var phc in peerHookContainers.Value)
+                    {
+                        if (phc.SourceFilePath == null
+                            || !string.Equals(NormalizeAbs(phc.SourceFilePath), candN, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        foreach (var name in imp.Names)
+                            if (phc.ExportedHookNames.Contains(name))
+                                map[name] = $"{phc.Namespace}.{phc.ClassName}::{name}";
+                        break;
+                    }
+                }
+            }
+            return map;
         }
 
         /// <summary>

@@ -241,6 +241,51 @@ public class EmitterTests
     }
 
     [Fact]
+    public void HookFamilyKey_ImportedHook_ProducerAndConsumerAgreeOnQualifiedKey()
+    {
+        // §7: the hook file (producer) registers under a PATH-QUALIFIED family key, and a
+        // component that imports+calls the hook (consumer) must emit the BYTE-IDENTICAL key
+        // in its customHookFamilyKeys — the runtime matches them by ordinal string equality.
+        var files = new[]
+        {
+            ("Counter.hooks.uitkx", "export hook useCounter() {\n  return 0;\n}"),
+            ("Screen.uitkx",
+                "import { useCounter } from \"./Counter.hooks\"\n"
+                + "export component Screen {\n  var c = useCounter();\n  return (<Box />);\n}"),
+        };
+        var result = GeneratorTestHelper.RunMultiple(files, primaryFileName: "Screen.uitkx");
+
+        // No asmdef/project-root in the test temp dir → both files fall back to the default
+        // namespace; container = DeriveContainerClassName("Counter.hooks") = "CounterHooks".
+        const string expectedKey = "ReactiveUITK.FunctionStyle.CounterHooks::useCounter";
+
+        var hookUnit = result.AllSources.Single(s => s.Text.Contains("RegisterHook("));
+        Assert.Contains($"RegisterHook(\"{expectedKey}\"", hookUnit.Text);
+
+        var compUnit = result.AllSources.Single(s => s.Text.Contains("class Screen"));
+        Assert.Contains(expectedKey, compUnit.Text);
+        // And the bare name must NOT leak as a standalone key on either side.
+        Assert.DoesNotContain("RegisterHook(\"useCounter\"", hookUnit.Text);
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void HookFamilyKey_SameFileHook_QualifiedWithOwnContainer()
+    {
+        // A component and the hook it calls in the SAME file (mixed-decl): the consumer key
+        // must qualify against the file's own namespace + container, matching the producer.
+        var src =
+            "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\n"
+            + "hook useLocal() {\n  return 0;\n}";
+        var result = GeneratorTestHelper.Run(src, fileName: "Panel.uitkx");
+
+        const string expectedKey = "ReactiveUITK.FunctionStyle.PanelHooks::useLocal";
+        Assert.Contains(result.AllSources, s => s.Text.Contains($"RegisterHook(\"{expectedKey}\""));
+        Assert.Contains(result.AllSources, s => s.Text.Contains("class Screen") && s.Text.Contains(expectedKey));
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
     public void CrossFileCompanionModule_DefersAccessibilityToComponent_NoCS0262Modifier()
     {
         // The common companion pattern: a component in one file + a same-named module in a
