@@ -478,6 +478,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>The message names the exact line to add, e.g. <code>import {'{ X }'} from "./X"</code>.</TableCell>
           </TableRow>
           <TableRow>
+            <TableCell><Chip label="UITKX2306" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Value-import cycle</TableCell>
+            <TableCell>Hooks and modules load eagerly, so a cycle among their imports is an error (components are exempt). Break the chain or move to a component reference.</TableCell>
+          </TableRow>
+          <TableRow>
             <TableCell><Chip label="UITKX2307" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Used like a hook/component but nothing exports it</TableCell>

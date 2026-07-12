@@ -30,6 +30,7 @@ const DIAGS: [string, string][] = [
   ['UITKX2303', 'duplicate import of `X` (already imported from another specifier)'],
   ['UITKX2304', 'unused import `X` (warning)'],
   ['UITKX2305', '`X` is defined in a peer file but not imported — the message names the exact import line to add'],
+  ['UITKX2306', 'value-import cycle: hooks/modules load eagerly, so a cycle among their imports is an error (components are exempt)'],
   ['UITKX2307', '`X` is used like a component/hook but no file exports it'],
   ['UITKX2308', 'import crosses a module/root boundary — imports are asmdef-scoped in v1'],
   ['UITKX2309', 'import must appear in the preamble, before the first declaration'],
