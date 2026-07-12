@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -456,6 +457,11 @@ namespace ReactiveUITK.SourceGenerator
 
         private static List<(string[] Names, string Specifier)> ExtractImportsForCycle(string source)
         {
+            // Blank comments BEFORE the regex so a commented-out `import { … } from "…"`
+            // never injects a phantom value-cycle edge (→ spurious UITKX2306). String
+            // literals are preserved so the real specifier is still captured — a plain
+            // ScrubNonCode would blank the specifier string and drop real edges instead.
+            source = ScrubCommentsPreservingStrings(source);
             var result = new List<(string[], string)>();
             foreach (Match m in s_importScanRe.Matches(source))
             {
@@ -465,6 +471,45 @@ namespace ReactiveUITK.SourceGenerator
                 result.Add((names, m.Groups[2].Value));
             }
             return result;
+        }
+
+        /// <summary>
+        /// Blanks <c>//</c> and <c>/* */</c> comments while leaving string/char literals
+        /// intact (so <c>//</c> or <c>import</c> inside a <c>"…"</c> is never mistaken for a
+        /// comment or a real import). Length- and line-preserving. Used by the import
+        /// pre-scan, which must ignore commented-out imports but keep real specifier strings.
+        /// </summary>
+        private static string ScrubCommentsPreservingStrings(string source)
+        {
+            var sb = new StringBuilder(source);
+            int i = 0, n = source.Length;
+            while (i < n)
+            {
+                char c = source[i];
+                if (c == '/' && i + 1 < n && source[i + 1] == '/')
+                {
+                    int start = i;
+                    i += 2;
+                    while (i < n && source[i] != '\n') i++;
+                    for (int k = start; k < i && k < sb.Length; k++)
+                        if (!char.IsWhiteSpace(sb[k])) sb[k] = ' ';
+                    continue;
+                }
+                if (c == '/' && i + 1 < n && source[i + 1] == '*')
+                {
+                    int start = i;
+                    int close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = close >= 0 ? close + 2 : n;
+                    for (int k = start; k < i && k < sb.Length; k++)
+                        if (!char.IsWhiteSpace(sb[k])) sb[k] = ' ';
+                    continue;
+                }
+                int before = i;
+                if (CSharpLexFacts.TrySkipStringOrCharLiteral(source, n, ref i) && i > before)
+                    continue; // preserve the literal verbatim
+                i++;
+            }
+            return sb.ToString();
         }
 
         private static string NormPath(string? p) => (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
@@ -511,12 +556,18 @@ namespace ReactiveUITK.SourceGenerator
                     if (tgt == null)
                         continue;
                     string tgtN = NormPath(tgt);
+                    string key = NormPath(file);
+                    // A self-import (specifier resolving back to the importer) is harmless —
+                    // the reference stays within the file's own generated container, no
+                    // eager-init/TDZ hazard — but a self-edge makes FindCycle report [A,A].
+                    // Skip it so it never produces a spurious UITKX2306.
+                    if (string.Equals(tgtN, key, StringComparison.OrdinalIgnoreCase))
+                        continue;
                     bool isValue = false;
                     foreach (var n in names)
                         if (valueExports.Contains(tgtN + "\0" + n)) { isValue = true; break; }
                     if (!isValue)
                         continue;
-                    string key = NormPath(file);
                     if (!edges.TryGetValue(key, out var list))
                         edges[key] = list = new List<string>();
                     ((List<string>)list).Add(tgtN);
