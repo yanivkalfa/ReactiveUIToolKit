@@ -118,6 +118,16 @@ public sealed class CompletionHandler : ICompletionHandler
                     InsertText = n,
                     Detail = "exported by the import target",
                 }));
+
+            var specifiers = GetSpecifierCompletions(localPath, importLine, col0);
+            if (specifiers.Count > 0)
+                return new CompletionList(specifiers.Select(s => new CompletionItem
+                {
+                    Label = s,
+                    Kind = CompletionItemKind.File,
+                    InsertText = s,
+                    Detail = "import specifier",
+                }));
         }
 
         var ctx = AstCursorContext.Find(parseResult, text, line1, col0);
@@ -1572,5 +1582,49 @@ public sealed class CompletionHandler : ICompletionHandler
         if (!ds.ModuleDeclarations.IsDefaultOrEmpty)
             foreach (var m in ds.ModuleDeclarations) Add(m.Name, m.IsExported);
         return names;
+    }
+
+    /// <summary>
+    /// Path completion inside an import <c>from "…"</c> specifier string (import/export grammar, leg
+    /// 3): <c>./</c>-relative, extensionless specifiers to peer <c>.uitkx</c> files under the
+    /// importer's directory tree (the common case; <c>../</c> / <c>~/</c> are typed by hand). Pure +
+    /// filesystem-only, so it is directly unit-testable. Empty when the cursor is not inside the
+    /// specifier quotes of an import line.
+    /// </summary>
+    public static IReadOnlyList<string> GetSpecifierCompletions(string importerPath, string lineText, int col0)
+    {
+        var empty = System.Array.Empty<string>();
+        if (!Regex.IsMatch(lineText, @"^\s*import\b")) return empty;
+
+        var m = Regex.Match(lineText, "from\\s*\"");
+        if (!m.Success) return empty;
+        int quoteStart = m.Index + m.Length;
+        int quoteEnd = lineText.IndexOf('"', quoteStart);
+        int end = quoteEnd < 0 ? lineText.Length : quoteEnd;
+        if (col0 < quoteStart || col0 > end) return empty;
+
+        string importerDir = Path.GetDirectoryName(importerPath) ?? string.Empty;
+        if (!Directory.Exists(importerDir)) return empty;
+
+        var results = new List<string>();
+        try
+        {
+            string selfFull = Path.GetFullPath(importerPath);
+            foreach (var f in Directory.EnumerateFiles(importerDir, "*.uitkx", SearchOption.AllDirectories))
+            {
+                if (string.Equals(Path.GetFullPath(f), selfFull, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                string rel = Path.GetRelativePath(importerDir, f).Replace('\\', '/');
+                if (rel.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                    rel = rel.Substring(0, rel.Length - ".uitkx".Length);
+                if (!rel.StartsWith("../", StringComparison.Ordinal))
+                    rel = "./" + rel;
+                results.Add(rel);
+            }
+        }
+        catch { /* permission / IO — best effort */ }
+
+        results.Sort(StringComparer.Ordinal);
+        return results;
     }
 }
