@@ -76,6 +76,22 @@ namespace ReactiveUITK.EditorSupport.HMR
             StringComparer.OrdinalIgnoreCase
         );
 
+        // ── Import reverse-dependency map (import/export grammar, leg 3, §8) ───
+        // Key = absolute imported .uitkx path (forward-slash), Value = set of absolute .uitkx paths
+        // that `import { … } from` it. When an imported file (e.g. a module or hook file) changes,
+        // its importers are recompiled so cross-file references pick up the new IL — the confirmed
+        // correctness gap where the Family-handle indirection only covers hook CONSUMERS, not
+        // module-member references. Built at Start() and kept fresh on every file event.
+        private readonly Dictionary<string, HashSet<string>> _importDependents = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        // Matches a preamble `import { A, B } from "specifier"` line (single line).
+        private static readonly Regex s_importLineRegex = new Regex(
+            @"^\s*import\s*\{[^}]*\}\s*from\s*""([^""]+)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant
+        );
+
         // ── Settings ──────────────────────────────────────────────────────────
         public bool AutoStopOnPlayMode
         {
@@ -237,6 +253,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (_ussDependents.Count == 0)
                 BuildUssDependencyMap(assetsPath);
 
+            // Build the import reverse-dependency map (import/export grammar §8) so a change to an
+            // imported module/hook file fans out to its importers.
+            if (_importDependents.Count == 0)
+                BuildImportDependencyMap(assetsPath);
+
             // Hook lifecycle events
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
 
@@ -324,9 +345,16 @@ namespace ReactiveUITK.EditorSupport.HMR
         // ── File change handler ───────────────────────────────────────────────
 
         private void OnUitkxFileChanged(string uitkxPath)
+            => OnUitkxFileChanged(uitkxPath, fanOutToImporters: true);
+
+        private void OnUitkxFileChanged(string uitkxPath, bool fanOutToImporters)
         {
             if (!_active)
                 return;
+
+            // The originally-changed file drives the import reverse-edge fan-out below (importers
+            // reference it by its own path, before any companion redirect).
+            string changedPath = uitkxPath;
 
             // Keep the workspace-wide hook-container index in sync with disk so
             // a newly added or edited hook file is visible to the next recompile.
@@ -338,13 +366,56 @@ namespace ReactiveUITK.EditorSupport.HMR
             uitkxPath = ResolveParentComponentFile(uitkxPath);
 
             // ── UITKX Fast Refresh ─────────────────────────────────────────
-            // No cascade walker, no transitive consumer compile. The Family
-            // handle indirection means a single Register call — emitted by
-            // the [ModuleInitializer] in the freshly compiled assembly —
-            // reaches every consumer regardless of whether their IL was
-            // recompiled in this round. See Plans~/HMR_FAST_REFRESH_PLAN.md.
+            // The Family handle indirection means a single Register call — emitted by
+            // the [ModuleInitializer] in the freshly compiled assembly — reaches every
+            // hook CONSUMER regardless of whether their IL was recompiled in this round.
+            // See Plans~/HMR_FAST_REFRESH_PLAN.md.
             EnqueueCompile(uitkxPath);
             DrainCompileQueueIfIdle();
+
+            // Keep this file's outgoing import edges fresh (its imports may have changed).
+            RegisterImportDependencies(uitkxPath);
+
+            // ── Reverse-edge invalidation (import/export grammar, §8) ──────
+            // The Family indirection above does NOT cover module-member references or other
+            // non-component export edits: an importer's IL still references the old symbols. Walk
+            // the reverse import edges and recompile each importer so those references refresh.
+            if (fanOutToImporters)
+                FanOutToImporters(changedPath);
+        }
+
+        /// <summary>
+        /// Recompile every <c>.uitkx</c> that (transitively) imports <paramref name="changedFile"/>
+        /// so cross-file references to its declarations pick up the new IL (import/export grammar §8).
+        /// Guarded against import cycles by a visited set; each importer is refreshed WITHOUT
+        /// re-fanning (this BFS drives the transitivity).
+        /// </summary>
+        private void FanOutToImporters(string changedFile)
+        {
+            if (_importDependents.Count == 0)
+                return;
+
+            string start = NormalizeImportPath(changedFile);
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { start };
+            var queue = new Queue<string>();
+            queue.Enqueue(start);
+
+            while (queue.Count > 0)
+            {
+                string file = queue.Dequeue();
+                if (!_importDependents.TryGetValue(file, out var importers))
+                    continue;
+
+                // Copy: OnUitkxFileChanged re-registers edges and may mutate the map mid-iteration.
+                foreach (string importer in importers.ToList())
+                {
+                    if (visited.Add(importer))
+                    {
+                        queue.Enqueue(importer);
+                        OnUitkxFileChanged(importer, fanOutToImporters: false);
+                    }
+                }
+            }
         }
 
         // ── Compile queue plumbing ────────────────────────────────────────────
@@ -831,6 +902,130 @@ namespace ReactiveUITK.EditorSupport.HMR
                 Debug.LogWarning($"[HMR] Failed to build USS dependency map: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Scans every <c>.uitkx</c> under <paramref name="assetsRoot"/> for <c>import</c> lines and
+        /// builds the reverse map (imported file → importers), mirroring the USS map (import/export
+        /// grammar §8). Called once at Start(); individual files are refreshed on each edit.
+        /// </summary>
+        private void BuildImportDependencyMap(string assetsRoot)
+        {
+            _importDependents.Clear();
+            try
+            {
+                foreach (
+                    string uitkxPath in Directory.EnumerateFiles(
+                        assetsRoot,
+                        "*.uitkx",
+                        SearchOption.AllDirectories
+                    )
+                )
+                {
+                    RegisterImportDependencies(uitkxPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HMR] Failed to build import dependency map: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Re-reads one <c>.uitkx</c> file's <c>import</c> lines and refreshes its outgoing edges in
+        /// <see cref="_importDependents"/> (removing this importer from every target first, so a
+        /// removed import doesn't leave a stale reverse edge).
+        /// </summary>
+        private void RegisterImportDependencies(string uitkxPath)
+        {
+            try
+            {
+                string importerAbs = NormalizeImportPath(uitkxPath);
+
+                // Drop this importer's previous edges (its import set may have shrunk).
+                foreach (var kv in _importDependents)
+                    kv.Value.Remove(importerAbs);
+
+                if (!File.Exists(uitkxPath))
+                    return;
+
+                string content = File.ReadAllText(uitkxPath);
+                string importerDir = NormalizeImportPath(Path.GetDirectoryName(uitkxPath));
+
+                foreach (Match m in s_importLineRegex.Matches(content))
+                {
+                    string target = ResolveImportSpecifier(importerDir, uitkxPath, m.Groups[1].Value);
+                    if (target == null)
+                        continue;
+                    if (!_importDependents.TryGetValue(target, out var set))
+                        _importDependents[target] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    set.Add(importerAbs);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HMR] Failed to register import deps for {uitkxPath}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Resolves an import specifier to an absolute <c>.uitkx</c> path — a compile-verified mirror
+        /// of language-lib's <c>ImportResolver.MapSpecifierToPath</c> (Editor/HMR cannot reference
+        /// language-lib; see <see cref="HmrAssetPathUtil"/>). Relative (<c>./</c>, <c>../</c>) resolve
+        /// against the importer dir; <c>~/</c> against the project's <c>Assets</c> root; engine-native
+        /// and bare specifiers return <c>null</c> (never mapped). Extensionless → <c>.uitkx</c> implied.
+        /// </summary>
+        private static string ResolveImportSpecifier(string importerDir, string importerPath, string specifier)
+        {
+            if (string.IsNullOrEmpty(specifier))
+                return null;
+
+            string baseDir, rest;
+            if (specifier.StartsWith("./", StringComparison.Ordinal) ||
+                specifier.StartsWith("../", StringComparison.Ordinal))
+            {
+                baseDir = importerDir;
+                rest = specifier;
+            }
+            else if (specifier.StartsWith("~/", StringComparison.Ordinal))
+            {
+                string norm = NormalizeImportPath(importerPath);
+                int idx = norm.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
+                if (idx < 0)
+                    return null;
+                baseDir = norm.Substring(0, idx) + "/Assets";
+                rest = specifier.Substring(2);
+            }
+            else
+            {
+                return null; // engine-native (Assets/, Packages/, absolute) or bare → never mapped
+            }
+
+            var segs = new List<string>();
+            foreach (string s in (baseDir + "/" + rest).Replace('\\', '/').Split('/'))
+            {
+                if (s.Length == 0 || s == ".")
+                    continue;
+                if (s == "..")
+                {
+                    if (segs.Count > 0)
+                        segs.RemoveAt(segs.Count - 1);
+                }
+                else
+                {
+                    segs.Add(s);
+                }
+            }
+
+            string path = string.Join("/", segs);
+            if (path.Length == 0)
+                return null;
+            if (!path.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                path += ".uitkx";
+            return path;
+        }
+
+        private static string NormalizeImportPath(string p)
+            => (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
 
         /// <summary>
         /// Reads a single .uitkx file, extracts @uss directives, and registers
