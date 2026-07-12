@@ -10,6 +10,7 @@ import { UitkxComponentsPage } from './pages/UITKX/Components/UitkxComponentsPag
 import { VideoPage } from './pages/Components/Video/VideoPage'
 import { AudioPage } from './pages/Components/Audio/AudioPage'
 import { CompanionFilesPage } from './pages/UITKX/CompanionFiles/CompanionFilesPage'
+import { UitkxImportsPage } from './pages/UITKX/Imports/UitkxImportsPage'
 import { UitkxConceptsPage } from './pages/UITKX/Concepts/UitkxConceptsPage'
 import { UitkxConfigPage } from './pages/UITKX/Config/UitkxConfigPage'
 import { UitkxDebuggingPage } from './pages/UITKX/Debugging/UitkxDebuggingPage'
@@ -99,6 +100,21 @@ export const sections: DocSection[] = [
         keywords: ['companion', 'hook', 'module', 'styles', 'types', 'utils'],
         searchContent: 'companion files optional .uitkx hook module keyword styles types utils naming conventions directory layout source generator produces complete class no boilerplate needed MyComponent.hooks.uitkx custom hooks reusable state logic MyComponent.style.uitkx style constants helpers colours sizes MyComponent.types.uitkx enums structs DTOs MyComponent.utils.uitkx pure helper formatting functions hmr support editing hook triggers hmr delegate swap module changes standalone modules',
         element: () => <CompanionFilesPage />,
+      },
+    ],
+  },
+  {
+    id: 'imports',
+    title: 'Imports & Exports',
+    pages: [
+      {
+        id: 'imports-page',
+        canonicalId: 'imports',
+        title: 'Imports & Exports',
+        path: '/imports',
+        keywords: ['import', 'export', 'from', 'module', 'strict', 'specifier', '~/', 'namespace'],
+        searchContent: 'imports exports import export from grammar cross-file resolution strict esm named imports specifier relative ./ ../ root alias ~/ extensionless .uitkx implied mixed declarations multiple components hooks modules one file any order export component export hook export module file-private internal strict-invisible UITKX2300 2301 2303 2304 2305 2307 2308 2309 unknown specifier not exported duplicate unused not imported add import line used like a hook but no file exports it crosses boundary asmdef-scoped preamble only path-derived namespace derived from owning asmdef @namespace optional interop override privacy compile-time fence codemod UitkxMigrateImports migrate existing project export-everything idempotent formatter-stable builtin elements Box Label builtin hooks useState useEffect ambient C# never flagged',
+        element: () => <UitkxImportsPage />,
       },
     ],
   },
