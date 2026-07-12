@@ -399,8 +399,11 @@ public class ParserTests
     }
 
     [Fact]
-    public void Directives_FunctionStyle_InfersNamespace_FromCompanionPartialClass()
+    public void Directives_FunctionStyle_DoesNotInferNamespace_FromCompanionCs()
     {
+        // The parser no longer reads a companion .cs to infer the namespace (plan §4 —
+        // a target's identity must never flip on a .cs edit). It returns the stable default;
+        // the pipeline derives the real (path-based) namespace downstream.
         string dir = Path.Combine(
             Path.GetTempPath(),
             "uitkx-func-ns-" + System.Guid.NewGuid().ToString("N")
@@ -429,7 +432,8 @@ public class ParserTests
 
             Assert.True(set.IsFunctionStyle);
             Assert.Equal("CounterPanel", set.ComponentName);
-            Assert.Equal("MyGame.Sample.UI", set.Namespace);
+            // The companion's MyGame.Sample.UI is IGNORED — default, not .cs-derived.
+            Assert.Equal("ReactiveUITK.FunctionStyle", set.Namespace);
         }
         finally
         {

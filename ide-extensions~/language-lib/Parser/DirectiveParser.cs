@@ -24,11 +24,12 @@ namespace ReactiveUITK.Language.Parser
     /// </summary>
     public static class DirectiveParser
     {
+        // The default namespace for a function-style .uitkx file that has no @namespace.
+        // Under StrictImports the pipeline OVERRIDES this with the path-derived namespace
+        // (see UitkxPipeline.ResolveEffectiveNamespace); it survives only as the flag-off /
+        // no-project-root fallback. The generator no longer reads a companion .cs to infer the
+        // namespace — a target's identity must never flip on a .cs edit (plan §4).
         private const string FunctionStyleDefaultNamespace = "ReactiveUITK.FunctionStyle";
-        private static readonly Regex s_namespaceRegex = new Regex(
-            @"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_\.]*)",
-            RegexOptions.Multiline | RegexOptions.CultureInvariant
-        );
 
         private static readonly HashSet<string> s_topLevelKeywords = new HashSet<string>(
             StringComparer.Ordinal
@@ -87,7 +88,7 @@ namespace ReactiveUITK.Language.Parser
                 });
 
                 return new DirectiveSet(
-                    Namespace: InferFunctionStyleNamespace(filePath),
+                    Namespace: FunctionStyleDefaultNamespace,
                     ComponentName: fallbackComponent,
                     PropsTypeName: null,
                     DefaultKey: null,
@@ -115,7 +116,7 @@ namespace ReactiveUITK.Language.Parser
             });
 
             return new DirectiveSet(
-                Namespace: InferFunctionStyleNamespace(filePath),
+                Namespace: FunctionStyleDefaultNamespace,
                 ComponentName: fallbackName,
                 PropsTypeName: null,
                 DefaultKey: null,
@@ -268,7 +269,7 @@ namespace ReactiveUITK.Language.Parser
                 });
             }
 
-            string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
+            string functionNamespace = inlineNamespace ?? FunctionStyleDefaultNamespace;
             int componentNameCol = ColAtPos(source, nameStartI);
 
             // ── Optional typed-props parameter list ───────────────────────────
@@ -960,7 +961,7 @@ namespace ReactiveUITK.Language.Parser
             string? inlineNamespace
         )
         {
-            string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
+            string functionNamespace = inlineNamespace ?? FunctionStyleDefaultNamespace;
 
             // @uss is legal in ANY file (import/export grammar, leg 3, §5): a stylesheet attaches to
             // every component declared in the file. A hook/module-only file has no component, so the
@@ -1535,29 +1536,6 @@ namespace ReactiveUITK.Language.Parser
             return source.Substring(start, i - start).Trim();
         }
 
-        private static string InferFunctionStyleNamespace(string filePath)
-        {
-            try
-            {
-                var companionCsPath = Path.ChangeExtension(filePath, ".cs");
-                if (string.IsNullOrWhiteSpace(companionCsPath) || !File.Exists(companionCsPath))
-                    return FunctionStyleDefaultNamespace;
-
-                var csText = File.ReadAllText(companionCsPath);
-                var m = s_namespaceRegex.Match(csText);
-                if (m.Success)
-                {
-                    var ns = m.Groups[1].Value.Trim();
-                    if (!string.IsNullOrWhiteSpace(ns))
-                        return ns;
-                }
-            }
-            catch
-            {
-            }
-
-            return FunctionStyleDefaultNamespace;
-        }
 
         private static bool LooksLikeMarkupRoot(string source, int start, int endExclusive)
         {
