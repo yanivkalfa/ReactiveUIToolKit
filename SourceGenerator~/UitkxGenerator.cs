@@ -169,6 +169,7 @@ namespace ReactiveUITK.SourceGenerator
                     var peerComponentsBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                     var peerHookContainersBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                     var peerModulesBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                    var importsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                     foreach (var txt in uitkxFiles)
                     {
                         ct.ThrowIfCancellationRequested();
@@ -184,6 +185,7 @@ namespace ReactiveUITK.SourceGenerator
                         if (TryBuildPeerHookContainerInfo(src, txt.Path, out var hookInfo))
                             peerHookContainersBuilder.Add(hookInfo);
                         CollectPeerModuleInfos(src, txt.Path, peerModulesBuilder);
+                        importsByFile.Add((txt.Path, ExtractImportsForCycle(src)));
                     }
                     ImmutableArray<PeerComponentInfo> peerComponents =
                         peerComponentsBuilder.ToImmutable();
@@ -191,6 +193,9 @@ namespace ReactiveUITK.SourceGenerator
                         peerHookContainersBuilder.ToImmutable();
                     ImmutableArray<PeerModuleInfo> peerModules =
                         peerModulesBuilder.ToImmutable();
+                    var valueCycles = UitkxFeatureFlags.StrictImports
+                        ? BuildValueCycleMap(importsByFile, peerHookContainers, peerModules)
+                        : null;
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
@@ -205,7 +210,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = ReadUitkxSource(txt, ct);
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules, valueCycles));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -223,6 +228,7 @@ namespace ReactiveUITK.SourceGenerator
                             var diskPeerBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                             var diskHookBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                             var diskModuleBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                            var diskImportsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                             foreach (string fp in diskFiles)
                             {
                                 if (IsInsideIgnoredFolder(fp)) continue;
@@ -234,6 +240,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (TryBuildPeerHookContainerInfo(raw, fp, out var hookInfo))
                                     diskHookBuilder.Add(hookInfo);
                                 CollectPeerModuleInfos(raw, fp, diskModuleBuilder);
+                                diskImportsByFile.Add((fp, ExtractImportsForCycle(raw)));
                             }
                             ImmutableArray<PeerComponentInfo> diskPeerComponents =
                                 diskPeerBuilder.ToImmutable();
@@ -241,6 +248,9 @@ namespace ReactiveUITK.SourceGenerator
                                 diskHookBuilder.ToImmutable();
                             ImmutableArray<PeerModuleInfo> diskPeerModules =
                                 diskModuleBuilder.ToImmutable();
+                            var diskValueCycles = UitkxFeatureFlags.StrictImports
+                                ? BuildValueCycleMap(diskImportsByFile, diskPeerHookContainers, diskPeerModules)
+                                : null;
 
                             foreach (string filePath in diskFiles)
                             {
@@ -248,7 +258,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules, diskValueCycles));
                             }
                         }
                     }
@@ -430,6 +440,95 @@ namespace ReactiveUITK.SourceGenerator
         /// Appends a <see cref="PeerModuleInfo"/> for every <c>module</c> declared in the file
         /// (import/export grammar, leg 3, M6b/strict). Module edges had no peer table before.
         /// </summary>
+        // Regex import scan for the value-cycle graph (import/export grammar §6): cheaper than a full
+        // parse in the pre-scan, and the value-cycle only needs specifier + names.
+        private static readonly Regex s_importScanRe = new Regex(
+            @"^\s*import\s*\{([^}]*)\}\s*from\s*""([^""]+)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        private static List<(string[] Names, string Specifier)> ExtractImportsForCycle(string source)
+        {
+            var result = new List<(string[], string)>();
+            foreach (Match m in s_importScanRe.Matches(source))
+            {
+                string[] names = m.Groups[1].Value.Split(',');
+                for (int i = 0; i < names.Length; i++)
+                    names[i] = names[i].Trim();
+                result.Add((names, m.Groups[2].Value));
+            }
+            return result;
+        }
+
+        private static string NormPath(string? p) => (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
+
+        /// <summary>
+        /// Value-import cycle detection for the build (import/export grammar §6): edges are import
+        /// relationships where the imported name is a HOOK or MODULE (components load lazily and are
+        /// exempt). Returns a map filePath → 2306 chain message for every file that is part of a cycle.
+        /// </summary>
+        private static Dictionary<string, string> BuildValueCycleMap(
+            List<(string File, List<(string[] Names, string Specifier)> Imports)> importsByFile,
+            ImmutableArray<PeerHookContainerInfo> peerHooks,
+            ImmutableArray<PeerModuleInfo> peerModules)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            // (normalized target path + '\0' + name) for every hook/module export = a value symbol.
+            var valueExports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ph in peerHooks)
+                if (!string.IsNullOrEmpty(ph.SourceFilePath))
+                    foreach (var n in ph.ExportedHookNames)
+                        valueExports.Add(NormPath(ph.SourceFilePath) + "\0" + n);
+            foreach (var pm in peerModules)
+                if (pm.IsExported && !string.IsNullOrEmpty(pm.SourceFilePath))
+                    valueExports.Add(NormPath(pm.SourceFilePath) + "\0" + pm.Name);
+
+            if (valueExports.Count == 0)
+                return result;
+
+            var edges = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (file, imports) in importsByFile)
+            {
+                if (imports.Count == 0)
+                    continue;
+                string dir = NormPath(Path.GetDirectoryName(file));
+                string? projRoot = ReactiveUITK.Language.AssetPathUtil.GetProjectRoot(file);
+                string root = projRoot != null
+                    ? NormPath(projRoot + "/" + ReactiveUITK.Language.UitkxConfig.LoadRoot(dir))
+                    : dir;
+
+                foreach (var (names, specifier) in imports)
+                {
+                    string? tgt = ReactiveUITK.Language.ImportResolver.MapSpecifierToPath(dir, specifier, root, out _);
+                    if (tgt == null)
+                        continue;
+                    string tgtN = NormPath(tgt);
+                    bool isValue = false;
+                    foreach (var n in names)
+                        if (valueExports.Contains(tgtN + "\0" + n)) { isValue = true; break; }
+                    if (!isValue)
+                        continue;
+                    string key = NormPath(file);
+                    if (!edges.TryGetValue(key, out var list))
+                        edges[key] = list = new List<string>();
+                    ((List<string>)list).Add(tgtN);
+                }
+            }
+
+            var cycle = ReactiveUITK.Language.UitkxImportGraph.FindCycle(edges);
+            if (cycle != null)
+            {
+                var names = new List<string>(cycle.Count);
+                foreach (var c in cycle)
+                    names.Add(Path.GetFileName(c));
+                string msg = $"value-import cycle: {string.Join(" -> ", names)} (hooks/modules load eagerly — break the chain or move to component refs)";
+                foreach (var c in cycle)
+                    result[NormPath(c)] = msg;
+            }
+            return result;
+        }
+
         private static void CollectPeerModuleInfos(
             string source, string filePath, ImmutableArray<PeerModuleInfo>.Builder builder)
         {

@@ -40,7 +40,8 @@ namespace ReactiveUITK.SourceGenerator
             CancellationToken ct,
             ImmutableArray<PeerComponentInfo>? peerComponents = null,
             ImmutableArray<PeerHookContainerInfo>? peerHookContainers = null,
-            ImmutableArray<PeerModuleInfo>? peerModules = null
+            ImmutableArray<PeerModuleInfo>? peerModules = null,
+            IReadOnlyDictionary<string, string>? valueCycles = null
         )
         {
             ct.ThrowIfCancellationRequested();
@@ -60,6 +61,33 @@ namespace ReactiveUITK.SourceGenerator
             directives = directives with { Namespace = ResolveEffectiveNamespace(directives, filePath) };
 
             ct.ThrowIfCancellationRequested();
+
+            // ── Stage 1c: strict import diagnostics (StrictImports seam, §6) ──
+            // Import validation (2300/2301/2308/2314) + reference detector (2305/2307) + unused import
+            // (2304) + value-import cycle (2306). Runs for ALL files (component AND hook/module) BEFORE
+            // the short-circuit below, because hook/module files are the usual value-cycle members and
+            // can reference peer hooks/modules in their bodies. Appended to the parse-diag bag so errors
+            // flow through the same #error path Unity relies on. Dormant with the flag off.
+            if (UitkxFeatureFlags.StrictImports)
+            {
+                AppendImportValidationDiags(
+                    directives, filePath,
+                    peerComponents, peerHookContainers, peerModules, parseDiags);
+                AppendStrictReferenceDiags(
+                    directives, source, filePath,
+                    peerComponents, peerHookContainers, peerModules, parseDiags);
+                if (valueCycles != null &&
+                    valueCycles.TryGetValue(filePath.Replace('\\', '/').TrimEnd('/'), out string? cycleMsg))
+                {
+                    parseDiags.Add(new ParseDiagnostic
+                    {
+                        Code = "UITKX2306",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = directives.Imports.IsDefaultOrEmpty ? 1 : directives.Imports[0].Line,
+                        Message = cycleMsg,
+                    });
+                }
+            }
 
             // ── Short-circuit: hook/module files (no markup) ──────────────────
             if (directives.ComponentName == null
@@ -107,20 +135,6 @@ namespace ReactiveUITK.SourceGenerator
                     combined.Length > 0 ? combined : null,
                     hookModuleDiags.ToImmutableArray()
                 );
-            }
-
-            // ── Stage 1c: strict reference detector (StrictImports seam, §6) ──
-            // Reports 2305/2307 for peer-exported names referenced without an import. Appended to
-            // the parse-diag bag BEFORE the bridge/#error block below so strict errors surface in
-            // the Unity console the same way parse errors do. Dormant with the flag off.
-            if (UitkxFeatureFlags.StrictImports)
-            {
-                AppendImportValidationDiags(
-                    directives, filePath,
-                    peerComponents, peerHookContainers, peerModules, parseDiags);
-                AppendStrictReferenceDiags(
-                    directives, source, filePath,
-                    peerComponents, peerHookContainers, peerModules, parseDiags);
             }
 
             // ── Stage 2: Markup parsing ───────────────────────────────────────
