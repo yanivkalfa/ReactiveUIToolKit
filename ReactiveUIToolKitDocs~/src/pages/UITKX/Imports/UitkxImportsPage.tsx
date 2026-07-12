@@ -70,8 +70,8 @@ export const UitkxImportsPage: FC = () => (
     </Typography>
     <Typography variant="body1" paragraph>
       Specifiers are relative (<code>./</code>, <code>../</code>) or the root alias{' '}
-      <code>~/</code> (the UI source root — <code>Assets/</code> by default, overridable via{' '}
-      <code>uitkx.config.json</code>). They are extensionless; <code>.uitkx</code> is implied.
+      <code>~/</code>, which resolves against the UI source root (<code>Assets/</code>). They
+      are extensionless; <code>.uitkx</code> is implied.
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_SPECIFIERS} />
 

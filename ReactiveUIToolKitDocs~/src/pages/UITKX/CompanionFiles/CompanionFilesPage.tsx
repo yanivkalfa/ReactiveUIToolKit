@@ -41,6 +41,16 @@ export const CompanionFilesPage: FC = () => (
       component using <code>hook</code> and <code>module</code> keywords. Use them to extract
       reusable state logic, styles, type definitions, or utility functions.
     </Typography>
+    <Box sx={{ my: 2, p: 2, borderLeft: '4px solid', borderColor: 'primary.main', bgcolor: 'action.hover' }}>
+      <Typography variant="body2">
+        <strong>As of 0.7.0</strong>, cross-file references are explicit — a component{' '}
+        <code>import</code>s the hooks and modules it uses, and the file-kind naming rules
+        below (one component per file, <code>.hooks</code>/<code>.style</code> suffixes,
+        filename == component) are now <strong>lint-tier conventions</strong> rather than hard
+        requirements. A single file may declare any mix of components, hooks, and modules. See{' '}
+        <a href="#/imports">Imports &amp; Exports</a> for the model and the migration codemod.
+      </Typography>
+    </Box>
 
     <Typography variant="h5" component="h2" gutterBottom>
       The UITKX component
