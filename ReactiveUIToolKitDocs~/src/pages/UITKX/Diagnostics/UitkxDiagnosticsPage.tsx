@@ -425,5 +425,90 @@ export const UitkxDiagnosticsPage: FC = () => (
         </TableBody>
       </Table>
     </TableContainer>
+
+    {/* ── Import / Export Diagnostics (UITKX2300–2315) ──────────────────── */}
+    <Typography variant="h5" component="h2" sx={Styles.section}>
+      Import / Export Diagnostics
+    </Typography>
+    <Typography variant="body2" paragraph>
+      Emitted when resolving the <code>import</code> / <code>export</code> grammar. Codes
+      2300–2309 are shared family-wide (identical across the Unity, Unreal, and Godot ports
+      modulo prefix); 2310–2315 are Unity-local. See the{' '}
+      <a href="#/imports">Imports &amp; Exports</a> page for the full grammar.
+    </Typography>
+    <TableContainer>
+      <Table size="small" sx={Styles.table}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Code</TableCell>
+            <TableCell>Severity</TableCell>
+            <TableCell>Message</TableCell>
+            <TableCell>How to fix</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <TableRow>
+            <TableCell><Chip label="UITKX2300" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Unknown import specifier</TableCell>
+            <TableCell>No <code>.uitkx</code> file at that path. Use a relative (<code>./</code>, <code>../</code>) or <code>~/</code> specifier — engine-native forms (<code>Assets/</code>, <code>Packages/</code>) never resolve.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2301" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Name is not exported</TableCell>
+            <TableCell>Add <code>export</code> to the declaration in the target file.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2303" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Duplicate import</TableCell>
+            <TableCell>The name is already imported (from another specifier). Remove the duplicate.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2304" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Unused import</TableCell>
+            <TableCell>The imported name is never referenced. Remove it.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2305" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Peer-exported name used without an import</TableCell>
+            <TableCell>The message names the exact line to add, e.g. <code>import {'{ X }'} from "./X"</code>.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2307" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Used like a hook/component but nothing exports it</TableCell>
+            <TableCell>Declare and <code>export</code> it, import an existing one, or (for a hand-written C# hook) it is ambient and exempt.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2308" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Import crosses an asmdef boundary</TableCell>
+            <TableCell>Imports are module-scoped in v1 — the target must be in the same assembly definition.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2309" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Import after the first declaration</TableCell>
+            <TableCell>Move all <code>import</code> lines into the preamble, before any declaration.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2310" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Cannot derive a namespace (no owning .asmdef)</TableCell>
+            <TableCell>Add an explicit <code>@namespace</code>, or place the file under an assembly definition.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2314" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell><code>~/</code> root not configured / escapes the project</TableCell>
+            <TableCell>Set <code>"root"</code> in <code>uitkx.config.json</code>, or fix the specifier so it stays inside the project.</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </TableContainer>
   </Box>
 )
