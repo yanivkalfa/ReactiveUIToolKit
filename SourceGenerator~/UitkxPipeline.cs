@@ -87,6 +87,24 @@ namespace ReactiveUITK.SourceGenerator
                         Message = cycleMsg,
                     });
                 }
+
+                // 2310 — no owning .asmdef, so the path-derived namespace has no anchor (§4). Only
+                // for a real on-disk Unity file under Assets with no explicit @namespace; synthetic
+                // (non-existent) inline-source paths are exempt so the derivation fallback stays silent.
+                if (!directives.HasExplicitNamespace
+                    && !string.IsNullOrEmpty(filePath)
+                    && File.Exists(filePath)
+                    && AssetPathUtil.GetProjectRoot(filePath) != null
+                    && FindOwningAsmdefDir(filePath) == null)
+                {
+                    parseDiags.Add(new ParseDiagnostic
+                    {
+                        Code = "UITKX2310",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = 1,
+                        Message = $"Cannot derive a namespace for '{fileName}' (no owning .asmdef); add @namespace.",
+                    });
+                }
             }
 
             // ── Short-circuit: hook/module files (no markup) ──────────────────
