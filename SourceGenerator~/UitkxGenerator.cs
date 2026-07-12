@@ -376,7 +376,13 @@ namespace ReactiveUITK.SourceGenerator
                 ds.FunctionParams.IsDefault
                     ? ImmutableArray<FunctionParam>.Empty
                     : ds.FunctionParams
-            );
+            )
+            {
+                SourceFilePath = filePath,
+                IsExported = ds.ComponentDeclarations.IsDefaultOrEmpty
+                    ? true
+                    : ds.ComponentDeclarations[0].IsExported,
+            };
             return true;
         }
 
@@ -393,10 +399,19 @@ namespace ReactiveUITK.SourceGenerator
                 hookInfo = default!;
                 return false;
             }
+            var exportedHooks = ImmutableArray.CreateBuilder<string>();
+            foreach (var h in ds.HookDeclarations)
+                if (h.IsExported)
+                    exportedHooks.Add(h.Name);
+
             hookInfo = new PeerHookContainerInfo(
                 ds.Namespace!,
                 Emitter.HookEmitter.DeriveContainerClassName(filePath)
-            );
+            )
+            {
+                SourceFilePath = filePath,
+                ExportedHookNames = exportedHooks.ToImmutable(),
+            };
             return true;
         }
     }

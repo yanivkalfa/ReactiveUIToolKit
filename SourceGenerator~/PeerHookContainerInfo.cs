@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace ReactiveUITK.SourceGenerator
 {
     /// <summary>
@@ -14,5 +16,24 @@ namespace ReactiveUITK.SourceGenerator
         /// Derived from the filename by <see cref="Emitter.HookEmitter.DeriveContainerClassName"/>.
         /// </summary>
         string ClassName
-    );
+    )
+    {
+        // ── Import/export grammar scaffolding (leg 3, M6b) ──────────────────────
+        // Additive fields consumed by the strict resolver + scoped injection (M8).
+        // Inert today: nothing reads them yet, so populating them is behavior-neutral.
+
+        /// <summary>Absolute path of the owning <c>.uitkx</c> file (import resolution + HMR invalidation).</summary>
+        public string? SourceFilePath { get; init; }
+
+        /// <summary>Path-derived default namespace for this container (M5b), or <c>null</c> until wired.</summary>
+        public string? DerivedNamespace { get; init; }
+
+        /// <summary>
+        /// Names of the hooks declared with <c>export</c> in this container. Empty until
+        /// strictness needs it; the whole container is still exposed to C# via
+        /// <c>using static</c> (C# has no per-method static import) — per-NAME strictness
+        /// is a uitkx diagnostic, not a C# fence (§6).
+        /// </summary>
+        public ImmutableArray<string> ExportedHookNames { get; init; } = ImmutableArray<string>.Empty;
+    };
 }
