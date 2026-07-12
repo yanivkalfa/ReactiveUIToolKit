@@ -28,6 +28,6 @@ namespace ReactiveUITK.Language
         /// path-qualified, <c>export</c> drives accessibility, and the 23xx strict diagnostics fire.
         /// Default <c>false</c> until the migration codemod + goldens re-pin land together (plan §12 step 6).
         /// </summary>
-        public static readonly bool StrictImports = false;
+        public static readonly bool StrictImports = true;
     }
 }
