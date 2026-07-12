@@ -293,7 +293,7 @@ namespace ReactiveUITK.SourceGenerator
             directives = directives with
             {
                 Usings = ResolveInjectedUsings(
-                    directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports)
+                    directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports, peerModules)
             };
 
             // Mixed-decl (§7): a file with hooks/modules AND a component needs the file's OWN hook
@@ -498,7 +498,8 @@ namespace ReactiveUITK.SourceGenerator
             DirectiveSet directives,
             ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
             string filePath,
-            bool strict)
+            bool strict,
+            ImmutableArray<PeerModuleInfo>? peerModules = null)
         {
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var result = ImmutableArray.CreateBuilder<string>();
@@ -506,21 +507,21 @@ namespace ReactiveUITK.SourceGenerator
                 if (seen.Add(u))
                     result.Add(u);
 
-            if (peerHookContainers == null || peerHookContainers.Value.IsDefaultOrEmpty)
-                return result.ToImmutable();
+            bool haveHooks = peerHookContainers != null && !peerHookContainers.Value.IsDefaultOrEmpty;
 
             if (!strict)
             {
-                foreach (var phc in peerHookContainers.Value)
-                {
-                    string fqn = $"static {phc.Namespace}.{phc.ClassName}";
-                    if (seen.Add(fqn))
-                        result.Add(fqn);
-                }
+                if (haveHooks)
+                    foreach (var phc in peerHookContainers.Value)
+                    {
+                        string fqn = $"static {phc.Namespace}.{phc.ClassName}";
+                        if (seen.Add(fqn))
+                            result.Add(fqn);
+                    }
                 return result.ToImmutable();
             }
 
-            // Strict: expose only the container(s) this file actually imports.
+            // Strict: expose only what this file actually imports.
             if (directives.Imports.IsDefaultOrEmpty)
                 return result.ToImmutable();
 
@@ -531,24 +532,51 @@ namespace ReactiveUITK.SourceGenerator
                 : importerDir;
 
             var importedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var importedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // "file\0name"
             foreach (var imp in directives.Imports)
             {
                 string? candidate = ImportResolver.MapSpecifierToPath(
                     importerDir, imp.Specifier, rootDir, out _);
-                if (candidate != null)
-                    importedFiles.Add(NormalizeAbs(candidate));
+                if (candidate == null)
+                    continue;
+                string cn = NormalizeAbs(candidate);
+                importedFiles.Add(cn);
+                foreach (var name in imp.Names)
+                    importedFileNames.Add(cn + "\0" + name);
             }
 
-            foreach (var phc in peerHookContainers.Value)
-            {
-                if (phc.SourceFilePath == null)
-                    continue;
-                if (!importedFiles.Contains(NormalizeAbs(phc.SourceFilePath)))
-                    continue;
-                string fqn = $"static {phc.Namespace}.{phc.ClassName}";
-                if (seen.Add(fqn))
-                    result.Add(fqn);
-            }
+            // Hook: expose the whole owning container (C# has no per-method static import).
+            if (haveHooks)
+                foreach (var phc in peerHookContainers.Value)
+                {
+                    if (phc.SourceFilePath == null)
+                        continue;
+                    if (!importedFiles.Contains(NormalizeAbs(phc.SourceFilePath)))
+                        continue;
+                    string fqn = $"static {phc.Namespace}.{phc.ClassName}";
+                    if (seen.Add(fqn))
+                        result.Add(fqn);
+                }
+
+            // Module (§6.3): alias each imported module to its FQN — but ONLY when it lives in a
+            // DIFFERENT namespace than the importer. A same-namespace module is already in scope, and
+            // aliasing it would conflict with the type declaration (CS0576) — the common case for the
+            // migrated Samples (companions share their component's namespace), so this guard is what
+            // keeps them compiling.
+            if (peerModules != null)
+                foreach (var pm in peerModules.Value)
+                {
+                    if (pm.SourceFilePath == null || !pm.IsExported)
+                        continue;
+                    if (!importedFileNames.Contains(NormalizeAbs(pm.SourceFilePath) + "\0" + pm.Name))
+                        continue;
+                    if (string.Equals(pm.Namespace, directives.Namespace, StringComparison.Ordinal))
+                        continue; // same namespace → already accessible; an alias would be CS0576
+                    string alias = $"{pm.Name} = {pm.Namespace}.{pm.Name}";
+                    if (seen.Add(alias))
+                        result.Add(alias);
+                }
+
             return result.ToImmutable();
         }
 

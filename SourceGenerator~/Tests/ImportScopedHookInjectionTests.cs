@@ -63,6 +63,30 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void FlagOn_CrossNamespaceModule_Aliased_SameNamespace_Not()
+        {
+            var ds = new DirectiveSet(
+                Namespace: "My.Screen",
+                ComponentName: "Screen", PropsTypeName: null, DefaultKey: null,
+                Usings: ImmutableArray<string>.Empty, UssFiles: ImmutableArray<string>.Empty,
+                Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                MarkupStartLine: 1, MarkupStartIndex: 0)
+            {
+                Imports = ImmutableArray.Create(
+                    new ImportDeclaration(ImmutableArray.Create("Palette"), "./Palette", 1, 0, ImmutableArray<int>.Empty),
+                    new ImportDeclaration(ImmutableArray.Create("Local"), "./Local", 2, 0, ImmutableArray<int>.Empty)),
+            };
+            var modules = ImmutableArray.Create(
+                new PeerModuleInfo("Palette", "Other.Ns", true) { SourceFilePath = "C:/proj/Assets/UI/Palette.uitkx" },
+                new PeerModuleInfo("Local", "My.Screen", true) { SourceFilePath = "C:/proj/Assets/UI/Local.uitkx" });
+
+            var usings = UitkxPipeline.ResolveInjectedUsings(ds, null, ScreenPath, strict: true, modules);
+
+            Assert.Contains("Palette = Other.Ns.Palette", usings);          // cross-namespace → aliased
+            Assert.DoesNotContain(usings, u => u.StartsWith("Local =", System.StringComparison.Ordinal)); // same-ns → no alias
+        }
+
+        [Fact]
         public void FlagOn_NoImports_InjectsNothing()
         {
             var ds = new DirectiveSet(
