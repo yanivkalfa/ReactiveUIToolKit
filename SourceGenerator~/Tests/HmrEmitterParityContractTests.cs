@@ -1099,4 +1099,76 @@ public class HmrEmitterParityContractTests
         Assert.Contains(": (global::ReactiveUITK.Core.VirtualNode?)null)", output.GeneratedSource);
         Assert.DoesNotContain("isOn && global::ReactiveUITK.Core.V.", output.GeneratedSource);
     }
+
+    // ── §6 export accessibility + §7 multi-component (GATE-3) ───────────────────
+
+    /// <summary>
+    /// §6: an <c>export</c>ed function-component emits <c>public partial class</c>;
+    /// a non-exported one emits <c>internal partial class</c>. The SG is the ground
+    /// truth for the SHIPPED accessibility. HMR deliberately DIVERGES — it always
+    /// emits <c>public</c> (see the notes at <c>HmrCSharpEmitter</c> ~L325 and
+    /// <c>HmrHookEmitter</c> ~L282): HMR compiles each changed file into an isolated
+    /// assembly and swaps by delegate/family-key, never by type identity, so a wider
+    /// access modifier there is a benign superset and can never cause CS0262 against
+    /// the SG partial. This test pins the SG side so any regression (e.g. dropping the
+    /// modifier distinction) trips here and prompts a review of that documented
+    /// divergence.
+    /// </summary>
+    [Fact]
+    public void Sg_ExportAccessibility_PublicWhenExported_InternalOtherwise()
+    {
+        var exported = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            export component Widget {
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(exported.GeneratedSource);
+        Assert.Contains("public partial class Widget", exported.GeneratedSource);
+
+        var internalComp = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component Widget {
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(internalComp.GeneratedSource);
+        Assert.Contains("internal partial class Widget", internalComp.GeneratedSource);
+    }
+
+    /// <summary>
+    /// §7: a file declaring more than one <c>component</c> emits one
+    /// <c>partial class</c> per declaration (SynthesizePerComponent projects the
+    /// DirectiveSet to each component in turn). HMR's per-file recompile must reach
+    /// every declared component too — this pins the SG shape as the contract.
+    /// </summary>
+    [Fact]
+    public void Sg_MultiComponentFile_EmitsOnePartialPerComponent()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component First {
+                return (<Box />);
+            }
+            component Second {
+                return (<Label text="x" />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("partial class First", output.GeneratedSource);
+        Assert.Contains("partial class Second", output.GeneratedSource);
+        // Both bodies emitted — not one collapsed away.
+        Assert.Contains("V.Box(", output.GeneratedSource);
+        Assert.Contains("V.Label(", output.GeneratedSource);
+    }
 }

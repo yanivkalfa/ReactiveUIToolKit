@@ -279,6 +279,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // attribute discriminator opts the field in to the swapper).
                 body = HmrStaticReadonlyStripper.Strip(body);
 
+                // Accessibility divergence (plan §6/§8, DELIBERATE): the SG emits
+                // `internal`/no-modifier for a non-exported or component-merging
+                // module; HMR stays `public`. Benign superset — HMR compiles into an
+                // isolated assembly and swaps by delegate/family-key, so this never
+                // co-compiles with the SG partial (no CS0262) and `public` only ever
+                // widens access. See the matching note in HmrCSharpEmitter.
                 sb.AppendLine($"    public partial class {name}");
                 sb.AppendLine("    {");
                 sb.AppendLine($"#line {bodyStartLine} \"{linePath}\"");

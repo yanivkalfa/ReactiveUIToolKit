@@ -322,6 +322,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                     }
                 }
 
+                // Accessibility divergence (plan §6/§8, DELIBERATE): the SG emits
+                // `internal partial class` for a non-exported component (and
+                // `public` for an exported one). HMR intentionally stays `public`
+                // here. This is a benign superset, not a parity break: HMR compiles
+                // each changed file into an ISOLATED assembly (hmr_<Name>_N.dll) and
+                // hot-swaps behavior by delegate/Fast-Refresh-family key, never by
+                // type identity, so this class never co-compiles with the SG-emitted
+                // partial (no CS0262) and `public` can only ever widen — never
+                // tighten — access. Mirroring `internal` would risk an isolated HMR
+                // type being less accessible than a cross-assembly caller expects and
+                // buys nothing. The SG side remains the ground truth for shipped
+                // accessibility (pinned by HmrEmitterParityContractTests).
                 L($"    public partial class {_componentName}");
                 L("    {");
 

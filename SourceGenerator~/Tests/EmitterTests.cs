@@ -110,6 +110,48 @@ public class EmitterTests
         Assert.True(result.SourceContains("internal partial class Styles"), "Expected internal for non-exported module");
     }
 
+    [Fact]
+    public void ModuleMergingComponent_EmitsNoAccessModifier()
+    {
+        // A module whose name matches a component in the same file MERGES into that
+        // component's partial. The component partial is the accessibility authority;
+        // the module part must emit NO modifier, else the two parts would disagree
+        // (CS0262). Component is exported here → `public partial class Foo`; the
+        // module part must be a bare `    partial class Foo` (4-space indent, no
+        // `public`/`internal` prefix — which the component's `    public partial …`
+        // can never match).
+        var src = "export component Foo {\n  return (<Box />);\n}\nexport module Foo {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("public partial class Foo"), "Component partial should carry the public modifier");
+        Assert.True(result.SourceContains("    partial class Foo"), "Merging module part must emit no access modifier");
+        Assert.False(result.SourceContains("internal partial class Foo"), "Merging module must not re-declare a conflicting modifier");
+        Assert.True(result.SourceContains("Gap = 4"), "Module body should still be emitted into the merged partial");
+    }
+
+    [Fact]
+    public void ExportMismatch_ComponentVsMergingModule_RaisesUitkx2311()
+    {
+        // component is exported, the same-named merging module is NOT → the parts
+        // disagree on exportedness, which would flip the merged type's accessibility
+        // depending on emit order. UITKX2311 flags the ambiguity at compile time.
+        var src = "export component Foo {\n  return (<Box />);\n}\nmodule Foo {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "UITKX2311");
+    }
+
+    [Fact]
+    public void ExportMatch_ComponentAndMergingModule_NoUitkx2311()
+    {
+        // Both exported → no mismatch. Pins 2311 to the disagreement case alone.
+        var src = "export component Foo {\n  return (<Box />);\n}\nexport module Foo {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX2311");
+    }
+
     // ── Namespace / class structure ──────────────────────────────────────────
 
     [Fact]
