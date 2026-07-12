@@ -87,6 +87,24 @@ public class EmitterTests
     }
 
     [Fact]
+    public void HookAndModuleOnlyFile_EmitsSeparateValidUnits()
+    {
+        // A file with a hook AND a module but NO component takes the short-circuit
+        // path, which used to concatenate the two units → CS1529. Each must now be
+        // its own valid compilation unit.
+        var src = "hook useThing() {\n  return 1;\n}\nmodule Helpers {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        var syntaxErrors = result.SyntaxErrors();
+        Assert.True(syntaxErrors.IsEmpty,
+            "Hook+module file must emit valid units; got: "
+                + string.Join("; ", syntaxErrors.Select(d => d.ToString())));
+        Assert.Contains(result.AllSources, s => s.Text.Contains("useThing"));
+        Assert.Contains(result.AllSources, s => s.Text.Contains("Gap = 4"));
+    }
+
+    [Fact]
     public void MixedComponentHookAndModule_AllUnitsAreSyntacticallyValid()
     {
         // Regression for the CS1529 concat bug: a component + hook + module in one

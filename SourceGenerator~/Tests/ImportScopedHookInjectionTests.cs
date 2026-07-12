@@ -87,6 +87,31 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void FlagOn_CrossNamespaceModule_NamedLikeBuiltinAlias_NotAliased()
+        {
+            // A module named after one of the emitter's reserved type aliases (Color,
+            // Length, …) must NOT be injected as `using Color = …` — that would be a
+            // second alias for `Color` and CS1537. Regression for the module-alias
+            // built-in collision found by the emit review.
+            var ds = new DirectiveSet(
+                Namespace: "My.Screen",
+                ComponentName: "Screen", PropsTypeName: null, DefaultKey: null,
+                Usings: ImmutableArray<string>.Empty, UssFiles: ImmutableArray<string>.Empty,
+                Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                MarkupStartLine: 1, MarkupStartIndex: 0)
+            {
+                Imports = ImmutableArray.Create(
+                    new ImportDeclaration(ImmutableArray.Create("Color"), "./Palette", 1, 0, ImmutableArray<int>.Empty)),
+            };
+            var modules = ImmutableArray.Create(
+                new PeerModuleInfo("Color", "Other.Ns", true) { SourceFilePath = "C:/proj/Assets/UI/Palette.uitkx" });
+
+            var usings = UitkxPipeline.ResolveInjectedUsings(ds, null, ScreenPath, strict: true, modules);
+
+            Assert.DoesNotContain(usings, u => u.StartsWith("Color =", System.StringComparison.Ordinal));
+        }
+
+        [Fact]
         public void FlagOn_NoImports_InjectsNothing()
         {
             var ds = new DirectiveSet(

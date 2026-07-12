@@ -143,15 +143,43 @@ namespace ReactiveUITK.SourceGenerator
                     return new UitkxPipelineResult(hintName, errSb.ToString(), hookModuleDiags.ToImmutableArray());
                 }
 
+                // Inject imported peer hook containers + module aliases so a hook/module
+                // BODY can reference imported peers. These files short-circuit here, before
+                // the component injection seam (Stage 3d), so without this an imported
+                // useX()/module member resolves to nothing → CS0103/CS0246 even though the
+                // strict reference detector is satisfied (the name IS imported).
+                directives = directives with
+                {
+                    Usings = ResolveInjectedUsings(
+                        directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports, peerModules)
+                };
+
+                // Emit hooks and modules as SEPARATE compilation units (each merges as a
+                // partial across CUs). Concatenating them — as this path used to — places
+                // the module unit's `using` directives after the hook unit's namespace → CS1529.
+                string hmExtraHint(string section) =>
+                    hintName.Substring(0, hintName.Length - ".g.cs".Length) + "." + section + ".g.cs";
+                var hmExtra = ImmutableArray.CreateBuilder<(string, string)>();
                 string? hookSource = !directives.HookDeclarations.IsDefaultOrEmpty
                     ? HookEmitter.Emit(filePath, directives, hookModuleDiags) : null;
                 string? moduleSource = !directives.ModuleDeclarations.IsDefaultOrEmpty
                     ? ModuleEmitter.Emit(filePath, directives, hookModuleDiags) : null;
-                string combined = (hookSource ?? "") + (moduleSource ?? "");
+
+                string? hmPrimary = null;
+                if (!string.IsNullOrEmpty(hookSource))
+                    hmPrimary = hookSource;
+                if (!string.IsNullOrEmpty(moduleSource))
+                {
+                    if (hmPrimary == null)
+                        hmPrimary = moduleSource;
+                    else
+                        hmExtra.Add((hmExtraHint("inlinemodules"), moduleSource!));
+                }
                 return new UitkxPipelineResult(
                     hintName,
-                    combined.Length > 0 ? combined : null,
-                    hookModuleDiags.ToImmutableArray()
+                    hmPrimary,
+                    hookModuleDiags.ToImmutableArray(),
+                    hmExtra.ToImmutable()
                 );
             }
 
@@ -601,6 +629,17 @@ namespace ReactiveUITK.SourceGenerator
                         continue;
                     if (string.Equals(pm.Namespace, directives.Namespace, StringComparison.Ordinal))
                         continue; // same namespace → already accessible; an alias would be CS0576
+                    // The component emitter unconditionally emits a fixed block of type aliases
+                    // (using Color = UnityEngine.Color; using Length = …; etc. — see
+                    // ReservedTypeAliases). A module whose name collides with one of those would
+                    // inject a SECOND `using {Name} = …;` → CS1537 (duplicate using alias), a
+                    // file-level hard error that obscures the whole file. Skip the alias so the
+                    // built-in wins — the reserved style-type names are effectively keywords in
+                    // .uitkx. A module deliberately named after one stays reachable by its FQN, and
+                    // any bare-name use surfaces a localized error at the call site rather than a
+                    // file-breaking CS1537. (No family-band code is spent here: 2315 stays reserved.)
+                    if (ReservedTypeAliases.Contains(pm.Name))
+                        continue;
                     string alias = $"{pm.Name} = {pm.Namespace}.{pm.Name}";
                     if (seen.Add(alias))
                         result.Add(alias);
@@ -608,6 +647,20 @@ namespace ReactiveUITK.SourceGenerator
 
             return result.ToImmutable();
         }
+
+        /// <summary>
+        /// Type-alias identifiers the component/hook/module emitters emit unconditionally
+        /// (<c>using Color = UnityEngine.Color;</c>, <c>using Length = …;</c>, …). An imported
+        /// module whose name matches one of these cannot be injected as a <c>using</c> alias
+        /// (CS1537). Kept in sync with the alias block in <c>CSharpEmitter</c>/<c>ModuleEmitter</c>.
+        /// </summary>
+        internal static readonly HashSet<string> ReservedTypeAliases = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Color", "UColor", "EasingFunction", "EasingMode", "BackgroundRepeat",
+            "BackgroundPosition", "BackgroundSize", "TransformOrigin", "BackgroundPositionKeyword",
+            "BackgroundSizeType", "Repeat", "Length", "StyleKeyword", "TextAutoSizeMode",
+            "FilterFunction", "Ratio", "StyleRatio", "MaterialDefinition", "StyleMaterialDefinition",
+        };
 
         private static string NormalizeAbs(string? p) =>
             (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
