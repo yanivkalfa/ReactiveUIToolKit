@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-07-12",
+      "versions": {
+        "vscode": "1.3.0",
+        "vs2022": "1.3.0",
+        "rider": "1.1.0"
+      },
+      "shared": [
+        "Ships library 0.7.0's import/export grammar for `.uitkx` via the bundled analyzer DLL + the shared language-lib/LSP server.\n\nNew syntax highlighting: `import { A, B } from \"./path\"`, `export`-prefixed `component`/`hook`/`module` declarations, and the `from` keyword are now recognized by the TextMate grammar (specifier strings scoped as paths). The workspace index is export-aware -- its component/hook/module scanners accept the optional `export` prefix so cross-file symbols resolve after migration.\n\nBuild enforcement (via the analyzer DLL): referencing a peer-exported name without importing it is UITKX2305 (the message names the exact `import { X } from \"./rel\"` line to add); a `useX()` call that no file exports and is not a builtin hook is UITKX2307. Namespaces are path-derived from the owning .asmdef (`@namespace` is now an optional interop override). A `~/` root alias is accepted in `import` specifiers and in `Asset<T>`/`@uss` paths.\n\nUpgrade note: run the `UitkxMigrateImports` codemod (shipped in the package) once to add imports/exports to existing `.uitkx` files -- new syntax is additive, so an un-migrated project keeps working until you do.\n\nSG suite 1414/1414, LSP suite 82/82."
+      ]
+    },
+    {
       "date": "2026-07-08",
       "versions": {
         "vscode": "1.2.18",
