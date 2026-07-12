@@ -2271,7 +2271,25 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var newTrees = treesList.ToArray();
 
                 // Build cross-component references using cache
-                var crossRefs = BuildCrossRefs(componentName);
+                var crossRefs = BuildCrossRefs(componentName, out bool depRefsChanged);
+
+                // HMR reverse-edge invalidation (plan §8), compiler half.
+                // When a dependency B recompiles it removes its own entry from
+                // _crossRefCache (see the DLL-path-changed branch below) and
+                // re-registers a new DLL path. BuildCrossRefs then rebuilds B's
+                // MetadataReference on the resulting cache miss and reports it via
+                // depRefsChanged. The incremental path (TryBuildIncremental) only
+                // swaps syntax trees — it never re-applies references — so a cached
+                // compilation for THIS component would keep binding B's *stale* DLL.
+                // Drop the cache here so this component rebuilds fresh against B's
+                // new metadata. The controller fans a change out to its importers;
+                // this guarantees each importer's recompile actually sees the change.
+                // (Cold cache is unaffected: there is no cached compilation to drop.)
+                if (depRefsChanged && _cachedCompilations.ContainsKey(componentName))
+                {
+                    _cachedCompilations.Remove(componentName);
+                    _cachedSyntaxTrees.Remove(componentName);
+                }
 
                 string asmName = $"hmr_{componentName}_{_swapCounter}";
 
@@ -2429,8 +2447,9 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// Build cross-component MetadataReferences using cache.
         /// Only creates new references when the underlying DLL path changes.
         /// </summary>
-        private List<object> BuildCrossRefs(string componentName)
+        private List<object> BuildCrossRefs(string componentName, out bool anyRefRebuilt)
         {
+            anyRefRebuilt = false;
             var crossRefs = new List<object>();
             foreach (var kvp in _hmrAssemblyPaths)
             {
@@ -2453,6 +2472,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                         var metaRef = InvokeWithDefaults(_createFromFile, null, kvp.Value);
                         _crossRefCache[kvp.Key] = metaRef;
                         crossRefs.Add(metaRef);
+                        // A referenced component's MetadataReference had to be rebuilt —
+                        // i.e. its DLL path changed since we last cached it. Signals the
+                        // caller that any cached compilation for THIS component now holds
+                        // a stale reference and must be rebuilt fresh (see call site).
+                        anyRefRebuilt = true;
                     }
                     catch { }
                 }
