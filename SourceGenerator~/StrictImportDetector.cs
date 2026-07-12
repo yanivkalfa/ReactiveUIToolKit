@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ReactiveUITK.Language;
 using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.SourceGenerator
@@ -130,6 +131,61 @@ namespace ReactiveUITK.SourceGenerator
                 }
             }
 
+            return findings;
+        }
+
+        /// <summary>
+        /// Validate a file's <c>import</c> declarations (plan §6): resolve each specifier and report
+        /// the frozen family diagnostics — 2300 (unresolvable / engine-native), 2308 (crosses an
+        /// asmdef boundary), 2314 (<c>~/</c> escapes the root), and 2301 (the name is not exported by
+        /// the resolved target). Complementary to <see cref="Detect"/> (which flags references that
+        /// have no import); this flags imports that don't resolve. Filesystem + asmdef + export
+        /// lookups are injected so it is pure and unit-testable.
+        /// </summary>
+        public static List<Finding> ValidateImports(
+            DirectiveSet directives,
+            string importerDir,
+            string rootDir,
+            string? importerAsmdef,
+            Func<string, bool> fileExists,
+            Func<string, string?> owningAsmdefOf,
+            Func<string, string, bool> isExportedByFile)
+        {
+            var findings = new List<Finding>();
+            if (directives.Imports.IsDefaultOrEmpty)
+                return findings;
+
+            foreach (var imp in directives.Imports)
+            {
+                var res = ImportResolver.Resolve(
+                    importerDir, imp.Specifier, rootDir, fileExists, owningAsmdefOf, importerAsmdef);
+
+                switch (res.Status)
+                {
+                    case ImportResolveStatus.UnknownSpecifier:
+                        findings.Add(new Finding("UITKX2300",
+                            $"unknown import specifier `{imp.Specifier}` — no file at {imp.Specifier}(.uitkx)",
+                            imp.Line));
+                        break;
+                    case ImportResolveStatus.CrossesBoundary:
+                        findings.Add(new Finding("UITKX2308",
+                            $"import crosses a module/root boundary ({importerAsmdef} -> {owningAsmdefOf(res.ProjectRelativePath ?? string.Empty)}) — imports are module-scoped in v1",
+                            imp.Line));
+                        break;
+                    case ImportResolveStatus.RootEscape:
+                        findings.Add(new Finding("UITKX2314",
+                            $"'~/' root is not configured or resolves outside the project ('{imp.Specifier}')",
+                            imp.Line));
+                        break;
+                    case ImportResolveStatus.Ok:
+                        foreach (var name in imp.Names)
+                            if (!isExportedByFile(name, res.ProjectRelativePath!))
+                                findings.Add(new Finding("UITKX2301",
+                                    $"`{name}` is not exported by {ShortName(res.ProjectRelativePath!)} — add `export` to its declaration",
+                                    imp.Line));
+                        break;
+                }
+            }
             return findings;
         }
 

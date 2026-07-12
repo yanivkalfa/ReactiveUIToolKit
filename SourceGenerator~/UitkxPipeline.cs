@@ -114,9 +114,14 @@ namespace ReactiveUITK.SourceGenerator
             // the parse-diag bag BEFORE the bridge/#error block below so strict errors surface in
             // the Unity console the same way parse errors do. Dormant with the flag off.
             if (UitkxFeatureFlags.StrictImports)
+            {
+                AppendImportValidationDiags(
+                    directives, filePath,
+                    peerComponents, peerHookContainers, peerModules, parseDiags);
                 AppendStrictReferenceDiags(
                     directives, source, filePath,
                     peerComponents, peerHookContainers, peerModules, parseDiags);
+            }
 
             // ── Stage 2: Markup parsing ───────────────────────────────────────
             ImmutableArray<AstNode> parsedNodes = UitkxParser.Parse(
@@ -474,6 +479,65 @@ namespace ReactiveUITK.SourceGenerator
         // Builtin/ambient hook names (from the single-source HookRegistry) that need no import.
         private static readonly HashSet<string> s_builtinHooks =
             new HashSet<string>(global::ReactiveUITK.Core.HookRegistry.CanonicalNames, StringComparer.Ordinal);
+
+        /// <summary>
+        /// Validates each <c>import</c> declaration (resolves the specifier + checks the imported
+        /// names are exported by the target) and appends 2300/2301/2308/2314 to
+        /// <paramref name="parseDiags"/>. Only invoked when <see cref="UitkxFeatureFlags.StrictImports"/>
+        /// is on. Uses the real filesystem + asmdef walk; export membership comes from the peer tables.
+        /// </summary>
+        private static void AppendImportValidationDiags(
+            DirectiveSet directives,
+            string filePath,
+            ImmutableArray<PeerComponentInfo>? peerComponents,
+            ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
+            ImmutableArray<PeerModuleInfo>? peerModules,
+            List<ParseDiagnostic> parseDiags)
+        {
+            if (directives.Imports.IsDefaultOrEmpty)
+                return;
+
+            string importerDir = NormalizeAbs(Path.GetDirectoryName(filePath));
+            string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
+            string rootDir = projectRoot != null ? NormalizeAbs(projectRoot + "/Assets") : importerDir;
+            string? importerAsmdef = FindOwningAsmdefAssemblyName(filePath);
+
+            bool IsExportedByFile(string name, string targetPath)
+            {
+                string t = NormalizeAbs(targetPath);
+                if (peerComponents != null)
+                    foreach (var pc in peerComponents.Value)
+                        if (pc.IsExported && pc.Name == name
+                            && string.Equals(NormalizeAbs(pc.SourceFilePath), t, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                if (peerHookContainers != null)
+                    foreach (var ph in peerHookContainers.Value)
+                        if (string.Equals(NormalizeAbs(ph.SourceFilePath), t, StringComparison.OrdinalIgnoreCase)
+                            && ph.ExportedHookNames.Contains(name))
+                            return true;
+                if (peerModules != null)
+                    foreach (var pm in peerModules.Value)
+                        if (pm.IsExported && pm.Name == name
+                            && string.Equals(NormalizeAbs(pm.SourceFilePath), t, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                return false;
+            }
+
+            var findings = StrictImportDetector.ValidateImports(
+                directives, importerDir, rootDir, importerAsmdef,
+                path => File.Exists(path),
+                path => FindOwningAsmdefAssemblyName(path),
+                IsExportedByFile);
+
+            foreach (var f in findings)
+                parseDiags.Add(new ParseDiagnostic
+                {
+                    Code = f.Code,
+                    Severity = ParseSeverity.Error,
+                    SourceLine = f.Line,
+                    Message = f.Message,
+                });
+        }
 
         /// <summary>
         /// Runs <see cref="StrictImportDetector"/> over <paramref name="source"/> and appends its

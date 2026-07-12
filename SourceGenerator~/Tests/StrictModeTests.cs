@@ -109,5 +109,58 @@ namespace ReactiveUITK.SourceGenerator.Tests
             var findings = Detect(DsWithImports(), Importer, ScrubNonCode(code), Peers, NoBuiltins);
             Assert.Empty(findings); // the only StatusChip occurrences are in a comment and a string
         }
+
+        // ── ValidateImports (2300/2301/2308/2314) ───────────────────────────────
+
+        private static List<Finding> Validate(
+            DirectiveSet ds, string importerDir, string rootDir, string? importerAsmdef,
+            Func<string, bool> fileExists, Func<string, string?> owningAsmdefOf,
+            Func<string, string, bool> exportedBy)
+            => ValidateImports(ds, importerDir, rootDir, importerAsmdef, fileExists, owningAsmdefOf, exportedBy);
+
+        [Fact]
+        public void UnresolvableSpecifier_Emits2300()
+        {
+            var ds = DsWithImports((new[] { "X" }, "./missing"));
+            var findings = Validate(ds, "C:/p/Assets/UI", "C:/p/Assets", "Game",
+                _ => false, _ => "Game", (_, _) => true);
+            Assert.Single(findings, f => f.Code == "UITKX2300" && f.Message.Contains("./missing"));
+        }
+
+        [Fact]
+        public void ResolvedButNotExported_Emits2301()
+        {
+            var ds = DsWithImports((new[] { "Chip" }, "./Chip"));
+            var findings = Validate(ds, "C:/p/Assets/UI", "C:/p/Assets", "Game",
+                p => p.EndsWith("Chip.uitkx"), _ => "Game", (_, _) => false);
+            Assert.Single(findings, f => f.Code == "UITKX2301" && f.Message.Contains("Chip"));
+        }
+
+        [Fact]
+        public void ResolvedAndExported_NoFinding()
+        {
+            var ds = DsWithImports((new[] { "Chip" }, "./Chip"));
+            var findings = Validate(ds, "C:/p/Assets/UI", "C:/p/Assets", "Game",
+                p => p.EndsWith("Chip.uitkx"), _ => "Game", (_, _) => true);
+            Assert.Empty(findings);
+        }
+
+        [Fact]
+        public void CrossAsmdefBoundary_Emits2308()
+        {
+            var ds = DsWithImports((new[] { "Chip" }, "./Chip"));
+            var findings = Validate(ds, "C:/p/Assets/UI", "C:/p/Assets", "Game",
+                p => p.EndsWith("Chip.uitkx"), _ => "OtherAsm", (_, _) => true);
+            Assert.Single(findings, f => f.Code == "UITKX2308");
+        }
+
+        [Fact]
+        public void TildeEscapesRoot_Emits2314()
+        {
+            var ds = DsWithImports((new[] { "X" }, "~/../../evil"));
+            var findings = Validate(ds, "Assets/UI", "Assets", "Game",
+                _ => true, _ => "Game", (_, _) => true);
+            Assert.Single(findings, f => f.Code == "UITKX2314");
+        }
     }
 }
