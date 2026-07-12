@@ -108,6 +108,12 @@ namespace ReactiveUITK.EditorSupport.HMR
         private MethodInfo _findJsxBlockRanges;
         private MethodInfo _findBareJsxRanges;
         private MethodInfo _findLhsStartForLogicalAnd;
+        // §7 — shared language-lib functions so HMR computes the SAME qualified hook family
+        // key ({EffectiveNs}.{Container}::{name}) the source generator does. Optional (tolerate
+        // an older Language.dll): when null, HMR falls back to the file's raw namespace.
+        private MethodInfo _effectiveNamespaceResolve; // EffectiveNamespace.Resolve(bool, string, string)
+        private MethodInfo _uiSourceRootDir;           // EffectiveNamespace.UiSourceRootDir(string)
+        private MethodInfo _importResolverMap;         // ImportResolver.MapSpecifierToPath(string, string, string, out string)
         private Type _parseDiagnosticType;
 
         // ── Reference cache (built once per session) ──────────────────────────
@@ -377,7 +383,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                     parseMarkup,
                     findJsxBlockRanges,
                     findBareJsxRanges,
-                    findLhsStartForLogicalAnd
+                    findLhsStartForLogicalAnd,
+                    ComputeEffectiveNs(directives, uitkxPath),
+                    BuildHookFamilyKeyMap(directives, uitkxPath)
                 );
                 stepSw.Stop();
                 result.EmitMs = stepSw.Elapsed.TotalMilliseconds;
@@ -600,7 +608,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                     parseMarkup,
                     findJsxBlockRanges,
                     findBareJsxRanges,
-                    findLhsStartForLogicalAnd
+                    findLhsStartForLogicalAnd,
+                    ComputeEffectiveNs(directives, uitkxPath),
+                    BuildHookFamilyKeyMap(directives, uitkxPath)
                 );
 
                 // Companion .uitkx pickup. EmitCompanionUitkxSources writes
@@ -1029,7 +1039,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // ── Emit C# for hook bodies and/or module bodies ─────────
                 var sources = new List<string>();
 
-                string hookCSharp = HmrHookEmitter.Emit(directives, uitkxPath, containerClass);
+                string hookCSharp = HmrHookEmitter.Emit(directives, uitkxPath, containerClass,
+                    withTrampoline: false,
+                    effectiveNs: ComputeEffectiveNs(directives, uitkxPath),
+                    hookKeyMap: BuildHookFamilyKeyMap(directives, uitkxPath));
                 if (!string.IsNullOrEmpty(hookCSharp))
                     sources.Add(hookCSharp);
                 // Records whether a hook container was actually emitted, so the
@@ -1174,7 +1187,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                         companionDir,
                         file,
                         containerClass,
-                        withTrampoline: true
+                        withTrampoline: true,
+                        effectiveNs: ComputeEffectiveNs(companionDir, file),
+                        hookKeyMap: BuildHookFamilyKeyMap(companionDir, file)
                     );
                     if (!string.IsNullOrEmpty(hookCSharp))
                     {
@@ -1408,6 +1423,14 @@ namespace ReactiveUITK.EditorSupport.HMR
                 "FindLhsStartForLogicalAnd",
                 BindingFlags.Public | BindingFlags.Static
             );
+
+            // §7 shared functions (optional — older Language.dll may lack them).
+            var effNsType = _languageAsm.GetType("ReactiveUITK.Language.EffectiveNamespace");
+            _effectiveNamespaceResolve = effNsType?.GetMethod("Resolve", BindingFlags.Public | BindingFlags.Static);
+            _uiSourceRootDir = effNsType?.GetMethod("UiSourceRootDir", BindingFlags.Public | BindingFlags.Static);
+            _importResolverMap = _languageAsm
+                .GetType("ReactiveUITK.Language.ImportResolver")
+                ?.GetMethod("MapSpecifierToPath", BindingFlags.Public | BindingFlags.Static);
 
             // ParseDiagnostic type (for creating List<ParseDiagnostic>)
             _parseDiagnosticType = _languageAsm.GetType("ReactiveUITK.Language.ParseDiagnostic");
@@ -2875,6 +2898,117 @@ namespace ReactiveUITK.EditorSupport.HMR
             foreach (var item in (IEnumerable)immutableArray)
                 items.Add(item);
             return items;
+        }
+
+        // ── §7: path-qualified hook family keys (mirror of UitkxPipeline) ─────
+        // HMR must emit the SAME {EffectiveNs}.{Container}::{HookName} key the source
+        // generator does, because the runtime matches a producer id to a consumer key by
+        // ordinal string equality — and one side may have been emitted by the SG (full
+        // compile) and the other by HMR (edit). Parity is by SHARED language-lib functions
+        // (EffectiveNamespace.Resolve / UiSourceRootDir, ImportResolver.MapSpecifierToPath),
+        // reached by reflection, plus the container-name algorithm all worlds keep in sync.
+
+        /// <summary>The file's effective namespace via the shared resolver; raw fallback if absent.</summary>
+        internal string ComputeEffectiveNs(object directives, string filePath)
+        {
+            string rawNs = (string)GetProp(directives, "Namespace") ?? string.Empty;
+            if (_effectiveNamespaceResolve == null || directives == null)
+                return rawNs;
+            try
+            {
+                bool hasExplicit = GetProp(directives, "HasExplicitNamespace") is bool b && b;
+                var r = _effectiveNamespaceResolve.Invoke(null, new object[] { hasExplicit, rawNs, filePath });
+                return (r as string) ?? rawNs;
+            }
+            catch { return rawNs; }
+        }
+
+        /// <summary>Bare-hook-name → qualified family key, matching UitkxPipeline.BuildHookFamilyKeyMap.</summary>
+        internal Dictionary<string, string> BuildHookFamilyKeyMap(object directives, string filePath)
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (directives == null)
+                return map;
+            string ns = ComputeEffectiveNs(directives, filePath);
+
+            // Same-file hooks (mixed-decl) → this file's own container.
+            var hookDecls = GetItems(GetProp(directives, "HookDeclarations"));
+            if (hookDecls.Count > 0)
+            {
+                string ownContainer = HmrHookEmitter.DeriveContainerClassName(filePath);
+                foreach (var h in hookDecls)
+                {
+                    string name = (string)GetProp(h, "Name");
+                    if (!string.IsNullOrEmpty(name))
+                        map[name] = ns + "." + ownContainer + "::" + name;
+                }
+            }
+
+            // Imported hooks → resolve each specifier to its target file, qualify with the
+            // TARGET's effective namespace + container.
+            if (_importResolverMap != null)
+            {
+                var imports = GetItems(GetProp(directives, "Imports"));
+                if (imports.Count > 0)
+                {
+                    string importerDir = (Path.GetDirectoryName(filePath) ?? filePath).Replace('\\', '/');
+                    string rootDir = importerDir;
+                    if (_uiSourceRootDir != null)
+                    {
+                        try { rootDir = (_uiSourceRootDir.Invoke(null, new object[] { filePath }) as string) ?? importerDir; }
+                        catch { }
+                    }
+                    foreach (var imp in imports)
+                    {
+                        string specifier = (string)GetProp(imp, "Specifier");
+                        if (string.IsNullOrEmpty(specifier))
+                            continue;
+                        var names = GetItems(GetProp(imp, "Names"));
+                        string targetFile = null;
+                        try
+                        {
+                            var args = new object[] { importerDir, specifier, rootDir, null };
+                            targetFile = _importResolverMap.Invoke(null, args) as string;
+                        }
+                        catch { }
+                        if (string.IsNullOrEmpty(targetFile) || !File.Exists(targetFile))
+                            continue;
+                        string targetNs = ComputeEffectiveNsForFile(targetFile);
+                        string targetContainer = HmrHookEmitter.DeriveContainerClassName(targetFile);
+                        foreach (var nObj in names)
+                        {
+                            string nm = nObj as string;
+                            if (!string.IsNullOrEmpty(nm))
+                                map[nm] = targetNs + "." + targetContainer + "::" + nm;
+                        }
+                    }
+                }
+            }
+            return map;
+        }
+
+        /// <summary>Parses a target hook file just to compute its effective namespace.</summary>
+        private string ComputeEffectiveNsForFile(string targetFile)
+        {
+            try
+            {
+                string src = ReadTextWithRetry(targetFile);
+                var diag = CreateDiagnosticList();
+                var ds = InvokeWithDefaults(_directiveParse, null, src, targetFile, diag, true);
+                return ComputeEffectiveNs(ds, targetFile);
+            }
+            catch { return string.Empty; }
+        }
+
+        /// <summary>Maps bare custom-hook keys to their qualified form via <paramref name="map"/>.</summary>
+        internal static string[] QualifyHookKeys(string[] bareKeys, IReadOnlyDictionary<string, string> map)
+        {
+            if (bareKeys == null || bareKeys.Length == 0 || map == null || map.Count == 0)
+                return bareKeys ?? Array.Empty<string>();
+            var result = new string[bareKeys.Length];
+            for (int i = 0; i < bareKeys.Length; i++)
+                result[i] = map.TryGetValue(bareKeys[i], out var q) ? q : bareKeys[i];
+            return result;
         }
 
         // ── Defensive reflection invoker ─────────────────────────────────────

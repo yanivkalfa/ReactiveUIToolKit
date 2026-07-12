@@ -1100,6 +1100,32 @@ public class HmrEmitterParityContractTests
         Assert.DoesNotContain("isOn && global::ReactiveUITK.Core.V.", output.GeneratedSource);
     }
 
+    // ── §7 path-qualified hook family keys (SG↔HMR parity) ──────────────────
+
+    /// <summary>
+    /// §7: the hook producer registers under a PATH-QUALIFIED family key
+    /// <c>{EffectiveNs}.{Container}::{HookName}</c> (the convention the runtime documents).
+    /// HMR's <c>HmrHookEmitter</c> mirrors this, and both worlds qualify CONSUMER keys
+    /// (<c>customHookFamilyKeys</c>) through a per-file map built from the SHARED language-lib
+    /// functions (<c>EffectiveNamespace.Resolve</c>/<c>UiSourceRootDir</c>,
+    /// <c>ImportResolver.MapSpecifierToPath</c>) so producer ids and consumer keys are
+    /// byte-identical. The runtime matches them by ordinal string equality — if the SG format
+    /// changes here, the HMR mirror (<c>HmrHookEmitter</c> + <c>UitkxHmrCompiler.BuildHookFamilyKeyMap</c>)
+    /// must change in lockstep or hot-swap silently breaks.
+    /// </summary>
+    [Fact]
+    public void Sg_HookRegistration_UsesPathQualifiedFamilyKey_HmrMustMirror()
+    {
+        var output = GeneratorTestHelper.Run(
+            "@namespace ReactiveUITK.HmrParity\nhook useThing() {\n  return 0;\n}");
+
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("RegisterHook(\"ReactiveUITK.HmrParity.", output.GeneratedSource);
+        Assert.Contains("::useThing\"", output.GeneratedSource);
+        // The bare-name key must NOT be emitted.
+        Assert.DoesNotContain("RegisterHook(\"useThing\"", output.GeneratedSource);
+    }
+
     // ── §6 export accessibility + §7 multi-component (GATE-3) ───────────────────
 
     /// <summary>

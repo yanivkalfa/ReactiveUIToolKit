@@ -514,36 +514,6 @@ namespace ReactiveUITK.SourceGenerator
             return null;
         }
 
-        /// <summary>
-        /// Directory of the nearest owning <c>*.asmdef</c> walking up from <paramref name="uitkxFilePath"/>,
-        /// or <c>null</c> when none is found before the <c>Assets</c> boundary. This is the anchor for the
-        /// path-derived namespace (<see cref="NamespaceDerivation"/>): the derived namespace segments are
-        /// the file's directory relative to this. Mirrors the walk in
-        /// <see cref="FindOwningAsmdefAssemblyName"/> but returns the containing directory, not the name.
-        /// </summary>
-        internal static string? FindOwningAsmdefDir(string uitkxFilePath)
-        {
-            try
-            {
-                string? dir = Path.GetDirectoryName(uitkxFilePath);
-                while (!string.IsNullOrEmpty(dir))
-                {
-                    if (Directory.GetFiles(dir, "*.asmdef").Length > 0)
-                        return dir;
-
-                    string dirName = Path.GetFileName(dir);
-                    if (string.Equals(dirName, "Assets", StringComparison.OrdinalIgnoreCase))
-                        break;
-
-                    dir = Path.GetDirectoryName(dir);
-                }
-            }
-            catch
-            {
-                // Never crash the generator on filesystem errors.
-            }
-            return null;
-        }
 
         /// <summary>
         /// The effective C# namespace for a parsed <c>.uitkx</c> file (import/export grammar, leg 3, §4).
@@ -559,36 +529,7 @@ namespace ReactiveUITK.SourceGenerator
         /// </list>
         /// </summary>
         internal static string? ResolveEffectiveNamespace(DirectiveSet directives, string filePath)
-        {
-            if (!UitkxFeatureFlags.StrictImports)
-                return directives.Namespace;
-            if (directives.HasExplicitNamespace)
-                return directives.Namespace;
-            string? derived = NamespaceDerivation.Derive(filePath, ResolveDerivationAnchor(filePath));
-            return derived ?? directives.Namespace;
-        }
-
-        /// <summary>
-        /// The directory the path-derived namespace (§4) is anchored at: the nearest owning
-        /// <c>.asmdef</c> directory, else — for a file in the default <c>Assembly-CSharp</c>
-        /// (no asmdef anywhere, a fully valid Unity setup) — the configured project root
-        /// (<c>Assets</c> by default). Anchoring no-asmdef files at the root gives them a stable
-        /// <c>ReactiveUITK.Uitkx.&lt;RootRelPath&gt;</c> namespace instead of a build-breaking
-        /// UITKX2310. Returns <c>null</c> only when the file is under no resolvable project root
-        /// at all (e.g. outside the project) — the sole remaining 2310 case. The package's own
-        /// samples all live under asmdefs, so this fallback never changes their derived namespace.
-        /// </summary>
-        private static string? ResolveDerivationAnchor(string filePath)
-        {
-            string? asmdefDir = FindOwningAsmdefDir(filePath);
-            if (asmdefDir != null)
-                return asmdefDir;
-            string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
-            if (projectRoot == null)
-                return null;
-            string dir = Path.GetDirectoryName(filePath) ?? filePath;
-            return (projectRoot + "/" + UitkxConfig.LoadRoot(dir)).Replace('\\', '/').TrimEnd('/');
-        }
+            => EffectiveNamespace.Resolve(directives.HasExplicitNamespace, directives.Namespace, filePath);
 
         /// <summary>
         /// The full <c>using</c> list for a component file after hook-container injection (§6.2).
@@ -735,10 +676,9 @@ namespace ReactiveUITK.SourceGenerator
                 && !directives.Imports.IsDefaultOrEmpty)
             {
                 string importerDir = NormalizeAbs(Path.GetDirectoryName(filePath));
-                string? projectRoot = AssetPathUtil.GetProjectRoot(filePath);
-                string rootDir = projectRoot != null
-                    ? NormalizeAbs(projectRoot + "/" + UitkxConfig.LoadRoot(importerDir))
-                    : importerDir;
+                // Shared with HMR (EffectiveNamespace.UiSourceRootDir) so `~/` hook imports
+                // resolve to the same target file on both sides.
+                string rootDir = EffectiveNamespace.UiSourceRootDir(filePath) ?? importerDir;
 
                 foreach (var imp in directives.Imports)
                 {
