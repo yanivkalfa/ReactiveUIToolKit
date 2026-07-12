@@ -32,24 +32,19 @@ namespace ReactiveUITK.SourceGenerator.Tools
             DirectiveSet Directives,
             List<TopDecl> Decls);
 
-        /// <summary>Exported name → owning file path, within one asmdef. Ambiguous (declared in &gt;1 file) → value null.</summary>
+        /// <summary>Exported name → the owning file path(s) within one asmdef (one name may collide across files).</summary>
         private sealed class ExportTable
         {
-            public readonly Dictionary<string, string?> Components = new(StringComparer.Ordinal);
-            public readonly Dictionary<string, string?> Hooks = new(StringComparer.Ordinal);
-            public readonly Dictionary<string, string?> Modules = new(StringComparer.Ordinal);
+            public readonly Dictionary<string, List<string>> Components = new(StringComparer.Ordinal);
+            public readonly Dictionary<string, List<string>> Hooks = new(StringComparer.Ordinal);
+            public readonly Dictionary<string, List<string>> Modules = new(StringComparer.Ordinal);
 
-            public static void Put(Dictionary<string, string?> map, string name, string path)
+            public static void Put(Dictionary<string, List<string>> map, string name, string path)
             {
-                if (map.TryGetValue(name, out var existing))
-                {
-                    if (!string.Equals(existing, path, StringComparison.Ordinal))
-                        map[name] = null; // ambiguous across files in this asmdef
-                }
-                else
-                {
-                    map[name] = path;
-                }
+                if (!map.TryGetValue(name, out var list))
+                    map[name] = list = new List<string>();
+                if (!list.Contains(path))
+                    list.Add(path);
             }
         }
 
@@ -145,19 +140,23 @@ namespace ReactiveUITK.SourceGenerator.Tools
             var selfNames = new HashSet<string>(pf.Decls.Select(d => d.Name), StringComparer.Ordinal);
             // Deduplicate by (name) — one import line per referenced name.
             var found = new Dictionary<string, string>(StringComparer.Ordinal); // name → targetPath
+            var attempted = new HashSet<string>(StringComparer.Ordinal); // names already resolved-or-warned
 
-            void Consider(Dictionary<string, string?> map, string name)
+            void Consider(Dictionary<string, List<string>> map, string name)
             {
                 if (selfNames.Contains(name) || found.ContainsKey(name)) return;
-                if (!map.TryGetValue(name, out var target)) return;
-                if (target == null)
-                {
-                    errors.Add(new MigrationError(pf.File.AbsPath,
-                        $"ambiguous reference '{name}' — declared in more than one file in this asmdef; add the import manually"));
-                    return;
-                }
-                if (string.Equals(target, pf.File.AbsPath, StringComparison.Ordinal)) return;
-                found[name] = target;
+                if (!attempted.Add(name)) return; // don't re-warn the same ambiguous name per occurrence
+                if (!map.TryGetValue(name, out var candidates)) return;
+
+                var external = new List<string>();
+                foreach (var c in candidates)
+                    if (!string.Equals(c, pf.File.AbsPath, StringComparison.Ordinal))
+                        external.Add(c);
+                if (external.Count == 0) return;
+
+                string? target = Disambiguate(pf.File.AbsPath, external, name, errors);
+                if (target != null)
+                    found[name] = target;
             }
 
             foreach (Match m in s_tagRe.Matches(code)) Consider(table.Components, m.Groups[1].Value);
@@ -165,6 +164,42 @@ namespace ReactiveUITK.SourceGenerator.Tools
             foreach (Match m in s_memberRe.Matches(code)) Consider(table.Modules, m.Groups[1].Value);
 
             return found.Select(kv => new Ref(kv.Key, kv.Value)).ToList();
+        }
+
+        /// <summary>
+        /// Pick which exporter a reference resolves to when a name collides across files in one asmdef
+        /// (plan §11 — disambiguate before erroring). Prefers the candidate whose directory shares the
+        /// longest path prefix with the importer (same feature/game folder wins over a sibling folder);
+        /// a genuine tie (equal proximity to two files) is a hard ambiguity → warning + skip.
+        /// </summary>
+        private static string? Disambiguate(
+            string importerPath, List<string> candidates, string name, List<MigrationError> errors)
+        {
+            if (candidates.Count == 1)
+                return candidates[0];
+
+            string[] importerSegs = DirOf(Norm(importerPath)).Split('/');
+            int bestScore = -1;
+            string? best = null;
+            bool tie = false;
+            foreach (var c in candidates)
+            {
+                string[] cSegs = DirOf(Norm(c)).Split('/');
+                int score = 0;
+                while (score < importerSegs.Length && score < cSegs.Length &&
+                       string.Equals(importerSegs[score], cSegs[score], StringComparison.OrdinalIgnoreCase))
+                    score++;
+                if (score > bestScore) { bestScore = score; best = c; tie = false; }
+                else if (score == bestScore) { tie = true; }
+            }
+
+            if (tie || best == null)
+            {
+                errors.Add(new MigrationError(importerPath,
+                    $"ambiguous reference '{name}' — declared in equally-near files in this asmdef; add the import manually"));
+                return null;
+            }
+            return best;
         }
 
         private static string Rewrite(ParsedFile pf, List<Ref> refs)
