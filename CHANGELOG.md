@@ -44,10 +44,24 @@ the Unreal `.uetkx` and Godot `.guitkx` ports).
   in-flight Fast Refresh session is invalidated once on upgrade (a remount, no data
   loss). Moving a file changes its path-derived identity (a documented one-time remount).
 
+### Changed (potentially breaking)
+
+- **`export` now drives accessibility.** An `export`ed component/module emits a
+  `public partial class`; a non-`export`ed one emits `internal`. Previously the generator
+  always emitted `public`. Pure `.uitkx`-to-`.uitkx` usage within one assembly is
+  unaffected, but **hand-written C#** that references a now-`internal` generated type —
+  a `public partial class Foo` companion `.cs`, or a cross-asmdef consumer — will fail to
+  compile (CS0262 / CS0122) until the declaration is `export`ed. The migration codemod's
+  export-everything default keeps migrated projects compiling; classified minor because the
+  codemod covers the common case, but the accessibility change is behaviorally breaking for
+  un-migrated hand-written interop.
+
 ### Notes
 
-- SemVer minor: new syntax, no removals. The codemod keeps existing projects compiling.
-- SG suite 1414/1414, LSP suite 82/82.
+- New syntax is additive; the codemod keeps existing projects compiling.
+- SG suite 1462/1462, LSP suite 107/107 (includes the pre-release correctness pass over the
+  emit pipeline: mixed-decl multi-source emit, strict-diagnostic and namespace-derivation
+  edge cases, and HMR import reverse-edge invalidation).
 
 ## [0.6.5] - 2026-07-08
 

@@ -67,7 +67,10 @@ component MyComponent {
 ```
 
 The source generator emits `Render()` into the partial class automatically on
-the next Unity compile. The `@namespace` directive determines the namespace.
+the next Unity compile. The namespace is derived from the file's path relative to
+its owning `.asmdef` (the optional `@namespace` directive overrides it). Prefix a
+declaration with `export` to make its class `public` and importable from other
+`.uitkx` files (`import { X } from "./path"`); without `export` it is `internal`.
 
 **3. Use the component**
 
