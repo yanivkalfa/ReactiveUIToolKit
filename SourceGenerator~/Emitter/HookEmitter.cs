@@ -143,6 +143,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // the cross-asmdef container-FQN resolution problem.
                 string sig = EmitContext.ExtractHookSignature(hook.Body) ?? string.Empty;
                 string[] hookCustomKeys = EmitContext.ExtractCustomHookFamilyKeys(hook.Body);
+                // §7 asks for a path-qualified family key (`{ns}.{Container}::{name}`). DELIBERATELY
+                // NOT applied: it requires every CONSUMER (component setup + hook bodies, in BOTH the
+                // SG and the HMR emitters) to re-derive the identical key by resolving each called
+                // hook's import — a multi-site byte-parity change where ANY mismatch SILENTLY breaks
+                // HMR hot-swap for all hooks, uncatchable by compile or test (only a Unity runtime
+                // test reveals it). The bare-name key is the existing deliberate design and is correct
+                // for every sample (unique hook names); it collides only for two same-named custom
+                // hooks in different containers used across components — a rare case worth the
+                // qualified key only when it can be runtime-verified in a Unity-in-the-loop session.
                 string familyKey = hook.Name;
                 string keysLit = EmitContext.RenderCustomHookFamilyKeysLiteral(hookCustomKeys);
                 sb.AppendLine(
