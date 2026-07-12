@@ -27,6 +27,7 @@ import {
 const DIAGS: [string, string][] = [
   ['UITKX2300', 'unknown import specifier — no file at that path (also engine-native specifiers, which never resolve)'],
   ['UITKX2301', '`X` is not exported by that file — add `export` to its declaration'],
+  ['UITKX2302', '`X` is imported from that file, but the file declares no `X`'],
   ['UITKX2303', 'duplicate import of `X` (already imported from another specifier)'],
   ['UITKX2304', 'unused import `X` (warning)'],
   ['UITKX2305', '`X` is defined in a peer file but not imported — the message names the exact import line to add'],
@@ -34,6 +35,10 @@ const DIAGS: [string, string][] = [
   ['UITKX2307', '`X` is used like a component/hook but no file exports it'],
   ['UITKX2308', 'import crosses a module/root boundary — imports are asmdef-scoped in v1'],
   ['UITKX2309', 'import must appear in the preamble, before the first declaration'],
+  ['UITKX2311', 'export mismatch across parts merging into one type (e.g. a `component` and a same-named `module` disagree) — the component wins; align them (warning)'],
+  ['UITKX2312', 'hook-container merge conflict: same-named containers in two files disagree (duplicate hook or accessibility)'],
+  ['UITKX2313', 'convention lint (warning): multi-component file, hooks outside a `.hooks` file, or filename ≠ component name'],
+  ['UITKX2314', '`~/` root is not configured or the path resolves outside the project — set `"root"` in uitkx.config.json'],
 ]
 
 export const UitkxImportsPage: FC = () => (
@@ -134,12 +139,85 @@ export const UitkxImportsPage: FC = () => (
       Migrating an existing project
     </Typography>
     <Typography variant="body1" paragraph>
-      New syntax is additive — an un-migrated project keeps compiling. When you&rsquo;re
-      ready, the bundled codemod rewrites every <code>.uitkx</code> in place: it adds{' '}
-      <code>export</code> to all declarations, inserts the imports each file needs, and stamps
-      each file&rsquo;s current <code>@namespace</code> so identity is unchanged. It is
-      idempotent and formatter-stable, so you can re-run it safely.
+      The new grammar is additive — an un-migrated project keeps compiling. When you&rsquo;re
+      ready, the bundled <code>UitkxMigrateImports</code> codemod rewrites every{' '}
+      <code>.uitkx</code> under a directory in place. It runs per owning <code>.asmdef</code>{' '}
+      (imports are asmdef-scoped) and does three things:
+    </Typography>
+    <List>
+      <ListItem disablePadding>
+        <ListItemText
+          primary={
+            <>
+              <strong>Exports everything</strong> — prefixes every component/hook/module
+              declaration with <code>export</code>, so nothing that used to be cross-file-visible
+              becomes private. (Tighten to real privacy afterwards by removing the{' '}
+              <code>export</code>s you don&rsquo;t need.)
+            </>
+          }
+        />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText
+          primary={
+            <>
+              <strong>Inserts imports</strong> — scans each file&rsquo;s markup/setup for
+              references to names exported elsewhere in the asmdef and adds the matching{' '}
+              <code>import {'{ … }'}</code> lines (nearest-folder wins when a name is declared in
+              several files).
+            </>
+          }
+        />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText
+          primary={
+            <>
+              <strong>Stamps <code>@namespace</code></strong> — writes each file&rsquo;s{' '}
+              <em>current</em> namespace explicitly, so its identity is frozen and unaffected by
+              the switch to path-derived namespaces. (This is why migrated files with a companion{' '}
+              <code>.cs</code> keep merging — the stamped <code>@namespace</code> still matches.)
+            </>
+          }
+        />
+      </ListItem>
+    </List>
+    <Typography variant="body1" paragraph>
+      It is idempotent and formatter-stable — re-running makes no further changes. Run{' '}
+      <code>--check</code> first for a dry run (it lists what would change and exits non-zero if
+      anything would). A reference whose name is declared in two <em>equally-near</em> files is
+      genuinely ambiguous: the codemod skips it and prints a warning so you can add that one import
+      by hand.
     </Typography>
     <CodeBlock language="bash" code={EXAMPLE_CODEMOD} />
+
+    <Typography variant="h5" component="h2" gutterBottom>
+      Editor support
+    </Typography>
+    <Typography variant="body1" paragraph>
+      The language server understands the import graph, so the VS Code, Visual Studio, and Rider
+      extensions provide:
+    </Typography>
+    <List>
+      <ListItem disablePadding>
+        <ListItemText primary="Go-to-definition on an import — jump from a specifier to the target file, and from an imported name to its declaration." />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary="Completion inside import { … } — suggests the target file's exported names; completion inside the specifier string suggests peer file paths." />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText
+          primary={
+            <>
+              A <strong>quick-fix for UITKX2305</strong> — one click adds the missing{' '}
+              <code>import</code> line for a peer name you referenced but didn&rsquo;t import.
+            </>
+          }
+        />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary="Semantic highlighting for the import/export/from keywords and specifier strings, plus the live strict diagnostics (2300–2314) as you type." />
+      </ListItem>
+    </List>
   </Box>
 )

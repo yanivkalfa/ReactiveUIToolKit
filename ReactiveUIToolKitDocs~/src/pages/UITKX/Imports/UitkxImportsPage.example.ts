@@ -41,11 +41,13 @@ export component Screen {
                                // add: import { StatusChip } from "./StatusChip"
 }`
 
-export const EXAMPLE_CODEMOD = `# One-time migration of an existing project.
-# Adds 'export' to every declaration, inserts the imports each file needs,
-# and stamps each file's current @namespace. Idempotent and formatter-stable.
+export const EXAMPLE_CODEMOD = `# Dry run first — reports which files WOULD change, exits non-zero if any would.
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --check
 
-dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets`
+# Then migrate in place (rewrites the .uitkx files under the given directory):
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets
+
+# Re-running --check afterwards should report 0 changes (the migration is idempotent).`
 
 export const EXAMPLE_NAMESPACE = `// No @namespace? The default is derived from the file's path relative to the
 // owning .asmdef:  Samples/Components/Board/Board.uitkx  (asmdef at Samples/)

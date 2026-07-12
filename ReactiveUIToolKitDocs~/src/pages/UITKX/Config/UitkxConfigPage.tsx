@@ -23,14 +23,65 @@ const VSCODE_SETTINGS = `{
   "uitkx.trace.server": "off"
 }`
 
+const UITKX_CONFIG_JSON = `// uitkx.config.json — place it at your UI source root (or a subfolder).
+{
+  // The project-relative folder that the '~/' import/asset alias resolves against.
+  // Default: "Assets".
+  "root": "Assets/UI"
+}`
+
 export const UitkxConfigPage: FC = () => (
   <Box sx={Styles.root}>
     <Typography variant="h4" component="h1" gutterBottom>
       Configuration Reference
     </Typography>
     <Typography variant="body1" paragraph>
-      All configuration options for the UITKX editor extensions and formatter.
+      Two layers of configuration: the per-project <code>uitkx.config.json</code> (read by the
+      source generator, analyzer, and language server) and the per-editor extension settings.
     </Typography>
+
+    {/* ── uitkx.config.json ─────────────────────────────────────────────── */}
+    <Typography variant="h5" component="h2" sx={Styles.section}>
+      Project config &mdash; <code>uitkx.config.json</code>
+    </Typography>
+    <Typography variant="body1" paragraph>
+      An optional <code>uitkx.config.json</code> configures import/asset resolution for a project.
+      It is read by everything that resolves paths &mdash; the Roslyn source generator, the Unity
+      analyzer, and the LSP &mdash; so the behavior is identical in a Unity build and in every
+      editor. It is <strong>not</strong> required; with no config, defaults apply.
+    </Typography>
+    <TableContainer>
+      <Table size="small" sx={Styles.table}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Key</TableCell>
+            <TableCell>Type</TableCell>
+            <TableCell>Default</TableCell>
+            <TableCell>Description</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <TableRow>
+            <TableCell><code>root</code></TableCell>
+            <TableCell>string</TableCell>
+            <TableCell><code>"Assets"</code></TableCell>
+            <TableCell>
+              The project-relative folder that the <code>~/</code> alias resolves against, in
+              both <code>import</code> specifiers (<code>import {'{ X }'} from "~/Shared/X"</code>)
+              and asset paths (<code>Asset&lt;T&gt;("~/Textures/icon")</code>, <code>@uss "~/…"</code>).
+              A <code>~/</code> path that escapes this root raises <code>UITKX2314</code>.
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </TableContainer>
+    <Typography variant="body2" paragraph>
+      <strong>Discovery:</strong> resolution walks up from the <code>.uitkx</code> file to the
+      nearest <code>uitkx.config.json</code> and uses its <code>"root"</code> outright &mdash;
+      nearest wins, no merging up the tree. A file with no config on the way up falls back to the
+      default <code>Assets</code> root.
+    </Typography>
+    <CodeBlock language="json" code={UITKX_CONFIG_JSON} />
 
     {/* ── VS Code Settings ──────────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>

@@ -391,8 +391,8 @@ export const sections: DocSection[] = [
         canonicalId: 'configuration',
         title: 'Configuration',
         path: '/config',
-        keywords: ['config', 'settings', 'vscode', 'extension'],
-        searchContent: 'configuration reference options editor extensions formatter vs code extension settings uitkx.server.path uitkx.server.dotnetpath uitkx.trace.server editor defaults editor.defaultformatter reactiveuitk.uitkx editor.formatonsave editor.tabsize editor.insertspaces editor.bracketpaircolorization semantic tokens',
+        keywords: ['config', 'settings', 'vscode', 'extension', 'uitkx.config.json', 'root', '~/'],
+        searchContent: 'configuration reference options editor extensions formatter uitkx.config.json project config root key ~/ alias import specifier asset path source root default Assets nearest config wins UITKX2314 vs code extension settings uitkx.server.path uitkx.server.dotnetpath uitkx.trace.server editor defaults editor.defaultformatter reactiveuitk.uitkx editor.formatonsave editor.tabsize editor.insertspaces editor.bracketpaircolorization semantic tokens',
         element: () => <UitkxConfigPage />,
       },
       {

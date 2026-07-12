@@ -22,13 +22,16 @@ export const UitkxDiagnosticsPage: FC = () => (
       server, with severity, meaning, and how to fix it.
     </Typography>
 
-    {/* ── Generator Diagnostics (UITKX0001–0021) ────────────────────────── */}
+    {/* ── Generator Diagnostics ─────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
       Source Generator Diagnostics
     </Typography>
     <Typography variant="body2" paragraph>
-      Emitted at compile time by the Roslyn source generator when processing
-      <code>.uitkx</code> files.
+      Emitted at compile time by the Roslyn source generator when processing{' '}
+      <code>.uitkx</code> files. Several structural codes (e.g. <code>UITKX0103</code>,{' '}
+      <code>UITKX0104</code>, <code>UITKX0106</code>, <code>UITKX0108</code>,{' '}
+      <code>UITKX0109</code>, <code>UITKX0120</code>, <code>UITKX0121</code>) fire both here and
+      live in the editor — they also appear in the language-server table below.
     </Typography>
     <TableContainer>
       <Table size="small" sx={Styles.table}>
@@ -48,7 +51,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Check the tag name — built-in elements use PascalCase (e.g. <code>&lt;Button&gt;</code>, <code>&lt;Label&gt;</code>).</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0002" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX0109" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Unknown attribute on element</TableCell>
             <TableCell>Verify the attribute name matches a property on the element's props type.</TableCell>
@@ -60,7 +63,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Add the missing <code>@namespace</code> or <code>@component</code> directive.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0006" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX0103" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>@component name mismatch</TableCell>
             <TableCell>Rename <code>@component</code> to match the file name, or rename the file.</TableCell>
@@ -72,13 +75,13 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Ensure the component type exists and has a public static <code>Render</code> method.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0009" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX0106" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Loop element missing key</TableCell>
             <TableCell>Add a <code>key</code> attribute with a stable unique identifier. Applies to all loop types: <code>@foreach</code>, <code>@for</code>, <code>@while</code>.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0010" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX0104" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Duplicate sibling key</TableCell>
             <TableCell>Ensure each sibling element has a unique <code>key</code> value.</TableCell>
@@ -114,7 +117,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Move the hook call to the component top level — hooks cannot be called inside attribute expressions.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0017" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX0108" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Multiple root elements</TableCell>
             <TableCell>Wrap all root elements in a single container element (e.g. <code>&lt;VisualElement&gt;</code>).</TableCell>
@@ -144,13 +147,13 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Use an explicit prop name (e.g. <code>inputRef={'{x}'}</code>) instead of <code>ref</code>.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0022" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX0120" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Asset file not found</TableCell>
             <TableCell>Check the asset path — it must be relative to the <code>.uitkx</code> file or an absolute project path.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0023" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX0121" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Asset type mismatch</TableCell>
             <TableCell>The asset at the given path is a different type than the requested <code>Asset&lt;T&gt;</code>. Verify the generic type parameter.</TableCell>
@@ -460,6 +463,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Add <code>export</code> to the declaration in the target file.</TableCell>
           </TableRow>
           <TableRow>
+            <TableCell><Chip label="UITKX2302" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Name not declared in that file</TableCell>
+            <TableCell>The target file resolves but declares no such name. Fix the imported name or the specifier.</TableCell>
+          </TableRow>
+          <TableRow>
             <TableCell><Chip label="UITKX2303" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Duplicate import</TableCell>
@@ -502,10 +511,28 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Move all <code>import</code> lines into the preamble, before any declaration.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX2310" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="UITKX2310" size="small" color="default" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Reserved" size="small" /></TableCell>
+            <TableCell>Cannot derive a namespace</TableCell>
+            <TableCell>Reserved. In practice every file under a project root now derives a namespace (no-asmdef files anchor at the config root), so this no longer fires — add an explicit <code>@namespace</code> if you want to pin one.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2311" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Export accessibility mismatch across merged parts</TableCell>
+            <TableCell>A <code>component</code> and a same-named <code>module</code> (or other merged parts) disagree on <code>export</code>. The component&rsquo;s accessibility is used; align the <code>export</code> keywords.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2312" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>Cannot derive a namespace (no owning .asmdef)</TableCell>
-            <TableCell>Add an explicit <code>@namespace</code>, or place the file under an assembly definition.</TableCell>
+            <TableCell>Hook-container merge conflict</TableCell>
+            <TableCell>Same-named hook containers in two files disagree (duplicate hook name or accessibility). Rename or consolidate.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2313" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Convention lint</TableCell>
+            <TableCell>Advisory only: multiple components in one file, hooks declared outside a <code>.hooks</code> file, or a filename that doesn&rsquo;t match the component name.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2314" size="small" color="error" variant="outlined" /></TableCell>

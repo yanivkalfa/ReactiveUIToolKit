@@ -62,6 +62,23 @@ export const AssetsPage: FC = () => (
       <CodeBlock language="jsx" code={EXAMPLE_RELATIVE} />
     </Box>
 
+    {/* ── '~/' root alias ──────────────────────────────────── */}
+    <Box sx={section}>
+      <Typography variant="h5" component="h2" gutterBottom id="root-alias">
+        &lsquo;~/&rsquo; Root Alias
+      </Typography>
+      <Typography variant="body1" paragraph>
+        A path starting with <code>~/</code> resolves against the project&rsquo;s{' '}
+        <strong>UI source root</strong> instead of the current file — useful for shared assets
+        that many components reference. The root defaults to <code>Assets</code> and is
+        configurable per project via the <code>"root"</code> key in{' '}
+        <a href="#/config">uitkx.config.json</a>. It works everywhere a path does:{' '}
+        <code>Asset&lt;T&gt;("~/Textures/icon")</code>, <code>@uss "~/Styles/theme"</code>, and{' '}
+        <code>import</code> specifiers. A <code>~/</code> path that resolves outside the configured
+        root raises <code>UITKX2314</code>.
+      </Typography>
+    </Box>
+
     {/* ── Ast<T> shorthand ─────────────────────────────────── */}
     <Box sx={section}>
       <Typography variant="h5" component="h2" gutterBottom id="shorthand">
@@ -94,8 +111,8 @@ export const AssetsPage: FC = () => (
       <Typography variant="body1" paragraph>
         Use <code>@uss "path"</code> in the preamble to attach a USS (Unity Style
         Sheet) to your component. The stylesheet is loaded from the asset registry
-        and applied to the root element at render time. Relative paths work the same
-        way as <code>Asset&lt;T&gt;()</code>.
+        and applied to the root element at render time. Relative paths and the{' '}
+        <code>~/</code> root alias work the same way as <code>Asset&lt;T&gt;()</code>.
       </Typography>
       <CodeBlock language="jsx" code={EXAMPLE_USS} />
       <Typography variant="body2" paragraph sx={{ mt: 1, opacity: 0.7 }}>

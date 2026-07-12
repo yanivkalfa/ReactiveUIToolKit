@@ -112,12 +112,12 @@ export const UitkxReferencePage: FC = () => (
           <TableRow>
             <TableCell><code>@namespace</code></TableCell>
             <TableCell><code>@namespace My.Game.UI</code></TableCell>
-            <TableCell>C# namespace for the generated class</TableCell>
+            <TableCell>Optional namespace override. If omitted, the namespace is derived from the file&rsquo;s path relative to its owning <code>.asmdef</code> (see <a href="#/imports">Imports &amp; Exports</a>).</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>@component</code></TableCell>
             <TableCell><code>@component MyButton</code></TableCell>
-            <TableCell>Component class name (must match filename)</TableCell>
+            <TableCell>Component class name. Matching it to the filename is a lint-tier convention (<code>UITKX2313</code>), not a hard rule.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>@using</code></TableCell>

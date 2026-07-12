@@ -64,7 +64,7 @@ export const CompanionFilesPage: FC = () => (
       Generated namespace &amp; class name
     </Typography>
     <Typography variant="body1" paragraph>
-      The source generator creates a C# class from the <code>.uitkx</code> file. Two things
+      The source generator creates a C# class from the <code>.uitkx</code> file. Three things
       determine its identity:
     </Typography>
     <List>
@@ -72,8 +72,12 @@ export const CompanionFilesPage: FC = () => (
         <ListItemText
           primary={
             <>
-              <strong>Namespace</strong> — comes from the <code>@namespace</code> directive at the
-              top of the <code>.uitkx</code> file.
+              <strong>Namespace</strong> — if the file has an <code>@namespace</code> directive it
+              wins; otherwise the namespace is <strong>derived from the file&rsquo;s path</strong>{' '}
+              relative to its owning <code>.asmdef</code> (e.g.{' '}
+              <code>ReactiveUITK.Uitkx.UI.PlayerCard</code>). A file with a hand-written companion{' '}
+              <code>.cs</code> should carry an explicit <code>@namespace</code> matching it so the
+              two partials merge. See <a href="#/imports">Imports &amp; Exports</a>.
             </>
           }
         />
@@ -84,6 +88,18 @@ export const CompanionFilesPage: FC = () => (
             <>
               <strong>Class name</strong> — comes from the <code>component</code> name (the
               identifier after the <code>component</code> keyword).
+            </>
+          }
+        />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText
+          primary={
+            <>
+              <strong>Accessibility</strong> — an <code>export</code>ed declaration emits a{' '}
+              <code>public partial class</code>; without <code>export</code> it is{' '}
+              <code>internal</code> (file-private to its assembly). A same-named companion{' '}
+              <code>module</code> defers to the component&rsquo;s accessibility.
             </>
           }
         />
