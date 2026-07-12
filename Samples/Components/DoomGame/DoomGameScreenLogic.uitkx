@@ -1,3 +1,4 @@
+import { GameLogic } from "./GameLogic"
 @namespace Samples.DoomGame
 @using System
 @using System.Collections.Generic
@@ -5,7 +6,7 @@
 @using static Samples.DoomGame.DoomTypes
 @using static Samples.DoomGame.DoomTextures
 
-module DoomGameScreenLogic {
+export module DoomGameScreenLogic {
   public struct SpriteEntry {
     public int Id;
     public int SpriteIdx;

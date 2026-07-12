@@ -1,9 +1,10 @@
+import { AppButton } from "../AppButton/AppButton"
 @namespace PrettyUi.App.Components
 @using System
 @using ReactiveUITK.Router
 @using UnityEngine.UIElements
 
-component TopNav {
+export component TopNav {
   var location = RouterHooks.UseLocation() ?? "/";
   var navigate = RouterHooks.UseNavigate();
 

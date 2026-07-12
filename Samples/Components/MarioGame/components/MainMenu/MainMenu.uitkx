@@ -2,7 +2,7 @@
 @using System
 @using UnityEngine
 
-component MainMenu(Action onStartGame) {
+export component MainMenu(Action onStartGame) {
   return (
     <VisualElement style={MainMenuStyles.Container}>
       <VisualElement style={MainMenuStyles.MenuBox}>

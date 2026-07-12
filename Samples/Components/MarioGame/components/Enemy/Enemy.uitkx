@@ -1,8 +1,9 @@
+import { MarioGame } from "../../MarioGame.style"
 @namespace Samples.MarioGame
 @using UnityEngine
 @using static Samples.MarioGame.MarioConstants
 
-component Enemy(EnemyState enemy, float cameraX = 0) {
+export component Enemy(EnemyState enemy, float cameraX = 0) {
   if (!enemy.Alive) {
     return (<VisualElement />);
   }

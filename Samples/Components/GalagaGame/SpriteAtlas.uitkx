@@ -1,3 +1,5 @@
+import { GalagaGame } from "./GalagaGame.style"
+import { GalagaTypes } from "./GalagaTypes"
 @namespace Samples.GalagaGame
 @using System
 @using UnityEngine
@@ -5,7 +7,7 @@
 @using static Samples.GalagaGame.GalagaTypes
 @using static Samples.GalagaGame.GalagaTypes.C
 
-module SpriteAtlas {
+export module SpriteAtlas {
   // ───── Sprite frame definition ─────
 
   public struct SpriteFrame {

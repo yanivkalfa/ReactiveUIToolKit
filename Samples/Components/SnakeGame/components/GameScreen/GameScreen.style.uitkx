@@ -1,7 +1,7 @@
 @namespace Samples.SnakeGame
 @using UnityEngine
 
-module GameScreen {
+export module GameScreen {
   public static class GameScreenStyles
   {
     public static readonly Style Container = new Style

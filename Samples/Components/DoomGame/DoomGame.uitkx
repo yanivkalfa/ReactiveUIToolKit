@@ -1,3 +1,5 @@
+import { DoomGameScreen } from "./DoomGameScreen"
+import { DoomMainMenu } from "./DoomMainMenu"
 @namespace Samples.DoomGame
 @using System
 @using ReactiveUITK
@@ -5,7 +7,7 @@
 @using UnityEngine.UIElements
 @using static Samples.DoomGame.DoomTypes
 
-component DoomGame {
+export component DoomGame {
   var (screen, setScreen) = useState(GameScreen.MainMenu);
   var (level, setLevel) = useState(1);
   var (difficulty, setDifficulty) = useState(Difficulty.Normal);

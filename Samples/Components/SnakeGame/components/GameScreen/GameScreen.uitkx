@@ -1,3 +1,4 @@
+import { useSnakeGame } from "./GameScreen.hooks"
 @namespace Samples.SnakeGame
 @using System
 @using System.Collections.Generic
@@ -5,7 +6,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component GameScreen(int restartVersion = 0) {
+export component GameScreen(int restartVersion = 0) {
   var boardRef = useRef<VisualElement?>(null);
   var areaRef = useRef<VisualElement?>(null);
   var (cellSize, setCellSize) = useState(0f);

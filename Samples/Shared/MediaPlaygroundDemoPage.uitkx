@@ -3,7 +3,7 @@
 @using UnityEngine.Video
 @using ReactiveUITK.Core.Media
 
-component MediaPlaygroundDemoPage {
+export component MediaPlaygroundDemoPage {
   var videoClip = Asset<VideoClip>("Assets/Resources/file_example_MP4_1280_10MG.mp4");
   var musicClip = Asset<AudioClip>("Assets/Resources/alexzavesa-calm-inspiring-technology-logo-short-version-518993.mp3");
   var sfxClip = Asset<AudioClip>("Assets/Resources/ahem_x.wav");

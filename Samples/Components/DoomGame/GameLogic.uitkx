@@ -1,3 +1,5 @@
+import { DoomMaps } from "./DoomMaps"
+import { Raycast } from "./Raycast"
 @namespace Samples.DoomGame
 @using System
 @using System.Collections.Generic
@@ -5,7 +7,7 @@
 @using static Samples.DoomGame.DoomTypes
 @using static Samples.DoomGame.DoomTextures
 
-module GameLogic {
+export module GameLogic {
   // ───── Public API ─────
 
   public static GameState NewGame(int level, Difficulty diff) {

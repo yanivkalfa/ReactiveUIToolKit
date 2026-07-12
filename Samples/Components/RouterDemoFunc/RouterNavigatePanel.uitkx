@@ -2,7 +2,7 @@
 @using ReactiveUITK.Router
 @using UnityEngine.UIElements
 
-component RouterNavigatePanel {
+export component RouterNavigatePanel {
   var pathRef = useRef<TextField?>(null);
   var stateRef = useRef<TextField?>(null);
 

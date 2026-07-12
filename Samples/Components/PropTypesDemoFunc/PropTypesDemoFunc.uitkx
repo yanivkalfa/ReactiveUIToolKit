@@ -1,7 +1,8 @@
+import { StatusBadge } from "./StatusBadge"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component PropTypesDemoFunc {
+export component PropTypesDemoFunc {
   var (useDefaults, setUseDefaults) = useState(false);
 
   string? badgeLabel = useDefaults ? null : "All systems nominal";

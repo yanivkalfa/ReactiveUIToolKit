@@ -1,7 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 
-component RouterHistoryPanel {
+export component RouterHistoryPanel {
   var go = RouterHooks.UseGo();
   var canBack = RouterHooks.UseCanGo(-1);
   var canForward = RouterHooks.UseCanGo(1);

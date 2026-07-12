@@ -2,7 +2,7 @@
 @using System
 @using ReactiveUITK.Router
 
-component Menu(Action? onRestart = null) {
+export component Menu(Action? onRestart = null) {
   var navigate = RouterHooks.UseNavigate();
   string location = RouterHooks.UseLocation();
   bool isInGame = location != null && location.Contains("/game");

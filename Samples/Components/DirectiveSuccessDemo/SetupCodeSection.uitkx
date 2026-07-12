@@ -1,8 +1,11 @@
+import { SectionBox } from "./SectionBox"
+import { SectionHeading } from "./SectionHeading"
+import { SectionNote } from "./SectionNote"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 @using System.Linq
 
-component SetupCodeSection {
+export component SetupCodeSection {
   var (count, setCount) = useState(3);
   var animals = new[] { "Cat", "Dog", "Fox", "Owl", "Bee" };
 

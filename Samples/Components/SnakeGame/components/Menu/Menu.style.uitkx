@@ -1,7 +1,7 @@
 @namespace Samples.SnakeGame
 @using UnityEngine
 
-module Menu {
+export module Menu {
   public static class MenuStyles
   {
     public static readonly Style Panel = new Style

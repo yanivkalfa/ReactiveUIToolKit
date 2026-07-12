@@ -1,9 +1,12 @@
+import { SectionBox } from "./SectionBox"
+import { SectionHeading } from "./SectionHeading"
+import { SectionNote } from "./SectionNote"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 @using System.Linq
 @using System.Collections.Generic
 
-component ForeachSection {
+export component ForeachSection {
   var fruits = new[] { "Apple", "Banana", "Cherry", "Date", "Elderberry" };
 
   var palette = new Dictionary<string, Color> {

@@ -1,7 +1,7 @@
 @namespace Samples.SnakeGame
 @using UnityEngine
 
-module WelcomeScreen {
+export module WelcomeScreen {
   public static class WelcomeStyles
   {
     public static readonly Style Container = new Style

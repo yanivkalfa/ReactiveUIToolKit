@@ -1,6 +1,6 @@
 @namespace PrettyUi.App.Pages
 
-module NewsPage {
+export module NewsPage {
   public static readonly Style ContentRoot = new Style {
     FlexGrow = 1f,
   };

@@ -1,3 +1,4 @@
+import { GameLogic } from "./GameLogic"
 @namespace Samples.DoomGame
 @using System
 @using System.Collections.Generic
@@ -7,7 +8,7 @@
 @using UnityEngine.UIElements
 @using static Samples.DoomGame.DoomTypes
 
-hook useDoomGame(
+export hook useDoomGame(
   Ref<VisualElement?> viewRef,
   int level,
   Difficulty difficulty

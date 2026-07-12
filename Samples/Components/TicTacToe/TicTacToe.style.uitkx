@@ -4,7 +4,7 @@
 @using static ReactiveUITK.Props.Typed.CssHelpers
 @using UnityEngine
 
-module TicTacToe {
+export module TicTacToe {
   public static readonly Style containerStyle = new Style
   {
     BackgroundColor = ColorGray,

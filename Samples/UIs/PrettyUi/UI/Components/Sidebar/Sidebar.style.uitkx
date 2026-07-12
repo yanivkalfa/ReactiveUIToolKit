@@ -1,8 +1,9 @@
+import { Theme } from "../../Theme"
 @namespace PrettyUi.App.Components
 @using PrettyUi.App
 @using UnityEngine
 
-module Sidebar {
+export module Sidebar {
   public static readonly Style Wrapper = new Style {
     Width = Px(Theme.SidebarWidth),
     FlexShrink = 0f,

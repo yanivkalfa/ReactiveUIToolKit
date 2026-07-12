@@ -1,7 +1,10 @@
+import { SectionBox } from "./SectionBox"
+import { SectionHeading } from "./SectionHeading"
+import { SectionNote } from "./SectionNote"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component SwitchSection {
+export component SwitchSection {
   var modes = new[] { "normal", "squared", "doubled", "unknown" };
   var (modeIdx, setModeIdx) = useState(0);
   var mode = modes[modeIdx % modes.Length];

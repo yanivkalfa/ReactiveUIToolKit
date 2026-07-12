@@ -2,7 +2,7 @@
 @using UnityEngine
 @using System.Collections.Generic
 
-component ProgressBarDemoFunc {
+export component ProgressBarDemoFunc {
   var (progress, setProgress) = useState(15f);
 
   float Clamp(float v) => Mathf.Clamp(v, 0f, 100f);

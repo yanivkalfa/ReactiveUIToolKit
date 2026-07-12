@@ -1,10 +1,17 @@
+import { ShowcaseExtrasPanel } from "./components/ShowcaseExtrasPanel/ShowcaseExtrasPanel"
+import { ShowcaseFieldsPanel } from "./components/ShowcaseFieldsPanel/ShowcaseFieldsPanel"
+import { ShowcaseListTabsSection } from "./components/ShowcaseListTabsSection/ShowcaseListTabsSection"
+import { ShowcaseNewComponentsPanel } from "./components/ShowcaseNewComponentsPanel/ShowcaseNewComponentsPanel"
+import { ShowcaseTopBar } from "./components/ShowcaseTopBar/ShowcaseTopBar"
+import { ShowcaseTreeTabsSection } from "./components/ShowcaseTreeTabsSection/ShowcaseTreeTabsSection"
+import { ValuesBar } from "./components/ValuesBar/ValuesBar"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component ShowcaseDemoPage {
+export component ShowcaseDemoPage {
   var (inputText, setInputText) = useState(string.Empty);
   var (isOptionEnabled, setOptionEnabled) = useState(false);
   var (isRadioSingleSelected, setRadioSingleSelected) = useState(false);

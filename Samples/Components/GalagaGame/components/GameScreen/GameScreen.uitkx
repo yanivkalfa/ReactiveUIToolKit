@@ -1,3 +1,7 @@
+import { GalagaGame } from "../../GalagaGame.style"
+import { GalagaTypes } from "../../GalagaTypes"
+import { HUD } from "../HUD/HUD"
+import { useGalagaGame } from "./GameScreen.hooks"
 @namespace Samples.GalagaGame
 @using System
 @using System.Collections.Generic
@@ -7,7 +11,7 @@
 @using static Samples.GalagaGame.GalagaTypes.C
 @using static Samples.GalagaGame.SpriteAtlas
 
-component GameScreen(int restartVersion = 0, Action? onQuit = null) {
+export component GameScreen(int restartVersion = 0, Action? onQuit = null) {
   var boardRef = useRef<VisualElement?>(null);
   var spriteSheet = Asset<Texture2D>("../../sprites/spritemap.png");
   var (state, restart, onKeyDown) = useGalagaGame(boardRef);
