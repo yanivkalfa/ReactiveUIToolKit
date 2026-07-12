@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using ReactiveUITK.Language.Nodes;
@@ -228,6 +229,81 @@ namespace ReactiveUITK.Language.Roslyn
         /// <param name="uitkxFilePath">
         /// Absolute path to the .uitkx file, written into <c>#line</c> directives.
         /// </param>
+        /// <summary>
+        /// Lower a file's <c>import</c> declarations to hidden using-static (hook containers) and
+        /// alias (modules) scaffold lines, so C# IntelliSense inside setup code resolves imported
+        /// symbols (import/export grammar §10). Resolves each specifier to its target file, parses it,
+        /// and mirrors the real emit's injection forms. Filesystem-reads the target; degrades silently
+        /// (no using emitted) when a target is unresolvable/unreadable.
+        /// </summary>
+        private static void AppendImportUsings(
+            VirtualDocBuilder b, DirectiveSet d, string uitkxFilePath, HashSet<string> seen)
+        {
+            if (d.Imports.IsDefaultOrEmpty || string.IsNullOrEmpty(uitkxFilePath))
+                return;
+
+            string importerDir = (Path.GetDirectoryName(uitkxFilePath) ?? string.Empty).Replace('\\', '/');
+            string? projectRoot = ReactiveUITK.Language.AssetPathUtil.GetProjectRoot(uitkxFilePath);
+            string rootDir = projectRoot != null
+                ? projectRoot + "/" + ReactiveUITK.Language.UitkxConfig.LoadRoot(importerDir)
+                : importerDir;
+
+            foreach (var imp in d.Imports)
+            {
+                string? target = ReactiveUITK.Language.ImportResolver.MapSpecifierToPath(
+                    importerDir, imp.Specifier, rootDir, out _);
+                if (target == null || !File.Exists(target))
+                    continue;
+
+                DirectiveSet tds;
+                try
+                {
+                    tds = DirectiveParser.Parse(File.ReadAllText(target), target, new List<ParseDiagnostic>());
+                }
+                catch { continue; }
+
+                string? tns = tds.Namespace;
+                if (string.IsNullOrEmpty(tns))
+                    continue;
+
+                var importedNames = new HashSet<string>(imp.Names, StringComparer.Ordinal);
+
+                // Hook: expose the whole owning container (C# has no per-method static import).
+                bool anyHook = false;
+                if (!tds.HookDeclarations.IsDefaultOrEmpty)
+                    foreach (var h in tds.HookDeclarations)
+                        if (h.IsExported && importedNames.Contains(h.Name)) { anyHook = true; break; }
+                if (anyHook)
+                {
+                    string line = $"static {tns}.{DeriveContainerClassNameForVdoc(target)}";
+                    if (seen.Add(line))
+                        b.Scaffold($"using {line};\n");
+                }
+
+                // Module: alias each imported module to its fully-qualified type.
+                if (!tds.ModuleDeclarations.IsDefaultOrEmpty)
+                    foreach (var m in tds.ModuleDeclarations)
+                        if (m.IsExported && importedNames.Contains(m.Name))
+                        {
+                            string line = $"{m.Name} = {tns}.{m.Name}";
+                            if (seen.Add(line))
+                                b.Scaffold($"using {line};\n");
+                        }
+            }
+        }
+
+        /// <summary>Container class name from a hook file path — mirror of HookEmitter.DeriveContainerClassName.</summary>
+        private static string DeriveContainerClassNameForVdoc(string filePath)
+        {
+            string fileName = Path.GetFileNameWithoutExtension(filePath);
+            int dot = fileName.IndexOf('.');
+            if (dot > 0)
+                fileName = fileName.Substring(0, dot);
+            if (fileName.Length > 0 && char.IsLower(fileName[0]))
+                fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
+            return fileName + "Hooks";
+        }
+
         public VirtualDocument Generate(
             ParseResult parseResult,
             string source,
@@ -264,6 +340,11 @@ namespace ReactiveUITK.Language.Roslyn
                 if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
                     b.Scaffold($"using {trimmed};\n");
             }
+            // Import/export grammar (leg 3, §10): lower imports to the same using-static (hook
+            // containers) / alias (modules) lines the real emit produces, so C# IntelliSense inside
+            // setup code resolves imported hooks/modules. Scaffold-only (hidden preamble) → the
+            // length-preserving source map is unaffected.
+            AppendImportUsings(b, d, uitkxFilePath, seen);
             // Static / alias usings that cannot go through the simple "using X;" path
             foreach (var line in s_extraUsingLines)
                 b.Scaffold(line + "\n");
