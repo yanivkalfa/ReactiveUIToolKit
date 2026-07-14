@@ -48,7 +48,14 @@ namespace ReactiveUITK.Language.Parser
         int BodyStartOffset,
         /// <summary>Absolute char offset in source just before the closing <c>}</c>.</summary>
         int BodyEndOffset
-    );
+    )
+    {
+        /// <summary>
+        /// True when the declaration is prefixed with <c>export</c> (import/export grammar,
+        /// leg 3). Non-exported hooks are file-private / strict-invisible cross-file.
+        /// </summary>
+        public bool IsExported { get; init; } = false;
+    };
 
     // ── Module declaration ───────────────────────────────────────────────────
 
@@ -69,7 +76,86 @@ namespace ReactiveUITK.Language.Parser
         int BodyStartOffset,
         /// <summary>Absolute char offset in source just before the closing <c>}</c>.</summary>
         int BodyEndOffset
+    )
+    {
+        /// <summary>
+        /// True when the declaration is prefixed with <c>export</c> (import/export grammar,
+        /// leg 3). Non-exported modules are file-private / strict-invisible cross-file.
+        /// </summary>
+        public bool IsExported { get; init; } = false;
+    };
+
+    // ── Import declaration ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// A single preamble <c>import { A, B } from "specifier"</c> line (import/export grammar,
+    /// leg 3). Named imports only; static, string-literal specifier; preamble-only.
+    /// </summary>
+    public sealed record ImportDeclaration(
+        /// <summary>The imported names, in source order (e.g. <c>["StatusChip"]</c>).</summary>
+        ImmutableArray<string> Names,
+        /// <summary>The raw specifier string (e.g. <c>"./StatusChip"</c>, <c>"~/Shared/Types"</c>). Extensionless — <c>.uitkx</c> implied.</summary>
+        string Specifier,
+        /// <summary>1-based line of the <c>import</c> keyword.</summary>
+        int Line,
+        /// <summary>0-based column of the <c>import</c> keyword.</summary>
+        int Column,
+        /// <summary>0-based column of each imported name, parallel to <see cref="Names"/>. For unused-import / not-exported squiggles.</summary>
+        ImmutableArray<int> NameColumns
     );
+
+    // ── Component declaration (per-decl, mixed-decl v1) ──────────────────────
+
+    /// <summary>
+    /// A single <c>component</c> declaration parsed from a .uitkx file (mixed-decl v1, leg 3):
+    /// a file may declare multiple components/hooks/modules in any order. Carries every field
+    /// that was historically singular on <see cref="DirectiveSet"/> so multi-component files
+    /// emit one partial class per component.
+    /// </summary>
+    public sealed record ComponentDeclaration(
+        /// <summary>Component (class) name.</summary>
+        string Name,
+        /// <summary>True when prefixed with <c>export</c> (→ <c>public</c>; else <c>internal</c>).</summary>
+        bool IsExported,
+        /// <summary><c>@props</c> — optional fully-qualified props type name.</summary>
+        string? PropsTypeName,
+        /// <summary><c>@key</c> — optional default VirtualNode key.</summary>
+        string? DefaultKey,
+        /// <summary>Typed parameters from the component header.</summary>
+        ImmutableArray<FunctionParam> FunctionParams,
+        /// <summary>Setup C# statements (all top-level statements except the <c>return (...)</c>).</summary>
+        string? FunctionSetupCode,
+        /// <summary>1-based line where setup code begins. -1 when unavailable.</summary>
+        int FunctionSetupStartLine,
+        /// <summary>Absolute char offset of the first char of trimmed setup code. -1 when not tracked.</summary>
+        int FunctionSetupStartOffset,
+        /// <summary>1-based line where this component's markup begins.</summary>
+        int MarkupStartLine,
+        /// <summary>Absolute char index where this component's markup begins.</summary>
+        int MarkupStartIndex,
+        /// <summary>Exclusive end index for this component's markup. -1 = to EOF.</summary>
+        int MarkupEndIndex,
+        /// <summary>1-based line of the <c>component Name {</c> declaration.</summary>
+        int DeclarationLine,
+        /// <summary>0-based column of the component NAME token.</summary>
+        int NameColumn,
+        /// <summary>1-based line of the <c>;</c> ending <c>return (...);</c>. -1 when not tracked.</summary>
+        int ReturnEndLine,
+        /// <summary>1-based line of the closing <c>}</c> of the component body. -1 when not tracked.</summary>
+        int BodyEndLine
+    )
+    {
+        /// <summary>Paren-wrapped JSX ranges in this component's setup code (start, end, line).</summary>
+        public ImmutableArray<(int Start, int End, int Line)> SetupCodeMarkupRanges { get; init; }
+            = ImmutableArray<(int Start, int End, int Line)>.Empty;
+        /// <summary>Bare (non-paren-wrapped) JSX ranges in this component's setup code.</summary>
+        public ImmutableArray<(int Start, int End, int Line)> SetupCodeBareJsxRanges { get; init; }
+            = ImmutableArray<(int Start, int End, int Line)>.Empty;
+        /// <summary>Offset in setup code where the removed <c>return (…);</c> gap begins. -1 when none.</summary>
+        public int FunctionSetupGapOffset { get; init; } = -1;
+        /// <summary>Length of the removed <c>return (…);</c> statement.</summary>
+        public int FunctionSetupGapLength { get; init; } = 0;
+    };
 
     // ── Directive data ────────────────────────────────────────────────────────
 
@@ -230,6 +316,22 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         public ImmutableArray<(string Text, bool IsBlock, int Line)> LeadingTrivia { get; init; }
             = ImmutableArray<(string Text, bool IsBlock, int Line)>.Empty;
+
+        /// <summary>
+        /// Preamble <c>import { … } from "…"</c> declarations, in source order (import/export
+        /// grammar, leg 3). Empty when the file has no imports. See <see cref="ImportDeclaration"/>.
+        /// </summary>
+        public ImmutableArray<ImportDeclaration> Imports { get; init; }
+            = ImmutableArray<ImportDeclaration>.Empty;
+
+        /// <summary>
+        /// All <c>component</c> declarations in this file, in source order (mixed-decl v1, leg 3).
+        /// Supersedes the singular <see cref="ComponentName"/>/setup/markup fields, which remain during
+        /// the migration and are kept in sync for the first component. Empty for hook/module-only or
+        /// directive-style files.
+        /// </summary>
+        public ImmutableArray<ComponentDeclaration> ComponentDeclarations { get; init; }
+            = ImmutableArray<ComponentDeclaration>.Empty;
     };
 
     // ── Full parse result ─────────────────────────────────────────────────────

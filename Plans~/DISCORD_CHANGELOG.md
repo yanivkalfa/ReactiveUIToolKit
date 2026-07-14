@@ -1,4 +1,29 @@
-﻿## [0.6.5] - 2026-07-08
+﻿## [0.7.0] - 2026-07-12
+
+### Imports & Exports - cross-file references are now explicit
+
+**`.uitkx` gets ESM-style `import` / `export`.** A file declares what it exposes with `export component` / `export hook` / `export module`, and pulls in what it needs with `import { X } from "./path"` (relative `./`/`../` or the `~/` UI-root alias, extensionless). Referencing a peer name you didn't import is an error that names the exact `import` line to add. A file may declare any mix of components, hooks, and modules.
+
+### Path-derived namespaces + accessibility
+
+- A file's default namespace is now **derived from its path** relative to the owning `.asmdef` (`ReactiveUITK.Uitkx.<folders>`); `@namespace` becomes an optional override. Stable identity that no longer flips when you edit a companion `.cs`.
+- **`export` drives accessibility** - exported = `public`, otherwise `internal` (file-private). Pure `.uitkx` usage inside one assembly is unaffected; hand-written cross-asmdef C# that referenced a now-`internal` type may need an `export`.
+- **HMR hook identity is path-qualified** - hot-swap matches hooks by `{Ns}.{Container}::{name}`, so two same-named hooks in different files never cross-swap.
+- One-component-per-file / filename==component are now **documented conventions**, not compiler warnings.
+
+### Migration - one command
+
+The bundled **`UitkxMigrateImports`** codemod rewrites a project in place: it adds `export` everywhere, inserts the imports each file needs, and stamps each file's current `@namespace` so identity is preserved. Idempotent and formatter-stable - run `--check` first for a dry run. The bundled Samples ship already migrated.
+
+### Editor
+
+Go-to-definition on imports, completion inside `import { }` and specifier strings, a one-click quick-fix for the "used but not imported" error, and live strict diagnostics (UITKX23xx) as you type.
+
+Ships to Unity via the committed analyzer DLL - no IDE update required. SG `1465/1465`, LSP `107/107`.
+
+---
+
+## [0.6.5] - 2026-07-08
 
 ### Fix - `.uitkx` edits show up again on a plain recompile (Play + HMR off)
 

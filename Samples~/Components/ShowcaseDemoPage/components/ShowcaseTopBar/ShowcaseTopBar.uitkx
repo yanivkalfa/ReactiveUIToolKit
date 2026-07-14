@@ -4,7 +4,7 @@
 @using UnityEngine
 @using System.Diagnostics
 
-component ShowcaseTopBar(
+export component ShowcaseTopBar(
   string inputText = "",
   ChangeEventHandler<string>? onInputChange = null,
   Action? onSetText = null,

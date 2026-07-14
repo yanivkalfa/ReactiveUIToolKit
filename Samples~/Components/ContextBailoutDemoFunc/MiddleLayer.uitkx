@@ -1,7 +1,8 @@
+import { ThemeConsumer } from "./ThemeConsumer"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component MiddleLayer {
+export component MiddleLayer {
   var renderCountRef = useRef<int>(0);
   renderCountRef.Current++;
   var renderCount = renderCountRef.Current;

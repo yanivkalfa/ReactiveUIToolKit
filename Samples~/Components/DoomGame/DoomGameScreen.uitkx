@@ -1,3 +1,8 @@
+import { useDoomGame } from "./DoomGameScreen.hooks"
+import { DoomGameScreenLogic } from "./DoomGameScreenLogic"
+import { DoomHUD } from "./DoomHUD"
+import { DoomMinimap } from "./DoomMinimap"
+import { DoomTextures } from "./DoomTextures"
 @namespace Samples.DoomGame
 @using System
 @using System.Collections.Generic
@@ -7,7 +12,7 @@
 @using static Samples.DoomGame.DoomTypes
 @using static Samples.DoomGame.DoomTextures
 
-component DoomGameScreen(
+export component DoomGameScreen(
   int restartVersion,
   int level,
   Difficulty difficulty,

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Immutable;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
+using ReactiveUITK.Language;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
@@ -98,6 +100,17 @@ public sealed class DefinitionHandler : IDefinitionHandler
 
         string word       = ctx.Word;
         string? tagContext = ctx.Kind == CursorKind.AttributeName ? ctx.TagName : null;
+
+        // ── Case 0: cursor is on an import line (specifier or an imported name) ──
+        // import/export grammar (leg 3): clicking an imported name jumps to its
+        // declaration in the target file; clicking anywhere else on the line (e.g. the
+        // specifier string) jumps to the target file.
+        if (TryResolveImportNavigation(localPath, directives.Imports, line1, col0,
+                out string? importFile, out int importLine))
+        {
+            ServerLog.Log($"definition: import on line {line1} → {importFile}:{importLine}");
+            return importFile is not null ? MakeLocation(importFile, importLine) : null;
+        }
 
         if (string.IsNullOrEmpty(word))
             return null;
@@ -344,6 +357,85 @@ public sealed class DefinitionHandler : IDefinitionHandler
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Go-to-definition for the import/export grammar (pure — no LSP/RoslynHost deps, so it is
+    /// directly unit-testable). When <paramref name="line1"/> is on one of <paramref name="imports"/>:
+    /// a cursor on an imported name resolves to that declaration's line in the target file; anywhere
+    /// else on the line (e.g. the specifier) resolves to the target file's top. Returns <c>true</c>
+    /// when the cursor is on an import line (even if unresolvable, in which case
+    /// <paramref name="targetFile"/> is <c>null</c> so the caller stops); <c>false</c> to fall through
+    /// to the other definition cases.
+    /// </summary>
+    public static bool TryResolveImportNavigation(
+        string localPath,
+        ImmutableArray<ImportDeclaration> imports,
+        int line1,
+        int col0,
+        out string? targetFile,
+        out int targetLine)
+    {
+        targetFile = null;
+        targetLine = 1;
+        if (imports.IsDefaultOrEmpty)
+            return false;
+
+        foreach (var imp in imports)
+        {
+            if (imp.Line != line1)
+                continue;
+
+            string? resolved = ResolveImportTarget(localPath, imp.Specifier);
+            if (resolved is null || !File.Exists(resolved))
+                return true; // on an import line but unresolvable — caller returns null
+
+            for (int k = 0; k < imp.Names.Length; k++)
+            {
+                int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : -1;
+                if (nameCol >= 0 && col0 >= nameCol && col0 <= nameCol + imp.Names[k].Length)
+                {
+                    int declLine = FindDeclarationLine(resolved, imp.Names[k]);
+                    targetFile = resolved;
+                    targetLine = declLine > 0 ? declLine : 1;
+                    return true;
+                }
+            }
+
+            targetFile = resolved;
+            targetLine = 1;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Resolve an <c>import</c> specifier to the absolute target <c>.uitkx</c> path, using the same
+    /// rule as the build (<see cref="ImportResolver.MapSpecifierToPath"/>). Returns <c>null</c> for
+    /// engine-native/unresolvable specifiers.
+    /// </summary>
+    private static string? ResolveImportTarget(string localPath, string specifier)
+    {
+        string importerDir = (Path.GetDirectoryName(localPath) ?? string.Empty).Replace('\\', '/');
+        string? projectRoot = AssetPathUtil.GetProjectRoot(localPath);
+        string rootDir = projectRoot != null ? projectRoot + "/" + UitkxConfig.LoadRoot(importerDir) : importerDir;
+        // Absolute dirs in → absolute candidate path out (MapSpecifierToPath is pure path arithmetic).
+        return ImportResolver.MapSpecifierToPath(importerDir, specifier, rootDir, out _);
+    }
+
+    /// <summary>1-based line of the <c>[export] component|hook|module Name</c> declaration in a file, or 0.</summary>
+    private static int FindDeclarationLine(string filePath, string name)
+    {
+        try
+        {
+            var re = new Regex($@"^\s*(?:export\s+)?(?:component|hook|module)\s+{Regex.Escape(name)}\b");
+            string[] lines = File.ReadAllLines(filePath);
+            for (int i = 0; i < lines.Length; i++)
+                if (re.IsMatch(lines[i]))
+                    return i + 1;
+        }
+        catch { /* unreadable target — fall back to the file top */ }
+        return 0;
+    }
 
     private static LocationOrLocationLinks MakeLocation(string filePath, int oneBasedLine, int zeroBasedCol = 0)
     {

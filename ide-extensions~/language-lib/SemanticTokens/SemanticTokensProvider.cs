@@ -61,6 +61,9 @@ namespace ReactiveUITK.Language.SemanticTokens
             // 1. Top-level declaration tokens
             CollectFunctionStyleDeclarationTokens(source, lineStarts, tokens);
 
+            // 1b. import / export / from keywords + specifier strings (import/export grammar §10)
+            CollectImportExportTokens(source, lineStarts, tokens);
+
             // 2. AST markup nodes
             foreach (var node in parseResult.RootNodes)
                 CollectNodeTokens(node, source, lineStarts, tokens, knownElements);
@@ -135,6 +138,40 @@ namespace ReactiveUITK.Language.SemanticTokens
             }
 
             return merged.Values;
+        }
+
+        // ── Import / export tokens (import/export grammar §10) ───────────────
+
+        private static readonly Regex s_importTokenRe = new Regex(
+            @"^(?<lead>\s*)(?<import>import)\s*\{[^}]*\}\s*(?<from>from)\s*(?<spec>""[^""]*"")",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        private static readonly Regex s_exportTokenRe = new Regex(
+            @"^\s*(?<export>export)\s+(?:component|hook|module)\b",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        private static void CollectImportExportTokens(
+            string source, int[] lineStarts, List<SemanticTokenData> tokens)
+        {
+            foreach (Match m in s_importTokenRe.Matches(source))
+            {
+                EmitGroup(tokens, lineStarts, m.Groups["import"], SemanticTokenTypes.Keyword);
+                EmitGroup(tokens, lineStarts, m.Groups["from"], SemanticTokenTypes.Keyword);
+                EmitGroup(tokens, lineStarts, m.Groups["spec"], SemanticTokenTypes.String);
+            }
+            foreach (Match m in s_exportTokenRe.Matches(source))
+                EmitGroup(tokens, lineStarts, m.Groups["export"], SemanticTokenTypes.Keyword);
+        }
+
+        private static void EmitGroup(
+            List<SemanticTokenData> tokens, int[] lineStarts, Group g, string type)
+        {
+            if (!g.Success || g.Length == 0)
+                return;
+            var (line0, col0) = OffsetToLineCol0(lineStarts, g.Index);
+            EmitToken(tokens, line0, col0, g.Length, type, s_noMods);
         }
 
         // ── Function-style declaration ───────────────────────────────────────

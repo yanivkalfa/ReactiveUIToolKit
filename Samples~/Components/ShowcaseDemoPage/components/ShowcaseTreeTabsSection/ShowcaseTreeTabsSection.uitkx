@@ -1,3 +1,6 @@
+import { IntroCounterFunc } from "../../../../Shared/IntroCounterFunc"
+import { MultiColumnTreeViewStatefulDemoFunc } from "../../../../Shared/MultiColumnTreeViewStatefulDemoFunc"
+import { TreeViewStatefulDemoFunc } from "../../../../Shared/TreeViewStatefulDemoFunc"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
@@ -6,7 +9,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component ShowcaseTreeTabsSection(
+export component ShowcaseTreeTabsSection(
   Action<int>? onTreeCountChanged = null,
   Action<int>? onMctvCountChanged = null,
   Action<int>? onTreeTabIndexChanged = null

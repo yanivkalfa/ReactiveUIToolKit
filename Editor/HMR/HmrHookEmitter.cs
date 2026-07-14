@@ -47,9 +47,14 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// Used as the class name in the HMR assembly so the swapper can find methods.
         /// </param>
         public static string Emit(object directives, string filePath, string containerClassName,
-            bool withTrampoline = false)
+            bool withTrampoline = false,
+            string effectiveNs = null,
+            IReadOnlyDictionary<string, string> hookKeyMap = null)
         {
-            string ns = (string)GetProp(directives, "Namespace") ?? "ReactiveUITK.Generated";
+            // Prefer the EFFECTIVE namespace (matches the source generator) both for the
+            // emitted container `namespace` — so the HMR swapper finds the method under the
+            // same FQN the project assembly used — and for the §7 qualified family key.
+            string ns = effectiveNs ?? (string)GetProp(directives, "Namespace") ?? "ReactiveUITK.Generated";
             var hookDecls = GetProp(directives, "HookDeclarations");
 
             // ImmutableArray<HookDeclaration> — enumerate via IEnumerable
@@ -137,7 +142,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             // because it lives in the original project assembly; we must
             // re-publish the signature here so Phase 3's transitive walk
             // sees the new value.
-            EmitHookRefreshCompanion(sb, hookList, containerClassName, ns);
+            EmitHookRefreshCompanion(sb, hookList, containerClassName, ns, hookKeyMap);
 
             sb.AppendLine("}");
 
@@ -148,7 +153,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             StringBuilder sb,
             List<object> hookList,
             string containerClassName,
-            string ns)
+            string ns,
+            IReadOnlyDictionary<string, string> hookKeyMap)
         {
             if (hookList.Count == 0)
                 return;
@@ -165,12 +171,15 @@ namespace ReactiveUITK.EditorSupport.HMR
             sb.AppendLine("        {");
             foreach (var hook in hookList)
             {
-                // Family key = literal hook name (bare). See HookEmitter for rationale.
+                // §7: PATH-QUALIFIED family key {ns}.{Container}::{name} — must equal the SG's
+                // (mirror of HookEmitter). ns is the effective namespace; the consumer keys are
+                // qualified through hookKeyMap (built by UitkxHmrCompiler with the shared functions).
                 string hookName = (string)GetProp(hook, "Name");
                 string hookBody = (string)GetProp(hook, "Body") ?? string.Empty;
                 string sig = HmrCSharpEmitter.ExtractHookSignature(hookBody) ?? string.Empty;
-                string[] hookCustomKeys = HmrCSharpEmitter.ExtractCustomHookFamilyKeys(hookBody);
-                string familyKey = hookName;
+                string[] hookCustomKeys = UitkxHmrCompiler.QualifyHookKeys(
+                    HmrCSharpEmitter.ExtractCustomHookFamilyKeys(hookBody), hookKeyMap);
+                string familyKey = ns + "." + containerClassName + "::" + hookName;
                 string keysLit = HmrCSharpEmitter.RenderCustomHookFamilyKeysLiteral(hookCustomKeys);
                 sb.AppendLine(
                     $"            global::ReactiveUITK.Refresh.RefreshRuntime.RegisterHook(" +
@@ -279,6 +288,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // attribute discriminator opts the field in to the swapper).
                 body = HmrStaticReadonlyStripper.Strip(body);
 
+                // Accessibility divergence (plan §6/§8, DELIBERATE): the SG emits
+                // `internal`/no-modifier for a non-exported or component-merging
+                // module; HMR stays `public`. Benign superset — HMR compiles into an
+                // isolated assembly and swaps by delegate/family-key, so this never
+                // co-compiles with the SG partial (no CS0262) and `public` only ever
+                // widens access. See the matching note in HmrCSharpEmitter.
                 sb.AppendLine($"    public partial class {name}");
                 sb.AppendLine("    {");
                 sb.AppendLine($"#line {bodyStartLine} \"{linePath}\"");

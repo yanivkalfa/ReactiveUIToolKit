@@ -1,8 +1,9 @@
+import { Theme } from "../../Theme"
 @namespace PrettyUi.App.Components
 @using PrettyUi.App
 @using UnityEngine
 
-module NewGameButton {
+export module NewGameButton {
   public static readonly Style Wrapper = new Style {
     Position = PosAbsolute,
     Right = 24f,

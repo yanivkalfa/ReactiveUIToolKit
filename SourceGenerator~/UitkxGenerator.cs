@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -168,6 +169,8 @@ namespace ReactiveUITK.SourceGenerator
                     // same pass via GetTypeByMetadataName).
                     var peerComponentsBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                     var peerHookContainersBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
+                    var peerModulesBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                    var importsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                     foreach (var txt in uitkxFiles)
                     {
                         ct.ThrowIfCancellationRequested();
@@ -178,15 +181,21 @@ namespace ReactiveUITK.SourceGenerator
                         string? src = ReadUitkxSource(txt, ct);
                         if (src == null)
                             continue;
-                        if (TryBuildPeerComponentInfo(src, txt.Path, out var peerInfo))
-                            peerComponentsBuilder.Add(peerInfo);
+                        CollectPeerComponentInfos(src, txt.Path, peerComponentsBuilder);
                         if (TryBuildPeerHookContainerInfo(src, txt.Path, out var hookInfo))
                             peerHookContainersBuilder.Add(hookInfo);
+                        CollectPeerModuleInfos(src, txt.Path, peerModulesBuilder);
+                        importsByFile.Add((txt.Path, ExtractImportsForCycle(src)));
                     }
                     ImmutableArray<PeerComponentInfo> peerComponents =
                         peerComponentsBuilder.ToImmutable();
                     ImmutableArray<PeerHookContainerInfo> peerHookContainers =
                         peerHookContainersBuilder.ToImmutable();
+                    ImmutableArray<PeerModuleInfo> peerModules =
+                        peerModulesBuilder.ToImmutable();
+                    var valueCycles = UitkxFeatureFlags.StrictImports
+                        ? BuildValueCycleMap(importsByFile, peerHookContainers, peerModules)
+                        : null;
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
@@ -201,7 +210,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = ReadUitkxSource(txt, ct);
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules, valueCycles));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -218,21 +227,29 @@ namespace ReactiveUITK.SourceGenerator
                             // Pre-scan for peer component names (same as the AdditionalTexts path)
                             var diskPeerBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                             var diskHookBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
+                            var diskModuleBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                            var diskImportsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                             foreach (string fp in diskFiles)
                             {
                                 if (IsInsideIgnoredFolder(fp)) continue;
                                 if (!UitkxPipeline.IsOwnedByCompilation(fp, compilation.AssemblyName))
                                     continue;
                                 string raw = File.ReadAllText(fp);
-                                if (TryBuildPeerComponentInfo(raw, fp, out var peerInfo))
-                                    diskPeerBuilder.Add(peerInfo);
+                                CollectPeerComponentInfos(raw, fp, diskPeerBuilder);
                                 if (TryBuildPeerHookContainerInfo(raw, fp, out var hookInfo))
                                     diskHookBuilder.Add(hookInfo);
+                                CollectPeerModuleInfos(raw, fp, diskModuleBuilder);
+                                diskImportsByFile.Add((fp, ExtractImportsForCycle(raw)));
                             }
                             ImmutableArray<PeerComponentInfo> diskPeerComponents =
                                 diskPeerBuilder.ToImmutable();
                             ImmutableArray<PeerHookContainerInfo> diskPeerHookContainers =
                                 diskHookBuilder.ToImmutable();
+                            ImmutableArray<PeerModuleInfo> diskPeerModules =
+                                diskModuleBuilder.ToImmutable();
+                            var diskValueCycles = UitkxFeatureFlags.StrictImports
+                                ? BuildValueCycleMap(diskImportsByFile, diskPeerHookContainers, diskPeerModules)
+                                : null;
 
                             foreach (string filePath in diskFiles)
                             {
@@ -240,7 +257,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules, diskValueCycles));
                             }
                         }
                     }
@@ -262,6 +279,13 @@ namespace ReactiveUITK.SourceGenerator
                             spc.ReportDiagnostic(diag);
                         if (result.Source is not null)
                             spc.AddSource(result.HintName, result.Source);
+                        // Mixed-decl / multi-component files emit one additional
+                        // standalone compilation unit per extra section (see
+                        // UitkxPipelineResult.ExtraSources) — each merges as a
+                        // partial across CUs, so they must NOT be concatenated.
+                        if (!result.ExtraSources.IsDefaultOrEmpty)
+                            foreach (var (extraHint, extraSource) in result.ExtraSources)
+                                spc.AddSource(extraHint, extraSource);
                     }
                 }
             );
@@ -351,33 +375,64 @@ namespace ReactiveUITK.SourceGenerator
         private static bool HasFunctionStyleParams(string source)
             => s_funcParamsRe.IsMatch(source);
 
-        private static bool TryBuildPeerComponentInfo(
+        /// <summary>
+        /// Adds a <see cref="PeerComponentInfo"/> for EVERY component declared in the file
+        /// (not just the first) so the shared resolver + strict-import tables see all of a
+        /// multi-component file's components. Registering only the first left references to a
+        /// same-file sibling component resolving as unknown (false UITKX0008) and made those
+        /// siblings un-importable / invisible to the value-cycle detector.
+        /// </summary>
+        private static void CollectPeerComponentInfos(
             string source,
             string filePath,
-            out PeerComponentInfo peerInfo
+            ImmutableArray<PeerComponentInfo>.Builder builder
         )
         {
             var throwawayDiags = new List<ParseDiagnostic>();
             var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
-            string? name = ds.ComponentName ?? ExtractComponentName(source);
-            string? ns = ds.Namespace;
-            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(ns))
+            // All components in one file share the file's effective namespace (resolved
+            // through the same seam the emitter uses, so peer namespaces match the emit).
+            string? ns = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
+            if (string.IsNullOrEmpty(ns))
+                return;
+
+            if (!ds.ComponentDeclarations.IsDefaultOrEmpty)
             {
-                peerInfo = default!;
-                return false;
+                foreach (var cd in ds.ComponentDeclarations)
+                {
+                    if (string.IsNullOrEmpty(cd.Name))
+                        continue;
+                    builder.Add(new PeerComponentInfo(
+                        cd.Name,
+                        ns!,
+                        !cd.FunctionParams.IsDefaultOrEmpty,
+                        cd.FunctionParams.IsDefault
+                            ? ImmutableArray<FunctionParam>.Empty
+                            : cd.FunctionParams)
+                    {
+                        SourceFilePath = filePath,
+                        IsExported = cd.IsExported,
+                    });
+                }
+                return;
             }
 
-            bool emitsGeneratedProps = !ds.FunctionParams.IsDefaultOrEmpty;
-
-            peerInfo = new PeerComponentInfo(
-                name,
-                ns,
-                emitsGeneratedProps,
+            // Fallback: a parser path (or the regex-only extractor) set ComponentName
+            // without populating ComponentDeclarations. Preserves the pre-multi behavior.
+            string? name = ds.ComponentName ?? ExtractComponentName(source);
+            if (string.IsNullOrEmpty(name))
+                return;
+            builder.Add(new PeerComponentInfo(
+                name!,
+                ns!,
+                !ds.FunctionParams.IsDefaultOrEmpty,
                 ds.FunctionParams.IsDefault
                     ? ImmutableArray<FunctionParam>.Empty
-                    : ds.FunctionParams
-            );
-            return true;
+                    : ds.FunctionParams)
+            {
+                SourceFilePath = filePath,
+                IsExported = true,
+            });
         }
 
         private static bool TryBuildPeerHookContainerInfo(
@@ -388,16 +443,183 @@ namespace ReactiveUITK.SourceGenerator
         {
             var throwawayDiags = new List<ParseDiagnostic>();
             var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
-            if (ds.HookDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(ds.Namespace))
+            string? hookNs = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
+            if (ds.HookDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(hookNs))
             {
                 hookInfo = default!;
                 return false;
             }
+            var exportedHooks = ImmutableArray.CreateBuilder<string>();
+            foreach (var h in ds.HookDeclarations)
+                if (h.IsExported)
+                    exportedHooks.Add(h.Name);
+
             hookInfo = new PeerHookContainerInfo(
-                ds.Namespace!,
+                hookNs!,
                 Emitter.HookEmitter.DeriveContainerClassName(filePath)
-            );
+            )
+            {
+                SourceFilePath = filePath,
+                ExportedHookNames = exportedHooks.ToImmutable(),
+            };
             return true;
+        }
+
+        /// <summary>
+        /// Appends a <see cref="PeerModuleInfo"/> for every <c>module</c> declared in the file
+        /// (import/export grammar, leg 3, M6b/strict). Module edges had no peer table before.
+        /// </summary>
+        // Regex import scan for the value-cycle graph (import/export grammar §6): cheaper than a full
+        // parse in the pre-scan, and the value-cycle only needs specifier + names.
+        private static readonly Regex s_importScanRe = new Regex(
+            @"^\s*import\s*\{([^}]*)\}\s*from\s*""([^""]+)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        private static List<(string[] Names, string Specifier)> ExtractImportsForCycle(string source)
+        {
+            // Blank comments BEFORE the regex so a commented-out `import { … } from "…"`
+            // never injects a phantom value-cycle edge (→ spurious UITKX2306). String
+            // literals are preserved so the real specifier is still captured — a plain
+            // ScrubNonCode would blank the specifier string and drop real edges instead.
+            source = ScrubCommentsPreservingStrings(source);
+            var result = new List<(string[], string)>();
+            foreach (Match m in s_importScanRe.Matches(source))
+            {
+                string[] names = m.Groups[1].Value.Split(',');
+                for (int i = 0; i < names.Length; i++)
+                    names[i] = names[i].Trim();
+                result.Add((names, m.Groups[2].Value));
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Blanks <c>//</c> and <c>/* */</c> comments while leaving string/char literals
+        /// intact (so <c>//</c> or <c>import</c> inside a <c>"…"</c> is never mistaken for a
+        /// comment or a real import). Length- and line-preserving. Used by the import
+        /// pre-scan, which must ignore commented-out imports but keep real specifier strings.
+        /// </summary>
+        private static string ScrubCommentsPreservingStrings(string source)
+        {
+            var sb = new StringBuilder(source);
+            int i = 0, n = source.Length;
+            while (i < n)
+            {
+                char c = source[i];
+                if (c == '/' && i + 1 < n && source[i + 1] == '/')
+                {
+                    int start = i;
+                    i += 2;
+                    while (i < n && source[i] != '\n') i++;
+                    for (int k = start; k < i && k < sb.Length; k++)
+                        if (!char.IsWhiteSpace(sb[k])) sb[k] = ' ';
+                    continue;
+                }
+                if (c == '/' && i + 1 < n && source[i + 1] == '*')
+                {
+                    int start = i;
+                    int close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = close >= 0 ? close + 2 : n;
+                    for (int k = start; k < i && k < sb.Length; k++)
+                        if (!char.IsWhiteSpace(sb[k])) sb[k] = ' ';
+                    continue;
+                }
+                int before = i;
+                if (CSharpLexFacts.TrySkipStringOrCharLiteral(source, n, ref i) && i > before)
+                    continue; // preserve the literal verbatim
+                i++;
+            }
+            return sb.ToString();
+        }
+
+        private static string NormPath(string? p) => (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
+
+        /// <summary>
+        /// Value-import cycle detection for the build (import/export grammar §6): edges are import
+        /// relationships where the imported name is a HOOK or MODULE (components load lazily and are
+        /// exempt). Returns a map filePath → 2306 chain message for every file that is part of a cycle.
+        /// </summary>
+        private static Dictionary<string, string> BuildValueCycleMap(
+            List<(string File, List<(string[] Names, string Specifier)> Imports)> importsByFile,
+            ImmutableArray<PeerHookContainerInfo> peerHooks,
+            ImmutableArray<PeerModuleInfo> peerModules)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            // (normalized target path + '\0' + name) for every hook/module export = a value symbol.
+            var valueExports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ph in peerHooks)
+                if (!string.IsNullOrEmpty(ph.SourceFilePath))
+                    foreach (var n in ph.ExportedHookNames)
+                        valueExports.Add(NormPath(ph.SourceFilePath) + "\0" + n);
+            foreach (var pm in peerModules)
+                if (pm.IsExported && !string.IsNullOrEmpty(pm.SourceFilePath))
+                    valueExports.Add(NormPath(pm.SourceFilePath) + "\0" + pm.Name);
+
+            if (valueExports.Count == 0)
+                return result;
+
+            var edges = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (file, imports) in importsByFile)
+            {
+                if (imports.Count == 0)
+                    continue;
+                string dir = NormPath(Path.GetDirectoryName(file));
+                string? projRoot = ReactiveUITK.Language.AssetPathUtil.GetProjectRoot(file);
+                string root = projRoot != null
+                    ? NormPath(projRoot + "/" + ReactiveUITK.Language.UitkxConfig.LoadRoot(dir))
+                    : dir;
+
+                foreach (var (names, specifier) in imports)
+                {
+                    string? tgt = ReactiveUITK.Language.ImportResolver.MapSpecifierToPath(dir, specifier, root, out _);
+                    if (tgt == null)
+                        continue;
+                    string tgtN = NormPath(tgt);
+                    string key = NormPath(file);
+                    // A self-import (specifier resolving back to the importer) is harmless —
+                    // the reference stays within the file's own generated container, no
+                    // eager-init/TDZ hazard — but a self-edge makes FindCycle report [A,A].
+                    // Skip it so it never produces a spurious UITKX2306.
+                    if (string.Equals(tgtN, key, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    bool isValue = false;
+                    foreach (var n in names)
+                        if (valueExports.Contains(tgtN + "\0" + n)) { isValue = true; break; }
+                    if (!isValue)
+                        continue;
+                    if (!edges.TryGetValue(key, out var list))
+                        edges[key] = list = new List<string>();
+                    ((List<string>)list).Add(tgtN);
+                }
+            }
+
+            var cycle = ReactiveUITK.Language.UitkxImportGraph.FindCycle(edges);
+            if (cycle != null)
+            {
+                var names = new List<string>(cycle.Count);
+                foreach (var c in cycle)
+                    names.Add(Path.GetFileName(c));
+                string msg = $"value-import cycle: {string.Join(" -> ", names)} (hooks/modules load eagerly — break the chain or move to component refs)";
+                foreach (var c in cycle)
+                    result[NormPath(c)] = msg;
+            }
+            return result;
+        }
+
+        private static void CollectPeerModuleInfos(
+            string source, string filePath, ImmutableArray<PeerModuleInfo>.Builder builder)
+        {
+            var throwawayDiags = new List<ParseDiagnostic>();
+            var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
+            if (ds.ModuleDeclarations.IsDefaultOrEmpty)
+                return;
+            string? ns = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
+            if (string.IsNullOrEmpty(ns))
+                return;
+            foreach (var m in ds.ModuleDeclarations)
+                builder.Add(new PeerModuleInfo(m.Name, ns!, m.IsExported) { SourceFilePath = filePath });
         }
     }
 }

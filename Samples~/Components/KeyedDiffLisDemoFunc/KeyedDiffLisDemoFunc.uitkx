@@ -3,7 +3,7 @@
 @using System.Collections.Generic
 @using UnityEngine
 
-component KeyedDiffLisDemoFunc {
+export component KeyedDiffLisDemoFunc {
   var seedItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf" };
   var rng = useMemo(() => new System.Random(), Array.Empty<object>());
 

@@ -7,6 +7,9 @@
   ],
   "patterns": [
     {
+      "include": "#import-declaration"
+    },
+    {
       "include": "#function-style-declaration"
     },
     {
@@ -63,6 +66,19 @@
     }
   ],
   "repository": {
+    "import-declaration": {
+      "comment": "Handles import lines: import { A, B } from \"./specifier\" (import/export grammar, leg 3)",
+      "name": "meta.import.uitkx",
+      "match": "^(\\s*)(import)\\s*(\\{)([^}]*)(\\})\\s*(from)\\s*(\"[^\"]*\")",
+      "captures": {
+        "2": { "name": "keyword.control.import.uitkx" },
+        "3": { "name": "punctuation.definition.block.begin.uitkx" },
+        "4": { "patterns": [ { "include": "#expression-content" } ] },
+        "5": { "name": "punctuation.definition.block.end.uitkx" },
+        "6": { "name": "keyword.control.import.uitkx" },
+        "7": { "name": "string.quoted.double.uitkx" }
+      }
+    },
     "comment": {
       "name": "comment.block.uitkx",
       "begin": "<!--",
@@ -113,7 +129,7 @@
     "function-style-declaration": {
       "comment": "Handles function-style component declarations: component Name { or component Name(params) {",
       "name": "meta.component.function-style.uitkx",
-      "match": "^(\\s*)(component)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\([^)]*\\))?(\\s*\\{)?\\s*$",
+      "match": "^(\\s*)(?:export\\s+)?(component)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\([^)]*\\))?(\\s*\\{)?\\s*$",
       "captures": {
         "2": {
           "name": "keyword.other.directive.uitkx"
@@ -134,7 +150,7 @@
     "hook-declaration": {
       "comment": "Handles hook declarations: hook useName<T>(params) -> ReturnType {",
       "name": "meta.hook.uitkx",
-      "match": "^(\\s*)(hook)\\s+([A-Za-z_][A-Za-z0-9_]*)(<[^>]+>)?\\s*(\\([^)]*\\))\\s*(?:(->)\\s*([^{]+?))?\\s*(\\{)?\\s*$",
+      "match": "^(\\s*)(?:export\\s+)?(hook)\\s+([A-Za-z_][A-Za-z0-9_]*)(<[^>]+>)?\\s*(\\([^)]*\\))\\s*(?:(->)\\s*([^{]+?))?\\s*(\\{)?\\s*$",
       "captures": {
         "2": {
           "name": "keyword.other.hook.uitkx"
@@ -168,7 +184,7 @@
     "module-declaration": {
       "comment": "Handles module declarations: module Name {",
       "name": "meta.module.uitkx",
-      "match": "^(\\s*)(module)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\{)?\\s*$",
+      "match": "^(\\s*)(?:export\\s+)?(module)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\{)?\\s*$",
       "captures": {
         "2": {
           "name": "keyword.other.module.uitkx"

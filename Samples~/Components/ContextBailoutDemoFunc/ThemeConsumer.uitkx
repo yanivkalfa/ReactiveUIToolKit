@@ -1,6 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 
-component ThemeConsumer {
+export component ThemeConsumer {
   var renderCountRef = useRef<int>(0);
   renderCountRef.Current++;
   var renderCount = renderCountRef.Current;

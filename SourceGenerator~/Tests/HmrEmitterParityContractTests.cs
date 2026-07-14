@@ -1099,4 +1099,107 @@ public class HmrEmitterParityContractTests
         Assert.Contains(": (global::ReactiveUITK.Core.VirtualNode?)null)", output.GeneratedSource);
         Assert.DoesNotContain("isOn && global::ReactiveUITK.Core.V.", output.GeneratedSource);
     }
+
+    // ── §7 path-qualified hook family keys (SG↔HMR parity) ──────────────────
+
+    /// <summary>
+    /// §7: the hook producer registers under a PATH-QUALIFIED family key
+    /// <c>{EffectiveNs}.{Container}::{HookName}</c> (the convention the runtime documents).
+    /// HMR's <c>HmrHookEmitter</c> mirrors this, and both worlds qualify CONSUMER keys
+    /// (<c>customHookFamilyKeys</c>) through a per-file map built from the SHARED language-lib
+    /// functions (<c>EffectiveNamespace.Resolve</c>/<c>UiSourceRootDir</c>,
+    /// <c>ImportResolver.MapSpecifierToPath</c>) so producer ids and consumer keys are
+    /// byte-identical. The runtime matches them by ordinal string equality — if the SG format
+    /// changes here, the HMR mirror (<c>HmrHookEmitter</c> + <c>UitkxHmrCompiler.BuildHookFamilyKeyMap</c>)
+    /// must change in lockstep or hot-swap silently breaks.
+    /// </summary>
+    [Fact]
+    public void Sg_HookRegistration_UsesPathQualifiedFamilyKey_HmrMustMirror()
+    {
+        var output = GeneratorTestHelper.Run(
+            "@namespace ReactiveUITK.HmrParity\nhook useThing() {\n  return 0;\n}");
+
+        Assert.NotNull(output.GeneratedSource);
+        Assert.Contains("RegisterHook(\"ReactiveUITK.HmrParity.", output.GeneratedSource);
+        Assert.Contains("::useThing\"", output.GeneratedSource);
+        // The bare-name key must NOT be emitted.
+        Assert.DoesNotContain("RegisterHook(\"useThing\"", output.GeneratedSource);
+    }
+
+    // ── §6 export accessibility + §7 multi-component (GATE-3) ───────────────────
+
+    /// <summary>
+    /// §6: an <c>export</c>ed function-component emits <c>public partial class</c>;
+    /// a non-exported one emits <c>internal partial class</c>. The SG is the ground
+    /// truth for the SHIPPED accessibility. HMR deliberately DIVERGES — it always
+    /// emits <c>public</c> (see the notes at <c>HmrCSharpEmitter</c> ~L325 and
+    /// <c>HmrHookEmitter</c> ~L282): HMR compiles each changed file into an isolated
+    /// assembly and swaps by delegate/family-key, never by type identity, so a wider
+    /// access modifier there is a benign superset and can never cause CS0262 against
+    /// the SG partial. This test pins the SG side so any regression (e.g. dropping the
+    /// modifier distinction) trips here and prompts a review of that documented
+    /// divergence.
+    /// </summary>
+    [Fact]
+    public void Sg_ExportAccessibility_PublicWhenExported_InternalOtherwise()
+    {
+        var exported = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            export component Widget {
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(exported.GeneratedSource);
+        Assert.Contains("public partial class Widget", exported.GeneratedSource);
+
+        var internalComp = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component Widget {
+                return (<Box />);
+            }
+            """
+        );
+        Assert.NotNull(internalComp.GeneratedSource);
+        Assert.Contains("internal partial class Widget", internalComp.GeneratedSource);
+    }
+
+    /// <summary>
+    /// §7: a file declaring more than one <c>component</c> emits one
+    /// <c>partial class</c> per declaration (SynthesizePerComponent projects the
+    /// DirectiveSet to each component in turn). HMR's per-file recompile must reach
+    /// every declared component too — this pins the SG shape as the contract.
+    /// </summary>
+    [Fact]
+    public void Sg_MultiComponentFile_EmitsOnePartialPerComponent()
+    {
+        var output = GeneratorTestHelper.Run(
+            """
+            @namespace ReactiveUITK.HmrParity
+
+            component First {
+                return (<Box />);
+            }
+            component Second {
+                return (<Label text="x" />);
+            }
+            """
+        );
+
+        Assert.NotNull(output.GeneratedSource);
+        // First is the primary unit; Second is emitted as its own compilation unit
+        // (ExtraSources) that merges as a partial across CUs — NOT concatenated
+        // (concatenation would place Second's usings after First's namespace → CS1529).
+        Assert.Contains("partial class First", output.GeneratedSource);
+        Assert.Contains(output.AllSources, s => s.Text.Contains("partial class Second"));
+        // Both bodies emitted — not one collapsed away.
+        Assert.Contains(output.AllSources, s => s.Text.Contains("V.Box("));
+        Assert.Contains(output.AllSources, s => s.Text.Contains("V.Label("));
+        // Every unit is syntactically valid.
+        Assert.Empty(output.SyntaxErrors());
+    }
 }

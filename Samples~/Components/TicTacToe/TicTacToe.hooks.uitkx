@@ -1,7 +1,7 @@
 @namespace Samples.TicTacToe
 @using UnityEngine.UIElements
 
-hook useTestHomeState() -> (
+export hook useTestHomeState() -> (
   bool gameStarted,
   string playerTurn,
   string[,] grid,

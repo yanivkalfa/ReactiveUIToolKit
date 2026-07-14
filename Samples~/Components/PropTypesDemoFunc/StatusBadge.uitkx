@@ -1,7 +1,10 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component StatusBadge(string? label = null, Color statusColor = default) {
+export component StatusBadge(
+  string? label = null,
+  Color statusColor = default
+) {
   var displayLabel = label ?? "<missing>";
 
   var badgeStyle = new Style {

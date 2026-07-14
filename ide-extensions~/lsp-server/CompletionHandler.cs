@@ -6,9 +6,11 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using ReactiveUITK.Language;
 using ReactiveUITK.Language.IntelliSense;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
+using System.Text.RegularExpressions;
 using UitkxLanguageServer.Roslyn;
 
 namespace UitkxLanguageServer;
@@ -101,6 +103,33 @@ public sealed class CompletionHandler : ICompletionHandler
 
         int line1 = (int)request.Position.Line + 1;
         int col0 = (int)request.Position.Character;
+
+        // ── Inside `import { … } from "…"` → the target file's exported names ──
+        // (import/export grammar, leg 3). Handled before the AST-cursor switch because a
+        // half-typed import may not parse into DirectiveSet.Imports yet.
+        {
+            string importLine = GetLine(text, line1);
+            var importNames = GetImportBraceCompletions(localPath, importLine, col0);
+            if (importNames.Count > 0)
+                return new CompletionList(importNames.Select(n => new CompletionItem
+                {
+                    Label = n,
+                    Kind = CompletionItemKind.Value,
+                    InsertText = n,
+                    Detail = "exported by the import target",
+                }));
+
+            var specifiers = GetSpecifierCompletions(localPath, importLine, col0);
+            if (specifiers.Count > 0)
+                return new CompletionList(specifiers.Select(s => new CompletionItem
+                {
+                    Label = s,
+                    Kind = CompletionItemKind.File,
+                    InsertText = s,
+                    Detail = "import specifier",
+                }));
+        }
+
         var ctx = AstCursorContext.Find(parseResult, text, line1, col0);
         int offset = ToOffset(text, request.Position);
         string? triggerChar = request.Context?.TriggerCharacter;
@@ -1493,5 +1522,109 @@ public sealed class CompletionHandler : ICompletionHandler
         catch { /* permission errors */ }
 
         return items;
+    }
+
+    /// <summary>1-based line text (without its terminator) from <paramref name="text"/>, or empty.</summary>
+    private static string GetLine(string text, int oneBasedLine)
+    {
+        if (oneBasedLine < 1) return string.Empty;
+        int start = 0;
+        for (int ln = 1; ln < oneBasedLine; ln++)
+        {
+            int nl = text.IndexOf('\n', start);
+            if (nl < 0) return string.Empty;
+            start = nl + 1;
+        }
+        int end = text.IndexOf('\n', start);
+        string line = end < 0 ? text.Substring(start) : text.Substring(start, end - start);
+        return line.TrimEnd('\r');
+    }
+
+    /// <summary>
+    /// Completion inside an <c>import {{ … }} from "spec"</c> binding list (import/export grammar,
+    /// leg 3): the exported names of the resolved target file, minus those already listed. Pure and
+    /// filesystem-only, so it is directly unit-testable. Returns empty when the cursor is not inside
+    /// an import brace list or the specifier is missing/unresolvable.
+    /// </summary>
+    public static IReadOnlyList<string> GetImportBraceCompletions(string importerPath, string lineText, int col0)
+    {
+        var empty = System.Array.Empty<string>();
+        int braceOpen = lineText.IndexOf('{');
+        if (braceOpen < 0) return empty;
+        if (!Regex.IsMatch(lineText.Substring(0, braceOpen), @"^\s*import\s*$")) return empty;
+
+        int braceClose = lineText.IndexOf('}', braceOpen);
+        int regionEnd = braceClose < 0 ? lineText.Length : braceClose;
+        if (col0 <= braceOpen || col0 > regionEnd) return empty;
+
+        var spec = Regex.Match(lineText, "from\\s*\"([^\"]*)\"");
+        if (!spec.Success) return empty;
+
+        string importerDir = (Path.GetDirectoryName(importerPath) ?? string.Empty).Replace('\\', '/');
+        string? projectRoot = AssetPathUtil.GetProjectRoot(importerPath);
+        string rootDir = projectRoot != null ? projectRoot + "/" + UitkxConfig.LoadRoot(importerDir) : importerDir;
+        string? target = ImportResolver.MapSpecifierToPath(importerDir, spec.Groups[1].Value, rootDir, out _);
+        if (target is null || !File.Exists(target)) return empty;
+
+        var diags = new List<ReactiveUITK.Language.ParseDiagnostic>();
+        var ds = DirectiveParser.Parse(File.ReadAllText(target), target, diags);
+
+        var already = new HashSet<string>(
+            lineText.Substring(braceOpen + 1, regionEnd - braceOpen - 1).Split(',').Select(s => s.Trim()),
+            StringComparer.Ordinal);
+
+        var names = new List<string>();
+        void Add(string n, bool exported) { if (exported && !already.Contains(n) && !names.Contains(n)) names.Add(n); }
+        if (!ds.ComponentDeclarations.IsDefaultOrEmpty)
+            foreach (var c in ds.ComponentDeclarations) Add(c.Name, c.IsExported);
+        if (!ds.HookDeclarations.IsDefaultOrEmpty)
+            foreach (var h in ds.HookDeclarations) Add(h.Name, h.IsExported);
+        if (!ds.ModuleDeclarations.IsDefaultOrEmpty)
+            foreach (var m in ds.ModuleDeclarations) Add(m.Name, m.IsExported);
+        return names;
+    }
+
+    /// <summary>
+    /// Path completion inside an import <c>from "…"</c> specifier string (import/export grammar, leg
+    /// 3): <c>./</c>-relative, extensionless specifiers to peer <c>.uitkx</c> files under the
+    /// importer's directory tree (the common case; <c>../</c> / <c>~/</c> are typed by hand). Pure +
+    /// filesystem-only, so it is directly unit-testable. Empty when the cursor is not inside the
+    /// specifier quotes of an import line.
+    /// </summary>
+    public static IReadOnlyList<string> GetSpecifierCompletions(string importerPath, string lineText, int col0)
+    {
+        var empty = System.Array.Empty<string>();
+        if (!Regex.IsMatch(lineText, @"^\s*import\b")) return empty;
+
+        var m = Regex.Match(lineText, "from\\s*\"");
+        if (!m.Success) return empty;
+        int quoteStart = m.Index + m.Length;
+        int quoteEnd = lineText.IndexOf('"', quoteStart);
+        int end = quoteEnd < 0 ? lineText.Length : quoteEnd;
+        if (col0 < quoteStart || col0 > end) return empty;
+
+        string importerDir = Path.GetDirectoryName(importerPath) ?? string.Empty;
+        if (!Directory.Exists(importerDir)) return empty;
+
+        var results = new List<string>();
+        try
+        {
+            string selfFull = Path.GetFullPath(importerPath);
+            foreach (var f in Directory.EnumerateFiles(importerDir, "*.uitkx", SearchOption.AllDirectories))
+            {
+                if (string.Equals(Path.GetFullPath(f), selfFull, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                string rel = Path.GetRelativePath(importerDir, f).Replace('\\', '/');
+                if (rel.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                    rel = rel.Substring(0, rel.Length - ".uitkx".Length);
+                if (!rel.StartsWith("../", StringComparison.Ordinal))
+                    rel = "./" + rel;
+                results.Add(rel);
+            }
+        }
+        catch { /* permission / IO — best effort */ }
+
+        results.Sort(StringComparer.Ordinal);
+        return results;
     }
 }

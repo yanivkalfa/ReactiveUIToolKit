@@ -52,13 +52,16 @@ public sealed class DiagnosticsAnalyzerTests
         Assert.False(HasDiag(diags, DiagnosticCodes.MissingComponent));
     }
 
-    // ── UITKX0103: Filename mismatch ───────────────────────────────────────
+    // ── UITKX0103: filename mismatch is NO LONGER enforced ─────────────────
+    // Under the import/export model a file may declare several components in any
+    // order, so a filename-match rule is meaningless. Matching the filename is now
+    // a documentation convention, not a code-enforced diagnostic.
 
     [Fact]
-    public void UITKX0103_FilenameMismatch()
+    public void UITKX0103_FilenameMismatch_NotFlagged()
     {
         var diags = Analyze("component WrongName {\n  return (\n    <Label/>\n  );\n}", path: "Correct.uitkx");
-        Assert.True(HasDiag(diags, DiagnosticCodes.FilenameMismatch));
+        Assert.False(HasDiag(diags, DiagnosticCodes.FilenameMismatch));
     }
 
     [Fact]

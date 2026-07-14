@@ -2,7 +2,7 @@
 @using ReactiveUITK.Router
 @using UnityEngine
 
-component MainMenuSidebar {
+export component MainMenuSidebar {
   var navigate = RouterHooks.UseNavigate();
 
   var sidebarStyle = new Style {

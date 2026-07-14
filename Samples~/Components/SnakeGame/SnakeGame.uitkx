@@ -1,7 +1,10 @@
+import { GameScreen } from "./components/GameScreen/GameScreen"
+import { Menu } from "./components/Menu/Menu"
+import { WelcomeScreen } from "./components/WelcomeScreen/WelcomeScreen"
 @namespace Samples.SnakeGame
 @using ReactiveUITK.Router
 
-component SnakeGame {
+export component SnakeGame {
   var (restartVersion, setRestartVersion) = useState(0);
 
   return (

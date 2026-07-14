@@ -1,6 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 
-component UnstableChild(bool shouldThrow = false) {
+export component UnstableChild(bool shouldThrow = false) {
   if (shouldThrow) {
     throw new System.InvalidOperationException("Simulated child exception.");
   }

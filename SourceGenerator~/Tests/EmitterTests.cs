@@ -56,6 +56,268 @@ public class EmitterTests
         Assert.True(result.SourceContains("V.Label("), "Expected V.Label call inside box");
     }
 
+    // ── Mixed-decl emit (§7) ──────────────────────────────────────────────────
+
+    [Fact]
+    public void MultiComponent_BothPartialClassesEmitted()
+    {
+        var src = "component First {\n  return (<Box />);\n}\ncomponent Second {\n  return (<Label text=\"x\" />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        // First is the primary source; Second lands in an ExtraSources unit.
+        Assert.True(result.SourceContains("class First"), "Expected the First partial class");
+        Assert.Contains(result.AllSources, s => s.Text.Contains("class Second"));
+        // Every emitted unit must be syntactically valid C# — the concatenated
+        // path produced CS1529 (misplaced using after a namespace); the
+        // per-section AddSource path must not.
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void MixedComponentAndHook_BothEmitted()
+    {
+        var src = "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\nhook useLocal() {\n  return 0;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("class Screen"), "Expected the Screen component partial");
+        Assert.Contains(result.AllSources, s => s.Text.Contains("useLocal"));
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void DuplicateComponentName_InSameFile_RaisesUitkx0113_AndStaysValid()
+    {
+        // Two `component Foo` in one file would emit duplicate partial classes/members
+        // (CS0111/CS0101). UITKX0113 flags it and the duplicate is skipped so the
+        // surviving output is still syntactically valid.
+        var src = "component Foo {\n  return (<Box />);\n}\ncomponent Foo {\n  return (<Label text=\"x\" />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "UITKX0113");
+        Assert.Empty(result.SyntaxErrors());
+        // The Location.None diagnostic is re-surfaced as a #warning so Unity shows it
+        // (Unity silently drops Location.None diagnostics on a .uitkx).
+        Assert.Contains(result.AllSources, s => s.Text.Contains("#warning UITKX0113"));
+    }
+
+    [Fact]
+    public void MultiComponent_SiblingReference_NoFalseUnknownComponentWarning()
+    {
+        // Card references its same-file sibling CardList. Both must be registered as
+        // peers, else CardList resolves as unknown → false UITKX0008.
+        var src = "component CardList {\n  return (<Label text=\"x\" />);\n}\ncomponent Card {\n  return (<CardList />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0008");
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void ComponentNamedLikeSectionLabel_NoAddSourceHintCollision()
+    {
+        // A component named "Inlinehooks" (PascalCase — lowercase is rejected by UITKX2100)
+        // would, without index-prefixed hints, collide CASE-INSENSITIVELY with the
+        // inline-hooks section's "inlinehooks" hint (a duplicate hint throws during
+        // generation). Index-prefixed labels ("c2_Inlinehooks") keep them disjoint.
+        var src = "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\n"
+            + "hook useLocal() {\n  return 0;\n}\n"
+            + "component Inlinehooks {\n  return (<Label text=\"x\" />);\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.Empty(result.SyntaxErrors());
+        Assert.Contains(result.AllSources, s => s.Text.Contains("partial class Inlinehooks"));
+    }
+
+    [Fact]
+    public void HookAndModuleOnlyFile_EmitsSeparateValidUnits()
+    {
+        // A file with a hook AND a module but NO component takes the short-circuit
+        // path, which used to concatenate the two units → CS1529. Each must now be
+        // its own valid compilation unit.
+        var src = "hook useThing() {\n  return 1;\n}\nmodule Helpers {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        var syntaxErrors = result.SyntaxErrors();
+        Assert.True(syntaxErrors.IsEmpty,
+            "Hook+module file must emit valid units; got: "
+                + string.Join("; ", syntaxErrors.Select(d => d.ToString())));
+        Assert.Contains(result.AllSources, s => s.Text.Contains("useThing"));
+        Assert.Contains(result.AllSources, s => s.Text.Contains("Gap = 4"));
+    }
+
+    [Fact]
+    public void MixedComponentHookAndModule_AllUnitsAreSyntacticallyValid()
+    {
+        // Regression for the CS1529 concat bug: a component + hook + module in one
+        // file previously emitted a single concatenated unit whose 2nd/3rd
+        // sections' `using` directives followed a namespace. Now each section is
+        // its own compilation unit; all must parse clean.
+        var src =
+            "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\n"
+            + "hook useLocal() {\n  return 0;\n}\n"
+            + "module Helpers {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        var syntaxErrors = result.SyntaxErrors();
+        Assert.True(syntaxErrors.IsEmpty,
+            "Mixed-decl emit must be syntactically valid; got: "
+                + string.Join("; ", syntaxErrors.Select(d => d.ToString())));
+        // Three distinct units: component (primary) + inline hooks + inline modules.
+        Assert.True(result.AllSources.Length >= 3, "Expected component + hooks + modules units");
+    }
+
+    // ── Accessibility (§6): export → public, else internal ────────────────────
+
+    [Fact]
+    public void ExportedComponent_IsPublic()
+    {
+        var result = GeneratorTestHelper.Run("export component Foo {\n  return (<Box />);\n}");
+        Assert.True(result.SourceContains("public partial class Foo"), "Expected public for exported component");
+    }
+
+    [Fact]
+    public void NonExportedComponent_IsInternal()
+    {
+        var result = GeneratorTestHelper.Run("component Foo {\n  return (<Box />);\n}");
+        Assert.True(result.SourceContains("internal partial class Foo"), "Expected internal for non-exported component");
+    }
+
+    [Fact]
+    public void ExportedModule_IsPublic()
+    {
+        var result = GeneratorTestHelper.Run("export module Styles {\n  public const int Gap = 4;\n}");
+        Assert.True(result.SourceContains("public partial class Styles"), "Expected public for exported module");
+    }
+
+    [Fact]
+    public void NonExportedModule_IsInternal()
+    {
+        var result = GeneratorTestHelper.Run("module Styles {\n  public const int Gap = 4;\n}");
+        Assert.True(result.SourceContains("internal partial class Styles"), "Expected internal for non-exported module");
+    }
+
+    [Fact]
+    public void ModuleMergingComponent_EmitsNoAccessModifier()
+    {
+        // A module whose name matches a component in the same file MERGES into that
+        // component's partial. The component partial is the accessibility authority;
+        // the module part must emit NO modifier, else the two parts would disagree
+        // (CS0262). Component is exported here → `public partial class Foo`; the
+        // module part must be a bare `    partial class Foo` (4-space indent, no
+        // `public`/`internal` prefix — which the component's `    public partial …`
+        // can never match).
+        var src = "export component Foo {\n  return (<Box />);\n}\nexport module Foo {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        // Component partial (primary unit) carries the public modifier.
+        Assert.True(result.SourceContains("public partial class Foo"), "Component partial should carry the public modifier");
+        // Module part is a separate compilation unit (ExtraSources) that merges as a
+        // partial. It must emit NO access modifier (4-space indent, bare `partial`),
+        // else the two parts would conflict (CS0262). Search across all units.
+        var moduleUnit = result.AllSources.Single(s => s.Text.Contains("Gap = 4"));
+        Assert.Contains("    partial class Foo", moduleUnit.Text);
+        Assert.DoesNotContain("internal partial class Foo", moduleUnit.Text);
+        Assert.DoesNotContain("public partial class Foo", moduleUnit.Text);
+        // All emitted units are syntactically valid.
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void ExportMismatch_ComponentVsMergingModule_RaisesUitkx2311()
+    {
+        // component is exported, the same-named merging module is NOT → the parts
+        // disagree on exportedness, which would flip the merged type's accessibility
+        // depending on emit order. UITKX2311 flags the ambiguity at compile time.
+        var src = "export component Foo {\n  return (<Box />);\n}\nmodule Foo {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "UITKX2311");
+    }
+
+    [Fact]
+    public void HookFamilyKey_ImportedHook_ProducerAndConsumerAgreeOnQualifiedKey()
+    {
+        // §7: the hook file (producer) registers under a PATH-QUALIFIED family key, and a
+        // component that imports+calls the hook (consumer) must emit the BYTE-IDENTICAL key
+        // in its customHookFamilyKeys — the runtime matches them by ordinal string equality.
+        var files = new[]
+        {
+            ("Counter.hooks.uitkx", "export hook useCounter() {\n  return 0;\n}"),
+            ("Screen.uitkx",
+                "import { useCounter } from \"./Counter.hooks\"\n"
+                + "export component Screen {\n  var c = useCounter();\n  return (<Box />);\n}"),
+        };
+        var result = GeneratorTestHelper.RunMultiple(files, primaryFileName: "Screen.uitkx");
+
+        // No asmdef/project-root in the test temp dir → both files fall back to the default
+        // namespace; container = DeriveContainerClassName("Counter.hooks") = "CounterHooks".
+        const string expectedKey = "ReactiveUITK.FunctionStyle.CounterHooks::useCounter";
+
+        var hookUnit = result.AllSources.Single(s => s.Text.Contains("RegisterHook("));
+        Assert.Contains($"RegisterHook(\"{expectedKey}\"", hookUnit.Text);
+
+        var compUnit = result.AllSources.Single(s => s.Text.Contains("class Screen"));
+        Assert.Contains(expectedKey, compUnit.Text);
+        // And the bare name must NOT leak as a standalone key on either side.
+        Assert.DoesNotContain("RegisterHook(\"useCounter\"", hookUnit.Text);
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void HookFamilyKey_SameFileHook_QualifiedWithOwnContainer()
+    {
+        // A component and the hook it calls in the SAME file (mixed-decl): the consumer key
+        // must qualify against the file's own namespace + container, matching the producer.
+        var src =
+            "component Screen {\n  var c = useLocal();\n  return (<Box />);\n}\n"
+            + "hook useLocal() {\n  return 0;\n}";
+        var result = GeneratorTestHelper.Run(src, fileName: "Panel.uitkx");
+
+        const string expectedKey = "ReactiveUITK.FunctionStyle.PanelHooks::useLocal";
+        Assert.Contains(result.AllSources, s => s.Text.Contains($"RegisterHook(\"{expectedKey}\""));
+        Assert.Contains(result.AllSources, s => s.Text.Contains("class Screen") && s.Text.Contains(expectedKey));
+        Assert.Empty(result.SyntaxErrors());
+    }
+
+    [Fact]
+    public void CrossFileCompanionModule_DefersAccessibilityToComponent_NoCS0262Modifier()
+    {
+        // The common companion pattern: a component in one file + a same-named module in a
+        // SIBLING file (same effective namespace) become partials of ONE type. A non-exported
+        // component (internal) + an exported module (public) would be conflicting explicit
+        // modifiers → CS0262. The module must defer to the component (emit no modifier).
+        var files = new[]
+        {
+            ("SettingsPage.uitkx", "component SettingsPage {\n  return (<Box />);\n}"),
+            ("SettingsPageStyle.uitkx", "export module SettingsPage {\n  public const int Gap = 4;\n}"),
+        };
+        var result = GeneratorTestHelper.RunMultiple(files, primaryFileName: "SettingsPageStyle.uitkx");
+
+        var moduleUnit = result.AllSources.Single(s => s.Text.Contains("Gap = 4"));
+        // Module part emits NO access modifier (component is the authority) — not the
+        // `public` its own `export` would otherwise give, which would clash with the
+        // component's `internal`.
+        Assert.Contains("    partial class SettingsPage", moduleUnit.Text);
+        Assert.DoesNotContain("public partial class SettingsPage", moduleUnit.Text);
+        Assert.DoesNotContain("internal partial class SettingsPage", moduleUnit.Text);
+    }
+
+    [Fact]
+    public void ExportMatch_ComponentAndMergingModule_NoUitkx2311()
+    {
+        // Both exported → no mismatch. Pins 2311 to the disagreement case alone.
+        var src = "export component Foo {\n  return (<Box />);\n}\nexport module Foo {\n  public const int Gap = 4;\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX2311");
+    }
+
     // ── Namespace / class structure ──────────────────────────────────────────
 
     [Fact]

@@ -1,7 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component SyntheticEventDemoFunc {
+export component SyntheticEventDemoFunc {
   var (log, setLog) = useState("Click, drag, or scroll inside the panel to inspect normalized synthetic events.");
 
   void UpdateLog(string label, ReactiveEvent evt)

@@ -1,7 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component SectionHeading(string label) {
+export component SectionHeading(string label) {
   return (
     <Label
       text={label}

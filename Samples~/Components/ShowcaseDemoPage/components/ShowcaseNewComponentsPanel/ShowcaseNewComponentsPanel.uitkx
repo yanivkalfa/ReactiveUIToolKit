@@ -4,7 +4,7 @@
 @using ReactiveUITK.Core
 @using UnityEngine
 
-component ShowcaseNewComponentsPanel(
+export component ShowcaseNewComponentsPanel(
   bool foldoutOpen = true,
   ChangeEventHandler<bool>? onFoldoutChange = null,
   float sliderValue = 0.5f,

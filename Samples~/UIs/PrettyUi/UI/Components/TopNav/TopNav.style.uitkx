@@ -1,8 +1,9 @@
+import { Theme } from "../../Theme"
 @namespace PrettyUi.App.Components
 @using PrettyUi.App
 @using UnityEngine
 
-module TopNav {
+export module TopNav {
   public static readonly Style Bar = new Style {
     Height = Px(Theme.NavHeight),
     FlexDirection = FlexRow,

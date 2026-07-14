@@ -3,7 +3,7 @@
 @using System.Collections.Generic
 @using UnityEngine
 
-component HookStateQueueDemoFunc {
+export component HookStateQueueDemoFunc {
   var (value, setValue) = useState(0);
   var (flushCount, setFlushCount) = useState(0);
   var (logEntries, setLogEntries) = useState(new List<string> { "Click a button to queue multiple state updates." });

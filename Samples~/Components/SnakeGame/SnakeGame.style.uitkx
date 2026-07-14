@@ -1,7 +1,7 @@
 @namespace Samples.SnakeGame
 @using UnityEngine
 
-module SnakeGame {
+export module SnakeGame {
   public static class Styles
   {
     public static readonly Style Root = new Style

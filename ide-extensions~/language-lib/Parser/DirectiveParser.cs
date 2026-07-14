@@ -24,11 +24,12 @@ namespace ReactiveUITK.Language.Parser
     /// </summary>
     public static class DirectiveParser
     {
+        // The default namespace for a function-style .uitkx file that has no @namespace.
+        // Under StrictImports the pipeline OVERRIDES this with the path-derived namespace
+        // (see UitkxPipeline.ResolveEffectiveNamespace); it survives only as the flag-off /
+        // no-project-root fallback. The generator no longer reads a companion .cs to infer the
+        // namespace — a target's identity must never flip on a .cs edit (plan §4).
         private const string FunctionStyleDefaultNamespace = "ReactiveUITK.FunctionStyle";
-        private static readonly Regex s_namespaceRegex = new Regex(
-            @"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_\.]*)",
-            RegexOptions.Multiline | RegexOptions.CultureInvariant
-        );
 
         private static readonly HashSet<string> s_topLevelKeywords = new HashSet<string>(
             StringComparer.Ordinal
@@ -87,7 +88,7 @@ namespace ReactiveUITK.Language.Parser
                 });
 
                 return new DirectiveSet(
-                    Namespace: InferFunctionStyleNamespace(filePath),
+                    Namespace: FunctionStyleDefaultNamespace,
                     ComponentName: fallbackComponent,
                     PropsTypeName: null,
                     DefaultKey: null,
@@ -115,7 +116,7 @@ namespace ReactiveUITK.Language.Parser
             });
 
             return new DirectiveSet(
-                Namespace: InferFunctionStyleNamespace(filePath),
+                Namespace: FunctionStyleDefaultNamespace,
                 ComponentName: fallbackName,
                 PropsTypeName: null,
                 DefaultKey: null,
@@ -157,6 +158,7 @@ namespace ReactiveUITK.Language.Parser
             // in any order.
             var usings = new List<string>();
             var ussFiles = new List<string>();
+            var imports = new List<ImportDeclaration>();
             string? inlineNamespace = null;
             bool parsedPreambleLine;
             do
@@ -196,20 +198,47 @@ namespace ReactiveUITK.Language.Parser
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
                 }
+                if (TryReadFunctionStyleImport(source, ref i, ref line, imports))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
+                    parsedPreambleLine = true;
+                }
             } while (parsedPreambleLine);
 
-            // ── Keyword dispatch: component / hook / module ─────────────────
-            if (TryReadKeywordAt(source, i, "hook") || TryReadKeywordAt(source, i, "module"))
+            // Import/export grammar (leg 3): a name imported twice anywhere in the file → UITKX2303
+            // (scan-side family diagnostic, per the frozen emit split).
+            ReportDuplicateImports(imports, diagnosticBag);
+
+            // ── Keyword dispatch: [export] component / hook / module ─────────
+            // Peek past an optional leading `export ` to decide the declaration kind. Hook/module
+            // files consume the per-declaration `export` inside their own loop; the component path
+            // consumes it here.
+            int dispatchPeek = i;
+            if (TryReadKeyword(source, ref dispatchPeek, "export"))
+                SkipSpaces(source, ref dispatchPeek);
+
+            if (TryReadKeywordAt(source, dispatchPeek, "hook") || TryReadKeywordAt(source, dispatchPeek, "module"))
             {
                 bool hookModuleOk = TryParseHookModuleFile(
                     source, filePath, diagnosticBag, ref directiveSet,
                     ref i, ref line,
                     usings, ussFiles, inlineNamespace
                 );
-                directiveSet = directiveSet with { LeadingTrivia = leadingTrivia.ToImmutableArray() };
+                directiveSet = directiveSet with
+                {
+                    LeadingTrivia = leadingTrivia.ToImmutableArray(),
+                    Imports = imports.ToImmutableArray(),
+                };
                 return hookModuleOk;
             }
 
+            bool componentExported = false;
+            if (dispatchPeek != i && TryReadKeywordAt(source, dispatchPeek, "component"))
+            {
+                // A leading `export` applies to this component; consume up to `component`.
+                componentExported = true;
+                i = dispatchPeek;
+            }
             if (!TryReadKeyword(source, ref i, "component"))
                 return false;
 
@@ -240,7 +269,7 @@ namespace ReactiveUITK.Language.Parser
                 });
             }
 
-            string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
+            string functionNamespace = inlineNamespace ?? FunctionStyleDefaultNamespace;
             int componentNameCol = ColAtPos(source, nameStartI);
 
             // ── Optional typed-props parameter list ───────────────────────────
@@ -453,33 +482,463 @@ namespace ReactiveUITK.Language.Parser
                 FunctionSetupGapOffset: setupGapOffset,
                 FunctionSetupGapLength: setupGapLength
             )
-            { LeadingTrivia = leadingTrivia.ToImmutableArray() };
-
-            if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
             {
-                if (IsDirectiveHeaderAt(source, trailingPos))
-                {
-                    diagnosticBag.Add(new ParseDiagnostic
+                LeadingTrivia = leadingTrivia.ToImmutableArray(),
+                Imports = imports.ToImmutableArray(),
+                ComponentDeclarations = ImmutableArray.Create(
+                    new ComponentDeclaration(
+                        Name: componentName,
+                        IsExported: componentExported,
+                        PropsTypeName: functionPropsTypeName,
+                        DefaultKey: null,
+                        FunctionParams: functionParams,
+                        FunctionSetupCode: setupCode.Trim(),
+                        FunctionSetupStartLine: LineAtPos(source, fseTrimStart2),
+                        FunctionSetupStartOffset: fseTrimStart2,
+                        MarkupStartLine: markupLine,
+                        MarkupStartIndex: markupStart,
+                        MarkupEndIndex: markupEnd,
+                        DeclarationLine: componentLine,
+                        NameColumn: componentNameCol,
+                        ReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
+                        BodyEndLine: LineAtPos(source, bodyEndExclusive))
                     {
-                        Code = "UITKX2104",
-                        Severity = ParseSeverity.Error,
-                        SourceLine = LineAtPos(source, trailingPos),
-                        Message = "Function-style form cannot be mixed with directive header form.",
-                    });
+                        SetupCodeMarkupRanges = setupMarkupRanges2,
+                        SetupCodeBareJsxRanges = bareJsxRanges2,
+                        FunctionSetupGapOffset = setupGapOffset,
+                        FunctionSetupGapLength = setupGapLength,
+                    }),
+            };
+
+            // ── Continuation: additional [export] component/hook/module decls ──
+            // Mixed-decl v1 (leg 3): a file is a SEQUENCE of declarations in any order.
+            // Parse every subsequent top-level declaration into the plural arrays. The
+            // historical "one component per file" limitation was the trailing-2105 error
+            // below; a valid second declaration is now ACCEPTED (TD-02 family reconcile).
+            // A trailing NON-declaration keeps the historical diagnostics
+            // (2309 import-after-decl, 2104 directive-header-mix, 2105 invalid statement).
+            i = bodyCloseExclusive;
+            line = LineAtPos(source, bodyCloseExclusive);
+            var tailComponents = new List<ComponentDeclaration>();
+            var tailHooks = new List<HookDeclaration>();
+            var tailModules = new List<ModuleDeclaration>();
+            while (true)
+            {
+                SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                if (i >= source.Length)
+                    break;
+
+                bool tailExported = false;
+                {
+                    int afterExport = i;
+                    if (TryReadKeyword(source, ref afterExport, "export"))
+                    {
+                        SkipSpaces(source, ref afterExport);
+                        if (TryReadKeywordAt(source, afterExport, "component")
+                            || TryReadKeywordAt(source, afterExport, "hook")
+                            || TryReadKeywordAt(source, afterExport, "module"))
+                        {
+                            tailExported = true;
+                            i = afterExport;
+                        }
+                    }
+                }
+
+                if (TryReadKeywordAt(source, i, "component"))
+                {
+                    var tailDecl = ParseSingleComponent(
+                        source, filePath, diagnosticBag,
+                        ref i, ref line, tailExported, useLastReturn, out bool tailHardStop);
+                    if (tailDecl != null)
+                        tailComponents.Add(tailDecl);
+                    if (tailHardStop)
+                        break;
+                }
+                else if (TryReadKeyword(source, ref i, "hook"))
+                {
+                    ParseSingleHook(source, filePath, diagnosticBag, tailHooks, ref i, ref line, tailExported);
+                }
+                else if (TryReadKeyword(source, ref i, "module"))
+                {
+                    ParseSingleModule(source, filePath, diagnosticBag, tailModules, ref i, ref line, tailExported);
                 }
                 else
                 {
-                    diagnosticBag.Add(new ParseDiagnostic
+                    if (TryReadKeywordAt(source, i, "import"))
                     {
-                        Code = "UITKX2105",
-                        Severity = ParseSeverity.Error,
-                        SourceLine = LineAtPos(source, trailingPos),
-                        Message = "Invalid top-level statement after function-style component declaration.",
-                    });
+                        // Frozen family code: imports are preamble-only.
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2309",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            Message = "import must appear in the preamble, before the first declaration",
+                        });
+                    }
+                    else if (IsDirectiveHeaderAt(source, i))
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2104",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            Message = "Function-style form cannot be mixed with directive header form.",
+                        });
+                    }
+                    else
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2105",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            Message = "Invalid top-level statement after function-style component declaration.",
+                        });
+                    }
+                    break;
                 }
             }
 
+            if (tailComponents.Count > 0 || tailHooks.Count > 0 || tailModules.Count > 0)
+            {
+                directiveSet = directiveSet with
+                {
+                    ComponentDeclarations = directiveSet.ComponentDeclarations.AddRange(tailComponents),
+                    HookDeclarations = tailHooks.ToImmutableArray(),
+                    ModuleDeclarations = tailModules.ToImmutableArray(),
+                };
+            }
+
             return true;
+        }
+
+        /// <summary>
+        /// Parses a single <c>component</c> declaration at the cursor (which must be at the
+        /// <c>component</c> keyword; the optional <c>export</c> prefix is consumed by the caller
+        /// and passed via <paramref name="isExported"/>). Captures the full setup/markup span set
+        /// into a <see cref="ComponentDeclaration"/> and advances <paramref name="i"/> past the
+        /// component body. Returns <c>null</c> on a structural error that prevents forming a
+        /// declaration; sets <paramref name="hardStop"/> when the error is terminal for the rest
+        /// of the file (missing/unbalanced braces) so the declaration loop must stop.
+        ///
+        /// This mirrors <see cref="ParseSingleHook"/> / <see cref="ParseSingleModule"/> for the
+        /// mixed-decl v1 continuation loop (leg 3). The FIRST component of a component-first file
+        /// is still parsed inline by <see cref="TryParseFunctionStyle"/> (it also populates the
+        /// singular back-compat <see cref="DirectiveSet"/> fields); this handles the 2nd+ ones.
+        /// </summary>
+        private static ComponentDeclaration? ParseSingleComponent(
+            string source,
+            string filePath,
+            List<ParseDiagnostic> diagnosticBag,
+            ref int i,
+            ref int line,
+            bool isExported,
+            bool useLastReturn,
+            out bool hardStop)
+        {
+            hardStop = false;
+            if (!TryReadKeyword(source, ref i, "component"))
+            {
+                hardStop = true;
+                return null;
+            }
+
+            int componentLine = line;
+
+            SkipSpaces(source, ref i);
+            int nameStartI = i;
+            if (!TryReadIdentifier(source, ref i, out string componentName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Expected PascalCase component name after 'component'.",
+                });
+                componentName = Path.GetFileNameWithoutExtension(filePath);
+            }
+
+            if (!IsPascalCase(componentName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2100",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = $"Function-style component name '{componentName}' must be PascalCase.",
+                });
+            }
+
+            int componentNameCol = ColAtPos(source, nameStartI);
+
+            SkipSpaces(source, ref i);
+            var functionParams = ImmutableArray<FunctionParam>.Empty;
+            string? functionPropsTypeName = null;
+            if (i < source.Length && source[i] == '(')
+            {
+                functionParams = ParseFunctionParamList(source, ref i, ref line, componentLine, diagnosticBag);
+                if (!functionParams.IsEmpty)
+                    functionPropsTypeName = componentName + "Props";
+            }
+
+            SkipWhitespaceAndNewlines(source, ref i, ref line);
+            if (i >= source.Length || source[i] != '{')
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Expected '{' after function-style component declaration.",
+                });
+                hardStop = true;
+                return null;
+            }
+
+            int bodyOpen = i;
+            if (!TryReadBalancedBlock(source, bodyOpen, out int bodyCloseExclusive))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Unclosed function-style component body. Missing '}'.",
+                });
+                hardStop = true;
+                return null;
+            }
+
+            int bodyStart = bodyOpen + 1;
+            int bodyEndExclusive = bodyCloseExclusive - 1;
+
+            if (
+                !TryFindTopLevelReturn(
+                    source,
+                    bodyStart,
+                    bodyEndExclusive,
+                    out int returnStart,
+                    out int returnOpenParen,
+                    out int returnCloseParen,
+                    out int returnStmtEndExclusive,
+                    useLastReturn
+                )
+            )
+            {
+                int malformedReturnPos = FindTopLevelReturnAfter(source, bodyStart, bodyEndExclusive);
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = malformedReturnPos >= 0 ? "UITKX2102" : "UITKX2101",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = malformedReturnPos >= 0 ? LineAtPos(source, malformedReturnPos) : componentLine,
+                    SourceColumn = malformedReturnPos >= 0 ? 0 : componentNameCol,
+                    EndColumn    = malformedReturnPos >= 0 ? 0 : componentNameCol + componentName.Length,
+                    Message = malformedReturnPos >= 0
+                        ? "'return' must return UITKX markup using 'return (...)'."
+                        : "Function-style component must contain exactly one top-level 'return (...)' statement.",
+                });
+
+                int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
+                var setupMarkupRanges1 = FindJsxBlockRanges(source, bodyStart, bodyEndExclusive);
+                var bareJsxRanges1 = FindBareJsxRanges(source, bodyStart, bodyEndExclusive);
+                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag, setupMarkupRanges1, bareJsxRanges1);
+                CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
+                i = bodyCloseExclusive;
+                return new ComponentDeclaration(
+                    Name: componentName,
+                    IsExported: isExported,
+                    PropsTypeName: functionPropsTypeName,
+                    DefaultKey: null,
+                    FunctionParams: functionParams,
+                    FunctionSetupCode: source.Substring(bodyStart, Math.Max(0, bodyEndExclusive - bodyStart)).Trim(),
+                    FunctionSetupStartLine: LineAtPos(source, fseTrimStart1),
+                    FunctionSetupStartOffset: fseTrimStart1,
+                    MarkupStartLine: componentLine,
+                    MarkupStartIndex: source.Length,
+                    MarkupEndIndex: source.Length,
+                    DeclarationLine: componentLine,
+                    NameColumn: componentNameCol,
+                    ReturnEndLine: -1,
+                    BodyEndLine: LineAtPos(source, bodyEndExclusive))
+                {
+                    SetupCodeMarkupRanges = setupMarkupRanges1,
+                    SetupCodeBareJsxRanges = bareJsxRanges1,
+                };
+            }
+
+            int markupStart = returnOpenParen + 1;
+            int markupEnd = returnCloseParen;
+            int markupLine = LineAtPos(source, markupStart);
+
+            if (!LooksLikeMarkupRoot(source, markupStart, markupEnd))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2102",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = markupLine,
+                    Message = "'return' must return UITKX markup.",
+                });
+                markupStart = markupEnd;
+            }
+
+            string setupCode =
+                source.Substring(bodyStart, Math.Max(0, returnStart - bodyStart))
+                + source.Substring(
+                    returnStmtEndExclusive,
+                    Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
+                );
+
+            int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
+            int setupGapOffset = returnStart - fseTrimStart2;
+            int setupGapLength = returnStmtEndExclusive - returnStart;
+            var setupMarkupRanges2 = FindJsxBlockRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
+            var bareJsxRanges2 = FindBareJsxRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
+
+            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+            CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
+
+            i = bodyCloseExclusive;
+            return new ComponentDeclaration(
+                Name: componentName,
+                IsExported: isExported,
+                PropsTypeName: functionPropsTypeName,
+                DefaultKey: null,
+                FunctionParams: functionParams,
+                FunctionSetupCode: setupCode.Trim(),
+                FunctionSetupStartLine: LineAtPos(source, fseTrimStart2),
+                FunctionSetupStartOffset: fseTrimStart2,
+                MarkupStartLine: markupLine,
+                MarkupStartIndex: markupStart,
+                MarkupEndIndex: markupEnd,
+                DeclarationLine: componentLine,
+                NameColumn: componentNameCol,
+                ReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
+                BodyEndLine: LineAtPos(source, bodyEndExclusive))
+            {
+                SetupCodeMarkupRanges = setupMarkupRanges2,
+                SetupCodeBareJsxRanges = bareJsxRanges2,
+                FunctionSetupGapOffset = setupGapOffset,
+                FunctionSetupGapLength = setupGapLength,
+            };
+        }
+
+        // ── Import preamble reader (import/export grammar, leg 3) ─────────────
+
+        /// <summary>
+        /// Reads a single preamble <c>import { A, B } from "specifier"</c> line at the cursor,
+        /// appending an <see cref="ImportDeclaration"/> to <paramref name="imports"/> and advancing
+        /// the cursor past it. Named imports only; single-line; extensionless specifier captured
+        /// verbatim (resolution/validation is a later stage). Returns false (restoring the cursor)
+        /// when the cursor is not at a well-formed <c>import</c> line, so the caller's dispatch can
+        /// report it as it would any non-declaration.
+        /// </summary>
+        private static bool TryReadFunctionStyleImport(
+            string source, ref int i, ref int line, List<ImportDeclaration> imports)
+        {
+            if (!TryReadKeywordAt(source, i, "import"))
+                return false;
+
+            int savedI = i, savedLine = line;
+            int importLine = line;
+            int importCol = ColAtPos(source, i);
+
+            i += "import".Length;
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] != '{')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            i++; // past '{'
+
+            var names = new List<string>();
+            var nameCols = new List<int>();
+            while (true)
+            {
+                SkipSpaces(source, ref i);
+                if (i < source.Length && source[i] == '}') { i++; break; }
+                int nameCol = ColAtPos(source, i);
+                if (!TryReadIdentifier(source, ref i, out string name))
+                {
+                    i = savedI; line = savedLine; return false;
+                }
+                names.Add(name);
+                nameCols.Add(nameCol);
+                SkipSpaces(source, ref i);
+                if (i < source.Length && source[i] == ',') { i++; continue; }
+                if (i < source.Length && source[i] == '}') { i++; break; }
+                i = savedI; line = savedLine; return false;
+            }
+
+            SkipSpaces(source, ref i);
+            if (!TryReadKeyword(source, ref i, "from"))
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            i++; // past opening quote
+            int specStart = i;
+            while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                i++;
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false; // unterminated specifier
+            }
+            string specifier = source.Substring(specStart, i - specStart);
+            i++; // past closing quote
+
+            imports.Add(new ImportDeclaration(
+                names.ToImmutableArray(),
+                specifier,
+                importLine,
+                importCol,
+                nameCols.ToImmutableArray()));
+            return true;
+        }
+
+        /// <summary>
+        /// UITKX2303: a name imported more than once anywhere in the file. Keyed on the imported
+        /// NAME (the frozen family semantics — duplicate binding, not duplicate specifier).
+        /// </summary>
+        private static void ReportDuplicateImports(
+            List<ImportDeclaration> imports, List<ParseDiagnostic> diagnosticBag)
+        {
+            if (imports.Count == 0) return;
+            var seen = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal);
+            foreach (var imp in imports)
+            {
+                for (int k = 0; k < imp.Names.Length; k++)
+                {
+                    string name = imp.Names[k];
+                    if (seen.TryGetValue(name, out string? firstSpec))
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2303",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = imp.Line,
+                            SourceColumn = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column,
+                            Message = $"duplicate import of `{name}` (already imported from {firstSpec})",
+                        });
+                    }
+                    else
+                    {
+                        seen[name] = imp.Specifier;
+                    }
+                }
+            }
         }
 
         // ── Hook / Module file parser ─────────────────────────────────────────
@@ -502,19 +961,12 @@ namespace ReactiveUITK.Language.Parser
             string? inlineNamespace
         )
         {
-            string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
+            string functionNamespace = inlineNamespace ?? FunctionStyleDefaultNamespace;
 
-            // Validate preamble: @uss is not allowed in hook/module files
-            if (ussFiles.Count > 0)
-            {
-                diagnosticBag.Add(new ParseDiagnostic
-                {
-                    Code = "UITKX2210",
-                    Severity = ParseSeverity.Error,
-                    SourceLine = line,
-                    Message = "@uss is not allowed in hook/module files. Stylesheets can only be attached to component files.",
-                });
-            }
+            // @uss is legal in ANY file (import/export grammar, leg 3, §5): a stylesheet attaches to
+            // every component declared in the file. A hook/module-only file has no component, so the
+            // sheet attaches to nothing — a lint-tier concern (2313 "uss without component"), not the
+            // hard 2210 error it used to be.
 
             var hooks = new List<HookDeclaration>();
             var modules = new List<ModuleDeclaration>();
@@ -525,13 +977,29 @@ namespace ReactiveUITK.Language.Parser
                 SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
                 if (i >= source.Length) break;
 
+                // Optional per-declaration `export` prefix (import/export grammar, leg 3).
+                bool declExported = false;
+                {
+                    int afterExport = i;
+                    if (TryReadKeyword(source, ref afterExport, "export"))
+                    {
+                        SkipSpaces(source, ref afterExport);
+                        if (TryReadKeywordAt(source, afterExport, "hook") ||
+                            TryReadKeywordAt(source, afterExport, "module"))
+                        {
+                            declExported = true;
+                            i = afterExport;
+                        }
+                    }
+                }
+
                 if (TryReadKeyword(source, ref i, "hook"))
                 {
-                    ParseSingleHook(source, filePath, diagnosticBag, hooks, ref i, ref line);
+                    ParseSingleHook(source, filePath, diagnosticBag, hooks, ref i, ref line, declExported);
                 }
                 else if (TryReadKeyword(source, ref i, "module"))
                 {
-                    ParseSingleModule(source, filePath, diagnosticBag, modules, ref i, ref line);
+                    ParseSingleModule(source, filePath, diagnosticBag, modules, ref i, ref line, declExported);
                 }
                 else
                 {
@@ -589,7 +1057,8 @@ namespace ReactiveUITK.Language.Parser
             List<ParseDiagnostic> diagnosticBag,
             List<HookDeclaration> hooks,
             ref int i,
-            ref int line
+            ref int line,
+            bool isExported
         )
         {
             int hookLine = line;
@@ -701,7 +1170,8 @@ namespace ReactiveUITK.Language.Parser
                 BodyStartLine: bodyStartLine,
                 BodyStartOffset: actualBodyStart,
                 BodyEndOffset: bodyEnd
-            ));
+            )
+            { IsExported = isExported });
 
             i = bodyCloseExclusive; // advance past '}'
         }
@@ -716,7 +1186,8 @@ namespace ReactiveUITK.Language.Parser
             List<ParseDiagnostic> diagnosticBag,
             List<ModuleDeclaration> modules,
             ref int i,
-            ref int line
+            ref int line,
+            bool isExported
         )
         {
             int moduleLine = line;
@@ -782,7 +1253,8 @@ namespace ReactiveUITK.Language.Parser
                 BodyStartLine: bodyStartLine,
                 BodyStartOffset: actualBodyStart,
                 BodyEndOffset: bodyEnd
-            ));
+            )
+            { IsExported = isExported });
 
             i = bodyCloseExclusive; // advance past '}'
         }
@@ -1064,29 +1536,6 @@ namespace ReactiveUITK.Language.Parser
             return source.Substring(start, i - start).Trim();
         }
 
-        private static string InferFunctionStyleNamespace(string filePath)
-        {
-            try
-            {
-                var companionCsPath = Path.ChangeExtension(filePath, ".cs");
-                if (string.IsNullOrWhiteSpace(companionCsPath) || !File.Exists(companionCsPath))
-                    return FunctionStyleDefaultNamespace;
-
-                var csText = File.ReadAllText(companionCsPath);
-                var m = s_namespaceRegex.Match(csText);
-                if (m.Success)
-                {
-                    var ns = m.Groups[1].Value.Trim();
-                    if (!string.IsNullOrWhiteSpace(ns))
-                        return ns;
-                }
-            }
-            catch
-            {
-            }
-
-            return FunctionStyleDefaultNamespace;
-        }
 
         private static bool LooksLikeMarkupRoot(string source, int start, int endExclusive)
         {
@@ -1116,8 +1565,10 @@ namespace ReactiveUITK.Language.Parser
             int i = start;
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
-            // Skip any leading `using X.Y.Z;`, `@uss "path"`, and `@namespace X.Y` lines, in any order.
+            // Skip any leading `using X.Y.Z;`, `@uss "path"`, `@namespace X.Y`, and
+            // `import { … } from "…"` lines, in any order.
             var dummy = new List<string>();
+            var dummyImports = new List<ImportDeclaration>();
             bool skippedSomething;
             do
             {
@@ -1133,6 +1584,11 @@ namespace ReactiveUITK.Language.Parser
                     skippedSomething = true;
                 }
                 if (TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out _))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+                if (TryReadFunctionStyleImport(source, ref i, ref line, dummyImports))
                 {
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
                     skippedSomething = true;

@@ -3,7 +3,7 @@
 @using static ReactiveUITK.Props.Typed.StyleKeys
 @using static ReactiveUITK.Props.Typed.CssHelpers
 
-module UitkxTestFileDoNotTouch {
+export module UitkxTestFileDoNotTouch {
   public static readonly Style ContainerStyle = new Style
   {
     BackgroundColor = ColorGray,

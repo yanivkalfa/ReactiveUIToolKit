@@ -37,6 +37,8 @@
   <ItemGroup>
     <!-- Exclude the sibling test project from the generator's own compilation -->
     <Compile Remove="Tests\**\*.cs" />
+    <!-- Exclude the standalone codemod tool (its own net8.0 Exe project) -->
+    <Compile Remove="Tools\**\*.cs" />
     <!-- AstNode.cs and Parser/ were moved to language-lib -->
     <Compile Remove="Nodes\**\*.cs" />
     <Compile Remove="Parser\**\*.cs" />

@@ -47,13 +47,16 @@ namespace ReactiveUITK.Language.Diagnostics
 
         // ── T2 — Structural diagnostics (this analyzer) ──────────────────────
 
-        /// <summary>File contains no <c>@namespace</c> directive.</summary>
+        /// <summary>RETIRED, never emitted — <c>@namespace</c> is optional (path-derived when
+        /// omitted). Reserved so the number is never reused.</summary>
         public const string MissingNamespace = "UITKX0101";
 
-        /// <summary>File contains no <c>@component</c> directive.</summary>
+        /// <summary>RETIRED, never emitted — function-style files need no <c>@component</c>;
+        /// hook/module-only files are legal. Reserved.</summary>
         public const string MissingComponent = "UITKX0102";
 
-        /// <summary><c>@component Foo</c> but the file is named <c>Bar.uitkx</c>.</summary>
+        /// <summary>RETIRED, never emitted — filename==component is a documentation convention,
+        /// not a diagnostic (a file may declare several components). Reserved.</summary>
         public const string FilenameMismatch = "UITKX0103";
 
         /// <summary>Two sibling elements share the same literal <c>key="…"</c> value.</summary>
@@ -200,5 +203,62 @@ namespace ReactiveUITK.Language.Diagnostics
         /// and <c>DirectiveParser</c> (setup-code context).
         /// </summary>
         public const string AtExprNotSupported = "UITKX0306";
+
+        // ── Import / export family block — UITKX2300–2315 (frozen leg 1) ──────
+        // Codes + messages are identical family-wide (Unreal/Godot/Unity) modulo the
+        // UETKX|GUITKX|UITKX prefix and .uetkx/.guitkx/.uitkx extension. 2300–2309 are
+        // frozen by the Unreal leg; 2310–2314 are Unity-local (registered into the
+        // canonical family table); 2315 is reserved. Only 2304 is a Warning.
+
+        /// <summary>``unknown import specifier `{0}` — no file at {1}(.uitkx)`` (also fires for engine-native specifiers).</summary>
+        public const string UnknownImportSpecifier = "UITKX2300";
+
+        /// <summary>`` `{0}` is not exported by {1} — add `export` to its declaration ``</summary>
+        public const string NotExported = "UITKX2301";
+
+        /// <summary>`` `{0}` is not declared in {1} ``</summary>
+        public const string NotDeclaredInFile = "UITKX2302";
+
+        /// <summary>``duplicate import of `{0}` (already imported from {1})``</summary>
+        public const string DuplicateImport = "UITKX2303";
+
+        /// <summary>``unused import `{0}` `` (Warning).</summary>
+        public const string UnusedImport = "UITKX2304";
+
+        /// <summary>`` `{0}` is defined in {1} but not imported — add: import {{ {0} }} from "{2}" ``</summary>
+        public const string DefinedButNotImported = "UITKX2305";
+
+        /// <summary>``value-import cycle: {0} (hooks/modules load eagerly — break the chain or move to component refs)``</summary>
+        public const string ValueImportCycle = "UITKX2306";
+
+        /// <summary>`` `{0}` is used like a uitkx component/hook but no file exports it `` (ambient C# exempt).</summary>
+        public const string UsedButNoFileExports = "UITKX2307";
+
+        /// <summary>``import crosses a module/root boundary ({0} -> {1}) — imports are module-scoped in v1`` (Unity boundary = asmdef).</summary>
+        public const string ImportCrossesBoundary = "UITKX2308";
+
+        /// <summary>``import must appear in the preamble, before the first declaration``</summary>
+        public const string ImportNotInPreamble = "UITKX2309";
+
+        /// <summary>`Cannot derive a namespace for '{0}' (no owning .asmdef); add @namespace.` (Unity-local).</summary>
+        public const string CannotDeriveNamespace = "UITKX2310";
+
+        /// <summary>`Export accessibility mismatch across parts merging into '{0}'.` (Unity-local).</summary>
+        public const string ExportAccessibilityMismatch = "UITKX2311";
+
+        /// <summary>`Hook container '{0}' merge conflict between '{1}' and '{2}' (duplicate hook / accessibility).` (Unity-local).</summary>
+        public const string HookContainerMergeConflict = "UITKX2312";
+
+        /// <summary>Reserved, INTENTIONALLY NOT EMITTED. The layout conventions it would have
+        /// covered (one component per file, hooks in a <c>.hooks</c> file, filename == component)
+        /// are documentation best-practices, not code-enforced diagnostics — a file may legally
+        /// declare any mix of components/hooks/modules in any order. Kept as a reserved slot in
+        /// the frozen family band so the number is never reused.</summary>
+        public const string ConventionLint = "UITKX2313";
+
+        /// <summary>`'~/' root is not configured or resolves outside the project ('{0}').` (Unity-local).</summary>
+        public const string RootNotConfigured = "UITKX2314";
+
+        // UITKX2315 — reserved (family).
     }
 }

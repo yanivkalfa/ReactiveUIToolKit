@@ -1,8 +1,9 @@
+import { Theme } from "../../Theme"
 @namespace PrettyUi.App.Components
 @using PrettyUi.App
 @using UnityEngine
 
-module ContentPanel {
+export module ContentPanel {
   public static readonly Style Card = new Style {
     MaxWidth = Px(Theme.ContentMaxWidth),
     PaddingTop = 20f,

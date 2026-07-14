@@ -2,7 +2,7 @@
 @using ReactiveUITK.Router
 @using System.Collections.Generic
 
-component RouterLocationBanner {
+export component RouterLocationBanner {
   var location = RouterHooks.UseLocationInfo();
   var query = RouterHooks.UseQuery();
   var navState = RouterHooks.UseNavigationState();

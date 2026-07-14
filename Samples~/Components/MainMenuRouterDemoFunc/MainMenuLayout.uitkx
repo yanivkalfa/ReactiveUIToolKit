@@ -1,8 +1,9 @@
+import { MainMenuSidebar } from "./MainMenuSidebar"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using UnityEngine
 
-component MainMenuLayout {
+export component MainMenuLayout {
   var location = RouterHooks.UseLocationInfo();
 
   var layoutRowStyle = new Style {

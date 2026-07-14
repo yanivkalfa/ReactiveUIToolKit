@@ -4,7 +4,7 @@
 @using UnityEngine
 @using static Samples.DoomGame.DoomTypes
 
-module Raycast {
+export module Raycast {
   public struct WallHit {
     public float Distance; // ray parameter t at hit
     public Vector2 Hit; // world-space (x,y)

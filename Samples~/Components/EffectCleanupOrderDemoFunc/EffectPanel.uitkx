@@ -3,7 +3,7 @@
 @using System.Collections.Generic
 @using UnityEngine
 
-component EffectPanel(
+export component EffectPanel(
   string label = "Panel",
   int generation = 0,
   List<string>? log = null

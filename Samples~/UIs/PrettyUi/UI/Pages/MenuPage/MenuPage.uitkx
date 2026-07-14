@@ -1,9 +1,11 @@
+import { NewGameButton } from "../../Components/NewGameButton/NewGameButton"
+import { TopNav } from "../../Components/TopNav/TopNav"
 @namespace PrettyUi.App.Pages
 @using PrettyUi.App.Components
 @using ReactiveUITK.Router
 @using UnityEngine.UIElements
 
-component MenuPage {
+export component MenuPage {
   return (
     <VisualElement style={Root}>
       <VisualElement style={MenuPageWrap}>
