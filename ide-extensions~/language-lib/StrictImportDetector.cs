@@ -26,8 +26,17 @@ namespace ReactiveUITK.Language
         /// <summary>An exported name in a peer file of the same asmdef.</summary>
         public sealed record PeerExport(string Name, string TargetFilePath, ExportKind Kind);
 
-        /// <summary>One strict-mode finding: the frozen code, the rendered message, and its source line.</summary>
-        public sealed record Finding(string Code, string Message, int Line);
+        /// <summary>One strict-mode finding: the frozen code, the rendered message, and its source line.
+        /// <para><see cref="IsHeuristic"/> marks findings produced by scanning C# EXPRESSION text
+        /// (bare <c>useX(</c> calls, <c>Name.member</c> access) — shapes that plain ambient C# can
+        /// legitimately produce (hand-written hooks, nested enums via <c>@using static</c>,
+        /// <c>UnityEngine.Screen.width</c>, …). Consumers MUST surface heuristic findings as
+        /// warnings, never build-breaking errors: a real missing import still fails the emitted
+        /// C# with CS0103/CS0246, while a false positive here would break an otherwise-valid
+        /// build (seen in the wild: an own-module nested enum flagged as another file's module).
+        /// Component-tag findings (<c>&lt;X&gt;</c> is uitkx-only syntax) are sound and stay
+        /// non-heuristic.</para></summary>
+        public sealed record Finding(string Code, string Message, int Line, bool IsHeuristic = false);
 
         // <TagName ...   — a markup component tag (PascalCase peers only matter; builtins are lowercase/known).
         private static readonly System.Text.RegularExpressions.Regex s_tagRe =
@@ -87,29 +96,35 @@ namespace ReactiveUITK.Language
 
             var reported = new HashSet<string>(StringComparer.Ordinal);
 
-            void Report(string code, string message, int line, string dedupeKey)
+            void Report(string code, string message, int line, string dedupeKey, bool heuristic = false)
             {
                 if (reported.Add(dedupeKey))
-                    findings.Add(new Finding(code, message, line));
+                    findings.Add(new Finding(code, message, line, heuristic));
             }
 
             string importerDir = DirOf(importerFilePath);
 
-            void FlagUnimportedPeer(string name, ExportKind kind, int line)
+            void FlagUnimportedPeer(string name, ExportKind kind, int line, bool heuristic)
             {
                 if (selfNames.Contains(name) || imported.Contains(name)) return;
                 if (!byKind[kind].TryGetValue(name, out var pe)) return;
                 string spec = RelativeSpecifier(importerDir, pe.TargetFilePath);
                 Report("UITKX2305",
                     $"`{name}` is defined in {ShortName(pe.TargetFilePath)} but not imported — add: import {{ {name} }} from \"{spec}\"",
-                    line, "2305:" + name);
+                    line, "2305:" + name, heuristic);
             }
 
+            // Component tags are uitkx-only syntax — a peer-exported <Tag> without an import is
+            // sound evidence of a missing import (error-worthy).
             foreach (System.Text.RegularExpressions.Match m in s_tagRe.Matches(scannableCode))
-                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Component, LineAt(scannableCode, m.Index));
+                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Component, LineAt(scannableCode, m.Index), heuristic: false);
 
+            // Module member access is plain C# expression text: `GameScreen.MainMenu` may be a
+            // nested enum reachable via `@using static`, a hand-written static class, or a Unity
+            // type (`Screen.width`) that merely COLLIDES with some file's exported module name.
+            // Heuristic → warning-tier only.
             foreach (System.Text.RegularExpressions.Match m in s_moduleRe.Matches(scannableCode))
-                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Module, LineAt(scannableCode, m.Index));
+                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Module, LineAt(scannableCode, m.Index), heuristic: true);
 
             foreach (System.Text.RegularExpressions.Match m in s_hookRe.Matches(scannableCode))
             {
@@ -117,16 +132,17 @@ namespace ReactiveUITK.Language
                 if (selfNames.Contains(name) || imported.Contains(name)) continue;
                 if (byKind[ExportKind.Hook].ContainsKey(name))
                 {
-                    FlagUnimportedPeer(name, ExportKind.Hook, LineAt(scannableCode, m.Index));
+                    // A same-named hand-written C# hook can shadow a peer export — heuristic.
+                    FlagUnimportedPeer(name, ExportKind.Hook, LineAt(scannableCode, m.Index), heuristic: true);
                 }
                 else if (!isBuiltinHook(name))
                 {
-                    // In no export table and not ambient/builtin → strict "used like a hook but no
-                    // file exports it". Hand-written C# hooks are exempt (they resolve ambiently),
-                    // so this only fires when the name matches no known hook at all.
+                    // Not in any export table and not builtin. This is EXACTLY the shape a
+                    // hand-written C# hook produces (they resolve ambiently and are documented
+                    // as exempt), so it can only ever be a hint — heuristic/warning-tier.
                     Report("UITKX2307",
                         $"`{name}` is used like a uitkx component/hook but no file exports it",
-                        LineAt(scannableCode, m.Index), "2307:" + name);
+                        LineAt(scannableCode, m.Index), "2307:" + name, heuristic: true);
                 }
             }
 

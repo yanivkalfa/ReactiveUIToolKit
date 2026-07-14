@@ -476,9 +476,9 @@ export const UitkxDiagnosticsPage: FC = () => (
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2305" size="small" color="error" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell><Chip label="Error / Warning" size="small" color="warning" /></TableCell>
             <TableCell>Peer-exported name used without an import</TableCell>
-            <TableCell>The message names the exact line to add, e.g. <code>import {'{ X }'} from "./X"</code>.</TableCell>
+            <TableCell>The message names the exact line to add, e.g. <code>import {'{ X }'} from "./X"</code>. <strong>Error</strong> for component tags (<code>&lt;X&gt;</code> is uitkx-only syntax, so the evidence is sound); <strong>Warning</strong> for bare hook-call / module member-access matches — plain C# (a nested enum via <code>@using static</code>, <code>Screen.width</code>, a hand-written hook) can legitimately produce those shapes, and a truly missing import still fails the compile with CS0103.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2306" size="small" color="error" variant="outlined" /></TableCell>
@@ -487,10 +487,10 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Hooks and modules load eagerly, so a cycle among their imports is an error (components are exempt). Break the chain or move to a component reference.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX2307" size="small" color="error" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>Used like a hook/component but nothing exports it</TableCell>
-            <TableCell>Declare and <code>export</code> it, import an existing one, or (for a hand-written C# hook) it is ambient and exempt.</TableCell>
+            <TableCell><Chip label="UITKX2307" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Used like a hook but nothing exports it</TableCell>
+            <TableCell>Declare and <code>export</code> it, or import an existing one. Warning-tier because a hand-written C# hook resolves ambiently and produces the identical call shape — built-in hooks (<code>useState</code>, …) are always exempt.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2308" size="small" color="error" variant="outlined" /></TableCell>

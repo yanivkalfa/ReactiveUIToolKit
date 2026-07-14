@@ -753,8 +753,11 @@ namespace ReactiveUITK.SourceGenerator
             };
 
         // Builtin/ambient hook names (from the single-source HookRegistry) that need no import.
+        // AmbientHookNames covers BOTH spellings a file can use — canonical PascalCase
+        // (UseState) and the camelCase alias (useState). CanonicalNames alone missed the
+        // camelCase call sites every real file uses → UITKX2307 storm in real projects.
         private static readonly HashSet<string> s_builtinHooks =
-            new HashSet<string>(global::ReactiveUITK.Core.HookRegistry.CanonicalNames, StringComparer.Ordinal);
+            new HashSet<string>(global::ReactiveUITK.Core.HookRegistry.AmbientHookNames, StringComparer.Ordinal);
 
         /// <summary>
         /// Validates each <c>import</c> declaration (resolves the specifier + checks the imported
@@ -865,7 +868,12 @@ namespace ReactiveUITK.SourceGenerator
                 parseDiags.Add(new ParseDiagnostic
                 {
                     Code = f.Code,
-                    Severity = f.Code == "UITKX2304" ? ParseSeverity.Warning : ParseSeverity.Error,
+                    // Heuristic findings (bare hook calls / module member access scanned out of
+                    // C# expression text) are warnings — ambient C# legitimately produces those
+                    // shapes, and a real missing import still fails the emitted C# (CS0103).
+                    Severity = f.Code == "UITKX2304" || f.IsHeuristic
+                        ? ParseSeverity.Warning
+                        : ParseSeverity.Error,
                     SourceLine = f.Line,
                     Message = f.Message,
                 });
