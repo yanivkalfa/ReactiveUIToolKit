@@ -32,6 +32,19 @@ export const FAQPage: FC = () => (
     </Typography>
 
     <Typography variant="body1" sx={Styles.question}>
+      How do I migrate an existing project to imports/exports (0.7.0)?
+    </Typography>
+    <Typography variant="body2" paragraph>
+      Run the bundled <code>UitkxMigrateImports</code> codemod once:{' '}
+      <code>dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets</code>{' '}
+      (add <code>--check</code> for a dry run). It adds <code>export</code> to every
+      declaration, inserts the <code>import</code> lines each file needs, and stamps each
+      file&rsquo;s current <code>@namespace</code> so nothing changes identity. It is idempotent
+      and formatter-stable. Details:{' '}
+      <a href="#/imports">Imports &amp; Exports → Migrating an existing project</a>.
+    </Typography>
+
+    <Typography variant="body1" sx={Styles.question}>
       Does UITKX work with existing UI Toolkit code?
     </Typography>
     <Typography variant="body2" paragraph>

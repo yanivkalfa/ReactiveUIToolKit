@@ -4,7 +4,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-hook useStressTestLoop(
+export hook useStressTestLoop(
   Ref<VisualElement?> areaRef,
   Vector2 areaSize,
   int boxCount,

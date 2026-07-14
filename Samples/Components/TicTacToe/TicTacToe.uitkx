@@ -1,6 +1,7 @@
+import { useTestHomeState } from "./TicTacToe.hooks"
 @namespace Samples.TicTacToe
 
-component TicTacToe {
+export component TicTacToe {
   var (gameStarted, playerTurn, grid, winnerMessage, movesLeft, handleStartGame, handleRestartGame, handleColumnClick) = useTestHomeState();
 
   return (

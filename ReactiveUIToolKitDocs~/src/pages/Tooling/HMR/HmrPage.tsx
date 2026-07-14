@@ -182,6 +182,16 @@ export const HmrPage: FC = () => (
         strategy — first call per type parameter after HMR pays ~1-2µs, subsequent calls are direct
         invocations.
       </Typography>
+      <Typography variant="body1" paragraph>
+        <strong>Hook identity is path-qualified.</strong> Hot-swap matches an edited hook to the
+        components that use it by the key{' '}
+        <code>{'{Namespace}.{Container}::{hookName}'}</code> (e.g.{' '}
+        <code>MyGame.UI.CounterHooks::useCounter</code>), not by the bare hook name — so two
+        identically-named hooks in different files (say, two <code>useData</code>s) never
+        cross-swap: editing one refreshes only its own consumers. This follows the same
+        namespace/container derivation as the generated code, including the path-derived default
+        namespace when a file has no <code>@namespace</code>.
+      </Typography>
     </Section>
 
     <Section title="New Component Support">

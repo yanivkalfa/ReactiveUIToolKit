@@ -1,8 +1,11 @@
+import { SectionBox } from "./SectionBox"
+import { SectionHeading } from "./SectionHeading"
+import { SectionNote } from "./SectionNote"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 @using System.Collections.Generic
 
-component WhileSection {
+export component WhileSection {
   // Build Fibonacci sequence in component setup.
   var fibs = new List<int>();
   {

@@ -84,7 +84,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             MarkupParseFunc parseMarkup = null,
             FindJsxRangesFunc findJsxBlockRanges = null,
             FindJsxRangesFunc findBareJsxRanges = null,
-            FindLhsStartFunc findLhsStartForLogicalAnd = null
+            FindLhsStartFunc findLhsStartForLogicalAnd = null,
+            string effectiveNs = null,
+            System.Collections.Generic.IReadOnlyDictionary<string, string> hookKeyMap = null
         )
         {
             var ctx = new EmitCtx(
@@ -93,7 +95,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 parseMarkup,
                 findJsxBlockRanges,
                 findBareJsxRanges,
-                findLhsStartForLogicalAnd
+                findLhsStartForLogicalAnd,
+                effectiveNs,
+                hookKeyMap
             );
             ctx.EmitFile(rootNodes);
             var emitted = ctx.ToString();
@@ -201,13 +205,17 @@ namespace ReactiveUITK.EditorSupport.HMR
             private readonly FindLhsStartFunc _findLhsStartForLogicalAnd;
             private bool _isRootElement = true;
 
+            private readonly System.Collections.Generic.IReadOnlyDictionary<string, string> _hookKeyMap;
+
             public EmitCtx(
                 object directives,
                 string filePath,
                 MarkupParseFunc parseMarkup,
                 FindJsxRangesFunc findJsxBlockRanges = null,
                 FindJsxRangesFunc findBareJsxRanges = null,
-                FindLhsStartFunc findLhsStartForLogicalAnd = null
+                FindLhsStartFunc findLhsStartForLogicalAnd = null,
+                string effectiveNs = null,
+                System.Collections.Generic.IReadOnlyDictionary<string, string> hookKeyMap = null
             )
             {
                 _directives = directives;
@@ -218,7 +226,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _findLhsStartForLogicalAnd = findLhsStartForLogicalAnd;
                 _displayName = Path.GetFileName(filePath);
                 _linePath = filePath.Replace("\\", "/");
-                _ns = GP<string>(directives, "Namespace") ?? "UITKX.Generated";
+                _hookKeyMap = hookKeyMap;
+                // Effective namespace (matches the SG) so the component's self family key
+                // {ns}.{ComponentName} and the emitted `namespace` agree with the project assembly.
+                _ns = effectiveNs ?? GP<string>(directives, "Namespace") ?? "UITKX.Generated";
                 _componentName = GP<string>(directives, "ComponentName") ?? "Unknown";
                 _propsTypeName = GP<string>(directives, "PropsTypeName");
                 _isFunctionStyle = GP<bool>(directives, "IsFunctionStyle");
@@ -306,10 +317,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 );
                 L($"    [global::ReactiveUITK.UitkxElement(\"{_componentName}\")]");
 
-                // Emit hook signature for proactive HMR state-reset detection
+                // Emit hook signature for proactive HMR state-reset detection.
+                // customHookKeys are §7 PATH-QUALIFIED via _hookKeyMap so they match the
+                // producers' qualified RegisterHook ids (same as the SG's CSharpEmitter).
                 string funcSetupForSig = GP<string>(_directives, "FunctionSetupCode");
                 string hookSig = ExtractHookSignature(funcSetupForSig);
-                string[] customHookKeys = ExtractCustomHookFamilyKeys(funcSetupForSig);
+                string[] customHookKeys = UitkxHmrCompiler.QualifyHookKeys(
+                    ExtractCustomHookFamilyKeys(funcSetupForSig), _hookKeyMap);
                 if (hookSig.Length > 0 || customHookKeys.Length > 0)
                 {
                     if (customHookKeys.Length > 0)
@@ -322,6 +336,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                     }
                 }
 
+                // Accessibility divergence (plan §6/§8, DELIBERATE): the SG emits
+                // `internal partial class` for a non-exported component (and
+                // `public` for an exported one). HMR intentionally stays `public`
+                // here. This is a benign superset, not a parity break: HMR compiles
+                // each changed file into an ISOLATED assembly (hmr_<Name>_N.dll) and
+                // hot-swaps behavior by delegate/Fast-Refresh-family key, never by
+                // type identity, so this class never co-compiles with the SG-emitted
+                // partial (no CS0262) and `public` can only ever widen — never
+                // tighten — access. Mirroring `internal` would risk an isolated HMR
+                // type being less accessible than a cross-assembly caller expects and
+                // buys nothing. The SG side remains the ground truth for shipped
+                // accessibility (pinned by HmrEmitterParityContractTests).
                 L($"    public partial class {_componentName}");
                 L("    {");
 

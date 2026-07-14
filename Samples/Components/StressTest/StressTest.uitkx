@@ -1,10 +1,11 @@
+import { useStressTestLoop } from "./StressTest.hooks"
 @namespace Samples.StressTest
 @using System
 @using System.Collections.Generic
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component StressTest {
+export component StressTest {
   var areaRef = useRef<VisualElement?>(null);
   var (areaSize, setAreaSize) = useState(Vector2.zero);
   var measured = useRef(false);

@@ -1,9 +1,12 @@
+import { ContentPanel } from "../../Components/ContentPanel/ContentPanel"
+import { PageShell } from "../../Components/PageShell/PageShell"
+import { SettingsPageSidebar } from "./SettingsPageSidebar"
 @namespace PrettyUi.App.Pages
 @using PrettyUi.App.Components
 @using ReactiveUITK.Router
 @using UnityEngine.UIElements
 
-component SettingsPage {
+export component SettingsPage {
   var navigate = RouterHooks.UseNavigate(replace: true);
   var location = RouterHooks.UseLocation() ?? "/";
 

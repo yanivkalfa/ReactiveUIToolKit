@@ -1,7 +1,7 @@
 @namespace Samples.GalagaGame
 @using UnityEngine
 
-module GalagaGame {
+export module GalagaGame {
   public enum Screen { MainMenu, Game }
 
   public static class Styles {

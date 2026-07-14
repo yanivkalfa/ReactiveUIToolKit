@@ -1,7 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 
-component MainMenuNavigationRow {
+export component MainMenuNavigationRow {
   var navigate = RouterHooks.UseNavigate();
 
   var navRowStyle = new Style {

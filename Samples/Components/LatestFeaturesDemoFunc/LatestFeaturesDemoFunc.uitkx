@@ -5,7 +5,7 @@
 @using System.Threading.Tasks
 @using ReactiveUITK.Core.Fiber
 
-component LatestFeaturesDemoFunc {
+export component LatestFeaturesDemoFunc {
   var defaultItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta" };
 
   var (items, setItems) = useState(new List<string>(new string[] { "Alpha", "Bravo", "Charlie", "Delta" }));

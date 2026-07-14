@@ -4,7 +4,7 @@
 @using ReactiveUITK.Core
 @using UnityEngine
 
-component ShowcaseExtrasPanel(
+export component ShowcaseExtrasPanel(
   bool isOptionEnabled = false,
   ChangeEventHandler<bool>? onOptionEnabledChange = null,
   bool isRadioSingleSelected = false,

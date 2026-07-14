@@ -2,7 +2,7 @@
 @using System
 @using UnityEngine
 
-module DoomTextures {
+export module DoomTextures {
   // ───── Constants ─────
   public const int TEX_W = 64;
   public const int TEX_H = 64;

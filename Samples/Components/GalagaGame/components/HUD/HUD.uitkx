@@ -1,9 +1,11 @@
+import { GalagaGame } from "../../GalagaGame.style"
+import { GalagaTypes } from "../../GalagaTypes"
 @namespace Samples.GalagaGame
 @using UnityEngine
 @using static Samples.GalagaGame.GalagaTypes.C
 @using static Samples.GalagaGame.SpriteAtlas
 
-component HUD(Texture2D spriteSheet, int score, int lives, int wave) {
+export component HUD(Texture2D spriteSheet, int score, int lives, int wave) {
   return (
     <VisualElement style={HudStyles.Container}>
       <Label text={$"SCORE: {score}"} style={HudStyles.Text} />

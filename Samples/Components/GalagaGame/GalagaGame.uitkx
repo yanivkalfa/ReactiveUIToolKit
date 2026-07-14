@@ -1,7 +1,9 @@
+import { GameScreen } from "./components/GameScreen/GameScreen"
+import { MainMenu } from "./components/MainMenu/MainMenu"
 @namespace Samples.GalagaGame
 @using System
 
-component GalagaGame {
+export component GalagaGame {
   var (screen, setScreen) = useState(Screen.MainMenu);
   var (restartVersion, setRestartVersion) = useState(0);
 

@@ -1,7 +1,7 @@
 @namespace Samples.MarioGame
 @using UnityEngine
 
-component HUD(int score, int lives) {
+export component HUD(int score, int lives) {
   return (
     <VisualElement
       style={new Style {

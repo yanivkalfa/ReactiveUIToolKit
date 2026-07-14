@@ -1,3 +1,4 @@
+import { MarioGame } from "../../MarioGame.style"
 @namespace Samples.MarioGame
 @using System
 @using System.Collections.Generic
@@ -5,7 +6,7 @@
 @using UnityEngine.UIElements
 @using static Samples.MarioGame.MarioConstants
 
-hook useMarioGame(
+export hook useMarioGame(
   Ref<VisualElement?> boardRef
 ) -> (
   GameState state,

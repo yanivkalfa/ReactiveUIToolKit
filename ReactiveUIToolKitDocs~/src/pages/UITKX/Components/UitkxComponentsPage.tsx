@@ -270,7 +270,15 @@ export const UitkxComponentsPage: FC = () => (
           <ListItemText primary="Custom component names must be PascalCase and must not collide with built-in tag names." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary="Each .uitkx file contains exactly one component. The filename must match the component name." />
+          <ListItemText
+            primary={
+              <>
+                One component per file, named after the file, is the recommended convention — not
+                a compiler rule. A file may declare several components/hooks/modules; see{' '}
+                <a href="#/imports">Imports &amp; Exports</a>.
+              </>
+            }
+          />
         </ListItem>
       </List>
     </Box>

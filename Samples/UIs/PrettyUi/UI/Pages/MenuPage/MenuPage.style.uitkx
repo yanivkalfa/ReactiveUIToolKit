@@ -3,7 +3,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-module MenuPage {
+export module MenuPage {
   public static readonly Style Root = new Style {
     FlexGrow = 1f,
     BackgroundImage = Asset<Texture2D>("../../../Resources/background-01.png"),

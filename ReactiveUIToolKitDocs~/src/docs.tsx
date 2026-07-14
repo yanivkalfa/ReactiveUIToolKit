@@ -10,6 +10,7 @@ import { UitkxComponentsPage } from './pages/UITKX/Components/UitkxComponentsPag
 import { VideoPage } from './pages/Components/Video/VideoPage'
 import { AudioPage } from './pages/Components/Audio/AudioPage'
 import { CompanionFilesPage } from './pages/UITKX/CompanionFiles/CompanionFilesPage'
+import { UitkxImportsPage } from './pages/UITKX/Imports/UitkxImportsPage'
 import { UitkxConceptsPage } from './pages/UITKX/Concepts/UitkxConceptsPage'
 import { UitkxConfigPage } from './pages/UITKX/Config/UitkxConfigPage'
 import { UitkxDebuggingPage } from './pages/UITKX/Debugging/UitkxDebuggingPage'
@@ -82,7 +83,7 @@ export const sections: DocSection[] = [
         title: 'Install & Setup',
         path: '/getting-started',
         keywords: ['install', 'setup', 'component', 'partial'],
-        searchContent: 'getting started reactiveuitoolkit function-style .uitkx components source generator produces complete class no boilerplate install via unity package manager open package manager add package from git url create a uitkx component setup code returned markup generator emits render mount rootrenderer V.Func EditorRootRendererUtility.Mount editor window one component per file filename must match component name auto-discovers assets directory @namespace MyGame.UI component HelloWorld var count setCount useState return VisualElement Text Hello ReactiveUITK Button Increment onClick setCount count + 1 companion files optional hook module styles types utils',
+        searchContent: 'getting started reactiveuitoolkit function-style .uitkx components source generator produces complete class no boilerplate install via unity package manager open package manager add package from git url create a uitkx component setup code returned markup generator emits render mount rootrenderer V.Func EditorRootRendererUtility.Mount editor window one component per file recommended convention migrate codemod UitkxMigrateImports auto-discovers assets directory @namespace MyGame.UI component HelloWorld var count setCount useState return VisualElement Text Hello ReactiveUITK Button Increment onClick setCount count + 1 companion files optional hook module styles types utils',
         element: () => <UitkxGettingStartedPage />,
       },
     ],
@@ -99,6 +100,21 @@ export const sections: DocSection[] = [
         keywords: ['companion', 'hook', 'module', 'styles', 'types', 'utils'],
         searchContent: 'companion files optional .uitkx hook module keyword styles types utils naming conventions directory layout source generator produces complete class no boilerplate needed MyComponent.hooks.uitkx custom hooks reusable state logic MyComponent.style.uitkx style constants helpers colours sizes MyComponent.types.uitkx enums structs DTOs MyComponent.utils.uitkx pure helper formatting functions hmr support editing hook triggers hmr delegate swap module changes standalone modules',
         element: () => <CompanionFilesPage />,
+      },
+    ],
+  },
+  {
+    id: 'imports',
+    title: 'Imports & Exports',
+    pages: [
+      {
+        id: 'imports-page',
+        canonicalId: 'imports',
+        title: 'Imports & Exports',
+        path: '/imports',
+        keywords: ['import', 'export', 'from', 'module', 'strict', 'specifier', '~/', 'namespace'],
+        searchContent: 'imports exports import export from grammar cross-file resolution strict esm named imports specifier relative ./ ../ root alias ~/ extensionless .uitkx implied mixed declarations multiple components hooks modules one file any order export component export hook export module file-private internal strict-invisible UITKX2300 2301 2303 2304 2305 2307 2308 2309 unknown specifier not exported duplicate unused not imported add import line used like a hook but no file exports it crosses boundary asmdef-scoped preamble only path-derived namespace derived from owning asmdef @namespace optional interop override privacy compile-time fence codemod UitkxMigrateImports migrate existing project export-everything idempotent formatter-stable builtin elements Box Label builtin hooks useState useEffect ambient C# never flagged',
+        element: () => <UitkxImportsPage />,
       },
     ],
   },
@@ -358,7 +374,7 @@ export const sections: DocSection[] = [
         title: 'Language Reference',
         path: '/reference',
         keywords: ['directives', 'syntax', 'control flow', 'expressions'],
-        searchContent: 'uitkx language reference directives syntax control flow expressions header directives @namespace My.Game.UI c# namespace generated class @component MyButton component class name must match filename @using System.Collections.Generic adds using directive generated file @props MyButtonProps props type consumed by the component @key root-key static key root element @inject ILogger logger dependency-injected field function-style components component keyword preamble declaration parameters typed optional default @using UnityEngine component Counter string label Count var count setCount useState return VisualElement Label text Button onClick setCount conditional rendering @if @else @foreach @switch @case @for @while {expr} markup child embed expression brace JSX babel react render component inline children attr={expr} c# expression attribute value literal plain string attribute // line comment /* block comment */ standard c-style comments fragment <> </> invisible wrapper rules gotchas hook calls must be unconditional component top level single root element component names must match filename reconciliation setup code return() switch expression jsx in setup code bare jsx assignment ternary paren-wrapped collection initializer array list dictionary new VirtualNode[] migration @(expr) removed UITKX0306 directive prefix only @uss',
+        searchContent: 'uitkx language reference directives syntax control flow expressions header directives @namespace My.Game.UI c# namespace generated class @component MyButton component class name filename convention @using System.Collections.Generic adds using directive generated file @props MyButtonProps props type consumed by the component @key root-key static key root element @inject ILogger logger dependency-injected field function-style components component keyword preamble declaration parameters typed optional default @using UnityEngine component Counter string label Count var count setCount useState return VisualElement Label text Button onClick setCount conditional rendering @if @else @foreach @switch @case @for @while {expr} markup child embed expression brace JSX babel react render component inline children attr={expr} c# expression attribute value literal plain string attribute // line comment /* block comment */ standard c-style comments fragment <> </> invisible wrapper rules gotchas hook calls must be unconditional component top level single root element component filename recommended convention reconciliation setup code return() switch expression jsx in setup code bare jsx assignment ternary paren-wrapped collection initializer array list dictionary new VirtualNode[] migration @(expr) removed UITKX0306 directive prefix only @uss',
         element: () => <UitkxReferencePage />,
       },
       {
@@ -375,8 +391,8 @@ export const sections: DocSection[] = [
         canonicalId: 'configuration',
         title: 'Configuration',
         path: '/config',
-        keywords: ['config', 'settings', 'vscode', 'extension'],
-        searchContent: 'configuration reference options editor extensions formatter vs code extension settings uitkx.server.path uitkx.server.dotnetpath uitkx.trace.server editor defaults editor.defaultformatter reactiveuitk.uitkx editor.formatonsave editor.tabsize editor.insertspaces editor.bracketpaircolorization semantic tokens',
+        keywords: ['config', 'settings', 'vscode', 'extension', 'uitkx.config.json', 'root', '~/'],
+        searchContent: 'configuration reference options editor extensions formatter uitkx.config.json project config root key ~/ alias import specifier asset path source root default Assets nearest config wins UITKX2314 vs code extension settings uitkx.server.path uitkx.server.dotnetpath uitkx.trace.server editor defaults editor.defaultformatter reactiveuitk.uitkx editor.formatonsave editor.tabsize editor.insertspaces editor.bracketpaircolorization semantic tokens',
         element: () => <UitkxConfigPage />,
       },
       {
@@ -400,7 +416,7 @@ export const sections: DocSection[] = [
         title: 'FAQ',
         path: '/faq',
         keywords: ['faq', 'frequently asked questions', 'help'],
-        searchContent: 'frequently asked questions what is uitkx markup language authoring unity ui toolkit components react-like model .uitkx jsx-style hooks control flow roslyn source generator which unity versions supported unity 6.2 does uitkx work with existing ui toolkit code visualelement runtime overhead reconciliation scheduler per-frame cost aot-compatible production builds plain c# which editors supported vs code visual studio 2022 jetbrains rider .net version language server .net 8 dotnet directive-header form function-style components hmr hot module replacement hooks top level unconditional burst assembly-csharp-editor completions hover stopped working debugging guide',
+        searchContent: 'frequently asked questions migrate migration codemod UitkxMigrateImports import export 0.7.0 upgrade existing project what is uitkx markup language authoring unity ui toolkit components react-like model .uitkx jsx-style hooks control flow roslyn source generator which unity versions supported unity 6.2 does uitkx work with existing ui toolkit code visualelement runtime overhead reconciliation scheduler per-frame cost aot-compatible production builds plain c# which editors supported vs code visual studio 2022 jetbrains rider .net version language server .net 8 dotnet directive-header form function-style components hmr hot module replacement hooks top level unconditional burst assembly-csharp-editor completions hover stopped working debugging guide',
         element: () => <FAQPage />,
       },
     ],

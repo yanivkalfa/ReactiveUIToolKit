@@ -2,7 +2,7 @@
 @using System
 @using UnityEngine.UIElements
 
-component CustomDrawDemoFunc {
+export component CustomDrawDemoFunc {
   var (sides, setSides) = useState(3);
   var (useBlue, setUseBlue) = useState(true);
   var (redrawTick, setRedrawTick) = useState(0);

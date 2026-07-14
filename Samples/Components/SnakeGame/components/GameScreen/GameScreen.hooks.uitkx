@@ -4,7 +4,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-hook useSnakeGame(
+export hook useSnakeGame(
   Ref<VisualElement?> boardRef
 ) -> (
   int score,

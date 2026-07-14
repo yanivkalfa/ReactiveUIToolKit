@@ -43,6 +43,26 @@ public sealed class SemanticTokenTests
             lines[t.Line].Substring(t.Column, t.Length) == text);
     }
 
+    // ── Import / export tokens (import/export grammar §10) ──────────────────
+
+    [Fact]
+    public void ImportLine_TokenizesImportFromAndSpecifier()
+    {
+        var source = "import { useCounter } from \"./Counter.hooks\"\nexport component Screen {\n    return (<Box />);\n}";
+        var tokens = GetTokens(source);
+        Assert.True(HasToken(tokens, source, SemanticTokenTypes.Keyword, "import"));
+        Assert.True(HasToken(tokens, source, SemanticTokenTypes.Keyword, "from"));
+        Assert.True(HasToken(tokens, source, SemanticTokenTypes.String, "\"./Counter.hooks\""));
+    }
+
+    [Fact]
+    public void ExportPrefix_TokenizedAsKeyword()
+    {
+        var source = "export component Screen {\n    return (<Box />);\n}";
+        var tokens = GetTokens(source);
+        Assert.True(HasToken(tokens, source, SemanticTokenTypes.Keyword, "export"));
+    }
+
     // ── Element & attribute tests ──────────────────────────────────────────
 
     [Fact]

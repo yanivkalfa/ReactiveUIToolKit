@@ -1,8 +1,9 @@
+import { EffectPanel } from "./EffectPanel"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System.Collections.Generic
 @using UnityEngine
 
-component EffectCleanupOrderDemoFunc {
+export component EffectCleanupOrderDemoFunc {
   var (generation, setGeneration) = useState(0);
   // Shared mutable log stored in a ref (mutations don't re-trigger renders).
   var logRef = useRef<List<string>>(new List<string>());

@@ -1,3 +1,10 @@
+import { MarioGame } from "../../MarioGame.style"
+import { Block } from "../Block/Block"
+import { Enemy } from "../Enemy/Enemy"
+import { HUD } from "../HUD/HUD"
+import { Mario } from "../Mario/Mario"
+import { Mushroom } from "../Mushroom/Mushroom"
+import { useMarioGame } from "./GameScreen.hooks"
 @namespace Samples.MarioGame
 @using System
 @using System.Collections.Generic
@@ -5,7 +12,7 @@
 @using UnityEngine.UIElements
 @using static Samples.MarioGame.MarioConstants
 
-component GameScreen(int restartVersion = 0, Action? onQuit = null) {
+export component GameScreen(int restartVersion = 0, Action? onQuit = null) {
   var boardRef = useRef<VisualElement?>(null);
   var (state, restart, onKeyDown) = useMarioGame(boardRef);
 

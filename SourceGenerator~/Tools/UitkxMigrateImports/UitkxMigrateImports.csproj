@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UitkxMigrateImports — the leg-3 migration codemod (plan §11).
+
+    Rewrites existing .uitkx sources to the import/export grammar in place:
+      • prepend `export` to every top-level declaration (export-everything default, A3);
+      • insert `import { … } from "./relative"` lines for every referenced peer
+        (fresh reference scan — component tags, useX() calls, Module. member access);
+      • stamp the CURRENT effective @namespace so existing companion-.cs identity is frozen.
+
+    Idempotent + re-runnable. Runs BEFORE strictness flips on, so the added imports are
+    inert (the flag-off emit ignores them) and the tree keeps compiling at every step.
+
+    Not shipped to Unity (under a `~` tools folder). References the shared language lib.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>UitkxMigrateImports</AssemblyName>
+    <RootNamespace>ReactiveUITK.SourceGenerator.Tools</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ide-extensions~\language-lib\UitkxLanguage.csproj" />
+  </ItemGroup>
+
+</Project>

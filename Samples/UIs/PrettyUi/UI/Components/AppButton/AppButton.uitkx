@@ -1,10 +1,11 @@
+import { StyleExtensions } from "../../StyleExtensions"
 @namespace PrettyUi.App.Components
 @using System
 @using PrettyUi.App
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component AppButton(
+export component AppButton(
   string text = "",
   Action? onClick = null,
   bool active = false,

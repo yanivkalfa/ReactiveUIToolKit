@@ -1,7 +1,8 @@
+import { ContextConsumer } from "./ContextConsumer"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component ContextDemoFunc {
+export component ContextDemoFunc {
   var (usePrimaryTheme, setUsePrimaryTheme) = useState(true);
 
   var themeColor = usePrimaryTheme

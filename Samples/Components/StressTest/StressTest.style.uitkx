@@ -2,7 +2,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-module StressTest {
+export module StressTest {
   public static readonly Style Root = new Style {
     Display = DisplayStyle.Flex,
     FlexGrow = 1f,

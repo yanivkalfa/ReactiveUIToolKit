@@ -48,10 +48,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             DirectiveSet directives,
             ImmutableArray<AstNode> rootNodes,
             PropsResolver resolver,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            IReadOnlyDictionary<string, string>? hookKeyMap = null
         )
         {
-            var ctx = new EmitContext(filePath, directives, resolver, diagnostics);
+            var ctx = new EmitContext(filePath, directives, resolver, diagnostics, hookKeyMap);
             return ctx.BuildSource(rootNodes);
         }
     }
@@ -142,11 +143,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private const string QVNode = "global::ReactiveUITK.Core.VirtualNode";
 
+        private readonly IReadOnlyDictionary<string, string>? _hookKeyMap;
+
         internal EmitContext(
             string filePath,
             DirectiveSet directives,
             PropsResolver resolver,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            IReadOnlyDictionary<string, string>? hookKeyMap = null
         )
         {
             _filePath = filePath;
@@ -155,6 +159,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             _diagnostics = diagnostics;
             _displayName = Path.GetFileName(filePath);
             _linePath = NormalizeLinePath(filePath);
+            _hookKeyMap = hookKeyMap;
         }
 
         // -- Top-level builder -------------------------------------------------
@@ -237,9 +242,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L($"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]");
             L($"    [global::ReactiveUITK.UitkxElement(\"{_directives.ComponentName}\")]");
 
-            // Emit hook signature for proactive HMR state-reset detection
+            // Emit hook signature for proactive HMR state-reset detection.
+            // customHookKeys are PATH-QUALIFIED (§7) via _hookKeyMap so they match the
+            // producers' qualified RegisterHook ids; both feed the same runtime string-match.
             string hookSig = ExtractHookSignature(_directives.FunctionSetupCode);
-            string[] customHookKeys = ExtractCustomHookFamilyKeys(_directives.FunctionSetupCode);
+            string[] customHookKeys = HookEmitter.QualifyKeys(
+                ExtractCustomHookFamilyKeys(_directives.FunctionSetupCode), _hookKeyMap);
             if (hookSig.Length > 0 || customHookKeys.Length > 0)
             {
                 if (customHookKeys.Length > 0)
@@ -252,7 +260,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
             }
 
-            L($"    public partial class {_directives.ComponentName}");
+            // Accessibility (§6), GATED behind StrictImports for the additive-then-flip contract:
+            //   • flag OFF → always `public partial class` (byte-identical legacy output).
+            //   • flag ON  → `export` → public, else `internal`.
+            // Under strict this DOES emit an explicit `internal` for a non-exported component, so a
+            // companion `.cs` declaring `public partial class Foo` becomes CS0262, and a cross-asmdef
+            // reference becomes CS0122. That is the intended strict contract — expose across files only
+            // what you `export`; keep the companion `internal` or add `export`. (The prior comment here
+            // claimed CS0262 "was already true before this change" — that was wrong: pre-feature the
+            // generated part was always `public`, so a public companion was safe.)
+            bool componentExported =
+                !UitkxFeatureFlags.StrictImports
+                || _directives.ComponentDeclarations.IsDefaultOrEmpty
+                || _directives.ComponentDeclarations[0].IsExported;
+            L($"    {(componentExported ? "public" : "internal")} partial class {_directives.ComponentName}");
             L("    {");
 
             EmitHelperMethod();
@@ -285,7 +306,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     // H-03: same canonical rule as ResolveAssetPaths - bare paths resolve
                     // uitkx-dir-relative too, not just explicitly "./"/"../"-prefixed ones.
                     string resolved = ReactiveUITK.Language.AssetPathUtil.ResolveAssetPath(
-                        GetUitkxAssetDir(_filePath), rawPath);
+                        GetUitkxAssetDir(_filePath), rawPath,
+                        ReactiveUITK.Language.UitkxConfig.LoadRoot(System.IO.Path.GetDirectoryName(_filePath)));
                     _sb.Append($"\"{resolved}\"");
 
                     // Validate file existence at compile time (UITKX0022)
@@ -3893,7 +3915,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     string requestedType = match.Groups[1].Value;
                     string rawPath = match.Groups[2].Value;
                     string uitkxDir = GetUitkxAssetDir(filePath);
-                    string resolved = ReactiveUITK.Language.AssetPathUtil.ResolveAssetPath(uitkxDir, rawPath);
+                    string resolved = ReactiveUITK.Language.AssetPathUtil.ResolveAssetPath(
+                        uitkxDir, rawPath,
+                        ReactiveUITK.Language.UitkxConfig.LoadRoot(System.IO.Path.GetDirectoryName(filePath)));
 
                     // Validate file existence at compile time
                     string projectRoot = GetProjectRoot(filePath);

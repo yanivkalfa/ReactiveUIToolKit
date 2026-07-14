@@ -399,8 +399,11 @@ public class ParserTests
     }
 
     [Fact]
-    public void Directives_FunctionStyle_InfersNamespace_FromCompanionPartialClass()
+    public void Directives_FunctionStyle_DoesNotInferNamespace_FromCompanionCs()
     {
+        // The parser no longer reads a companion .cs to infer the namespace (plan §4 —
+        // a target's identity must never flip on a .cs edit). It returns the stable default;
+        // the pipeline derives the real (path-based) namespace downstream.
         string dir = Path.Combine(
             Path.GetTempPath(),
             "uitkx-func-ns-" + System.Guid.NewGuid().ToString("N")
@@ -429,7 +432,8 @@ public class ParserTests
 
             Assert.True(set.IsFunctionStyle);
             Assert.Equal("CounterPanel", set.ComponentName);
-            Assert.Equal("MyGame.Sample.UI", set.Namespace);
+            // The companion's MyGame.Sample.UI is IGNORED — default, not .cs-derived.
+            Assert.Equal("ReactiveUITK.FunctionStyle", set.Namespace);
         }
         finally
         {
@@ -525,6 +529,91 @@ public class ParserTests
 
         ParseDirectives(src, out var diags);
         Assert.Contains(diags, d => d.Code == "UITKX2104");
+    }
+
+    // ── Mixed-decl v1 (leg 3): a file is a SEQUENCE of declarations ──────────────
+
+    [Fact]
+    public void HookFile_WithUss_NoLongerErrors_2210Lifted()
+    {
+        // §5 (import/export grammar): @uss is legal in any file — the old UITKX2210 hard error
+        // (hook/module files may not carry @uss) is lifted.
+        const string src =
+            "@uss \"styles.uss\"\nhook useThing() {\n    return 0;\n}\n";
+
+        ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX2210");
+    }
+
+    [Fact]
+    public void MixedDecl_TwoComponentsInOneFile_BothParsedNoError()
+    {
+        const string src =
+            """
+            component First {
+                return (<Box />);
+            }
+            component Second {
+                return (<Label text="x" />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Equal(2, set.ComponentDeclarations.Length);
+        Assert.Equal("First", set.ComponentDeclarations[0].Name);
+        Assert.Equal("Second", set.ComponentDeclarations[1].Name);
+        // Singular back-compat fields still track the FIRST component.
+        Assert.Equal("First", set.ComponentName);
+    }
+
+    [Fact]
+    public void MixedDecl_ComponentThenHookAndModule_AllParsed()
+    {
+        const string src =
+            """
+            component Screen {
+                return (<Box />);
+            }
+            export hook useCounter(int start) {
+                return start;
+            }
+            module Styles {
+                public static int Gap = 4;
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Single(set.ComponentDeclarations);
+        Assert.Single(set.HookDeclarations);
+        Assert.Single(set.ModuleDeclarations);
+        Assert.True(set.HookDeclarations[0].IsExported);
+        Assert.False(set.ModuleDeclarations[0].IsExported);
+    }
+
+    [Fact]
+    public void MixedDecl_ExportedSecondComponent_MarkedExported()
+    {
+        const string src =
+            """
+            component First {
+                return (<Box />);
+            }
+            export component Second {
+                return (<Label text="x" />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Equal(2, set.ComponentDeclarations.Length);
+        Assert.False(set.ComponentDeclarations[0].IsExported);
+        Assert.True(set.ComponentDeclarations[1].IsExported);
     }
 
     [Fact]

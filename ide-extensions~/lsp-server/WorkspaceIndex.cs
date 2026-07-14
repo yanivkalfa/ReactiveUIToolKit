@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using ReactiveUITK.Language;
+using ReactiveUITK.Language.Parser;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 
 namespace UitkxLanguageServer;
@@ -96,6 +98,19 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // in a different folder than the consumer .uitkx file.
     private readonly HashSet<string> _moduleHookFiles = new(StringComparer.OrdinalIgnoreCase);
 
+    // Exported top-level declarations per .uitkx file (import/export grammar, leg 3): file path ->
+    // its exported component/hook/module names + kinds. Populated by IndexUitkxFile (parsed, so it
+    // tracks the `export` flag + hook/module names the regex index does not) and evicted with the
+    // file. Consumed by GetPeerExports to feed the strict reference detector for LIVE 2305/2307.
+    private readonly Dictionary<string, List<(string Name, StrictImportDetector.ExportKind Kind)>> _exportsByFile =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Import declarations per .uitkx file (import/export grammar, leg 3): file path -> its imports
+    // (specifier + names). Feeds the value-import cycle detector (UITKX2306). Same lifecycle as
+    // _exportsByFile (populated in IndexUitkxFile, evicted with the file).
+    private readonly Dictionary<string, List<(string Specifier, string[] Names)>> _importsByFile =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // Workspace-wide set of all indexed *.cs file paths. Consumed by
     // RoslynHost.FindCompanionFiles to load partial-class members and types
     // declared in any .cs file belonging to the same asmdef as the .uitkx
@@ -138,7 +153,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // Matches function-style component declarations inside a .uitkx file:
     //   component FooBar {
     private static readonly Regex s_uitkxComponentPattern = new(
-        @"^component\s+([A-Z][A-Za-z0-9_]*)",
+        @"^(?:export\s+)?component\s+([A-Z][A-Za-z0-9_]*)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -146,7 +161,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // Group "name" = component name.  Group "params" = raw param list if present.
     //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
     private static readonly Regex s_uitkxDeclPattern = new(
-        @"^component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
+        @"^(?:export\s+)?component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -156,7 +171,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // import. Multiline so `^` matches each logical line start; the directive
     // grammar prohibits leading whitespace before `module`/`hook` keywords.
     private static readonly Regex s_uitkxModuleOrHookPattern = new(
-        @"^(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])",
+        @"^(?:export\s+)?(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -279,6 +294,88 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             _lock.ExitReadLock();
         }
     }
+
+    /// <summary>
+    /// The exported declarations of every indexed <c>.uitkx</c> file EXCEPT
+    /// <paramref name="currentFilePath"/> — the peer export table the strict reference detector
+    /// consumes for live 2305/2307 (import/export grammar, leg 3). When
+    /// <paramref name="owningAsmdefDir"/> is non-null, only peers under that directory are returned
+    /// (imports are asmdef-scoped — a directory-prefix approximation of the boundary).
+    /// </summary>
+    public IReadOnlyList<StrictImportDetector.PeerExport> GetPeerExports(
+        string currentFilePath, string? owningAsmdefDir)
+    {
+        var result = new List<StrictImportDetector.PeerExport>();
+        string self = NormPath(currentFilePath);
+        string? scope = owningAsmdefDir is null ? null : NormPath(owningAsmdefDir);
+
+        _lock.EnterReadLock();
+        try
+        {
+            foreach (var kv in _exportsByFile)
+            {
+                string file = NormPath(kv.Key);
+                if (string.Equals(file, self, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (scope != null && !file.StartsWith(scope + "/", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                foreach (var (name, kind) in kv.Value)
+                    result.Add(new StrictImportDetector.PeerExport(name, kv.Key, kind));
+            }
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Import declarations of every indexed <c>.uitkx</c> file under <paramref name="owningAsmdefDir"/>
+    /// (all files when null): <c>(sourceFile, specifier, importedNames)</c>. Feeds the value-import
+    /// cycle detector (UITKX2306).
+    /// </summary>
+    public IReadOnlyList<(string File, string Specifier, IReadOnlyList<string> Names)> GetImportEdges(
+        string? owningAsmdefDir)
+    {
+        var result = new List<(string, string, IReadOnlyList<string>)>();
+        string? scope = owningAsmdefDir is null ? null : NormPath(owningAsmdefDir);
+        _lock.EnterReadLock();
+        try
+        {
+            foreach (var kv in _importsByFile)
+            {
+                if (scope != null && !NormPath(kv.Key).StartsWith(scope + "/", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                foreach (var (specifier, names) in kv.Value)
+                    result.Add((kv.Key, specifier, names));
+            }
+        }
+        finally { _lock.ExitReadLock(); }
+        return result;
+    }
+
+    /// <summary>The kind an <paramref name="name"/> is exported as by <paramref name="filePath"/>, or null.</summary>
+    public StrictImportDetector.ExportKind? GetExportKind(string filePath, string name)
+    {
+        string t = NormPath(filePath);
+        _lock.EnterReadLock();
+        try
+        {
+            foreach (var kv in _exportsByFile)
+            {
+                if (!string.Equals(NormPath(kv.Key), t, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                foreach (var (n, kind) in kv.Value)
+                    if (string.Equals(n, name, StringComparison.Ordinal))
+                        return kind;
+            }
+        }
+        finally { _lock.ExitReadLock(); }
+        return null;
+    }
+
+    private static string NormPath(string p) => p.Replace('\\', '/').TrimEnd('/');
 
     /// <summary>
     /// Snapshot of every indexed .cs file path. Used by the Roslyn host to
@@ -597,11 +694,41 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             string content = File.ReadAllText(filePath);
 
             bool hasModuleOrHook = s_uitkxModuleOrHookPattern.IsMatch(content);
+
+            // Exported declarations (import/export grammar): parse with the real directive parser so
+            // the `export` flag + hook/module names (which the regex index doesn't capture) are known.
+            var exports = new List<(string Name, StrictImportDetector.ExportKind Kind)>();
+            var imports = new List<(string Specifier, string[] Names)>();
+            try
+            {
+                var diags = new List<ParseDiagnostic>();
+                var ds = DirectiveParser.Parse(content, filePath, diags);
+                if (!ds.ComponentDeclarations.IsDefaultOrEmpty)
+                    foreach (var c in ds.ComponentDeclarations)
+                        if (c.IsExported) exports.Add((c.Name, StrictImportDetector.ExportKind.Component));
+                if (!ds.HookDeclarations.IsDefaultOrEmpty)
+                    foreach (var h in ds.HookDeclarations)
+                        if (h.IsExported) exports.Add((h.Name, StrictImportDetector.ExportKind.Hook));
+                if (!ds.ModuleDeclarations.IsDefaultOrEmpty)
+                    foreach (var mod in ds.ModuleDeclarations)
+                        if (mod.IsExported) exports.Add((mod.Name, StrictImportDetector.ExportKind.Module));
+                if (!ds.Imports.IsDefaultOrEmpty)
+                    foreach (var imp in ds.Imports)
+                        imports.Add((imp.Specifier, imp.Names.ToArray()));
+            }
+            catch { /* parse hiccup — leave this file with no exports/imports */ }
+
             _lock.EnterWriteLock();
             try
             {
                 if (hasModuleOrHook) _moduleHookFiles.Add(filePath);
                 else _moduleHookFiles.Remove(filePath);
+
+                if (exports.Count > 0) _exportsByFile[filePath] = exports;
+                else _exportsByFile.Remove(filePath);
+
+                if (imports.Count > 0) _importsByFile[filePath] = imports;
+                else _importsByFile.Remove(filePath);
             }
             finally { _lock.ExitWriteLock(); }
 
@@ -830,6 +957,9 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         _lock.EnterWriteLock();
         try
         {
+            _exportsByFile.Remove(filePath); // import/export grammar: drop this file's exports too
+            _importsByFile.Remove(filePath);
+
             if (!_elementsByFile.TryGetValue(filePath, out var names))
                 return;
 

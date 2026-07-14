@@ -1,10 +1,11 @@
+import { IntroCounterFunc } from "./IntroCounterFunc"
 @namespace ReactiveUITK.Samples.UITKXShared
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Core
 @using ReactiveUITK.Props.Typed
 
-component MultiColumnListViewStatefulDemoFunc(
+export component MultiColumnListViewStatefulDemoFunc(
   IReadOnlyList<MultiColumnListViewRowState>? items = null,
   List<SortedColumnDef>? sortDefs = null,
   Dictionary<string, float>? columnWidths = null,

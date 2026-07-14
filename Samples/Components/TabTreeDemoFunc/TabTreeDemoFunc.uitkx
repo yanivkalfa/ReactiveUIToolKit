@@ -1,3 +1,5 @@
+import { MultiColumnTreeViewStatefulDemoFunc } from "../../Shared/MultiColumnTreeViewStatefulDemoFunc"
+import { TreeViewStatefulDemoFunc } from "../../Shared/TreeViewStatefulDemoFunc"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Samples.UITKXShared
 @using System
@@ -5,7 +7,7 @@
 @using ReactiveUITK.Props.Typed
 @using UnityEngine.UIElements
 
-component TabTreeDemoFunc {
+export component TabTreeDemoFunc {
   var (tabIndex, setTabIndex) = useState(0);
 
   var (treeRows, setTreeRows) = useState(new List<TreeViewRowState>());

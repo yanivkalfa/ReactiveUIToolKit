@@ -1,8 +1,9 @@
+import { Theme } from "../../Theme"
 @namespace PrettyUi.App.Pages
 @using PrettyUi.App
 @using UnityEngine
 
-module GamePage {
+export module GamePage {
   public static readonly Style Root = new Style {
     FlexGrow = 1f,
     AlignItems = AlignEnd,

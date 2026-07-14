@@ -1,3 +1,5 @@
+import { IntroCounterFunc } from "../../Shared/IntroCounterFunc"
+import { UitkxTestSubFileDoNotTouch } from "./UitkxTestSubFileDoNotTouch"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
@@ -7,7 +9,7 @@
 @using ReactiveUITK.Router
 @using ReactiveUITK.Samples.UITKXShared
 
-component UitkxTestFileDoNotTouch(
+export component UitkxTestFileDoNotTouch(
   IReadOnlyList<ListViewRowState>? items = null,
   Action? addItem = null,
   Action? setTopItem = null,

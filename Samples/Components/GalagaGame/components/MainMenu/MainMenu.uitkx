@@ -1,7 +1,7 @@
 @namespace Samples.GalagaGame
 @using System
 
-component MainMenu(Action onNewGame) {
+export component MainMenu(Action onNewGame) {
   return (
     <VisualElement style={MainMenuStyles.Container}>
       <VisualElement style={MainMenuStyles.MenuBox}>

@@ -1,6 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 
-component SimpleCounterFunc {
+export component SimpleCounterFunc {
   var (count, setCount) = useState(0);
 
   return (

@@ -1,6 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 
-component SimpleTextFieldFunc {
+export component SimpleTextFieldFunc {
   var (text, setText) = useState("");
 
   return (

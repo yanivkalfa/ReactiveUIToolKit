@@ -6,7 +6,7 @@
 @using UnityEngine.UIElements
 @using static Samples.DoomGame.DoomTypes
 
-component DoomMinimap(GameState state) {
+export component DoomMinimap(GameState state) {
   const int MAP_PX = 160;
 
   var bgClr = new Color(0.05f, 0.05f, 0.05f, 0.78f);

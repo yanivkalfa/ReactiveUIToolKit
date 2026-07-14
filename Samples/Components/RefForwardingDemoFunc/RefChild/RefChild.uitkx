@@ -2,7 +2,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component RefChild(
+export component RefChild(
   Ref<TextField>? inputRef = null,
   Ref<Label>? labelRef = null,
   Action? onSnapshot = null

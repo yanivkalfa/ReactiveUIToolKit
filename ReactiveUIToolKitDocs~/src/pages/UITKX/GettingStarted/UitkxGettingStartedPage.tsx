@@ -37,17 +37,26 @@ export const UitkxGettingStartedPage: FC = () => (
       1. Create a UITKX component
     </Typography>
     <Typography variant="body1" paragraph>
-      Each <code>.uitkx</code> file contains exactly one component. The filename must match the
-      component name (e.g. <code>HelloWorld.uitkx</code> defines <code>component HelloWorld</code>).
+      A simple <code>.uitkx</code> file holds one component. (A file may declare more than one
+      component/hook/module, and matching the filename to the component name is a recommended
+      convention rather than a hard rule — see <a href="#/imports">Imports &amp; Exports</a>.)
       Setup code goes at the top; the component returns markup.
     </Typography>
     <CodeBlock language="jsx" code={UITKX_HELLO_WORLD_COMPONENT} />
     <Typography variant="body1" paragraph>
       The source generator automatically discovers all <code>.uitkx</code> files in your{' '}
       <code>Assets/</code> directory — no registration needed. On the next Unity compile it emits a
-      complete C# class (<code>HelloWorld.uitkx.g.cs</code>) with <code>namespace</code>,{' '}
-      <code>public partial class</code>, and a full <code>Render()</code> method. You don't need to
-      create any companion file for this to work.
+      complete C# class (<code>HelloWorld.uitkx.g.cs</code>) with <code>namespace</code>, a{' '}
+      <code>partial class</code>, and a full <code>Render()</code> method. The class is{' '}
+      <code>internal</code> by default; prefix the declaration with <code>export</code> to make it{' '}
+      <code>public</code> and importable from other files. You don&rsquo;t need to create any
+      companion file for this to work.
+    </Typography>
+    <Typography variant="body2" paragraph>
+      Upgrading an existing (pre-0.7.0) project? The bundled <code>UitkxMigrateImports</code>{' '}
+      codemod adds <code>export</code>s and <code>import</code>s to your <code>.uitkx</code> files
+      in one pass — see{' '}
+      <a href="#/imports">Imports &amp; Exports → Migrating an existing project</a>.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>

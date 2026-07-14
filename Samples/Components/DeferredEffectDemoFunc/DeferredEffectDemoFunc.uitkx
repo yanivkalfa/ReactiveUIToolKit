@@ -2,7 +2,7 @@
 @using UnityEngine
 @using System
 
-component DeferredEffectDemoFunc {
+export component DeferredEffectDemoFunc {
   var (commitCount, setCommitCount) = useState(0);
   var (effectCount, setEffectCount) = useState(0);
   var (lastCommitTime, setLastCommitTime) = useState("â€”");

@@ -93,6 +93,15 @@ Companion file changes also trigger HMR — saving a `.hooks.uitkx` or `.style.u
 automatically detects the associated component, recompiles everything, and swaps the result
 in-place (or triggers domain reload for modules).
 
+**Hook identity is path-qualified.** Fast-Refresh matches an edited hook to its consumer
+components by the family key `{EffectiveNamespace}.{Container}::{hookName}` (e.g.
+`MyGame.UI.CounterHooks::useCounter`), not by the bare hook name — so two identically-named
+hooks in different files never cross-swap. Both the source generator and the HMR emitters
+derive the key from the SAME shared functions (`ReactiveUITK.Language.EffectiveNamespace` +
+the container-name algorithm + `ImportResolver` for imported hooks); if you change the key
+format on one side, the other must change in lockstep or hot-swap silently stops matching
+(see `HmrEmitterParityContractTests.Sg_HookRegistration_UsesPathQualifiedFamilyKey_HmrMustMirror`).
+
 ## New Component Support
 
 HMR can compile and load **new** `.uitkx` files that don't exist in any pre-compiled assembly:

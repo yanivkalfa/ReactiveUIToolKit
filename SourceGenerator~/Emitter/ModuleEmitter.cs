@@ -22,7 +22,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         public static string Emit(
             string filePath,
             DirectiveSet directives,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            ImmutableArray<PeerComponentInfo>? peerComponents = null
         )
         {
             if (directives.ModuleDeclarations.IsDefaultOrEmpty)
@@ -115,7 +116,63 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Don't emit [UitkxSource] — the module may extend a component
                 // class that already has it, and the attribute isn't allowed
                 // to appear twice on the same type.
-                sb.AppendLine($"    public partial class {module.Name}");
+                //
+                // Accessibility (§6): a module that MERGES with a same-named component partial emits
+                // NO modifier (that component's partial is the authority — a mismatched modifier would
+                // be CS0262); otherwise export → public, else internal. If the merging parts disagree
+                // on exportedness → UITKX2311. Standalone exported modules stay `public` (byte-identical
+                // to before), so the migrated Samples are unaffected.
+                bool mergesWithComponent = false;
+                bool componentIsExported = false;
+                if (!directives.ComponentDeclarations.IsDefaultOrEmpty)
+                    foreach (var comp in directives.ComponentDeclarations)
+                        if (comp.Name == module.Name)
+                        {
+                            mergesWithComponent = true;
+                            componentIsExported = comp.IsExported;
+                            break;
+                        }
+                // Cross-file merge (the common companion pattern: Foo.uitkx `component Foo`
+                // + Foo.style.uitkx `module Foo`). A same-named component in ANY file that
+                // resolves to the same effective namespace becomes the same partial type, so
+                // the module part must defer its access modifier to the component — otherwise a
+                // non-exported component (internal) + an exported module (public) are two
+                // partials of one type with conflicting EXPLICIT modifiers → CS0262, which the
+                // same-file-only check never caught.
+                if (!mergesWithComponent && peerComponents != null)
+                    foreach (var pc in peerComponents.Value)
+                        if (pc.Name == module.Name
+                            && string.Equals(pc.Namespace, ns, StringComparison.Ordinal))
+                        {
+                            mergesWithComponent = true;
+                            componentIsExported = pc.IsExported;
+                            break;
+                        }
+
+                if (mergesWithComponent && componentIsExported != module.IsExported)
+                {
+                    // Warning, not Error: the module now emits no modifier and DEFERS to the
+                    // component's accessibility (so there is no CS0262 to break the build) — the
+                    // module's own `export`/non-export was just ignored. Advise the user to align
+                    // them. (Surfaced via #warning by the pipeline — Location.None alone is dropped.)
+                    diagnostics.Add(Diagnostic.Create(
+                        new DiagnosticDescriptor(
+                            "UITKX2311", "Export accessibility mismatch",
+                            $"Export mismatch merging into '{module.Name}': the component's accessibility is used; align the module's export.",
+                            "ReactiveUITK.Imports", DiagnosticSeverity.Warning, true),
+                        Location.None));
+                }
+
+                // Accessibility gated behind StrictImports (additive-then-flip): flag OFF → legacy
+                // `public ` always; flag ON → no-modifier when merging with a same-named component
+                // partial (that part is the authority), else export → public, else internal.
+                string moduleAccess =
+                    !ReactiveUITK.Language.UitkxFeatureFlags.StrictImports
+                        ? "public "
+                        : mergesWithComponent
+                            ? string.Empty
+                            : (module.IsExported ? "public " : "internal ");
+                sb.AppendLine($"    {moduleAccess}partial class {module.Name}");
                 sb.AppendLine("    {");
                 if (rewriteResult.ParseFailed)
                 {

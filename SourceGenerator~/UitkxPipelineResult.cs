@@ -28,6 +28,19 @@ namespace ReactiveUITK.SourceGenerator
         /// emission. Errors map back to the .uitkx file via Location objects
         /// constructed from the file path and source line number.
         /// </summary>
-        ImmutableArray<Diagnostic> Diagnostics
+        ImmutableArray<Diagnostic> Diagnostics,
+        /// <summary>
+        /// Additional (HintName, Source) compilation units produced by a
+        /// mixed-decl / multi-component file. Each entry is a COMPLETE, standalone
+        /// C# compilation unit (its own <c>using</c> preamble + <c>namespace</c>
+        /// block) that merges with <see cref="Source"/> as a <c>partial</c> across
+        /// compilation units — exactly like sibling .uitkx files already do. This
+        /// exists because a single .uitkx that declares several
+        /// components/hooks/modules must NOT be emitted as one concatenated file
+        /// (concatenating self-contained units puts later <c>using</c> directives
+        /// after a namespace → CS1529). Default/empty for the common single-unit
+        /// case, so every 3-argument construction stays byte-identical.
+        /// </summary>
+        ImmutableArray<(string HintName, string Source)> ExtraSources = default
     );
 }

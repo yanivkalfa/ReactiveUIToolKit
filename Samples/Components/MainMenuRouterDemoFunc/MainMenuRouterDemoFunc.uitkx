@@ -1,7 +1,9 @@
+import { MainMenuLayout } from "./MainMenuLayout"
+import { MainMenuNavigationRow } from "./MainMenuNavigationRow"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 
-component MainMenuRouterDemoFunc {
+export component MainMenuRouterDemoFunc {
   var rootStyle = new Style {
     (StyleKeys.FlexGrow, 1f),
     (StyleKeys.FlexDirection, "column"),

@@ -5,7 +5,7 @@
 @using UnityEngine.UIElements
 @using static Samples.DoomGame.DoomTypes
 
-component DoomMainMenu(
+export component DoomMainMenu(
   int level,
   Difficulty difficulty,
   Action<int> onLevelChange,

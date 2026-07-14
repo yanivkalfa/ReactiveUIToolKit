@@ -1,6 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXShared
 
-component AnimationsDemoPage {
+export component AnimationsDemoPage {
   var (repeatClickCount, setRepeatClickCount) = useState(0);
   var (animNonce, setAnimNonce) = useState(0);
 

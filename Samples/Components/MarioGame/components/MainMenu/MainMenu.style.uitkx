@@ -1,7 +1,7 @@
 @namespace Samples.MarioGame
 @using UnityEngine
 
-module MainMenu {
+export module MainMenu {
   public static class MainMenuStyles {
     public static readonly Style Container = new Style {
       (StyleKeys.Display, "flex"),

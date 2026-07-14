@@ -1,7 +1,8 @@
+import { MiddleLayer } from "./MiddleLayer"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component ContextBailoutDemoFunc {
+export component ContextBailoutDemoFunc {
   var blue = new Color(0.2f, 0.45f, 0.9f, 1f);
   var orange = new Color(0.9f, 0.5f, 0.15f, 1f);
 

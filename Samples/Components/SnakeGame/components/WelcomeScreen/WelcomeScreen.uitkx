@@ -1,7 +1,7 @@
 @namespace Samples.SnakeGame
 @using ReactiveUITK.Router
 
-component WelcomeScreen {
+export component WelcomeScreen {
   var navigate = RouterHooks.UseNavigate();
 
   return (

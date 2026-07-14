@@ -3,7 +3,7 @@
 @using System.Collections.Generic
 @using ReactiveUITK.Router
 
-component RouterNavigationGuardPanel {
+export component RouterNavigationGuardPanel {
   var (enabled, setEnabled) = useState(false);
   var (message, setMessage) = useState("Guard disabled; all navigation allowed.");
   var (clicks, setClicks) = useState(0);

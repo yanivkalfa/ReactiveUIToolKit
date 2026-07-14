@@ -66,34 +66,10 @@ namespace ReactiveUITK.Language.Diagnostics
             var diags = new List<ParseDiagnostic>();
             var d = parseResult.Directives;
 
-            // -- T2: UITKX0103 - Filename / component-name mismatch -----------
-            if (!string.IsNullOrEmpty(filePath) && !string.IsNullOrEmpty(d.ComponentName))
-            {
-                var stem = Path.GetFileNameWithoutExtension(filePath);
-                if (!string.Equals(stem, d.ComponentName, System.StringComparison.Ordinal))
-                {
-                    // Use the exact line where `component Name {` / `@component` was declared
-                    // when available; fall back to the line above the markup root otherwise.
-                    int errLine = d.ComponentDeclarationLine > 0
-                        ? d.ComponentDeclarationLine
-                        : (d.MarkupStartLine > 1 ? d.MarkupStartLine - 1 : 1);
-                    // Aim the squiggle at the NAME token, not the `component` keyword.
-                    int nameCol    = d.ComponentNameColumn >= 0 ? d.ComponentNameColumn : 0;
-                    int nameEndCol = nameCol > 0 && d.ComponentName != null
-                        ? nameCol + d.ComponentName.Length
-                        : 0;
-                    diags.Add(
-                        MakeDiag(
-                            DiagnosticCodes.FilenameMismatch,
-                            ParseSeverity.Error,
-                            $"@component name '{d.ComponentName}' does not match filename '{stem}.uitkx'.",
-                            line:      errLine,
-                            column:    nameCol,
-                            endColumn: nameEndCol
-                        )
-                    );
-                }
-            }
+            // UITKX0103 (filename ≠ component name) is INTENTIONALLY not emitted. Under the
+            // import/export model a file may declare several components in any order, so a
+            // filename-match rule is meaningless — it is now a documentation convention
+            // (see the "Conventions & best practices" docs), not a code-enforced warning.
 
             // -- T2: UITKX0108 - Multiple render roots ------------------------
             CheckSingleRenderRoot(parseResult.RootNodes, diags);

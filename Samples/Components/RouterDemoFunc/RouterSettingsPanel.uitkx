@@ -1,8 +1,9 @@
+import { RouterNavLink } from "./RouterNavLink"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using System
 
-component RouterSettingsPanel {
+export component RouterSettingsPanel {
   var locationPath = RouterHooks.UseLocation();
 
   var settingsContent = locationPath.StartsWith("/settings/profile", StringComparison.OrdinalIgnoreCase)

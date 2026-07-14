@@ -3,7 +3,7 @@
 @using System.Collections.Generic
 @using UnityEngine
 
-module GalagaTypes {
+export module GalagaTypes {
   // ───── Enums ─────
 
   public enum EnemyType { Zako, Goei, Commander }

@@ -2,7 +2,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component PortalsPlayground {
+export component PortalsPlayground {
   var slotA = useContext<VisualElement>("portals:slot-a");
   var slotB = useContext<VisualElement>("portals:slot-b");
 

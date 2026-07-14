@@ -6,6 +6,77 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.7.0] - 2026-07-12
+
+### Added
+
+ESM-style **`import` / `export`** for `.uitkx` — cross-file components, hooks, and
+modules are now referenced explicitly instead of resolving implicitly across a whole
+assembly. This is the Unity leg of the three-engine family feature (shared grammar with
+the Unreal `.uetkx` and Godot `.guitkx` ports).
+
+- **Grammar.** A `.uitkx` file is a preamble of `import { A, B } from "./path"` lines
+  (relative `./`/`../` or the root alias `~/`, extensionless — `.uitkx` implied),
+  followed by a sequence of declarations, each optionally `export`-prefixed:
+  `export component`, `export hook`, `export module`. Multiple declarations of any kind
+  may appear in one file, in any order (mixed-decl).
+- **Strict resolution.** Only `export`ed names are visible across files, and only when
+  imported. Referencing a peer-exported name without importing it is `UITKX2305` (with
+  the exact `import { … } from "…"` line to add); a `useX()` call that no file exports
+  and that is not a builtin/ambient hook is `UITKX2307`. New diagnostics occupy the
+  family-reserved band `UITKX2300–2315`.
+- **Path-derived namespaces.** A file's default namespace is derived from its path
+  relative to the owning `.asmdef` (`ReactiveUITK.Uitkx.<dir segments>`); with no asmdef
+  anywhere (default Assembly-CSharp) it anchors at the configured UI source root
+  (`uitkx.config.json` `"root"`, default `Assets`) so every in-project file always derives
+  one. `@namespace` becomes an optional interop override, and the generator **no longer
+  reads a companion `.cs` to infer a namespace** — a file's identity never flips on a `.cs`
+  edit. Existing files keep their identity — the migration below stamps their current
+  namespace explicitly.
+- **`~/` in asset references.** `Asset<T>` strings and `@uss` paths accept the `~/`
+  root alias (UI source root, engine default `Assets/`).
+- **Path-qualified hook Fast-Refresh keys.** HMR matches an edited hook to its consumer
+  components by `{Namespace}.{Container}::{hookName}` instead of the bare hook name, so two
+  identically-named hooks in different files no longer cross-swap during hot reload.
+- **File-layout conventions are documentation-only.** One-component-per-file,
+  hooks-in-`.hooks`-files, and filename==component are recommended conventions (see the
+  docs' "Conventions & best practices"), no longer compiler-enforced: `UITKX0103`
+  (filename mismatch) is retired and no longer emitted; `UITKX2313` stays reserved, never
+  emitted.
+
+### Migration
+
+- A codemod, **`UitkxMigrateImports`**, rewrites existing `.uitkx` sources in place:
+  `dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets`. It adds
+  `export` to every declaration (export-everything default), inserts the imports each
+  file needs (directory-proximity disambiguation for same-named peers), and stamps the
+  current effective `@namespace`. Idempotent and formatter-stable. The bundled Samples
+  are already migrated.
+- One-time editor-only note: HMR component Register ids AND hook family keys are
+  namespace-qualified, so any in-flight Fast Refresh session is invalidated once on
+  upgrade (a remount, no data loss). Moving a file changes its path-derived identity
+  (a documented one-time remount).
+
+### Changed (potentially breaking)
+
+- **`export` now drives accessibility.** An `export`ed component/module emits a
+  `public partial class`; a non-`export`ed one emits `internal`. Previously the generator
+  always emitted `public`. Pure `.uitkx`-to-`.uitkx` usage within one assembly is
+  unaffected, but **hand-written C#** that references a now-`internal` generated type —
+  a `public partial class Foo` companion `.cs`, or a cross-asmdef consumer — will fail to
+  compile (CS0262 / CS0122) until the declaration is `export`ed. The migration codemod's
+  export-everything default keeps migrated projects compiling; classified minor because the
+  codemod covers the common case, but the accessibility change is behaviorally breaking for
+  un-migrated hand-written interop.
+
+### Notes
+
+- New syntax is additive; the codemod keeps existing projects compiling.
+- SG suite 1465/1465, LSP suite 107/107 (includes the pre-release correctness pass over the
+  emit pipeline: mixed-decl multi-source emit, strict-diagnostic and namespace-derivation
+  edge cases, HMR import reverse-edge invalidation, and the hook-family-key SG↔HMR parity
+  tests).
+
 ## [0.6.5] - 2026-07-08
 
 ### Fixed

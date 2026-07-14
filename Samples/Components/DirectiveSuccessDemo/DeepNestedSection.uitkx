@@ -1,7 +1,10 @@
+import { SectionBox } from "./SectionBox"
+import { SectionHeading } from "./SectionHeading"
+import { SectionNote } from "./SectionNote"
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component DeepNestedSection {
+export component DeepNestedSection {
   var (depth, setDepth) = useState(2);
   var (showExtras, setShowExtras) = useState(true);
   var (activeTag, setActiveTag) = useState("x");

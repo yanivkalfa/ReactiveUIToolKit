@@ -1,7 +1,7 @@
 @namespace PrettyUi.App
 @using System.Collections.Generic
 
-module StyleExtensions {
+export module StyleExtensions {
   public static Style Extend(params Style[] styles) {
     var combined = new Style();
     if (styles == null) return combined;
