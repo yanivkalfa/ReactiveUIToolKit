@@ -523,6 +523,32 @@ namespace ReactiveUITK.Core
         /// the cached accessors above.
         /// </summary>
         public static IReadOnlyList<string> CanonicalNames => s_signatureOrder;
+
+        /// <summary>
+        /// Every name a <c>.uitkx</c> file may use to call a BUILT-IN hook bare:
+        /// the canonical PascalCase form (<c>UseState</c>) AND its camelCase alias
+        /// (<c>useState</c>).  This is the strict-import exemption set — builtin
+        /// hooks never need an <c>import</c>, so the 2305/2307 reference detector
+        /// must skip both spellings.  Single source of truth for the SG pipeline
+        /// and the LSP DiagnosticsPublisher; checking only
+        /// <see cref="CanonicalNames"/> (PascalCase, ordinal) silently missed the
+        /// camelCase call sites every real file uses, storming UITKX2307 across a
+        /// whole project the first time peer exports existed.
+        /// </summary>
+        public static IReadOnlyCollection<string> AmbientHookNames => s_ambientNamesCache;
+
+        private static readonly HashSet<string> s_ambientNamesCache = BuildAmbientNames();
+
+        private static HashSet<string> BuildAmbientNames()
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var n in s_signatureOrder)
+            {
+                set.Add(n);
+                set.Add(CamelOf(n));
+            }
+            return set;
+        }
     }
 }
 #endif
