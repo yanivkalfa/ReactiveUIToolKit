@@ -61,6 +61,11 @@ namespace ReactiveUITK.Language
 
             var segs = new List<string>();
             string combined = (baseDir + "/" + rest).Replace('\\', '/');
+            // A rooted Unix path starts with '/', which the empty-segment skip below would
+            // silently drop — turning "/tmp/x/B.uitkx" into "tmp/x/B.uitkx" and breaking every
+            // downstream File.Exists / path comparison on Linux/macOS (Windows absolute paths
+            // are unaffected: their "C:" root survives as an ordinary segment).
+            bool rooted = combined.Length > 0 && combined[0] == '/';
             foreach (var s in combined.Split('/'))
             {
                 if (s.Length == 0 || s == ".")
@@ -76,8 +81,8 @@ namespace ReactiveUITK.Language
                 }
             }
 
-            string path = string.Join("/", segs);
-            if (path.Length == 0)
+            string path = (rooted ? "/" : string.Empty) + string.Join("/", segs);
+            if (path.Length == 0 || path == "/")
                 return null;
             if (!path.EndsWith(".uitkx", StringComparison.Ordinal))
                 path += ".uitkx";

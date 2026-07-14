@@ -44,6 +44,37 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.True(escaped);
         }
 
+        // ── Rooted (absolute) importer dirs — Unix leading '/' must survive ─────
+        // The SG pipeline, LSP handlers, and HMR all call MapSpecifierToPath with
+        // ABSOLUTE importer dirs. On Linux/macOS those start with '/', which the
+        // empty-segment skip used to drop ("/tmp/x" + "./B" → "tmp/x/B.uitkx"),
+        // silently breaking every File.Exists / path comparison downstream — the
+        // exact failure CI hit on ubuntu runners while Windows (whose "C:" root is
+        // an ordinary segment) passed. Pure string logic, so these prove the
+        // Linux behavior from any OS.
+
+        [Theory]
+        [InlineData("/tmp/proj/Assets/UI", "./Chip", "/tmp/proj/Assets", "/tmp/proj/Assets/UI/Chip.uitkx")]
+        [InlineData("/tmp/proj/Assets/UI", "../lib/X", "/tmp/proj/Assets", "/tmp/proj/Assets/lib/X.uitkx")]
+        [InlineData("/tmp/proj/Assets/UI", "~/Shared/T", "/tmp/proj/Assets", "/tmp/proj/Assets/Shared/T.uitkx")]
+        [InlineData("/tmp/x", "./Counter.hooks", "/tmp/x", "/tmp/x/Counter.hooks.uitkx")]
+        [InlineData("C:/proj/Assets/UI", "./Chip", "C:/proj/Assets", "C:/proj/Assets/UI/Chip.uitkx")] // Windows unaffected
+        public void MapSpecifier_RootedImporterDir_PreservesRoot(
+            string importerDir, string spec, string root, string expected)
+        {
+            string? path = ImportResolver.MapSpecifierToPath(importerDir, spec, root, out bool escaped);
+            Assert.False(escaped);
+            Assert.Equal(expected, path);
+        }
+
+        [Fact]
+        public void MapSpecifier_RootedDir_DotDotEscapePastRoot_SetsEscaped()
+        {
+            // "/tmp" has one segment; "../../evil" pops past it → escape, not a bogus path.
+            Assert.Null(ImportResolver.MapSpecifierToPath("/tmp", "../../evil", "/tmp", out bool escaped));
+            Assert.True(escaped);
+        }
+
         // ── Full resolve (injected FS + asmdef) → frozen codes ───────────────
 
         private static ImportResolveResult Resolve(

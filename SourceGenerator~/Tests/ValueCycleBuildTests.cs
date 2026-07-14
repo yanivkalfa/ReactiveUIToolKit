@@ -22,8 +22,8 @@ namespace ReactiveUITK.SourceGenerator.Tests
                 new[]
                 {
                     ("SelfHook.uitkx",
-                        "export hook useSelf() {\n  return 1;\n}\n"
-                        + "import { useSelf } from \"./SelfHook\""),
+                        "import { useSelf } from \"./SelfHook\"\n"
+                        + "export hook useSelf() {\n  return 1;\n}"),
                 },
                 primaryFileName: "SelfHook.uitkx");
 
@@ -37,11 +37,11 @@ namespace ReactiveUITK.SourceGenerator.Tests
             // COMMENTED OUT, so the true graph is acyclic. A comment-blind scan would add
             // a phantom B→A edge and report A→B→A → spurious 2306 on both files.
             var a =
-                "export hook useA() {\n  return useB();\n}\n"
-                + "import { useB } from \"./BHooks\"";
+                "import { useB } from \"./BHooks\"\n"
+                + "export hook useA() {\n  return useB();\n}";
             var b =
-                "export hook useB() {\n  return 1;\n}\n"
-                + "/*\nimport { useA } from \"./AHooks\"\n*/";
+                "/*\nimport { useA } from \"./AHooks\"\n*/\n"
+                + "export hook useB() {\n  return 1;\n}";
 
             var result = GeneratorTestHelper.RunMultiple(
                 new[] { ("AHooks.uitkx", a), ("BHooks.uitkx", b) },
@@ -56,11 +56,11 @@ namespace ReactiveUITK.SourceGenerator.Tests
             // Positive control: a genuine A↔B mutual value import must still be flagged
             // (family-wide TDZ-parity policy) so the fixes above didn't disable 2306.
             var a =
-                "export hook useA() {\n  return useB();\n}\n"
-                + "import { useB } from \"./BHooks\"";
+                "import { useB } from \"./BHooks\"\n"
+                + "export hook useA() {\n  return useB();\n}";
             var b =
-                "export hook useB() {\n  return useA();\n}\n"
-                + "import { useA } from \"./AHooks\"";
+                "import { useA } from \"./AHooks\"\n"
+                + "export hook useB() {\n  return useA();\n}";
 
             var result = GeneratorTestHelper.RunMultiple(
                 new[] { ("AHooks.uitkx", a), ("BHooks.uitkx", b) },
