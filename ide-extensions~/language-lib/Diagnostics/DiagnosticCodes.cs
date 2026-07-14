@@ -47,13 +47,16 @@ namespace ReactiveUITK.Language.Diagnostics
 
         // ── T2 — Structural diagnostics (this analyzer) ──────────────────────
 
-        /// <summary>File contains no <c>@namespace</c> directive.</summary>
+        /// <summary>RETIRED, never emitted — <c>@namespace</c> is optional (path-derived when
+        /// omitted). Reserved so the number is never reused.</summary>
         public const string MissingNamespace = "UITKX0101";
 
-        /// <summary>File contains no <c>@component</c> directive.</summary>
+        /// <summary>RETIRED, never emitted — function-style files need no <c>@component</c>;
+        /// hook/module-only files are legal. Reserved.</summary>
         public const string MissingComponent = "UITKX0102";
 
-        /// <summary><c>@component Foo</c> but the file is named <c>Bar.uitkx</c>.</summary>
+        /// <summary>RETIRED, never emitted — filename==component is a documentation convention,
+        /// not a diagnostic (a file may declare several components). Reserved.</summary>
         public const string FilenameMismatch = "UITKX0103";
 
         /// <summary>Two sibling elements share the same literal <c>key="…"</c> value.</summary>

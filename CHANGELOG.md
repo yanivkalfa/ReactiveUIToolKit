@@ -26,11 +26,23 @@ the Unreal `.uetkx` and Godot `.guitkx` ports).
   and that is not a builtin/ambient hook is `UITKX2307`. New diagnostics occupy the
   family-reserved band `UITKX2300–2315`.
 - **Path-derived namespaces.** A file's default namespace is derived from its path
-  relative to the owning `.asmdef` (`ReactiveUITK.Uitkx.<dir segments>`); `@namespace`
-  becomes an optional interop override. Existing files keep their identity — the
-  migration below stamps their current namespace explicitly.
+  relative to the owning `.asmdef` (`ReactiveUITK.Uitkx.<dir segments>`); with no asmdef
+  anywhere (default Assembly-CSharp) it anchors at the configured UI source root
+  (`uitkx.config.json` `"root"`, default `Assets`) so every in-project file always derives
+  one. `@namespace` becomes an optional interop override, and the generator **no longer
+  reads a companion `.cs` to infer a namespace** — a file's identity never flips on a `.cs`
+  edit. Existing files keep their identity — the migration below stamps their current
+  namespace explicitly.
 - **`~/` in asset references.** `Asset<T>` strings and `@uss` paths accept the `~/`
   root alias (UI source root, engine default `Assets/`).
+- **Path-qualified hook Fast-Refresh keys.** HMR matches an edited hook to its consumer
+  components by `{Namespace}.{Container}::{hookName}` instead of the bare hook name, so two
+  identically-named hooks in different files no longer cross-swap during hot reload.
+- **File-layout conventions are documentation-only.** One-component-per-file,
+  hooks-in-`.hooks`-files, and filename==component are recommended conventions (see the
+  docs' "Conventions & best practices"), no longer compiler-enforced: `UITKX0103`
+  (filename mismatch) is retired and no longer emitted; `UITKX2313` stays reserved, never
+  emitted.
 
 ### Migration
 
@@ -40,9 +52,10 @@ the Unreal `.uetkx` and Godot `.guitkx` ports).
   file needs (directory-proximity disambiguation for same-named peers), and stamps the
   current effective `@namespace`. Idempotent and formatter-stable. The bundled Samples
   are already migrated.
-- One-time editor-only note: HMR component Register ids are namespace-qualified, so any
-  in-flight Fast Refresh session is invalidated once on upgrade (a remount, no data
-  loss). Moving a file changes its path-derived identity (a documented one-time remount).
+- One-time editor-only note: HMR component Register ids AND hook family keys are
+  namespace-qualified, so any in-flight Fast Refresh session is invalidated once on
+  upgrade (a remount, no data loss). Moving a file changes its path-derived identity
+  (a documented one-time remount).
 
 ### Changed (potentially breaking)
 
@@ -59,9 +72,10 @@ the Unreal `.uetkx` and Godot `.guitkx` ports).
 ### Notes
 
 - New syntax is additive; the codemod keeps existing projects compiling.
-- SG suite 1462/1462, LSP suite 107/107 (includes the pre-release correctness pass over the
+- SG suite 1465/1465, LSP suite 107/107 (includes the pre-release correctness pass over the
   emit pipeline: mixed-decl multi-source emit, strict-diagnostic and namespace-derivation
-  edge cases, and HMR import reverse-edge invalidation).
+  edge cases, HMR import reverse-edge invalidation, and the hook-family-key SG↔HMR parity
+  tests).
 
 ## [0.6.5] - 2026-07-08
 

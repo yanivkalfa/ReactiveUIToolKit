@@ -14,7 +14,7 @@ namespace ReactiveUITK.SourceGenerator
     ///
     /// ID ranges:
     ///   UITKX0001       Unknown built-in element                       (Phase 3, source-gen-only)
-    ///   UITKX0005       Missing required @namespace / @component        (Phase 5, source-gen-only)
+    ///   UITKX0005       (retired — @namespace/@component now optional; reserved)
     ///   UITKX0008       Unknown function component                      (Phase 3, source-gen-only)
     ///   UITKX0012       Directive ordering                              (Phase 5, source-gen-only)
     ///   UITKX0013–0015  Rules-of-Hooks violations                       (Phase 5, shared with analyzer)
@@ -23,7 +23,7 @@ namespace ReactiveUITK.SourceGenerator
     ///   UITKX0019       Loop index used as element key                  (Phase 5, source-gen-only)
     ///   UITKX0020       ref={} on user component with no Ref<T> param
     ///   UITKX0021       ref={} on user component with multiple Ref<T> params (ambiguous)
-    ///   UITKX0103       @component name ≠ filename                       (aligns with analyzer)
+    ///   UITKX0103       (retired — filename match is a documentation convention; reserved)
     ///   UITKX0104       Duplicate sibling key                           (aligns with analyzer)
     ///   UITKX0106       Element inside loop missing key                 (aligns with analyzer)
     ///   UITKX0108       Multiple root elements                          (aligns with analyzer)
@@ -63,30 +63,10 @@ namespace ReactiveUITK.SourceGenerator
         );
 
         // ── Directive validation ──────────────────────────────────────────────
-
-        /// <summary>UITKX0005 — A required @namespace or @component directive is absent.</summary>
-        public static readonly DiagnosticDescriptor MissingRequiredDirective =
-            new DiagnosticDescriptor(
-                id: "UITKX0005",
-                title: "Missing required UITKX directive",
-                messageFormat: "'{0}' is missing a required '@{1}' directive",
-                category: Category,
-                defaultSeverity: DiagnosticSeverity.Error,
-                isEnabledByDefault: true,
-                description: "Directive-header files must declare @namespace and @component. Function-style files use 'component Name { ... }' and infer namespace from the companion partial class when available."
-            );
-
-        /// <summary>UITKX0103 — @component value does not match the file name. Aligned with analyzer's <c>DiagnosticCodes.FilenameMismatch</c>.</summary>
-        public static readonly DiagnosticDescriptor ComponentNameMismatch =
-            new DiagnosticDescriptor(
-                id: "UITKX0103",
-                title: "@component name does not match file name",
-                messageFormat: "@component '{0}' does not match the file name '{1}'. "
-                    + "The generated class will use '{0}'.",
-                category: Category,
-                defaultSeverity: DiagnosticSeverity.Warning,
-                isEnabledByDefault: true
-            );
+        // UITKX0005 (missing @namespace/@component) and UITKX0103 (filename mismatch) are
+        // RETIRED: @namespace is optional (path-derived) and function-style files need no
+        // @component; filename==component is a documentation convention, not a diagnostic.
+        // The code slots stay reserved so the numbers are never reused.
 
         // ── Parse errors ──────────────────────────────────────────────────────
 
