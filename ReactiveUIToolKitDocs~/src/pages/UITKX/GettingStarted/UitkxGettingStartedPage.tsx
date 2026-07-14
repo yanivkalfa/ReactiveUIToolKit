@@ -52,6 +52,12 @@ export const UitkxGettingStartedPage: FC = () => (
       <code>public</code> and importable from other files. You don&rsquo;t need to create any
       companion file for this to work.
     </Typography>
+    <Typography variant="body2" paragraph>
+      Upgrading an existing (pre-0.7.0) project? The bundled <code>UitkxMigrateImports</code>{' '}
+      codemod adds <code>export</code>s and <code>import</code>s to your <code>.uitkx</code> files
+      in one pass — see{' '}
+      <a href="#/imports">Imports &amp; Exports → Migrating an existing project</a>.
+    </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>
       2. Mount it

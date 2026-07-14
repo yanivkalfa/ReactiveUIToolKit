@@ -57,12 +57,6 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Verify the attribute name matches a property on the element's props type.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0005" size="small" color="error" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>Missing required directive</TableCell>
-            <TableCell>Add the missing <code>@namespace</code> or <code>@component</code> directive.</TableCell>
-          </TableRow>
-          <TableRow>
             <TableCell><Chip label="UITKX0008" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Unknown function component</TableCell>
@@ -79,6 +73,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Duplicate sibling key</TableCell>
             <TableCell>Ensure each sibling element has a unique <code>key</code> value.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0113" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Duplicate component declaration (same file)</TableCell>
+            <TableCell>Two <code>component</code>s with the same name in one file — the generator emits only the first and ignores the duplicate. Rename one. (The language server flags the cross-file variant under the same code.)</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0012" size="small" color="error" variant="outlined" /></TableCell>
@@ -176,16 +176,16 @@ export const UitkxDiagnosticsPage: FC = () => (
         </TableHead>
         <TableBody>
           <TableRow>
-            <TableCell><Chip label="UITKX0101" size="small" color="error" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>Missing required <code>@namespace</code> directive</TableCell>
-            <TableCell>Add <code>@namespace Your.Namespace</code> at the top of the file.</TableCell>
+            <TableCell><Chip label="UITKX0101" size="small" color="default" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Reserved" size="small" /></TableCell>
+            <TableCell>Missing <code>@namespace</code> — no longer flagged</TableCell>
+            <TableCell><code>@namespace</code> is optional: the namespace is path-derived when omitted (see <a href="#/imports">Imports &amp; Exports</a>). The code stays reserved and is never emitted.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0102" size="small" color="error" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>Missing required <code>@component</code> directive</TableCell>
-            <TableCell>Add <code>@component YourComponentName</code> or use function-style syntax.</TableCell>
+            <TableCell><Chip label="UITKX0102" size="small" color="default" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Reserved" size="small" /></TableCell>
+            <TableCell>Missing <code>@component</code> — no longer flagged</TableCell>
+            <TableCell>Function-style <code>component Name {'{ … }'}</code> needs no directive; hook/module-only files are legal. Reserved, never emitted.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0103" size="small" color="default" variant="outlined" /></TableCell>

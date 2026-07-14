@@ -40,7 +40,7 @@ The actual parser/lexer/AST/lowering/formatter/IntelliSense lives in **`ide-exte
 
 ### Committed generator DLLs
 
-`Analyzers/ReactiveUITK.SourceGenerator.dll` and `ReactiveUITK.Language.dll` are **checked into the repo** because Unity loads them as analyzers. After changing anything in `SourceGenerator~/` or `language-lib/`, rebuild and re-commit them with `scripts/build-generator.ps1` — the csproj's `OutputPath` writes straight into `Analyzers/`. CI (`test.yml`) has an advisory check that warns if the committed DLL drifts from a fresh Release build; `publish.yml` rebuilds fresh on release regardless.
+`Analyzers/ReactiveUITK.SourceGenerator.dll` and `ReactiveUITK.Language.dll` are **checked into the repo** because Unity loads them as analyzers. After changing anything in `SourceGenerator~/` or `language-lib/`, rebuild and re-commit them with `scripts/build-generator.ps1` — the csproj builds to `bin/` and a `PublishGeneratorToAnalyzers` post-build target copies the DLLs into `Analyzers/` (direct-write was abandoned: Unity locks the loaded analyzer, MSB3027). CI (`test.yml`) has an advisory check that warns if the committed DLL drifts from a fresh Release build; `publish.yml` rebuilds fresh on release regardless.
 
 ## Common commands
 

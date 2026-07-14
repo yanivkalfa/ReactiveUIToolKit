@@ -402,7 +402,7 @@ var dict = new Dictionary<string, VirtualNode> { { "header", (<Label text="Title
       <li>Each control block body must wrap its markup in <code>return (...);</code>. Setup code (variable declarations, computations) goes before <code>return</code>. Use <code>return null;</code> to skip rendering.</li>
       <li>Direct children of <code>@foreach</code> need a <code>key</code> attribute for stable reconciliation.</li>
       <li>Components must have a single root element.</li>
-      <li>Component names must match the filename (e.g. <code>MyButton.uitkx</code> defines <code>component MyButton</code>).</li>
+      <li>Naming the file after its component (e.g. <code>MyButton.uitkx</code> for <code>component MyButton</code>) is a recommended convention, not a compiler rule — see <a href="#/imports">Imports &amp; Exports</a>.</li>
     </Typography>
   </Box>
 )

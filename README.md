@@ -72,6 +72,17 @@ its owning `.asmdef` (the optional `@namespace` directive overrides it). Prefix 
 declaration with `export` to make its class `public` and importable from other
 `.uitkx` files (`import { X } from "./path"`); without `export` it is `internal`.
 
+**Migrating a pre-0.7.0 project?** Run the bundled codemod once — it adds `export`
+everywhere, inserts the imports each file needs, and stamps each file's current
+`@namespace` so nothing changes identity (idempotent; `--check` for a dry run):
+
+```bash
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --check   # dry run
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets           # migrate
+```
+
+See the [Imports & Exports docs](http://reactiveuitoolkit.info/#/imports) for the full model.
+
 **3. Use the component**
 
 ```csharp
