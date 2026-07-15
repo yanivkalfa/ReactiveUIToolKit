@@ -228,8 +228,10 @@ idempotence, static/alias payload passthrough, ordering.
   nothing. Per the established principle, "prefer `import \"@...\"`" is a *documentation
   style rule*, not a code-level deprecation: no warning tier, no removal timeline. The only
   nudges are the refactor quick-fix (§5.3) and `--tidy`.
-- **Own samples/docs/JSO**: run `--tidy` over `Samples/` (corpus gate `SamplesCorpusGateTests`
-  re-proves them) and offer it for JustStayOn.
+- **Own samples/docs/JSO**: bulk `--tidy` over `Samples/` is **deferred** — the Samples corpus
+  contains a deliberately-unmigrated fixture (`UitkxTestFileDoNotTouch`) and a pre-existing
+  ambiguity (`DoomGame`/`GameScreen`), so a blanket codemod sweep there is a separate, review-heavy
+  change, not a tail-end step. The docs demonstrate the syntax instead; the codemod is user-facing.
 - **HMR**: no protocol change (DirectiveSet-level); add one `HmrUsingParityTest` proving the
   HMR emitter output for a file using `import "@X"` is byte-identical to the `@using X` twin.
 - **Docs website**: Imports page (new "Namespace imports" section + 2316/2317 in the

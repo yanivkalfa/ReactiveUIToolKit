@@ -425,14 +425,14 @@ export const UitkxDiagnosticsPage: FC = () => (
       </Table>
     </TableContainer>
 
-    {/* ── Import / Export Diagnostics (UITKX2300–2315) ──────────────────── */}
+    {/* ── Import / Export Diagnostics (UITKX2300–2317) ──────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
       Import / Export Diagnostics
     </Typography>
     <Typography variant="body2" paragraph>
       Emitted when resolving the <code>import</code> / <code>export</code> grammar. Codes
       2300–2309 are shared family-wide (identical across the Unity, Unreal, and Godot ports
-      modulo prefix); 2310–2315 are Unity-local. See the{' '}
+      modulo prefix); 2310–2317 are Unity-local (namespaces are a Unity/C# concept). See the{' '}
       <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink> page for the full grammar.
     </Typography>
     <TableContainer>
@@ -535,6 +535,18 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell><code>~/</code> root not configured / escapes the project</TableCell>
             <TableCell>Set <code>"root"</code> in <code>uitkx.config.json</code>, or fix the specifier so it stays inside the project.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2316" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error / Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Unknown namespace in a <code>@using</code> / <code>import "@Ns"</code></TableCell>
+            <TableCell>The namespace analogue of 2300: the namespace resolves nowhere in the assembly or its references. <strong>Error</strong> in the editor (a located squiggle — the misspelled-<code>@using</code> that used to be silent); <strong>Warning</strong> at build (it never breaks a valid build — the emitted <code>using</code>&rsquo;s CS0246 stays the gate). Fix the spelling, add the missing asmdef reference, or remove the using.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2317" size="small" color="default" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Hint" size="small" /></TableCell>
+            <TableCell>Redundant using (already in scope)</TableCell>
+            <TableCell>The namespace is auto-injected into every generated file (e.g. <code>@using UnityEngine</code>, <code>@using System</code>), so the line is dead weight. Editor Hint (faded); the &ldquo;Remove redundant using&rdquo; quick-fix or the codemod <code>--tidy</code> strips it.</TableCell>
           </TableRow>
         </TableBody>
       </Table>
