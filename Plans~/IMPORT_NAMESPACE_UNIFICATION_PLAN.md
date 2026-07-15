@@ -137,8 +137,23 @@ New codes — next free in the 23xx block (2310/2313 retired-reserved, 2315 fami
 
 | Code | Severity | Fires when | Anchor |
 |---|---|---|---|
-| **UITKX2316** | Error | The namespace (or `static`/alias target type) of a `@using`/namespace-import does not exist in the compilation | payload token span |
-| **UITKX2317** | Hint (editor-only, `Unnecessary` tag → faded) | The using contributes nothing (Roslyn CS8019 on the vdoc) | whole directive line |
+| **UITKX2316** | **Warning** at build (SG), **Error** in editor (LSP) | A plain-namespace `@using`/namespace-import does not resolve against the compilation | payload token span |
+| **UITKX2317** | Hint (editor-only, `Unnecessary` tag → faded) | The using exactly duplicates the auto-injected baseline (`AutoInjectedUsings`) | payload token span |
+
+> **Severity decision (implemented).** 2316 is a **build warning, editor error.** Build-time
+> namespace validation is only as sound as the compilation is complete (guaranteed in a real Unity
+> build, but not provable by the analyzer), so per the codebase's "never break an otherwise-valid
+> build" rule it must never be the build gate — the emitted `using`'s CS0246 stays the gate; 2316
+> just names the offending .uitkx token. In the editor (non-breaking squiggles) it is an error, the
+> immediate red feedback the user asked for. Mirrors UITKX2304's build/editor split.
+>
+> **2317 scope (implemented vs deferred).** The **sound, high-value** case — a using that *exactly
+> duplicates* an auto-injected baseline namespace (`@using UnityEngine`, `@using System`; the exact
+> JSOAppButton motivation) — is implemented: compilation-free, no false positives, editor Hint +
+> codemod `--tidy` strip. The **semantic "present-but-genuinely-unreferenced"** case is **deferred**:
+> the vdoc suppresses CS8019 globally (P0) and un-suppressing it floods the ~25 scaffold-injected
+> usings, so a robust version needs a narrow per-line semantic reference scan — real work with FP
+> risk, low marginal value over the baseline-duplicate case. Tracked as a follow-up.
 
 ### 5.1 UITKX2316 — build side (SG)
 
