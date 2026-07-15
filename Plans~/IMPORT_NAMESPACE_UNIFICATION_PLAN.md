@@ -215,9 +215,10 @@ idempotence, static/alias payload passthrough, ordering.
 - **TextMate grammar**: single source `ide-extensions~/grammar/uitkx.tmLanguage.json`
   (prebuild copies to vscode + VSIX + Rider): scope the `@Ns` payload distinctly
   (`entity.name.namespace.uitkx`) so namespace imports read differently from file specifiers.
-- **LSP completion**: after `import "@`, complete namespace segments from the workspace
-  compilation (same walk as §5.1). After `import "` (no `@`), keep today's file-path completion.
-- **Hover** on the payload: show the resolved namespace / member count, mirroring import hover.
+- **LSP completion**: a discoverable `import "@…"` snippet is offered alongside `@using`/`@namespace`
+  in the preamble (implemented). Per-segment namespace completion after `import "@` (enumerating the
+  compilation's namespaces) and hover on the payload are **deferred** — net-new completion-provider
+  work with modest value; the snippet + diagnostics cover discoverability + correctness for v1.
 
 ## 8. Migration & compatibility
 

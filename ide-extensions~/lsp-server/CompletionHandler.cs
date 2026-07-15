@@ -324,7 +324,13 @@ public sealed class CompletionHandler : ICompletionHandler
                 label: "@using",
                 insert: "@using ${1:System.Collections.Generic}",
                 detail: "Imports a C# namespace into the generated component class.",
-                doc: "Adds a `using` directive to the generated file, e.g. `@using UnityEngine`."
+                doc: "Adds a `using` directive to the generated file, e.g. `@using UnityEngine`.\n\nPrefer the unified `import \"@Namespace\"` form for new code (they are equivalent)."
+            ),
+            (
+                label: "import \"@\"",
+                insert: "import \"@${1:Some.Namespace}\"",
+                detail: "Namespace import — the unified spelling of @using.",
+                doc: "Imports a C# namespace using the unified import syntax, e.g. `import \"@ReactiveUITK.Router\"`.\n\nEquivalent to `@using ReactiveUITK.Router`. Braces + `from` (`import { X } from \"./file\"`) import a peer `.uitkx` file; a quoted `\"@Namespace\"` imports a C# namespace."
             ),
             (
                 label: "@uss",
