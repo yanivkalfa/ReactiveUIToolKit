@@ -101,7 +101,11 @@ namespace ReactiveUITK.Language.Parser
         /// <summary>0-based column of the <c>import</c> keyword.</summary>
         int Column,
         /// <summary>0-based column of each imported name, parallel to <see cref="Names"/>. For unused-import / not-exported squiggles.</summary>
-        ImmutableArray<int> NameColumns
+        ImmutableArray<int> NameColumns,
+        /// <summary>0-based column of the specifier's opening quote (<c>-1</c> = untracked). The full
+        /// specifier span is <c>[SpecifierColumn, SpecifierColumn + Specifier.Length + 2)</c> — both
+        /// quotes included. For unresolved-specifier (2300/2308/2314) squiggles.</summary>
+        int SpecifierColumn = -1
     );
 
     // ── Component declaration (per-decl, mixed-decl v1) ──────────────────────

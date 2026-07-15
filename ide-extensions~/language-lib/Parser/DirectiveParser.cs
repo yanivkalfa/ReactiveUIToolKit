@@ -888,6 +888,7 @@ namespace ReactiveUITK.Language.Parser
             {
                 i = savedI; line = savedLine; return false;
             }
+            int specQuoteCol = ColAtPos(source, i);
             i++; // past opening quote
             int specStart = i;
             while (i < source.Length && source[i] != '"' && source[i] != '\n')
@@ -904,7 +905,8 @@ namespace ReactiveUITK.Language.Parser
                 specifier,
                 importLine,
                 importCol,
-                nameCols.ToImmutableArray()));
+                nameCols.ToImmutableArray(),
+                specQuoteCol));
             return true;
         }
 
@@ -924,12 +926,15 @@ namespace ReactiveUITK.Language.Parser
                     string name = imp.Names[k];
                     if (seen.TryGetValue(name, out string? firstSpec))
                     {
+                        int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column;
                         diagnosticBag.Add(new ParseDiagnostic
                         {
                             Code = "UITKX2303",
                             Severity = ParseSeverity.Error,
                             SourceLine = imp.Line,
-                            SourceColumn = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column,
+                            SourceColumn = nameCol,
+                            EndLine = imp.Line,
+                            EndColumn = nameCol + name.Length,
                             Message = $"duplicate import of `{name}` (already imported from {firstSpec})",
                         });
                     }

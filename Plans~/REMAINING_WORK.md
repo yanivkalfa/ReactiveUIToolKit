@@ -90,6 +90,7 @@
 | TD14 | Design decision: synthetic event dispatcher for portals | open decision | V1 D-DESIGN-TD14 |
 | U7 | Decision: single-quote attribute strings | open decision | PARITY U7 |
 | RT-6 | (Optional) runtime-only package variant | not done | V1 RT-6 |
+| NSIMP | Namespace-import unification: `import "@Ns"` sugar for `@using`, UITKX2316 unknown-namespace (build+editor), UITKX2317 unused-using Hint, codemod `--tidy`, formatter preamble canonicalization | full plan: `Plans~/IMPORT_NAMESPACE_UNIFICATION_PLAN.md` | user request 2026-07-15 |
 
 ## 8. Cleanup / Tech-debt
 

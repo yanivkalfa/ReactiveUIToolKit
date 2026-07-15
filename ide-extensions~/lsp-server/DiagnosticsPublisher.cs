@@ -212,6 +212,11 @@ public sealed class DiagnosticsPublisher
                 ? ParseSeverity.Warning
                 : ParseSeverity.Error,
             SourceLine = f.Line,
+            // Column span of the offending token (specifier string / imported name / referenced
+            // identifier) when tracked; -1 → line-start fallback (a 1-char squiggle at col 0).
+            SourceColumn = Math.Max(0, f.Column),
+            EndLine = f.EndColumn > 0 ? f.Line : 0,
+            EndColumn = Math.Max(0, f.EndColumn),
             Message = f.Message,
         };
 
@@ -305,11 +310,18 @@ public sealed class DiagnosticsPublisher
             return null;
 
         string chain = string.Join(" -> ", cycle.Select(c => Path.GetFileName(c)));
+        var imp0 = directives.Imports[0];
+        // Squiggle the whole first import statement (keyword through closing quote) when the
+        // specifier span is tracked; line-start fallback otherwise.
+        int endCol = imp0.SpecifierColumn >= 0 ? imp0.SpecifierColumn + imp0.Specifier.Length + 2 : 0;
         return new ParseDiagnostic
         {
             Code = "UITKX2306",
             Severity = ParseSeverity.Error,
-            SourceLine = directives.Imports[0].Line,
+            SourceLine = imp0.Line,
+            SourceColumn = Math.Max(0, imp0.Column),
+            EndLine = endCol > 0 ? imp0.Line : 0,
+            EndColumn = endCol,
             Message = $"value-import cycle: {chain} (hooks/modules load eagerly — break the chain or move to component refs)",
         };
     }

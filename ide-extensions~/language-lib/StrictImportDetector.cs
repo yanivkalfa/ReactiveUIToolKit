@@ -35,8 +35,15 @@ namespace ReactiveUITK.Language
         /// C# with CS0103/CS0246, while a false positive here would break an otherwise-valid
         /// build (seen in the wild: an own-module nested enum flagged as another file's module).
         /// Component-tag findings (<c>&lt;X&gt;</c> is uitkx-only syntax) are sound and stay
-        /// non-heuristic.</para></summary>
-        public sealed record Finding(string Code, string Message, int Line, bool IsHeuristic = false);
+        /// non-heuristic.</para>
+        /// <para><see cref="Column"/>/<see cref="EndColumn"/> are the 0-based squiggle span on
+        /// <see cref="Line"/> (<c>EndColumn</c> exclusive; <c>-1</c> = untracked → consumers fall
+        /// back to a line-start anchor). Import-shaped findings anchor to the specifier string
+        /// (2300/2308/2314) or the offending imported name (2301/2304); reference findings
+        /// (2305/2307) anchor to the referenced identifier.</para></summary>
+        public sealed record Finding(
+            string Code, string Message, int Line, bool IsHeuristic = false,
+            int Column = -1, int EndColumn = -1);
 
         // <TagName ...   — a markup component tag (PascalCase peers only matter; builtins are lowercase/known).
         private static readonly System.Text.RegularExpressions.Regex s_tagRe =
@@ -96,35 +103,39 @@ namespace ReactiveUITK.Language
 
             var reported = new HashSet<string>(StringComparer.Ordinal);
 
-            void Report(string code, string message, int line, string dedupeKey, bool heuristic = false)
+            void Report(string code, string message, int line, string dedupeKey,
+                bool heuristic = false, int col = -1, int endCol = -1)
             {
                 if (reported.Add(dedupeKey))
-                    findings.Add(new Finding(code, message, line, heuristic));
+                    findings.Add(new Finding(code, message, line, heuristic, col, endCol));
             }
 
             string importerDir = DirOf(importerFilePath);
 
-            void FlagUnimportedPeer(string name, ExportKind kind, int line, bool heuristic)
+            // The scrub is offset-preserving, so match indices in scannableCode are exact
+            // source positions — anchor the squiggle to the referenced identifier itself.
+            void FlagUnimportedPeer(string name, ExportKind kind, int nameIndex, bool heuristic)
             {
                 if (selfNames.Contains(name) || imported.Contains(name)) return;
                 if (!byKind[kind].TryGetValue(name, out var pe)) return;
                 string spec = RelativeSpecifier(importerDir, pe.TargetFilePath);
+                int col = ColAt(scannableCode, nameIndex);
                 Report("UITKX2305",
                     $"`{name}` is defined in {ShortName(pe.TargetFilePath)} but not imported — add: import {{ {name} }} from \"{spec}\"",
-                    line, "2305:" + name, heuristic);
+                    LineAt(scannableCode, nameIndex), "2305:" + name, heuristic, col, col + name.Length);
             }
 
             // Component tags are uitkx-only syntax — a peer-exported <Tag> without an import is
             // sound evidence of a missing import (error-worthy).
             foreach (System.Text.RegularExpressions.Match m in s_tagRe.Matches(scannableCode))
-                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Component, LineAt(scannableCode, m.Index), heuristic: false);
+                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Component, m.Groups[1].Index, heuristic: false);
 
             // Module member access is plain C# expression text: `GameScreen.MainMenu` may be a
             // nested enum reachable via `@using static`, a hand-written static class, or a Unity
             // type (`Screen.width`) that merely COLLIDES with some file's exported module name.
             // Heuristic → warning-tier only.
             foreach (System.Text.RegularExpressions.Match m in s_moduleRe.Matches(scannableCode))
-                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Module, LineAt(scannableCode, m.Index), heuristic: true);
+                FlagUnimportedPeer(m.Groups[1].Value, ExportKind.Module, m.Groups[1].Index, heuristic: true);
 
             foreach (System.Text.RegularExpressions.Match m in s_hookRe.Matches(scannableCode))
             {
@@ -133,16 +144,18 @@ namespace ReactiveUITK.Language
                 if (byKind[ExportKind.Hook].ContainsKey(name))
                 {
                     // A same-named hand-written C# hook can shadow a peer export — heuristic.
-                    FlagUnimportedPeer(name, ExportKind.Hook, LineAt(scannableCode, m.Index), heuristic: true);
+                    FlagUnimportedPeer(name, ExportKind.Hook, m.Groups[1].Index, heuristic: true);
                 }
                 else if (!isBuiltinHook(name))
                 {
                     // Not in any export table and not builtin. This is EXACTLY the shape a
                     // hand-written C# hook produces (they resolve ambiently and are documented
                     // as exempt), so it can only ever be a hint — heuristic/warning-tier.
+                    int col = ColAt(scannableCode, m.Groups[1].Index);
                     Report("UITKX2307",
                         $"`{name}` is used like a uitkx component/hook but no file exports it",
-                        LineAt(scannableCode, m.Index), "2307:" + name, heuristic: true);
+                        LineAt(scannableCode, m.Groups[1].Index), "2307:" + name, heuristic: true,
+                        col: col, endCol: col + name.Length);
                 }
             }
 
@@ -175,29 +188,40 @@ namespace ReactiveUITK.Language
                 var res = ImportResolver.Resolve(
                     importerDir, imp.Specifier, rootDir, fileExists, owningAsmdefOf, importerAsmdef);
 
+                // Specifier-shaped findings squiggle the quoted string (both quotes included).
+                int specCol = imp.SpecifierColumn;
+                int specEnd = specCol >= 0 ? specCol + imp.Specifier.Length + 2 : -1;
+
                 switch (res.Status)
                 {
                     case ImportResolveStatus.UnknownSpecifier:
                         findings.Add(new Finding("UITKX2300",
                             $"unknown import specifier `{imp.Specifier}` — no file at {imp.Specifier}(.uitkx)",
-                            imp.Line));
+                            imp.Line, Column: specCol, EndColumn: specEnd));
                         break;
                     case ImportResolveStatus.CrossesBoundary:
                         findings.Add(new Finding("UITKX2308",
                             $"import crosses a module/root boundary ({importerAsmdef} -> {owningAsmdefOf(res.ProjectRelativePath ?? string.Empty)}) — imports are module-scoped in v1",
-                            imp.Line));
+                            imp.Line, Column: specCol, EndColumn: specEnd));
                         break;
                     case ImportResolveStatus.RootEscape:
                         findings.Add(new Finding("UITKX2314",
                             $"'~/' root is not configured or resolves outside the project ('{imp.Specifier}')",
-                            imp.Line));
+                            imp.Line, Column: specCol, EndColumn: specEnd));
                         break;
                     case ImportResolveStatus.Ok:
-                        foreach (var name in imp.Names)
-                            if (!isExportedByFile(name, res.ProjectRelativePath!))
-                                findings.Add(new Finding("UITKX2301",
-                                    $"`{name}` is not exported by {ShortName(res.ProjectRelativePath!)} — add `export` to its declaration",
-                                    imp.Line));
+                        for (int k = 0; k < imp.Names.Length; k++)
+                        {
+                            string name = imp.Names[k];
+                            if (isExportedByFile(name, res.ProjectRelativePath!))
+                                continue;
+                            int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : -1;
+                            findings.Add(new Finding("UITKX2301",
+                                $"`{name}` is not exported by {ShortName(res.ProjectRelativePath!)} — add `export` to its declaration",
+                                imp.Line,
+                                Column: nameCol,
+                                EndColumn: nameCol >= 0 ? nameCol + name.Length : -1));
+                        }
                         break;
                 }
             }
@@ -223,9 +247,15 @@ namespace ReactiveUITK.Language
                 referenced.Add(m.Groups[1].Value);
 
             foreach (var imp in directives.Imports)
-                foreach (var name in imp.Names)
-                    if (!referenced.Contains(name))
-                        findings.Add(new Finding("UITKX2304", $"unused import `{name}`", imp.Line));
+                for (int k = 0; k < imp.Names.Length; k++)
+                {
+                    string name = imp.Names[k];
+                    if (referenced.Contains(name))
+                        continue;
+                    int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : -1;
+                    findings.Add(new Finding("UITKX2304", $"unused import `{name}`", imp.Line,
+                        Column: nameCol, EndColumn: nameCol >= 0 ? nameCol + name.Length : -1));
+                }
 
             return findings;
         }
@@ -257,6 +287,15 @@ namespace ReactiveUITK.Language
             for (int i = 0; i < end; i++)
                 if (text[i] == '\n') line++;
             return line;
+        }
+
+        /// <summary>0-based column of <paramref name="index"/> in <paramref name="text"/>.</summary>
+        private static int ColAt(string text, int index)
+        {
+            int end = Math.Min(index, text.Length);
+            if (end <= 0) return 0;
+            int lineStart = text.LastIndexOf('\n', end - 1) + 1;
+            return end - lineStart;
         }
 
         private static string ShortName(string path)

@@ -816,6 +816,9 @@ namespace ReactiveUITK.SourceGenerator
                     Code = f.Code,
                     Severity = ParseSeverity.Error,
                     SourceLine = f.Line,
+                    SourceColumn = Math.Max(0, f.Column),
+                    EndLine = f.EndColumn > 0 ? f.Line : 0,
+                    EndColumn = Math.Max(0, f.EndColumn),
                     Message = f.Message,
                 });
         }
@@ -875,6 +878,9 @@ namespace ReactiveUITK.SourceGenerator
                         ? ParseSeverity.Warning
                         : ParseSeverity.Error,
                     SourceLine = f.Line,
+                    SourceColumn = Math.Max(0, f.Column),
+                    EndLine = f.EndColumn > 0 ? f.Line : 0,
+                    EndColumn = Math.Max(0, f.EndColumn),
                     Message = f.Message,
                 });
         }

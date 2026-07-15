@@ -30,6 +30,19 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void ImportLine_CapturesSpecifierColumn()
+        {
+            // import { A, B } from "./X"
+            // 0123456789...        ^ col 21 = opening quote
+            var (ds, _) = Parse("import { A, B } from \"./X\"\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            var imp = ds.Imports[0];
+            Assert.Equal(21, imp.SpecifierColumn);
+            Assert.Equal(new[] { 9, 12 }, imp.NameColumns.ToArray());
+            // The specifier span (quotes included) closes exactly at the line's last char.
+            Assert.Equal("import { A, B } from \"./X\"".Length, imp.SpecifierColumn + imp.Specifier.Length + 2);
+        }
+
+        [Fact]
         public void MultipleImports_MixedSpecifierForms()
         {
             var (ds, _) = Parse(
