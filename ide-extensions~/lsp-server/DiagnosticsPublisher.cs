@@ -176,8 +176,10 @@ public sealed class DiagnosticsPublisher
     /// </summary>
     /// <returns>The <see cref="ParseResult"/> produced during this invocation.</returns>
     // Builtin/ambient hooks (from the single-source HookRegistry) that need no import.
+    // AmbientHookNames = canonical PascalCase + camelCase alias forms (see HookRegistry) —
+    // CanonicalNames alone missed camelCase call sites → false UITKX2307 in the editor.
     private static readonly HashSet<string> s_builtinHooks =
-        new HashSet<string>(global::ReactiveUITK.Core.HookRegistry.CanonicalNames, StringComparer.Ordinal);
+        new HashSet<string>(global::ReactiveUITK.Core.HookRegistry.AmbientHookNames, StringComparer.Ordinal);
 
     private static readonly Regex s_asmdefNameRe =
         new(@"""name""\s*:\s*""([^""]+)""", RegexOptions.CultureInvariant);
@@ -203,7 +205,12 @@ public sealed class DiagnosticsPublisher
         ParseDiagnostic ToDiag(StrictImportDetector.Finding f) => new ParseDiagnostic
         {
             Code = f.Code,
-            Severity = f.Code == "UITKX2304" ? ParseSeverity.Warning : ParseSeverity.Error,
+            // Heuristic findings (hook-call / module member-access scans over C# expression
+            // text) are warnings — ambient C# legitimately produces those shapes. Mirrors the
+            // SG pipeline's mapping.
+            Severity = f.Code == "UITKX2304" || f.IsHeuristic
+                ? ParseSeverity.Warning
+                : ParseSeverity.Error,
             SourceLine = f.Line,
             Message = f.Message,
         };

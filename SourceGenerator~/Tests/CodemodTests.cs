@@ -45,6 +45,43 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void ModuleReference_AfterGenericTypeUse_StillInsertsImport()
+        {
+            // Regression (JustStayOn DialogHost): `List<Dialogs.Item>` matches the component-tag
+            // regex (`<Dialogs`), which used to Consider "Dialogs" against the COMPONENTS table
+            // (miss) and poison the shared `attempted` set — so the later module-member scan
+            // (`Dialogs.Build()`) never added the import. The dedup must be per-kind.
+            var host = F("DialogHost.uitkx",
+                "component DialogHost {\n    List<Dialogs.Item> items = Dialogs.Build();\n    return (\n        <Box />\n    );\n}\n");
+            var dialogs = F("Dialogs.utils.uitkx",
+                "module Dialogs {\n    public static List<Item> Build() => null;\n    public class Item { }\n}\n");
+
+            var changed = Run(host, dialogs);
+
+            Assert.True(changed.ContainsKey(host.AbsPath));
+            Assert.Contains("import { Dialogs } from \"./Dialogs.utils\"", changed[host.AbsPath]);
+        }
+
+        [Fact]
+        public void TwoModulesInOneFile_BothGetExport()
+        {
+            // Regression (JustStayOn JSOAppButton.util): only the FIRST module in a
+            // module-only file received the `export` prefix; the second stayed private
+            // and consumers importing it hit UITKX2301.
+            var utils = F("Button.util.uitkx",
+                "module ButtonDefaults {\n    public const string Key = \"k\";\n}\n\nmodule ButtonUtils {\n    public static int N() => 1;\n}\n");
+            var consumer = F("Button.uitkx",
+                "component Button {\n    var n = ButtonUtils.N();\n    return (\n        <Box />\n    );\n}\n");
+
+            var changed = Run(utils, consumer);
+
+            Assert.True(changed.ContainsKey(utils.AbsPath));
+            string outText = changed[utils.AbsPath];
+            Assert.Contains("export module ButtonDefaults", outText);
+            Assert.Contains("export module ButtonUtils", outText);
+        }
+
+        [Fact]
         public void HookReference_InsertsImport_FromHooksFile()
         {
             var screen = F("Screen.uitkx",

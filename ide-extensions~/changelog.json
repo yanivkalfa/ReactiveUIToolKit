@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-07-15",
+      "versions": {
+        "vscode": "1.3.1",
+        "vs2022": "1.3.1",
+        "rider": "1.1.0"
+      },
+      "shared": [
+        "Correctness fixes for 1.3.0's strict import diagnostics, shipped in the bundled LSP server + analyzer DLL. No new commands, settings, or diagnostic codes.\n\nFix: false UITKX2307 errors on built-in hooks. The strict-import exemption list only contained the canonical PascalCase names (`UseState`, `UseMemo`, ...) while real files call the camelCase aliases (`useState(`, `useMemo(`) -- so the moment a project had any exported peer hook/module, every built-in hook call site was flagged as an error. The exemption now covers both spellings from the single-source `HookRegistry` (`AmbientHookNames`), in both the editor squiggles and the Unity build.\n\nChange: heuristic strict findings are now warnings, not errors. Bare hook-call (`useX(`) and module member-access (`Name.member`) matches are scanned out of plain C# expression text, which ambient C# legitimately produces -- a hand-written C# hook, a nested enum reachable via `@using static`, or a Unity type like `Screen.width` that merely collides with some file's exported module name. Those UITKX2305/2307 findings are warning-tier now; a truly missing import still fails the build with CS0103, and component-tag `<X>` findings (uitkx-only syntax, sound evidence) stay errors.\n\nFix (Linux/macOS): import specifier resolution dropped the leading `/` of rooted paths (`/home/...` resolved as `home/...`), silently breaking go-to-definition on imports, completion inside `import { }`, the add-missing-import quick-fix, and the live 23xx diagnostics on those platforms. Windows was unaffected (its `C:` root survives as an ordinary path segment).\n\nSG suite 1472/1472, LSP suite 107/107."
+      ]
+    },
+    {
       "date": "2026-07-12",
       "versions": {
         "vscode": "1.3.0",

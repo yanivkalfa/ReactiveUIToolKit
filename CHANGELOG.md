@@ -6,6 +6,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.7.1] - 2026-07-15
+
+### Fixed
+
+Correctness fixes for 0.7.0's strict import diagnostics. These landed on `master` right
+after the 0.7.0 dist publish, so the `dist` branch (git-URL consumers) never received
+them — this patch re-publishes with the fixed analyzer DLLs.
+
+- **False UITKX2307 errors on built-in hooks.** The strict-import exemption only matched
+  the canonical PascalCase names (`UseState`, …) while real files call the camelCase
+  aliases (`useState(`, …) — so any project with exported peer hooks/modules got an
+  error on every built-in hook call. The exemption now covers both spellings from the
+  single-source `HookRegistry.AmbientHookNames` (build + editor).
+- **Heuristic strict findings are warnings, not errors.** Bare hook-call (`useX(`) and
+  module member-access (`Name.member`) matches are scanned from plain C# expression
+  text, which ambient C# legitimately produces (hand-written hooks, nested enums via
+  `@using static`, `Screen.width`). Those UITKX2305/2307 findings are warning-tier now;
+  a truly missing import still fails the compile with CS0103. Component-tag `<X>`
+  findings stay errors (uitkx-only syntax, sound evidence).
+- **Rooted-path import resolution on Linux/macOS.** Specifier resolution dropped the
+  leading `/` of absolute Unix paths, breaking `File.Exists`/path comparisons downstream
+  (LSP go-to-definition, import completion, live 23xx diagnostics on those platforms).
+- **Migration codemod: two reference-scan bugs** (found migrating a real project):
+  a generic type argument (`List<Dialogs.Item>`) matched the component-tag regex first
+  and poisoned the shared dedup set, so the later module-member scan never added the
+  `import { Dialogs }` line; and the parser's line counter was not advanced across
+  hook/module bodies, so the SECOND+ declaration in a file had a stale
+  `DeclarationLine` and the codemod's `export`-prepend silently missed it (consumers
+  then hit UITKX2301). Both fixed with regression tests; the parser fix also corrects
+  diagnostic line-anchoring for later declarations in multi-declaration files.
+
+### Notes
+
+- Library-only patch; IDE extensions shipped the same fixes as 1.3.1.
+- SG suite 1472/1472, LSP suite 107/107. New `SamplesCorpusGateTests` runs the real
+  generator over the bundled Samples (the local mirror of the Asset-Store CI's floor-Unity
+  import) so this failure class is caught by `dotnet test` before reaching CI.
+
 ## [0.7.0] - 2026-07-12
 
 ### Added

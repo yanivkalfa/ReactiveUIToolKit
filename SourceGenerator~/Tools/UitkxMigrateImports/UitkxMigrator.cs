@@ -141,12 +141,16 @@ namespace ReactiveUITK.SourceGenerator.Tools
             var selfNames = new HashSet<string>(pf.Decls.Select(d => d.Name), StringComparer.Ordinal);
             // Deduplicate by (name) — one import line per referenced name.
             var found = new Dictionary<string, string>(StringComparer.Ordinal); // name → targetPath
-            var attempted = new HashSet<string>(StringComparer.Ordinal); // names already resolved-or-warned
+            // Names already resolved-or-warned, keyed PER KIND. A shared (cross-kind) set is a
+            // bug: `List<Dialogs.Item>` matches the tag regex first, so "Dialogs" would be
+            // Considered against the COMPONENTS table (a miss), poisoning the name for the
+            // later MODULE member-access scan and silently dropping the import.
+            var attempted = new HashSet<string>(StringComparer.Ordinal); // "kind\0name"
 
-            void Consider(Dictionary<string, List<string>> map, string name)
+            void Consider(Dictionary<string, List<string>> map, string name, string kind)
             {
                 if (selfNames.Contains(name) || found.ContainsKey(name)) return;
-                if (!attempted.Add(name)) return; // don't re-warn the same ambiguous name per occurrence
+                if (!attempted.Add(kind + "\0" + name)) return; // don't re-warn the same ambiguous name per occurrence
                 if (!map.TryGetValue(name, out var candidates)) return;
 
                 var external = new List<string>();
@@ -160,9 +164,9 @@ namespace ReactiveUITK.SourceGenerator.Tools
                     found[name] = target;
             }
 
-            foreach (Match m in s_tagRe.Matches(code)) Consider(table.Components, m.Groups[1].Value);
-            foreach (Match m in s_callRe.Matches(code)) Consider(table.Hooks, m.Groups[1].Value);
-            foreach (Match m in s_memberRe.Matches(code)) Consider(table.Modules, m.Groups[1].Value);
+            foreach (Match m in s_tagRe.Matches(code)) Consider(table.Components, m.Groups[1].Value, "c");
+            foreach (Match m in s_callRe.Matches(code)) Consider(table.Hooks, m.Groups[1].Value, "h");
+            foreach (Match m in s_memberRe.Matches(code)) Consider(table.Modules, m.Groups[1].Value, "m");
 
             return found.Select(kv => new Ref(kv.Key, kv.Value)).ToList();
         }

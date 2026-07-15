@@ -1,4 +1,18 @@
-﻿## [0.7.0] - 2026-07-12
+﻿## [0.7.1] - 2026-07-15
+
+### Patch - strict import diagnostics, corrected
+
+**If 0.7.0 flooded your project with `UITKX2307` errors on `useState` / `useEffect` / every built-in hook - this is the fix.** The strict-import exemption list only knew the PascalCase names (`UseState`) while real files call the camelCase aliases (`useState(`), so any project with exported hooks/modules errored on every built-in call site. Exemption now covers both spellings, in the Unity build and the editor.
+
+**Heuristic findings are warnings now, not errors.** Bare hook calls (`useX(`) and module member access (`Name.member`) are scanned out of plain C# text - which ambient C# legitimately produces (hand-written hooks, nested enums via `@using static`, `Screen.width`). Those `UITKX2305`/`2307` matches no longer break the build; a genuinely missing import still fails with CS0103. Component tags (`<X>`) keep error severity - that syntax is uitkx-only, so the evidence is sound.
+
+**Linux/macOS: import resolution fixed.** Rooted paths lost their leading `/` during specifier resolution, silently breaking go-to-definition on imports, `import { }` completion, the quick-fix, and live diagnostics on those platforms.
+
+Update via Package Manager (git `#dist` consumers: refresh the package). IDE extensions carry the same fixes as **1.3.1** (VS Code / VS 2022). SG `1472/1472`, LSP `107/107` - plus a new corpus gate that compiles all bundled Samples through the real generator on every test run, so this class of regression is now caught before CI's floor-Unity import.
+
+---
+
+## [0.7.0] - 2026-07-12
 
 ### Imports & Exports - cross-file references are now explicit
 
