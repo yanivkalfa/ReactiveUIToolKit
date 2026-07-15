@@ -1,4 +1,6 @@
 import type { FC } from 'react'
+import { Link as MuiLink } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Box,
   Table,
@@ -112,12 +114,12 @@ export const UitkxReferencePage: FC = () => (
           <TableRow>
             <TableCell><code>@namespace</code></TableCell>
             <TableCell><code>@namespace My.Game.UI</code></TableCell>
-            <TableCell>Optional namespace override. If omitted, the namespace is derived from the file&rsquo;s path relative to its owning <code>.asmdef</code> (see <a href="#/imports">Imports &amp; Exports</a>).</TableCell>
+            <TableCell>Optional namespace override. If omitted, the namespace is derived from the file&rsquo;s path relative to its owning <code>.asmdef</code> (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>).</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>@component</code></TableCell>
             <TableCell><code>@component MyButton</code></TableCell>
-            <TableCell>Component class name. Matching it to the filename is a recommended convention (see <a href="#/imports">Imports &amp; Exports</a>), not a compiler-enforced rule.</TableCell>
+            <TableCell>Component class name. Matching it to the filename is a recommended convention (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>), not a compiler-enforced rule.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>@using</code></TableCell>
@@ -402,7 +404,7 @@ var dict = new Dictionary<string, VirtualNode> { { "header", (<Label text="Title
       <li>Each control block body must wrap its markup in <code>return (...);</code>. Setup code (variable declarations, computations) goes before <code>return</code>. Use <code>return null;</code> to skip rendering.</li>
       <li>Direct children of <code>@foreach</code> need a <code>key</code> attribute for stable reconciliation.</li>
       <li>Components must have a single root element.</li>
-      <li>Naming the file after its component (e.g. <code>MyButton.uitkx</code> for <code>component MyButton</code>) is a recommended convention, not a compiler rule — see <a href="#/imports">Imports &amp; Exports</a>.</li>
+      <li>Naming the file after its component (e.g. <code>MyButton.uitkx</code> for <code>component MyButton</code>) is a recommended convention, not a compiler rule — see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.</li>
     </Typography>
   </Box>
 )

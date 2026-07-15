@@ -33,7 +33,7 @@ export const UitkxRouterPage: FC = () => (
           <ListItemText primary={<><code>{'<Outlet/>'}</code> is the render-slot inside a layout route — descendants render here.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>{'<NavLink>'}</code> (and the legacy <code>{'<RouterNavLink>'}</code>) renders a navigation link with active-state styling.</>} />
+          <ListItemText primary={<><code>{'<NavLink>'}</code> renders a navigation link with active-state styling.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<><code>{'<Navigate to=...>'}</code> performs a declarative redirect (defaults to <code>replace=true</code>).</>} />
@@ -216,7 +216,7 @@ export const UitkxRouterPage: FC = () => (
       </Typography>
       <Typography variant="body1" paragraph>
         <code>{'<NavLink>'}</code> is the markup element for in-app navigation with active-state
-        styling. The legacy <code>{'<RouterNavLink>'}</code> alias remains as a synonym.{' '}
+        styling.{' '}
         <code>V.Link(to, label, replace, style, key, state)</code> is the equivalent runtime C#
         factory for plain links. Use <code>{'<Navigate>'}</code> for declarative redirects (no
         click required).

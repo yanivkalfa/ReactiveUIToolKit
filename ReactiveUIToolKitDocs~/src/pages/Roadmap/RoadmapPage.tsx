@@ -13,26 +13,32 @@ export const RoadmapPage: FC = () => (
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 2 }}>
-      Completed (v0.3.0)
+      Completed (through 0.7.x)
     </Typography>
     <List>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Function-style components with setup code + return() syntax</>} />
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Function-style components, control blocks, switch expressions, mixed-declaration files</>} />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Control block bodies with return() and setup code</>} />
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Imports &amp; exports: explicit cross-file references, path-derived namespaces, migration codemod (0.7.0)</>} />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Switch expression support in markup</>} />
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Hot Module Replacement / Fast Refresh: edit-save hot-swap with state preservation, no domain reload</>} />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />CssHelpers expansion (easing, filters, whitespace, text auto-size)</>} />
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Typed style system + CssHelpers (easing, filters, whitespace, text auto-size, 9-slice, shadows)</>} />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Portal, Suspense, and Fragment components</>} />
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Router, Signals, Portal, Suspense, Fragment, ErrorBoundary; Audio/Video elements; custom rendering (onGenerateVisualContent)</>} />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />VS Code, Visual Studio 2022, and JetBrains Rider extensions</>} />
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Snapshot testing utilities (SnapshotAssert / VNodeSnapshot)</>} />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Custom element adapter registration (ElementRegistry.Register)</>} />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />VS Code + Visual Studio 2022 extensions (LSP: diagnostics, completion, go-to-definition, formatting, rename); Rider plugin via the shared language server</>} />
       </ListItem>
     </List>
 
@@ -41,10 +47,7 @@ export const RoadmapPage: FC = () => (
     </Typography>
     <List>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Planned" size="small" color="info" sx={{ mr: 1 }} />Performance profiling tools and render-count diagnostics</>} />
-      </ListItem>
-      <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Planned" size="small" color="info" sx={{ mr: 1 }} />Component testing utilities (snapshot assertions)</>} />
+        <ListItemText primary={<><Chip label="Planned" size="small" color="info" sx={{ mr: 1 }} />Deeper performance profiling: render-count diagnostics beyond the current bench metrics + diff tracing</>} />
       </ListItem>
       <ListItem disablePadding>
         <ListItemText primary={<><Chip label="Planned" size="small" color="info" sx={{ mr: 1 }} />Additional IDE refactoring actions</>} />
@@ -54,6 +57,9 @@ export const RoadmapPage: FC = () => (
       </ListItem>
       <ListItem disablePadding>
         <ListItemText primary={<><Chip label="Planned" size="small" color="info" sx={{ mr: 1 }} />Extended documentation: component testing guide, advanced patterns</>} />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary={<><Chip label="Planned" size="small" color="info" sx={{ mr: 1 }} />Unity 6.3 additions (new IStyle properties, FilterFunction helpers)</>} />
       </ListItem>
     </List>
 
@@ -65,7 +71,7 @@ export const RoadmapPage: FC = () => (
         <ListItemText primary={<><Chip label="Exploring" size="small" color="warning" sx={{ mr: 1 }} />PropTypes runtime validation (public API surface review)</>} />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary={<><Chip label="Exploring" size="small" color="warning" sx={{ mr: 1 }} />Custom element adapter registration</>} />
+        <ListItemText primary={<><Chip label="Exploring" size="small" color="warning" sx={{ mr: 1 }} />Runtime-only package variant (no editor tooling)</>} />
       </ListItem>
       <ListItem disablePadding>
         <ListItemText primary={<><Chip label="Exploring" size="small" color="warning" sx={{ mr: 1 }} />Server-driven UI patterns</>} />

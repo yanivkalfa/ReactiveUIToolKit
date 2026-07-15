@@ -49,7 +49,10 @@ export const KnownIssuesPage: FC = () => (
         <ListItemText primary="The first HMR compile is ~1–1.5 seconds due to Roslyn JIT warmup. Subsequent compiles are 25–100 ms." />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary="Adding a brand-new .uitkx file while HMR is running requires HMR to detect and compile it. The file must be referenced by an existing component or HMR-watched folder to be auto-discovered." />
+        <ListItemText primary="Brand-new .uitkx files are auto-discovered while HMR runs (the watcher covers Assets/, and unknown components referenced from an edited file are found and compiled automatically) — no restart needed. The new component behaves like any other on subsequent saves." />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary="A file declaring MULTIPLE components hot-swaps only its FIRST component during an HMR session; edits to the later components in that file take effect on the next full compile. One component per file (the recommended convention) avoids this entirely." />
       </ListItem>
     </List>
 
@@ -91,7 +94,7 @@ export const KnownIssuesPage: FC = () => (
         <ListItemText primary={<>Drag events (<code>onDragEnter</code>, <code>onDragLeave</code>, <code>onDragUpdated</code>, <code>onDragPerform</code>, <code>onDragExited</code>) are editor-only and require <code>UNITY_EDITOR</code>.</>} />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary={<>Some components are editor-only: <code>PropertyField</code>, <code>InspectorElement</code>, <code>ObjectField</code>, <code>ColorField</code>, <code>Toolbar</code> and its children, <code>TwoPaneSplitView</code>, <code>HelpBox</code>, <code>IMGUIContainer</code>.</>} />
+        <ListItemText primary={<>Some components are editor-only: <code>PropertyField</code>, <code>InspectorElement</code>, <code>ObjectField</code>, <code>ColorField</code>, <code>EnumFlagsField</code>, <code>Toolbar</code> and its children, <code>TwoPaneSplitView</code>, <code>HelpBox</code>, <code>IMGUIContainer</code>.</>} />
       </ListItem>
     </List>
 

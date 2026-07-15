@@ -1,4 +1,6 @@
 import type { FC } from 'react'
+import { Link as MuiLink } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import Styles from '../../GettingStarted/GettingStartedPage.style'
@@ -39,7 +41,7 @@ export const UitkxGettingStartedPage: FC = () => (
     <Typography variant="body1" paragraph>
       A simple <code>.uitkx</code> file holds one component. (A file may declare more than one
       component/hook/module, and matching the filename to the component name is a recommended
-      convention rather than a hard rule — see <a href="#/imports">Imports &amp; Exports</a>.)
+      convention rather than a hard rule — see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.)
       Setup code goes at the top; the component returns markup.
     </Typography>
     <CodeBlock language="jsx" code={UITKX_HELLO_WORLD_COMPONENT} />
@@ -56,7 +58,7 @@ export const UitkxGettingStartedPage: FC = () => (
       Upgrading an existing (pre-0.7.0) project? The bundled <code>UitkxMigrateImports</code>{' '}
       codemod adds <code>export</code>s and <code>import</code>s to your <code>.uitkx</code> files
       in one pass — see{' '}
-      <a href="#/imports">Imports &amp; Exports → Migrating an existing project</a>.
+      <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports → Migrating an existing project</MuiLink>.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>

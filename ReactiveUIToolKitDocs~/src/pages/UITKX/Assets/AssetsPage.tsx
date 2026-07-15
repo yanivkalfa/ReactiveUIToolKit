@@ -1,4 +1,6 @@
 import type { FC } from 'react'
+import { Link as MuiLink } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Alert,
   Box,
@@ -72,7 +74,7 @@ export const AssetsPage: FC = () => (
         <strong>UI source root</strong> instead of the current file — useful for shared assets
         that many components reference. The root defaults to <code>Assets</code> and is
         configurable per project via the <code>"root"</code> key in{' '}
-        <a href="#/config">uitkx.config.json</a>. It works everywhere a path does:{' '}
+        <MuiLink component={RouterLink} to="/config">uitkx.config.json</MuiLink>. It works everywhere a path does:{' '}
         <code>Asset&lt;T&gt;("~/Textures/icon")</code>, <code>@uss "~/Styles/theme"</code>, and{' '}
         <code>import</code> specifiers. A <code>~/</code> path that resolves outside the configured
         root raises <code>UITKX2314</code>.
