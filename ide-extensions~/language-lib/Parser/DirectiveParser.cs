@@ -1174,6 +1174,12 @@ namespace ReactiveUITK.Language.Parser
             { IsExported = isExported });
 
             i = bodyCloseExclusive; // advance past '}'
+            // Resync the line counter — TryReadBalancedBlock consumed the body without
+            // advancing `line`, so every LATER declaration's DeclarationLine (and any
+            // diagnostic anchored to it) would be stale. The migration codemod prepends
+            // `export` by DeclarationLine, so a stale value silently skipped the 2nd+
+            // hook/module in a file.
+            line = LineAtPos(source, i);
         }
 
         /// <summary>
@@ -1257,6 +1263,9 @@ namespace ReactiveUITK.Language.Parser
             { IsExported = isExported });
 
             i = bodyCloseExclusive; // advance past '}'
+            // Resync the line counter across the consumed body (see the hook parser's
+            // matching note) — later declarations' DeclarationLine must be accurate.
+            line = LineAtPos(source, i);
         }
 
         // ── Arrow return type reader ──────────────────────────────────────────
