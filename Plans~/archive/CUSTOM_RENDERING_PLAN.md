@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-15** — Feature shipped end-to-end (OnGenerateVisualContent/RedrawKey in BaseProps/appliers, IDE schema, VDG typing, CustomDrawDemoFunc sample). The 'nothing implemented' header below is historical. Remaining: the named T1-T10 test matrix — tracked in REMAINING_WORK.md.
+
 # Custom Rendering Support — `OnGenerateVisualContent` + `RedrawKey`
 
 > **Goal:** Add first-class, declarative support for Unity's custom-rendering

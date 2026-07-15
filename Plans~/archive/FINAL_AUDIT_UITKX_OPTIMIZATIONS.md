@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-15** — Open items extracted to REMAINING_WORK.md (Performance/HMR/Cleanup sections). U-17.1 obsolete (InferFunctionStyleNamespace deleted), O-06 absorbed by U-31; the rest remain open.
+
 # ReactiveUIToolKit — Final Audit: OPTIMIZATIONS & PERFORMANCE (v4 split)
 
 **Date:** 2026-07-06. Companion to `FINAL_AUDIT_UITKX_FINDINGS.md` (correctness bugs live there). This file holds every performance/memory/scalability item from the audit — core runtime AND tooling. IDs are stable across both docs (U-16, U-17, U-21, H-05, C-01, C-02, C-04, C-06 moved here unchanged; O-## items are perf observations that were embedded inside findings text in earlier revisions, now given their own IDs).
