@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-15** — Open items extracted to REMAINING_WORK.md (Release/Process, Docs, Tooling, HMR sections). D-TD15 closed by audit U-06; H-5 largely satisfied (issue templates exist); header version 0.6.2 is historical.
+
 # UITKX V1 Release Plan (Consolidated)
 
 > **Single source of truth for everything still outstanding before the v1.0

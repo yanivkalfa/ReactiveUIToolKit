@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-15** — Not scheduled (user decision 2026-07-03); items U1-U7 moved to REMAINING_WORK.md (Diagnostics/Cleanup). Note partial overlap with the executed FINAL_AUDIT fixes (0103 retired, U-12 severity, U-41) — re-scope before executing.
+
 # .uitkx Parity Cleanup Plan (Unity side)
 
 > **Origin.** The 2026-07-03 `.uitkx`↔`.guitkx` parity investigation

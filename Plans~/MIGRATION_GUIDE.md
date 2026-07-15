@@ -104,8 +104,14 @@ component <ClassName> {
 }
 ```
 
-Namespace is taken from the companion partial `.cs` file.
-`@namespace` / `@component` directives are only needed for legacy directive-header files.
+Namespace: since 0.7.0 the default is **path-derived** from the file's location relative
+to its owning `.asmdef` (the generator never reads a companion `.cs` for it). If you have
+a hand-written companion `partial .cs`, declare an explicit `@namespace` matching it so
+the two partials merge. `@component` is only needed for legacy directive-header files.
+
+Since 0.7.0 cross-file references are explicit: prefix declarations with `export` and
+add `import { X } from "./path"` lines (or run the bundled `UitkxMigrateImports` codemod
+once over the project — it does both and stamps each file's current `@namespace`).
 
 ### Step 3 — Move hook calls to function setup section
 

@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-15** — Historical comparison (its own banner says so). Its 4 open feature items (optional segments, per-route errorElement, navigation-action tracking, relative:'path') moved to REMAINING_WORK.md.
+
 # UITKX Router vs React Router DOM — Deep Comparison & Gap Analysis
 
 > **STATUS (updated 2026-06-19): MOSTLY IMPLEMENTED - this gap analysis is now largely historical.**

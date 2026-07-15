@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-15** — Tier A CI shipped + verified (build-unitypackage gate; store-v0.7.0 exported). Remaining manual submission tail (paused; price now ~$5 → payout/tax setup) tracked in REMAINING_WORK.md. The 'free' pricing decision below is superseded.
+
 # Unity Asset Store publishing plan — ReactiveUIToolKit
 
 > **Status: TIER A BUILT (2026-07-05).** Decisions locked: **free**, publisher
