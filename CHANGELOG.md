@@ -28,6 +28,14 @@ them — this patch re-publishes with the fixed analyzer DLLs.
 - **Rooted-path import resolution on Linux/macOS.** Specifier resolution dropped the
   leading `/` of absolute Unix paths, breaking `File.Exists`/path comparisons downstream
   (LSP go-to-definition, import completion, live 23xx diagnostics on those platforms).
+- **Migration codemod: two reference-scan bugs** (found migrating a real project):
+  a generic type argument (`List<Dialogs.Item>`) matched the component-tag regex first
+  and poisoned the shared dedup set, so the later module-member scan never added the
+  `import { Dialogs }` line; and the parser's line counter was not advanced across
+  hook/module bodies, so the SECOND+ declaration in a file had a stale
+  `DeclarationLine` and the codemod's `export`-prepend silently missed it (consumers
+  then hit UITKX2301). Both fixed with regression tests; the parser fix also corrects
+  diagnostic line-anchoring for later declarations in multi-declaration files.
 
 ### Notes
 
