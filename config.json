@@ -31,7 +31,14 @@
     "Analyzers/ReactiveUITK.SourceGenerator.pdb",
     "Analyzers/ReactiveUITK.SourceGenerator.deps.json",
     "publisher-secrets.json",
-    "publisher-secrets.json.meta"
+    "publisher-secrets.json.meta",
+    "CLAUDE.md",
+    "AUTOMATION.md",
+    "RELEASE_OPS.md",
+    "VERSIONING.md",
+    "publisher-secrets.example.json",
+    "ReactiveUIToolKit.code-workspace",
+    ".csharpierignore"
   ],
   "npmPath": "C:\\nvm4w\\nodejs\\npm.cmd"
 }
