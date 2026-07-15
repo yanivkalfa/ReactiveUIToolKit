@@ -66,7 +66,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             => Migrate(files, out _);
 
         public static Dictionary<string, string> Migrate(
-            IReadOnlyList<MigratorFile> files, out List<MigrationError> errors)
+            IReadOnlyList<MigratorFile> files, out List<MigrationError> errors, bool tidyUsings = false)
         {
             errors = new List<MigrationError>();
 
@@ -103,10 +103,51 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 var table = tables[pf.File.AsmdefKey];
                 var refs = ScanReferences(pf, table, errors);
                 string newText = Rewrite(pf, refs);
+                if (tidyUsings)
+                    newText = TidyUsings(newText);
                 if (!string.Equals(newText, pf.File.Text, StringComparison.Ordinal))
                     output[pf.File.AbsPath] = newText;
             }
             return output;
+        }
+
+        /// <summary>
+        /// <c>--tidy</c> using-canonicalization (namespace-import unification plan): converts every
+        /// <c>@using X</c> line to the unified <c>import "@X"</c> spelling (preserving <c>static</c> /
+        /// alias payloads and indentation), and DROPS any using — either spelling — whose namespace is
+        /// already auto-injected by the emitters (<see cref="AutoInjectedUsings"/>), e.g.
+        /// <c>@using UnityEngine</c> / <c>@using System</c>. Idempotent: a second pass over tidied
+        /// output is a no-op. Pure + unit-testable.
+        /// </summary>
+        public static string TidyUsings(string text)
+        {
+            var ds = DirectiveParser.Parse(text, "tidy.uitkx", new List<ParseDiagnostic>());
+            if (ds.UsingDirectives.IsDefaultOrEmpty)
+                return text;
+
+            var byLine = new Dictionary<int, UsingDirective>();
+            foreach (var u in ds.UsingDirectives)
+                byLine[u.Line] = u;
+
+            string nl = text.Contains("\r\n") ? "\r\n" : "\n";
+            string[] lines = text.Replace("\r\n", "\n").Split('\n');
+            var outLines = new List<string>(lines.Length);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (byLine.TryGetValue(i + 1, out var u))
+                {
+                    if (AutoInjectedUsings.IsRedundant(u.Payload))
+                        continue; // drop a redundant baseline using entirely
+                    string raw = lines[i];
+                    string indent = raw.Substring(0, raw.Length - raw.TrimStart().Length);
+                    outLines.Add($"{indent}import \"@{u.Payload}\"");
+                }
+                else
+                {
+                    outLines.Add(lines[i]);
+                }
+            }
+            return string.Join(nl, outLines);
         }
 
         // ── Pass 1 helpers ───────────────────────────────────────────────────────

@@ -24,12 +24,14 @@ namespace ReactiveUITK.SourceGenerator.Tools
         {
             if (args.Length == 0)
             {
-                Console.Error.WriteLine("usage: UitkxMigrateImports <dir> [--check]");
+                Console.Error.WriteLine("usage: UitkxMigrateImports <dir> [--check] [--tidy]");
+                Console.Error.WriteLine("  --tidy  also canonicalize usings: @using X -> import \"@X\", drop baseline-redundant usings");
                 return 2;
             }
 
             string root = Path.GetFullPath(args[0]);
             bool check = args.Contains("--check");
+            bool tidy = args.Contains("--tidy");
             if (!Directory.Exists(root))
             {
                 Console.Error.WriteLine($"error: directory not found: {root}");
@@ -44,7 +46,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 files.Add(new MigratorFile(Path.GetFullPath(path), asmdef, File.ReadAllText(path)));
             }
 
-            var changed = UitkxMigrator.Migrate(files, out var errors);
+            var changed = UitkxMigrator.Migrate(files, out var errors, tidyUsings: tidy);
 
             foreach (var e in errors)
                 Console.Error.WriteLine($"warn: {e.FilePath}: {e.Message}");
