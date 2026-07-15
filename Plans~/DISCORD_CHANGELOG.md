@@ -1,4 +1,18 @@
-﻿## [0.7.1] - 2026-07-15
+﻿## [0.8.0] - 2026-07-15
+
+### Namespace imports + the diagnostics that make a typo visible
+
+**One way to bring things in.** A C# namespace can now come into scope with `import "@ReactiveUITK.Router"` — exactly equivalent to `@using ReactiveUITK.Router` (same generated `using`). The distinction is the point: `import { X } from "./file"` (braces + `from`) imports a peer `.uitkx` file and is name-checked; a quoted `"@Namespace"` imports a C# namespace. Static/alias forms work too: `import "@static UnityEngine.Mathf"`. `@using` keeps working forever — the unified form is just the recommended spelling.
+
+**UITKX2316 — unknown namespace.** A misspelled `@using` used to be completely silent in the editor (you'd only get a raw CS0246 buried in generated code). Now it's flagged like a bad import: an **error squiggle in the editor** on the namespace token, and a **build warning** (it never breaks an otherwise-valid build — the real CS0246 stays the gate). No false positives: validated against the compilation plus every peer `.uitkx` namespace.
+
+**UITKX2317 — redundant using (Hint).** `@using UnityEngine` / `@using System` and friends are already auto-injected into every generated file, so they're flagged as dead weight (faded) with a one-click "Remove redundant using".
+
+**Tooling:** a "Convert to `import \"@…\"`" refactor on any `@using`; the codemod's new `--tidy` converts + strips redundant usings in bulk (idempotent, `--check` for CI); the formatter round-trips both spellings; distinct syntax highlighting + a completion snippet.
+
+Additive — existing files keep working. IDE extensions ship the same as **1.4.0**. SG `1515/1515`, LSP `118/118`.
+
+## [0.7.1] - 2026-07-15
 
 ### Patch - strict import diagnostics, corrected
 

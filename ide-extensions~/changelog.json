@@ -3,6 +3,17 @@
     {
       "date": "2026-07-15",
       "versions": {
+        "vscode": "1.4.0",
+        "vs2022": "1.4.0",
+        "rider": "1.1.0"
+      },
+      "shared": [
+        "Ships library 0.8.0's namespace-import unification via the bundled LSP server + analyzer DLL.\n\nNew syntax: a C# namespace can now be imported with `import \"@Namespace\"` -- exactly equivalent to `@using Namespace` (same generated `using`). The two preamble shapes are now distinct on purpose: `import { X } from \"./file\"` (braces + `from`) imports a peer .uitkx file and is name-checked; a quoted `\"@Namespace\"` imports a C# namespace. Static/alias payloads work too (`import \"@static UnityEngine.Mathf\"`). `@using` keeps working -- the unified form is the recommended spelling. The TextMate grammar scopes `import \"@Ns\"` distinctly and a discoverable `import \"@...\"` completion snippet is offered in the preamble.\n\nNew diagnostics (editor + build via the analyzer DLL): UITKX2316 flags a `@using`/`import \"@Ns\"` whose namespace resolves nowhere -- the namespace analogue of UITKX2300. A misspelled `@using` used to be silent in the editor (only a raw CS0246 in generated code); it is now an editor error squiggled on the namespace token, and a build warning (it never breaks a valid build -- the emitted using's CS0246 stays the gate). Validated against the compilation plus every peer .uitkx namespace, so generated namespaces are never false-flagged. UITKX2317 flags a using already auto-injected into every file (`@using UnityEngine`, `@using System`) as a faded redundant-using Hint.\n\nNew quick-fixes: 'Remove redundant using' (2317) and a cursor-position 'Convert to import \"@...\"' refactor on any `@using` line. The formatter round-trips both spellings without rewriting one to the other; the bundled codemod gains `--tidy` to convert + strip redundant usings in bulk.\n\nSG suite 1515/1515, LSP suite 118/118."
+      ]
+    },
+    {
+      "date": "2026-07-15",
+      "versions": {
         "vscode": "1.3.1",
         "vs2022": "1.3.1",
         "rider": "1.1.0"
