@@ -1,5 +1,6 @@
 import type { FC } from 'react'
-import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
+import { Box, Link as MuiLink, List, ListItem, ListItemText, Typography } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import Styles from '../../Concepts/ConceptsPage.style'
 
 export const UitkxConceptsPage: FC = () => (
@@ -39,7 +40,30 @@ export const UitkxConceptsPage: FC = () => (
           <ListItemText primary="State setters are called directly like functions, for example setCount(count + 1)." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary="Three file types: component (.uitkx) for UI, hook (.hooks.uitkx) for reusable state logic, and module (.style.uitkx, .utils.uitkx) for styles, types, and utilities." />
+          <ListItemText
+            primary={
+              <>
+                Cross-file references are explicit: a file exposes declarations with{' '}
+                <code>export</code> and pulls in what it needs with{' '}
+                <code>import {'{ X }'} from "./path"</code>. Exported declarations emit{' '}
+                <code>public</code> classes; non-exported ones are <code>internal</code>. See{' '}
+                <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.
+              </>
+            }
+          />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText
+            primary={
+              <>
+                Three declaration kinds: <code>component</code> for UI, <code>hook</code> for
+                reusable state logic, and <code>module</code> for styles, types, and utilities. A
+                file may declare any mix; keeping one component per file with{' '}
+                <code>.hooks</code>/<code>.style</code>/<code>.utils</code> companions is the
+                recommended convention, not a compiler rule.
+              </>
+            }
+          />
         </ListItem>
       </List>
     </Box>
@@ -66,46 +90,33 @@ export const UitkxConceptsPage: FC = () => (
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
-        Scripting define symbols (environment & tracing)
+        Environment &amp; tracing configuration
       </Typography>
       <Typography variant="body2" paragraph>
-        Set these in <strong>Project Settings → Player → Scripting Define Symbols</strong>. They
-        control environment labels and diagnostics at compile time.
+        Environment labels and diagnostics are configured in{' '}
+        <code>Assets/ReactiveUIToolKit/config.json</code> under the{' '}
+        <code>envVariables</code> object (read once at startup via{' '}
+        <code>ReactiveUITKConfig.Current</code>) — no scripting define symbols are involved:
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ENV_DEV</code> — development environment. Enables dev-oriented defaults such as Basic trace level and compiles editor diagnostics helpers.</>} />
+          <ListItemText primary={<><code>"env"</code> — environment label (e.g. <code>development</code>, <code>staging</code>, <code>production</code>). Exposed at runtime as <code>HostContext.Environment["env"]</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ENV_STAGING</code> — staging environment label (no implicit tracing changes).</>} />
+          <ListItemText primary={<><code>"traceLevel"</code> — reconciler trace level: <code>None</code>, <code>Basic</code>, or <code>Verbose</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ENV_PROD</code> — production environment label. This is the implied default if no <code>ENV_*</code> symbol is defined.</>} />
+          <ListItemText primary={<><code>"diffTracing"</code> — sets <code>DiagnosticsConfig.EnableDiffTracing</code> for detailed Fiber diff diagnostics.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>RUITK_TRACE_VERBOSE</code> — force reconciler trace level to <strong>Verbose</strong>.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>RUITK_TRACE_BASIC</code> — force reconciler trace level to <strong>Basic</strong>.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>RUITK_DIFF_TRACING</code> — force <code>DiagnosticsConfig.EnableDiffTracing</code> to <code>true</code> for detailed Fiber diff diagnostics.</>} />
+          <ListItemText primary={<><code>"exceptionControlFlow"</code> — routes render exceptions through the exception-boundary flow.</>} />
         </ListItem>
       </List>
-      <Typography variant="body2" paragraph sx={Styles.section}>
-        <strong>Behavior summary</strong>
+      <Typography variant="body2" paragraph>
+        Example:{' '}
+        <code>{'{ "envVariables": { "env": "development", "traceLevel": "Basic", "diffTracing": false, "exceptionControlFlow": true } }'}</code>.
+        A missing file or key falls back to safe defaults.
       </Typography>
-      <List sx={Styles.list}>
-        <ListItem disablePadding>
-          <ListItemText primary={<>Environment is resolved to <code>development</code>, <code>staging</code>, or <code>production</code> via the <code>ENV_*</code> defines and is exposed at runtime as <code>HostContext.Environment["env"]</code>.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<>Trace level resolution priority: <code>RUITK_TRACE_VERBOSE</code> &gt; <code>RUITK_TRACE_BASIC</code> &gt; <code>ENV_DEV</code> (Basic) &gt; none.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary="Editor-only diagnostic utilities compile only when ENV_DEV is defined." />
-        </ListItem>
-      </List>
     </Box>
 
     <Box sx={Styles.section}>

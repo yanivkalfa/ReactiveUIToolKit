@@ -1,4 +1,6 @@
 import type { FC } from 'react'
+import { Link as MuiLink } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import { Box, Typography } from '@mui/material'
 import Styles from './FAQPage.style'
 
@@ -41,7 +43,7 @@ export const FAQPage: FC = () => (
       declaration, inserts the <code>import</code> lines each file needs, and stamps each
       file&rsquo;s current <code>@namespace</code> so nothing changes identity. It is idempotent
       and formatter-stable. Details:{' '}
-      <a href="#/imports">Imports &amp; Exports → Migrating an existing project</a>.
+      <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports → Migrating an existing project</MuiLink>.
     </Typography>
 
     <Typography variant="body1" sx={Styles.question}>
@@ -85,10 +87,11 @@ export const FAQPage: FC = () => (
       <strong>VS Code</strong> and <strong>Visual Studio 2022</strong> have full,
       officially supported extensions with syntax highlighting, completions,
       hover documentation, diagnostics, and formatting. A{' '}
-      <strong>JetBrains Rider</strong> plugin exists as a stub — source
-      generation and <code>#line</code> mapping work via standard Roslyn support,
-      but the full editing experience has not been fully verified. Rider is not
-      officially supported in V1.
+      <strong>JetBrains Rider</strong> plugin is available too — it wires the
+      same shared language server and TextMate grammar, so the core editing
+      experience (diagnostics, completions, hover, go-to-definition) matches the
+      other editors; it is lighter on IDE-specific integrations and sees less
+      field testing than VS Code / VS 2022.
     </Typography>
 
     <Typography variant="body1" sx={Styles.question}>

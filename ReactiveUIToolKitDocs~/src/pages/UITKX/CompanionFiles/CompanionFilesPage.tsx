@@ -1,4 +1,6 @@
 import type { FC } from 'react'
+import { Link as MuiLink } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Box,
   List,
@@ -48,7 +50,7 @@ export const CompanionFilesPage: FC = () => (
         below (one component per file, <code>.hooks</code>/<code>.style</code> suffixes,
         filename == component) are now <strong>documentation conventions</strong> rather than
         compiler-enforced requirements. A single file may declare any mix of components, hooks,
-        and modules. See <a href="#/imports">Imports &amp; Exports</a> for the model, the
+        and modules. See <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink> for the model, the
         recommended conventions, and the migration codemod.
       </Typography>
     </Box>
@@ -78,7 +80,7 @@ export const CompanionFilesPage: FC = () => (
               relative to its owning <code>.asmdef</code> (e.g.{' '}
               <code>ReactiveUITK.Uitkx.UI.PlayerCard</code>). A file with a hand-written companion{' '}
               <code>.cs</code> should carry an explicit <code>@namespace</code> matching it so the
-              two partials merge. See <a href="#/imports">Imports &amp; Exports</a>.
+              two partials merge. See <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.
             </>
           }
         />

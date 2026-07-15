@@ -1,4 +1,6 @@
 import type { FC } from 'react'
+import { Link as MuiLink } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Box,
   Chip,
@@ -179,7 +181,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX0101" size="small" color="default" variant="outlined" /></TableCell>
             <TableCell><Chip label="Reserved" size="small" /></TableCell>
             <TableCell>Missing <code>@namespace</code> — no longer flagged</TableCell>
-            <TableCell><code>@namespace</code> is optional: the namespace is path-derived when omitted (see <a href="#/imports">Imports &amp; Exports</a>). The code stays reserved and is never emitted.</TableCell>
+            <TableCell><code>@namespace</code> is optional: the namespace is path-derived when omitted (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>). The code stays reserved and is never emitted.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0102" size="small" color="default" variant="outlined" /></TableCell>
@@ -191,7 +193,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX0103" size="small" color="default" variant="outlined" /></TableCell>
             <TableCell><Chip label="Removed" size="small" /></TableCell>
             <TableCell>Filename ≠ component name — no longer flagged</TableCell>
-            <TableCell>A file may declare several components, so a filename-match rule is meaningless. Matching the filename is now a documentation convention (see <a href="#/imports">Imports &amp; Exports</a>), not a diagnostic.</TableCell>
+            <TableCell>A file may declare several components, so a filename-match rule is meaningless. Matching the filename is now a documentation convention (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>), not a diagnostic.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0104" size="small" color="error" variant="outlined" /></TableCell>
@@ -431,7 +433,7 @@ export const UitkxDiagnosticsPage: FC = () => (
       Emitted when resolving the <code>import</code> / <code>export</code> grammar. Codes
       2300–2309 are shared family-wide (identical across the Unity, Unreal, and Godot ports
       modulo prefix); 2310–2315 are Unity-local. See the{' '}
-      <a href="#/imports">Imports &amp; Exports</a> page for the full grammar.
+      <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink> page for the full grammar.
     </Typography>
     <TableContainer>
       <Table size="small" sx={Styles.table}>
@@ -526,7 +528,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX2313" size="small" color="default" variant="outlined" /></TableCell>
             <TableCell><Chip label="Reserved" size="small" /></TableCell>
             <TableCell>Layout conventions — not emitted</TableCell>
-            <TableCell>One component per file, hooks in a <code>.hooks</code> file, and filename == component are documentation best-practices (see <a href="#/imports">Imports &amp; Exports</a>), not code-enforced warnings.</TableCell>
+            <TableCell>One component per file, hooks in a <code>.hooks</code> file, and filename == component are documentation best-practices (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>), not code-enforced warnings.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2314" size="small" color="error" variant="outlined" /></TableCell>

@@ -303,14 +303,13 @@ const getExample = (title: string) => {
 }`
     case 'MinMaxSlider':
       return `component MinMaxSliderExample {
-  var (range, setRange) = useState((min: 20f, max: 80f));
-
+  // lowLimit/highLimit are the slider's BOUNDS; minValue/maxValue are the two thumbs.
   return (
     <MinMaxSlider
-      minValue={0f}
-      maxValue={100f}
-      value={range}
-      onChange={evt => setRange(evt.newValue)}
+      lowLimit={0f}
+      highLimit={100f}
+      minValue={20f}
+      maxValue={80f}
     />
   );
 }`

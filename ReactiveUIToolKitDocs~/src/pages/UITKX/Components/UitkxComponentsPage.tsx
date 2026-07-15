@@ -1,4 +1,6 @@
 import type { FC } from 'react'
+import { Link as MuiLink } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Alert,
   Box,
@@ -61,7 +63,9 @@ const containers: CompEntry[] = [
 const display: CompEntry[] = [
   { name: 'Label', desc: 'Single-line text' },
   { name: 'TextElement', desc: 'Low-level text element' },
-  { name: 'Image', desc: 'Displays a Texture, Sprite, or VectorImage' },
+  { name: 'Image', desc: 'Displays a Texture or Sprite' },
+  { name: 'Video', desc: 'Video playback (clip or URL) with overlay children' },
+  { name: 'Audio', desc: 'Audio playback (autoplay, loop, volume)' },
   { name: 'ProgressBar', desc: 'Determinate progress indicator' },
   { name: 'HelpBox', desc: 'Info / warning / error message box', editor: true },
 ]
@@ -119,6 +123,9 @@ const dataViews: CompEntry[] = [
 
 const editorToolbar: CompEntry[] = [
   { name: 'Toolbar', desc: 'Editor toolbar container', editor: true },
+  { name: 'ToolbarButton / ToolbarToggle / ToolbarSpacer', desc: 'Toolbar controls', editor: true },
+  { name: 'ToolbarMenu / ToolbarBreadcrumbs', desc: 'Toolbar menu + breadcrumb trail', editor: true },
+  { name: 'ToolbarSearchField / ToolbarPopupSearchField', desc: 'Toolbar search inputs', editor: true },
   { name: 'PropertyField & InspectorElement', desc: 'SerializedProperty binding', editor: true },
 ]
 
@@ -275,7 +282,7 @@ export const UitkxComponentsPage: FC = () => (
               <>
                 One component per file, named after the file, is the recommended convention — not
                 a compiler rule. A file may declare several components/hooks/modules; see{' '}
-                <a href="#/imports">Imports &amp; Exports</a>.
+                <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.
               </>
             }
           />

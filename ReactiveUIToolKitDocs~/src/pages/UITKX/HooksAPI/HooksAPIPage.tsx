@@ -185,6 +185,24 @@ const hooks: HookSig[] = [
     returns: 'SafeAreaInsets',
     category: 'Utilities',
   },
+  {
+    name: 'UseTransition',
+    signature: '()',
+    returns: '(bool isPending, Action<Action> startTransition)',
+    category: 'Utilities',
+  },
+  {
+    name: 'UseUiDocumentRoot',
+    signature: '(UIDocument doc) — or (string contextKey)',
+    returns: 'VisualElement',
+    category: 'Utilities',
+  },
+  {
+    name: 'UseSfx',
+    signature: '(AudioMixerGroup mixer = null)',
+    returns: 'Action<AudioClip, float>',
+    category: 'Utilities',
+  },
 ]
 
 const categories = [...new Set(hooks.map((h) => h.category))]
