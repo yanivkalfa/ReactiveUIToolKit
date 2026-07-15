@@ -39,6 +39,26 @@ namespace ReactiveUITK.Language.Formatter
             _csharpFormatter = csharpFormatter;
         }
 
+        /// <summary>
+        /// Formats each preamble using line in the spelling the author used — <c>import "@Ns"</c> when
+        /// it came from the namespace-import form, else <c>@using Ns</c> — so a format pass round-trips
+        /// both (namespace-import unification plan). Falls back to <c>@using</c> for any payload with no
+        /// positioned <see cref="UsingDirective"/> (e.g. a synthesised entry). The formatter does NOT
+        /// auto-convert between spellings — that is the codemod's <c>--tidy</c> job.
+        /// </summary>
+        private static IEnumerable<string> FormatUsings(DirectiveSet directives)
+        {
+            var uds = directives.UsingDirectives;
+            if (!uds.IsDefaultOrEmpty && uds.Length == directives.Usings.Length)
+            {
+                foreach (var u in uds)
+                    yield return u.FromImportSyntax ? $"import \"@{u.Payload}\"" : $"@using {u.Payload}";
+                yield break;
+            }
+            foreach (var u in directives.Usings)
+                yield return $"@using {u}";
+        }
+
         public AstFormatter()
             : this(FormatterOptions.Default) { }
 
@@ -148,9 +168,9 @@ namespace ReactiveUITK.Language.Formatter
                 hasPreamble = true;
             }
 
-            foreach (var u in directives.Usings)
+            foreach (string usingLine in FormatUsings(directives))
             {
-                Ln($"@using {u}");
+                Ln(usingLine);
                 hasPreamble = true;
             }
 
@@ -352,9 +372,9 @@ namespace ReactiveUITK.Language.Formatter
                 hasPreamble = true;
             }
 
-            foreach (var u in directives.Usings)
+            foreach (string usingLine in FormatUsings(directives))
             {
-                Ln($"@using {u}");
+                Ln(usingLine);
                 hasPreamble = true;
             }
 

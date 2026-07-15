@@ -56,5 +56,51 @@ namespace UitkxLanguageServer.Tests
             string text = "/*\n header\n*/\n\ncomponent Screen { }";
             Assert.Equal(4, ImportCodeActionHandler.FirstNonTriviaLine(text));
         }
+
+        // ── convert-@using refactor core (namespace-import unification plan) ────────
+
+        [Fact]
+        public void ConvertUsing_AtUsingForm()
+        {
+            bool ok = ImportCodeActionHandler.TryBuildConvertUsingToImport(
+                "@using ReactiveUITK.Router", out string repl);
+            Assert.True(ok);
+            Assert.Equal("import \"@ReactiveUITK.Router\"", repl);
+        }
+
+        [Fact]
+        public void ConvertUsing_CSharpFormWithSemicolon()
+        {
+            bool ok = ImportCodeActionHandler.TryBuildConvertUsingToImport(
+                "using System.Text;", out string repl);
+            Assert.True(ok);
+            Assert.Equal("import \"@System.Text\"", repl);
+        }
+
+        [Fact]
+        public void ConvertUsing_PreservesIndentAndStaticPayload()
+        {
+            bool ok = ImportCodeActionHandler.TryBuildConvertUsingToImport(
+                "  @using static DoomGame.DoomTypes", out string repl);
+            Assert.True(ok);
+            Assert.Equal("  import \"@static DoomGame.DoomTypes\"", repl);
+        }
+
+        [Fact]
+        public void ConvertUsing_NotAUsingLine_False()
+        {
+            Assert.False(ImportCodeActionHandler.TryBuildConvertUsingToImport(
+                "component Foo {", out _));
+            Assert.False(ImportCodeActionHandler.TryBuildConvertUsingToImport(
+                "import { X } from \"./X\"", out _));
+        }
+
+        [Fact]
+        public void GetLine_ReturnsRequestedLine()
+        {
+            string text = "a\nb\nc";
+            Assert.Equal("b", ImportCodeActionHandler.GetLine(text, 1));
+            Assert.Equal("", ImportCodeActionHandler.GetLine(text, 9));
+        }
     }
 }
