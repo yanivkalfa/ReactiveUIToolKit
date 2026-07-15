@@ -1,8 +1,5 @@
 @namespace Samples.SnakeGame
-@using System
-@using System.Collections.Generic
-@using UnityEngine
-@using UnityEngine.UIElements
+import "@UnityEngine.UIElements"
 
 export hook useSnakeGame(
   Ref<VisualElement?> boardRef

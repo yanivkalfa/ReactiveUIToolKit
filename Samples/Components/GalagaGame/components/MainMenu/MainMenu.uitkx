@@ -1,5 +1,4 @@
 @namespace Samples.GalagaGame
-@using System
 
 export component MainMenu(Action onNewGame) {
   return (

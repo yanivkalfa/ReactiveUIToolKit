@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component DeepNode(int remaining = 0, int maxDisplay = 0) {
   int currentLevel = maxDisplay - remaining + 1;

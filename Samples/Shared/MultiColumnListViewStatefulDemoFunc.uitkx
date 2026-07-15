@@ -1,9 +1,5 @@
 import { IntroCounterFunc } from "./IntroCounterFunc"
 @namespace ReactiveUITK.Samples.UITKXShared
-@using System
-@using System.Collections.Generic
-@using ReactiveUITK.Core
-@using ReactiveUITK.Props.Typed
 
 export component MultiColumnListViewStatefulDemoFunc(
   IReadOnlyList<MultiColumnListViewRowState>? items = null,

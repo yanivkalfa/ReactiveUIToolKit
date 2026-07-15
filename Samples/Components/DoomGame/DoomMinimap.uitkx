@@ -1,10 +1,6 @@
 @namespace Samples.DoomGame
-@using System
-@using System.Collections.Generic
-@using ReactiveUITK
-@using UnityEngine
-@using UnityEngine.UIElements
-@using static Samples.DoomGame.DoomTypes
+import "@UnityEngine.UIElements"
+import "@static Samples.DoomGame.DoomTypes"
 
 export component DoomMinimap(GameState state) {
   const int MAP_PX = 160;

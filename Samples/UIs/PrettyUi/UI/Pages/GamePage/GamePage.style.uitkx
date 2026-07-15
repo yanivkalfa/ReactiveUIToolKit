@@ -1,7 +1,6 @@
 import { Theme } from "../../Theme"
 @namespace PrettyUi.App.Pages
-@using PrettyUi.App
-@using UnityEngine
+import "@PrettyUi.App"
 
 export module GamePage {
   public static readonly Style Root = new Style {

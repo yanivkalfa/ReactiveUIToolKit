@@ -1,8 +1,6 @@
 import { UnstableChild } from "./UnstableChild"
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
-@using System
-@using System.Threading.Tasks
+import "@System.Threading.Tasks"
 
 export component ExceptionFlowDemoFunc {
   var (shouldThrow, setShouldThrow) = useState(false);

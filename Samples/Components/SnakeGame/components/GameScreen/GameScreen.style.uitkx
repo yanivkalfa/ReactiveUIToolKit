@@ -1,5 +1,4 @@
 @namespace Samples.SnakeGame
-@using UnityEngine
 
 export module GameScreen {
   public static class GameScreenStyles

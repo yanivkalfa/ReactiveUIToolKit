@@ -1,5 +1,4 @@
 @namespace Samples.GalagaGame
-@using UnityEngine
 
 export module GameScreen {
   public static class GameScreenStyles {

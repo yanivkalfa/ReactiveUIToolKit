@@ -1,6 +1,4 @@
 @namespace Samples.DoomGame
-@using System
-@using UnityEngine
 
 export module DoomTextures {
   // ───── Constants ─────

@@ -1,8 +1,6 @@
 import { GameScreen } from "./components/GameScreen/GameScreen"
 import { MainMenu } from "./components/MainMenu/MainMenu"
 @namespace Samples.MarioGame
-@using System
-@using UnityEngine
 
 export component MarioGame {
   var (route, setRoute) = useState(GameRoute.Menu);

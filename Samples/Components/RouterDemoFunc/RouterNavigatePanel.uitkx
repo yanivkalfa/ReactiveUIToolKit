@@ -1,6 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
-@using UnityEngine.UIElements
+import "@ReactiveUITK.Router"
+import "@UnityEngine.UIElements"
 
 export component RouterNavigatePanel {
   var pathRef = useRef<TextField?>(null);

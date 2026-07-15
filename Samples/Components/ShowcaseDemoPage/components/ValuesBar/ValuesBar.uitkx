@@ -1,8 +1,5 @@
 import { ValueItem } from "./components/ValueItem/ValueItem"
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using System.Collections.Generic
-@using UnityEngine
 
 export component ValuesBar(
   IEnumerable<KeyValuePair<string, string>>? items = null

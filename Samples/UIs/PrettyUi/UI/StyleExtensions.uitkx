@@ -1,5 +1,4 @@
 @namespace PrettyUi.App
-@using System.Collections.Generic
 
 export module StyleExtensions {
   public static Style Extend(params Style[] styles) {

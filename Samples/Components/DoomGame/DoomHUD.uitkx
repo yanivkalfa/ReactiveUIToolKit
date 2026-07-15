@@ -1,10 +1,7 @@
 import { DoomFace } from "./DoomFace"
 @namespace Samples.DoomGame
-@using System
-@using ReactiveUITK
-@using UnityEngine
-@using UnityEngine.UIElements
-@using static Samples.DoomGame.DoomTypes
+import "@UnityEngine.UIElements"
+import "@static Samples.DoomGame.DoomTypes"
 
 export component DoomHUD(
   int health,

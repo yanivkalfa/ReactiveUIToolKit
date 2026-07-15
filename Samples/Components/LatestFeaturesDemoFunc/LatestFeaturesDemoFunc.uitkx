@@ -1,9 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using System.Collections.Generic
-@using System.Threading
-@using System.Threading.Tasks
-@using ReactiveUITK.Core.Fiber
+import "@System.Threading"
+import "@System.Threading.Tasks"
+import "@ReactiveUITK.Core.Fiber"
 
 export component LatestFeaturesDemoFunc {
   var defaultItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta" };

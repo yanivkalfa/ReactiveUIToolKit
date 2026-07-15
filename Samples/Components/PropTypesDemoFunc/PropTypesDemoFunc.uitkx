@@ -1,6 +1,5 @@
 import { StatusBadge } from "./StatusBadge"
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component PropTypesDemoFunc {
   var (useDefaults, setUseDefaults) = useState(false);

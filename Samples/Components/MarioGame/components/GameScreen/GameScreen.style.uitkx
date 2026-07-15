@@ -1,7 +1,6 @@
 import { MarioGame } from "../../MarioGame.style"
 @namespace Samples.MarioGame
-@using UnityEngine
-@using static Samples.MarioGame.MarioConstants
+import "@static Samples.MarioGame.MarioConstants"
 
 export module GameScreen {
   public static class GameScreenStyles {

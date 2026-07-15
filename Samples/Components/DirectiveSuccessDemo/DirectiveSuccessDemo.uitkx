@@ -7,8 +7,6 @@ import { SetupCodeSection } from "./SetupCodeSection"
 import { SwitchSection } from "./SwitchSection"
 import { WhileSection } from "./WhileSection"
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
-@using System.Collections.Generic
 
 export component DirectiveSuccessDemo {
   var (tab, setTab) = useState("if");

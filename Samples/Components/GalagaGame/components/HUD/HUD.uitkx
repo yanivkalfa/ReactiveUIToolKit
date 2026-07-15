@@ -1,9 +1,8 @@
 import { GalagaGame } from "../../GalagaGame.style"
 import { GalagaTypes } from "../../GalagaTypes"
 @namespace Samples.GalagaGame
-@using UnityEngine
-@using static Samples.GalagaGame.GalagaTypes.C
-@using static Samples.GalagaGame.SpriteAtlas
+import "@static Samples.GalagaGame.GalagaTypes.C"
+import "@static Samples.GalagaGame.SpriteAtlas"
 
 export component HUD(Texture2D spriteSheet, int score, int lives, int wave) {
   return (

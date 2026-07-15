@@ -1,11 +1,6 @@
 import { IntroCounterFunc } from "./IntroCounterFunc"
 @namespace ReactiveUITK.Samples.UITKXShared
-@using System
-@using System.Collections
-@using System.Collections.Generic
-@using ReactiveUITK.Core
-@using ReactiveUITK.Props.Typed
-@using UnityEngine
+import "@System.Collections"
 
 export component ListViewStatefulDemoFunc(
   IReadOnlyList<ListViewRowState>? items = null,

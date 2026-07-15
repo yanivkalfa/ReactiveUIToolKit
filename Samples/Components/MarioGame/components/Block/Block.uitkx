@@ -1,7 +1,6 @@
 import { MarioGame } from "../../MarioGame.style"
 @namespace Samples.MarioGame
-@using UnityEngine
-@using static Samples.MarioGame.MarioConstants
+import "@static Samples.MarioGame.MarioConstants"
 
 export component Block(LevelTile tile, float cameraX = 0) {
   Color color;

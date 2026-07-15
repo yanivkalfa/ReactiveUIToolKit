@@ -1,9 +1,9 @@
 import { AppButton } from "../../Components/AppButton/AppButton"
 @namespace PrettyUi.App.Pages
-@using PrettyUi
-@using PrettyUi.App.Components
-@using ReactiveUITK.Router
-@using UnityEngine.UIElements
+import "@PrettyUi"
+import "@PrettyUi.App.Components"
+import "@ReactiveUITK.Router"
+import "@UnityEngine.UIElements"
 
 export component GamePage {
   var navigate = RouterHooks.UseNavigate();

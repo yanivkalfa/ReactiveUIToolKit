@@ -1,5 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
+import "@ReactiveUITK.Router"
 
 export component MainMenuNavigationRow {
   var navigate = RouterHooks.UseNavigate();

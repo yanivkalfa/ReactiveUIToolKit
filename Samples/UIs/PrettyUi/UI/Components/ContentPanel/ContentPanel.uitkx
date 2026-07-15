@@ -1,5 +1,5 @@
 @namespace PrettyUi.App.Components
-@using UnityEngine.UIElements
+import "@UnityEngine.UIElements"
 
 export component ContentPanel(string title = "", string body = "") {
   return (

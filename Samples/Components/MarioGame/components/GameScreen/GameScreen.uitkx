@@ -6,11 +6,8 @@ import { Mario } from "../Mario/Mario"
 import { Mushroom } from "../Mushroom/Mushroom"
 import { useMarioGame } from "./GameScreen.hooks"
 @namespace Samples.MarioGame
-@using System
-@using System.Collections.Generic
-@using UnityEngine
-@using UnityEngine.UIElements
-@using static Samples.MarioGame.MarioConstants
+import "@UnityEngine.UIElements"
+import "@static Samples.MarioGame.MarioConstants"
 
 export component GameScreen(int restartVersion = 0, Action? onQuit = null) {
   var boardRef = useRef<VisualElement?>(null);

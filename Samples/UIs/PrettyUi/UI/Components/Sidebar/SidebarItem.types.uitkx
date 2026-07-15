@@ -1,5 +1,4 @@
 @namespace PrettyUi.App.Components
-@using System
 
 export module SidebarItem {
   public string Id { get; set; } = null!;

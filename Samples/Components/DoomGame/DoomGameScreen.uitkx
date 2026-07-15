@@ -4,13 +4,9 @@ import { DoomHUD } from "./DoomHUD"
 import { DoomMinimap } from "./DoomMinimap"
 import { DoomTextures } from "./DoomTextures"
 @namespace Samples.DoomGame
-@using System
-@using System.Collections.Generic
-@using ReactiveUITK
-@using UnityEngine
-@using UnityEngine.UIElements
-@using static Samples.DoomGame.DoomTypes
-@using static Samples.DoomGame.DoomTextures
+import "@UnityEngine.UIElements"
+import "@static Samples.DoomGame.DoomTypes"
+import "@static Samples.DoomGame.DoomTextures"
 
 export component DoomGameScreen(
   int restartVersion,

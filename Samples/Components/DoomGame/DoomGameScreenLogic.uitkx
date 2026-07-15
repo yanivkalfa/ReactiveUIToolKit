@@ -1,10 +1,7 @@
 import { GameLogic } from "./GameLogic"
 @namespace Samples.DoomGame
-@using System
-@using System.Collections.Generic
-@using UnityEngine
-@using static Samples.DoomGame.DoomTypes
-@using static Samples.DoomGame.DoomTextures
+import "@static Samples.DoomGame.DoomTypes"
+import "@static Samples.DoomGame.DoomTextures"
 
 export module DoomGameScreenLogic {
   public struct SpriteEntry {

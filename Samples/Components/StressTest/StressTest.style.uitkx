@@ -1,6 +1,5 @@
 @namespace Samples.StressTest
-@using UnityEngine
-@using UnityEngine.UIElements
+import "@UnityEngine.UIElements"
 
 export module StressTest {
   public static readonly Style Root = new Style {

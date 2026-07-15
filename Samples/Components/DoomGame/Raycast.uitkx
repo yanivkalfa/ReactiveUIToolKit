@@ -1,8 +1,5 @@
 @namespace Samples.DoomGame
-@using System
-@using System.Collections.Generic
-@using UnityEngine
-@using static Samples.DoomGame.DoomTypes
+import "@static Samples.DoomGame.DoomTypes"
 
 export module Raycast {
   public struct WallHit {

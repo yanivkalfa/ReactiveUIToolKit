@@ -1,11 +1,8 @@
 import { DoomGameScreen } from "./DoomGameScreen"
 import { DoomMainMenu } from "./DoomMainMenu"
 @namespace Samples.DoomGame
-@using System
-@using ReactiveUITK
-@using UnityEngine
-@using UnityEngine.UIElements
-@using static Samples.DoomGame.DoomTypes
+import "@UnityEngine.UIElements"
+import "@static Samples.DoomGame.DoomTypes"
 
 export component DoomGame {
   var (screen, setScreen) = useState(GameScreen.MainMenu);

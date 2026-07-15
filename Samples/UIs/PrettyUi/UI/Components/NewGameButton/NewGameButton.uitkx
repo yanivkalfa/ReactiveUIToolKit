@@ -1,7 +1,7 @@
 import { AppButton } from "../AppButton/AppButton"
 @namespace PrettyUi.App.Components
-@using ReactiveUITK.Router
-@using UnityEngine.UIElements
+import "@ReactiveUITK.Router"
+import "@UnityEngine.UIElements"
 
 export component NewGameButton {
   var navigate = RouterHooks.UseNavigate();

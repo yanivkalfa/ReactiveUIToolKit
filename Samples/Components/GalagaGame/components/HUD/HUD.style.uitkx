@@ -1,5 +1,4 @@
 @namespace Samples.GalagaGame
-@using UnityEngine
 
 export module HUD {
   public static class HudStyles {

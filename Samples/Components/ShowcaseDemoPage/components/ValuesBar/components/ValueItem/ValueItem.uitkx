@@ -1,6 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using UnityEngine
 
 export component ValueItem(string typeText = "", string typeValue = "") {
   var containerStyle = new Style {

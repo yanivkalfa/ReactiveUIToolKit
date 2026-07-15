@@ -1,6 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
-@using System.Collections.Generic
+import "@ReactiveUITK.Router"
 
 export component RouterUserDetails {
   var match = RouterHooks.UseRouteMatch();

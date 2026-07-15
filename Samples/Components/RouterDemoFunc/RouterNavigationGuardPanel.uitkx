@@ -1,7 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using System.Collections.Generic
-@using ReactiveUITK.Router
+import "@ReactiveUITK.Router"
 
 export component RouterNavigationGuardPanel {
   var (enabled, setEnabled) = useState(false);
