@@ -108,6 +108,27 @@ namespace ReactiveUITK.Language.Parser
         int SpecifierColumn = -1
     );
 
+    // ── Using directive ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A single <c>@using</c> or namespace-import (<c>import "@Ns"</c>) preamble line, WITH source
+    /// positions (namespace-import unification plan). Parallel to <see cref="DirectiveSet.Usings"/>
+    /// (which keeps the payload-only string view for the emitters); this record carries the columns
+    /// needed to anchor UITKX2316 (unknown namespace) / UITKX2317 (unused using) squiggles.
+    /// </summary>
+    public sealed record UsingDirective(
+        /// <summary>The verbatim payload: <c>"UnityEngine.Audio"</c>, <c>"static DoomTypes"</c>, or <c>"Alias = Ns.Type"</c>.</summary>
+        string Payload,
+        /// <summary>1-based line of the <c>@using</c>/<c>import</c> keyword.</summary>
+        int Line,
+        /// <summary>0-based column of the <c>@</c>/<c>import</c> keyword (start of the directive).</summary>
+        int Column,
+        /// <summary>0-based column of the first char of <see cref="Payload"/> (the namespace token) — the squiggle anchor.</summary>
+        int PayloadColumn,
+        /// <summary>True when written as <c>import "@Ns"</c>; false when written as <c>@using Ns</c>.</summary>
+        bool FromImportSyntax
+    );
+
     // ── Component declaration (per-decl, mixed-decl v1) ──────────────────────
 
     /// <summary>
@@ -327,6 +348,16 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         public ImmutableArray<ImportDeclaration> Imports { get; init; }
             = ImmutableArray<ImportDeclaration>.Empty;
+
+        /// <summary>
+        /// Positioned view of the preamble <c>@using</c> / <c>import "@Ns"</c> lines, in source order
+        /// (namespace-import unification plan). Parallel to <see cref="Usings"/> (the payload-only
+        /// string view read by every emitter) but carries columns for UITKX2316/2317 anchoring.
+        /// May be shorter than <see cref="Usings"/> when a consumer synthesises a using post-parse
+        /// (e.g. the SG injecting a hook container) — only parser-authored lines have positions.
+        /// </summary>
+        public ImmutableArray<UsingDirective> UsingDirectives { get; init; }
+            = ImmutableArray<UsingDirective>.Empty;
 
         /// <summary>
         /// All <c>component</c> declarations in this file, in source order (mixed-decl v1, leg 3).

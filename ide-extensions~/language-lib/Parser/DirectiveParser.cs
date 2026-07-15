@@ -157,6 +157,7 @@ namespace ReactiveUITK.Language.Parser
             // AND an optional `@namespace X.Y` directive before the component keyword,
             // in any order.
             var usings = new List<string>();
+            var usingDirectives = new List<UsingDirective>();
             var ussFiles = new List<string>();
             var imports = new List<ImportDeclaration>();
             string? inlineNamespace = null;
@@ -164,7 +165,7 @@ namespace ReactiveUITK.Language.Parser
             do
             {
                 parsedPreambleLine = false;
-                if (TryReadFunctionStyleUsing(source, ref i, ref line, usings))
+                if (TryReadFunctionStyleUsing(source, ref i, ref line, usings, usingDirectives))
                 {
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
@@ -198,6 +199,11 @@ namespace ReactiveUITK.Language.Parser
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
                 }
+                if (TryReadFunctionStyleNamespaceImport(source, ref i, ref line, usings, usingDirectives))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
+                    parsedPreambleLine = true;
+                }
                 if (TryReadFunctionStyleImport(source, ref i, ref line, imports))
                 {
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
@@ -222,7 +228,7 @@ namespace ReactiveUITK.Language.Parser
                 bool hookModuleOk = TryParseHookModuleFile(
                     source, filePath, diagnosticBag, ref directiveSet,
                     ref i, ref line,
-                    usings, ussFiles, inlineNamespace
+                    usings, usingDirectives, ussFiles, inlineNamespace
                 );
                 directiveSet = directiveSet with
                 {
@@ -314,7 +320,7 @@ namespace ReactiveUITK.Language.Parser
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol
                 )
-                { LeadingTrivia = leadingTrivia.ToImmutableArray() };
+                { LeadingTrivia = leadingTrivia.ToImmutableArray(), UsingDirectives = usingDirectives.ToImmutableArray() };
                 return true;
             }
 
@@ -348,7 +354,7 @@ namespace ReactiveUITK.Language.Parser
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol
                 )
-                { LeadingTrivia = leadingTrivia.ToImmutableArray() };
+                { LeadingTrivia = leadingTrivia.ToImmutableArray(), UsingDirectives = usingDirectives.ToImmutableArray() };
                 return true;
             }
 
@@ -409,7 +415,7 @@ namespace ReactiveUITK.Language.Parser
                     SetupCodeMarkupRanges: setupMarkupRanges1,
                     SetupCodeBareJsxRanges: bareJsxRanges1
                 )
-                { LeadingTrivia = leadingTrivia.ToImmutableArray() };
+                { LeadingTrivia = leadingTrivia.ToImmutableArray(), UsingDirectives = usingDirectives.ToImmutableArray() };
                 return true;
             }
 
@@ -484,6 +490,7 @@ namespace ReactiveUITK.Language.Parser
             )
             {
                 LeadingTrivia = leadingTrivia.ToImmutableArray(),
+                UsingDirectives = usingDirectives.ToImmutableArray(),
                 Imports = imports.ToImmutableArray(),
                 ComponentDeclarations = ImmutableArray.Create(
                     new ComponentDeclaration(
@@ -911,6 +918,72 @@ namespace ReactiveUITK.Language.Parser
         }
 
         /// <summary>
+        /// Reads a namespace-import line <c>import "@Namespace"</c> at the cursor (namespace-import
+        /// unification plan) and desugars it to a <see cref="UsingDirective"/> — the same model a
+        /// <c>@using</c> line produces, so every emitter/HMR path downstream is unaffected. The
+        /// leading <c>@</c> inside the string is the disambiguator from a file specifier (<c>import
+        /// { … } from "…"</c>) and is stripped from the payload. Accepts the full <c>@using</c>
+        /// payload grammar for round-trip parity: plain <c>@Ns</c>, <c>@static Type</c>, and
+        /// <c>@Alias = Ns.Type</c>. Returns false (restoring the cursor) when the cursor is not at a
+        /// well-formed namespace-import, so the caller's dispatch handles it as usual.
+        /// </summary>
+        private static bool TryReadFunctionStyleNamespaceImport(
+            string source, ref int i, ref int line,
+            List<string> usings, List<UsingDirective> usingDirectives)
+        {
+            if (!TryReadKeywordAt(source, i, "import"))
+                return false;
+
+            int savedI = i, savedLine = line;
+            int importLine = line;
+            int importCol = ColAtPos(source, i);
+
+            i += "import".Length;
+            SkipSpaces(source, ref i);
+            // A file import continues with `{`; a namespace import continues with a `"@…"` string.
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            i++; // past opening quote
+            if (i >= source.Length || source[i] != '@')
+            {
+                // A bare `import "Ns"` (no @) is reserved/ambiguous — not a namespace import.
+                i = savedI; line = savedLine; return false;
+            }
+            i++; // past the '@' sigil
+            int payloadStart = i;
+            while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                i++;
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false; // unterminated
+            }
+            string payload = source.Substring(payloadStart, i - payloadStart).Trim();
+            i++; // past closing quote
+
+            if (payload.Length == 0)
+            {
+                i = savedI; line = savedLine; return false; // `import "@"` is not a namespace import
+            }
+
+            // Skip to end of line + newline (parity with the other preamble readers).
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            usings.Add(payload);
+            usingDirectives.Add(new UsingDirective(
+                Payload: payload,
+                Line: importLine,
+                Column: importCol,
+                PayloadColumn: ColAtPos(source, payloadStart),
+                FromImportSyntax: true));
+            return true;
+        }
+
+        /// <summary>
         /// UITKX2303: a name imported more than once anywhere in the file. Keyed on the imported
         /// NAME (the frozen family semantics — duplicate binding, not duplicate specifier).
         /// </summary>
@@ -962,6 +1035,7 @@ namespace ReactiveUITK.Language.Parser
             ref int i,
             ref int line,
             List<string> usings,
+            List<UsingDirective> usingDirectives,
             List<string> ussFiles,
             string? inlineNamespace
         )
@@ -1048,7 +1122,8 @@ namespace ReactiveUITK.Language.Parser
                 FunctionSetupStartLine: firstDeclLine,
                 HookDeclarations: hooks.ToImmutableArray(),
                 ModuleDeclarations: modules.ToImmutableArray()
-            );
+            )
+            { UsingDirectives = usingDirectives.ToImmutableArray() };
             return true;
         }
 
@@ -1579,9 +1654,10 @@ namespace ReactiveUITK.Language.Parser
             int i = start;
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
-            // Skip any leading `using X.Y.Z;`, `@uss "path"`, `@namespace X.Y`, and
-            // `import { … } from "…"` lines, in any order.
+            // Skip any leading `using X.Y.Z;`, `@uss "path"`, `@namespace X.Y`,
+            // `import { … } from "…"`, and `import "@Ns"` lines, in any order.
             var dummy = new List<string>();
+            var dummyUsingDirectives = new List<UsingDirective>();
             var dummyImports = new List<ImportDeclaration>();
             bool skippedSomething;
             do
@@ -1598,6 +1674,11 @@ namespace ReactiveUITK.Language.Parser
                     skippedSomething = true;
                 }
                 if (TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out _))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+                if (TryReadFunctionStyleNamespaceImport(source, ref i, ref line, dummy, dummyUsingDirectives))
                 {
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
                     skippedSomething = true;
@@ -1682,16 +1763,18 @@ namespace ReactiveUITK.Language.Parser
         }
 
         /// <summary>
-        /// Tries to read a single <c>using Namespace.Name;</c> line at the current
-        /// position. On success advances <paramref name="i"/> past the line terminator
-        /// and appends the namespace string to <paramref name="usings"/>.
+        /// Tries to read a single <c>using Namespace.Name;</c> line (or the <c>@using</c> directive
+        /// form) at the current position. On success advances <paramref name="i"/> past the line
+        /// terminator, appends the namespace string to <paramref name="usings"/>, and (when supplied)
+        /// appends a positioned <see cref="UsingDirective"/> to <paramref name="usingDirectives"/>.
         /// On failure restores <paramref name="i"/> and returns false.
         /// </summary>
         private static bool TryReadFunctionStyleUsing(
             string source,
             ref int i,
             ref int line,
-            List<string> usings
+            List<string> usings,
+            List<UsingDirective>? usingDirectives = null
         )
         {
             int savedI = i;
@@ -1700,6 +1783,8 @@ namespace ReactiveUITK.Language.Parser
             // Allow leading spaces/tabs — newlines are already consumed by trivia before each call.
             while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
                 i++;
+
+            int keywordPos = i; // start of `@using`/`using` — the directive column anchor
 
             // Accept both `using X.Y.Z;` (C# form) and `@using X.Y.Z` (directive form).
             if (i < source.Length && source[i] == '@')
@@ -1732,7 +1817,15 @@ namespace ReactiveUITK.Language.Parser
                 ConsumeNewline(source, ref i, ref line);
 
             if (!string.IsNullOrWhiteSpace(namespaceName))
+            {
                 usings.Add(namespaceName);
+                usingDirectives?.Add(new UsingDirective(
+                    Payload: namespaceName,
+                    Line: savedLine,
+                    Column: ColAtPos(source, keywordPos),
+                    PayloadColumn: ColAtPos(source, nameStart),
+                    FromImportSyntax: false));
+            }
 
             return true;
         }
