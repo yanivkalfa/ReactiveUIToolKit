@@ -1,6 +1,9 @@
 # Namespace-Import Unification Plan (`import "@Namespace"`)
 
-**Status: PLANNED** — researched 2026-07-15; not started.
+**Status: IMPLEMENTED** — 2026-07-15 (v0.8.0 / extensions 1.4.0), branch
+`fix/import-diagnostic-anchors`. Steps 0–10 done; deferred follow-ups noted inline
+(semantic unused-using 2317, per-segment namespace completion + hover, `2316` "did you mean"
+suggestion, bulk samples `--tidy`). SG 1515/1515, LSP 118/118.
 **Scope: Unity leg only.** GDScript has no namespaces, so `.guitkx` never had `@using`; the shared
 `import { X } from "path"` family grammar is untouched. The family diagnostic table reserves the new
 codes (§5) with a Unity-only annotation.
