@@ -1,7 +1,7 @@
 {
   "name": "uitkx",
-  "displayName": "UITKX",
-  "description": "Language support for .uitkx ReactiveUIToolKit component templates",
+  "displayName": "UITKX (Unity - VS Code)",
+  "description": "Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.",
   "icon": "images/logo.png",
   "version": "1.4.2",
   "publisher": "ReactiveUITK",

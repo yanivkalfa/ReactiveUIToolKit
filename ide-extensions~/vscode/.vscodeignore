@@ -11,6 +11,7 @@ tsconfig.json
 esbuild.js
 **/*.map
 **/*.ts
+readme-template.md
 
 # Scratch / alternate publish folders
 lsp-server-win/**

@@ -220,6 +220,26 @@ function cmdExtract(args) {
 
 // ── extract-overview ─────────────────────────────────────────────────────────
 
+function buildOverview(ide, templatePath) {
+  const data = readChangelog();
+  const relevant = data.entries.filter(e => e.versions && e.versions[ide]);
+
+  const changelogLines = ['## Changelog', ''];
+  for (const entry of relevant) {
+    const ver = entry.versions[ide];
+    changelogLines.push(`### [${ver}] - ${entry.date}`);
+
+    const messages = [...(entry.shared || []), ...(entry[ide] || [])];
+    for (const msg of messages) {
+      changelogLines.push(`- ${msg}`);
+    }
+    changelogLines.push('');
+  }
+
+  const templateContent = readFileSync(templatePath, 'utf8').trimEnd();
+  return templateContent + '\n\n' + changelogLines.join('\n');
+}
+
 function cmdExtractOverview(args) {
   const ide = args.ide;
   const template = args.template;
@@ -237,24 +257,55 @@ function cmdExtractOverview(args) {
     process.exit(1);
   }
 
-  const data = readChangelog();
-  const relevant = data.entries.filter(e => e.versions && e.versions[ide]);
+  output(buildOverview(ide, templatePath), args);
+}
 
-  const changelogLines = ['## Changelog', ''];
-  for (const entry of relevant) {
-    const ver = entry.versions[ide];
-    changelogLines.push(`### [${ver}] - ${entry.date}`);
+// ── verify ───────────────────────────────────────────────────────────────────
 
-    const messages = [...(entry.shared || []), ...(entry[ide] || [])];
-    for (const msg of messages) {
-      changelogLines.push(`- ${msg}`);
+/**
+ * Generated-and-committed marketplace pages (README.md, overview.md) must never
+ * be hand-edited -- drift silently un-syncs the live listing from changelog.json.
+ * Each target here is a (template, output) pair; skipped if the template doesn't
+ * exist yet (e.g. a port that hasn't adopted the generated-README pattern).
+ */
+const VERIFY_TARGETS = [
+  {
+    ide: 'vscode',
+    template: 'ide-extensions~/vscode/readme-template.md',
+    out: 'ide-extensions~/vscode/README.md',
+  },
+  {
+    ide: 'vs2022',
+    template: 'ide-extensions~/visual-studio/UitkxVsix/overview-template.md',
+    out: 'ide-extensions~/visual-studio/UitkxVsix/overview.md',
+  },
+];
+
+function cmdVerify() {
+  let drift = false;
+  for (const target of VERIFY_TARGETS) {
+    const templatePath = resolve(REPO_ROOT, target.template);
+    if (!existsSync(templatePath)) continue;
+
+    const outPath = resolve(REPO_ROOT, target.out);
+    const expected = buildOverview(target.ide, templatePath);
+    const actual = existsSync(outPath) ? readFileSync(outPath, 'utf8') : null;
+
+    if (actual !== expected) {
+      drift = true;
+      console.error(`DRIFT: ${target.out} does not match ${target.template} + changelog.json.`);
+      console.error(
+        `  Regenerate: node scripts/changelog.mjs extract-overview --ide ${target.ide} `
+        + `--template ${target.template} --out ${target.out}`
+      );
     }
-    changelogLines.push('');
   }
 
-  const templateContent = readFileSync(templatePath, 'utf8').trimEnd();
-  const result = templateContent + '\n\n' + changelogLines.join('\n');
-  output(result, args);
+  if (drift) {
+    console.error('\nverify FAILED -- generated file(s) are stale. Regenerate and commit them.');
+    process.exit(1);
+  }
+  console.error(`OK -- ${VERIFY_TARGETS.length} generated marketplace page(s) match their templates.`);
 }
 
 // ── import ───────────────────────────────────────────────────────────────────
@@ -339,6 +390,7 @@ switch (command) {
   case 'extract':          cmdExtract(args); break;
   case 'extract-overview': cmdExtractOverview(args); break;
   case 'import':           cmdImport(args); break;
+  case 'verify':           cmdVerify(); break;
   default:
     console.log(
 `Usage: node scripts/changelog.mjs <command> [options]
@@ -348,6 +400,7 @@ Commands:
   extract          Generate per-IDE CHANGELOG.md
   extract-overview Generate overview.md with changelog section
   import           Import entries from existing markdown changelog
+  verify           Check committed README.md/overview.md match their templates
 
 Examples:
   add --scope shared --message "Fix: server crash" --vscode 1.0.292 --vs2022 1.0.69
