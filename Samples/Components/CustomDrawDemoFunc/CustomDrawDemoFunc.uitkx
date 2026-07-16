@@ -1,5 +1,5 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
 import "@UnityEngine.UIElements"
+import "@ReactiveUITK.Samples.UITKXComponents"
 
 export component CustomDrawDemoFunc {
   var (sides, setSides) = useState(3);

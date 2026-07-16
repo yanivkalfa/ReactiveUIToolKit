@@ -1,7 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using ReactiveUITK.Samples.PortalsPlayground;
+using ReactiveUITK.Samples.Components.PortalsPlayground;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -67,7 +67,7 @@ namespace ReactiveUITK.Samples.PortalsPlayground
             );
 
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Position };
-            rootRenderer.Render(V.Host(hostProps, null, V.Func(PortalsPlayground.Render)));
+            rootRenderer.Render(V.Host(hostProps, null, V.Func(global::ReactiveUITK.Samples.Components.PortalsPlayground.PortalsPlayground.Render)));
         }
     }
 }

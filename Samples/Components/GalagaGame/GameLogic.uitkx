@@ -1,9 +1,8 @@
-@namespace Samples.GalagaGame
 import { GalagaGame } from "./GalagaGame.style"
 import { GalagaTypes } from "./GalagaTypes"
-import "@static Samples.GalagaGame.GalagaTypes"
-import "@static Samples.GalagaGame.GalagaTypes.C"
-import "@GCollision = Samples.GalagaGame.GalagaTypes.Collision"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.C"
+import "@GCollision = ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.Collision"
 
 export module GameLogic {
   public static class Tick {

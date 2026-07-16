@@ -1,8 +1,7 @@
-@namespace Samples.DoomGame
 import { GameLogic } from "./GameLogic"
 import "@UnityEngine.InputSystem"
 import "@UnityEngine.UIElements"
-import "@static Samples.DoomGame.DoomTypes"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 
 export hook useDoomGame(
   Ref<VisualElement?> viewRef,

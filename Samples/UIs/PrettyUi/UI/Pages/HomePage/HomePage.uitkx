@@ -1,8 +1,6 @@
-@namespace PrettyUi.App.Pages
 import { ContentPanel } from "../../Components/ContentPanel/ContentPanel"
 import { PageShell } from "../../Components/PageShell/PageShell"
 import { HomePageSidebar } from "./HomePageSidebar"
-import "@PrettyUi.App.Components"
 import "@UnityEngine.UIElements"
 
 export component HomePage {

@@ -1,7 +1,7 @@
-@namespace Samples.MarioGame
 import { MarioGame } from "../../MarioGame.style"
 import "@UnityEngine.UIElements"
 import "@static Samples.MarioGame.MarioConstants"
+import "@Samples.MarioGame"
 
 export hook useMarioGame(
   Ref<VisualElement?> boardRef

@@ -1,6 +1,5 @@
-@namespace Samples.DoomGame
-import "@static Samples.DoomGame.DoomTypes"
-import "@static Samples.DoomGame.DoomTextures"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTextures"
 
 export module DoomMaps {
   public struct LevelStart {

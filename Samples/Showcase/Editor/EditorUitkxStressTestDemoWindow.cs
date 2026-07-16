@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using Samples.StressTest;
+using ReactiveUITK.Samples.Components.StressTest;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

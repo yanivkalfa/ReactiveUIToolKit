@@ -48,6 +48,13 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   for every `.hooks` companion (it only counted module declarations); it now fires only when a
   companion has neither modules nor hooks.
 
+### Changed
+
+- **Samples modernized to zero `@namespace`.** `Samples/uitkx.config.json` now carries
+  `namespacePrefix: "ReactiveUITK.Samples"`; all sample namespaces are path-derived
+  (`ReactiveUITK.Samples.<Folders>`), demo bootstraps/windows updated accordingly. The
+  UitkxTestFileDoNotTouch fixture intentionally keeps the legacy form.
+
 IDE extensions 1.4.2 ship the virtual-document half. SG suite 1541/1541, LSP suite 118/118.
 
 ## [0.8.1] - 2026-07-16

@@ -1,5 +1,4 @@
-@namespace Samples.DoomGame
-import "@static Samples.DoomGame.DoomTypes"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 
 export module Raycast {
   public struct WallHit {

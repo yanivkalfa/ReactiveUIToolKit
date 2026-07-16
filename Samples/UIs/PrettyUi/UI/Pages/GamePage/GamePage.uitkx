@@ -1,7 +1,5 @@
-@namespace PrettyUi.App.Pages
 import { AppButton } from "../../Components/AppButton/AppButton"
 import "@PrettyUi"
-import "@PrettyUi.App.Components"
 import "@UnityEngine.UIElements"
 
 export component GamePage {

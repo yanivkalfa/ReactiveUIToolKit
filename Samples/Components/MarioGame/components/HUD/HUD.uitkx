@@ -1,5 +1,3 @@
-@namespace Samples.MarioGame
-
 export component HUD(int score, int lives) {
   return (
     <VisualElement

@@ -1,5 +1,3 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
-
 export component RouterNavigationGuardPanel {
   var (enabled, setEnabled) = useState(false);
   var (message, setMessage) = useState("Guard disabled; all navigation allowed.");

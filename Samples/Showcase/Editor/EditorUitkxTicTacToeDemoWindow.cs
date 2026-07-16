@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using Samples.TicTacToe;
+using ReactiveUITK.Samples.Components.TicTacToe;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

@@ -1,9 +1,8 @@
-@namespace Samples.GalagaGame
 import { GalagaGame } from "./GalagaGame.style"
 import { GalagaTypes } from "./GalagaTypes"
 import "@UnityEngine.UIElements"
-import "@static Samples.GalagaGame.GalagaTypes"
-import "@static Samples.GalagaGame.GalagaTypes.C"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.C"
 
 export module SpriteAtlas {
   // ───── Sprite frame definition ─────
