@@ -1,4 +1,4 @@
-# Reactive UI - Unity - VS2022 (UITKX)
+# Reactive UI - Unity - VS Code (UITKX)
 
 Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.
 
@@ -7,11 +7,12 @@ Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolK
 ## Features
 
 - **Syntax highlighting** — directives, control flow, element tags, attributes, embedded C# expressions
-- **Completions** — element tags, attribute names, via the shared UITKX LSP server
+- **Completions** — element tags, attribute names, `@` directives
 - **Hover documentation** — element descriptions, attribute types and descriptions
-- **Formatting** support via the UITKX formatter
+- **Bracket matching and auto-close** for `{`, `(`, `"`, `<!--`
+- **Folding** for element hierarchies
 
 ## Requirements
 
-- **Visual Studio 2022** (17.0+)
 - **.NET 8+** runtime on PATH (`dotnet --version` must succeed)
+- The bundled `server/UitkxLanguageServer.dll` is included in the extension

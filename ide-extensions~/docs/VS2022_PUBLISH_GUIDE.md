@@ -39,6 +39,33 @@ The LSP server is published into each extension's `server/` directory.
 
 ---
 
+## Marketplace Listing Surfaces (what users SEE — know before touching)
+
+Every marketplace-visible string has exactly one source; edit the source, never the output:
+
+| Surface | VS Code | VS2022 |
+|---------|---------|--------|
+| List/page title | `vscode/package.json` → `displayName` | `UitkxVsix/source.extension.vsixmanifest` → `<DisplayName>` |
+| Short description | package.json `description` | vsixmanifest `<Description>` |
+| Page body | `vscode/README.md` (packaged into the .vsix; also the Open VSX page) | `UitkxVsix/overview.md` — generated from `overview-template.md` + `changelog.json` via `scripts/changelog.mjs extract-overview`; committed |
+| Changelog | `changelog.json` is the single source; per-IDE CHANGELOGs + the overview's `## Changelog` section generate from it | same |
+
+- **Naming scheme (family-wide, 2026-07-16):** display name = `UITKX (Unity - VS Code)` /
+  `UITKX (Unity - VS2022)`; body H1 = `Reactive UI - Unity - <IDE> (UITKX)`; body order =
+  Title → Description → Features → Requirements → Changelog. Execution details:
+  `Plans~/EXTENSION_LISTING_PLAN.md`.
+- A LISTING-ONLY change still bumps + gets a changelog entry — shipped bytes change.
+- Where a body file is generated (`README.md`, `overview.md`): edit the TEMPLATE
+  (`readme-template.md` / `overview-template.md`), re-run `extract-overview`, commit
+  template + output together — never hand-edit the generated file.
+- Before publishing, run `node scripts/changelog.mjs verify` — it recomposes each generated
+  page from its template + `changelog.json` and byte-compares against the committed file,
+  failing with the exact regeneration command on drift. `publish-vsix.ps1`'s
+  `-ChangelogEntry` currently hand-edits `overview.md` directly (pre-dates the generated-file
+  convention) — run `verify` after any publish that used it, and regenerate if it flags drift.
+
+---
+
 ## Typical Workflow
 
 ### 1. Develop Feature / Fix Bug
