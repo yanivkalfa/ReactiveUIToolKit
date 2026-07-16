@@ -8,7 +8,7 @@
               Language="en-US"
               Publisher="Yaniv Kalfa" />
     <DisplayName>UITKX (Unity - VS2022)</DisplayName>
-    <Description xml:space="preserve">Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.</Description>
+    <Description xml:space="preserve">Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required. Discord: https://discord.gg/QyydtqM3p9 | Repo: https://github.com/ReactiveUITK/ReactiveUIToolKit</Description>
     <MoreInfo>https://github.com/ReactiveUITK/ReactiveUIToolKit</MoreInfo>
     <License>LICENSE.txt</License>
     <Tags>Unity;UI Toolkit;UITKX;ReactiveUI;language;lsp</Tags>
