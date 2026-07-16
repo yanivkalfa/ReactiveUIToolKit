@@ -91,6 +91,7 @@
 | U7 | Decision: single-quote attribute strings | open decision | PARITY U7 |
 | RT-6 | (Optional) runtime-only package variant | not done | V1 RT-6 |
 | ~~NSIMP~~ | **DONE (v0.8.0)** — Namespace-import unification: `import "@Ns"`, UITKX2316 (editor error / build warning), UITKX2317 redundant-using Hint, quick-fixes, codemod `--tidy`, formatter round-trip. Deferred follow-ups: semantic unused-using 2317, per-segment namespace completion + hover, 2316 "did you mean" suggestion, bulk samples `--tidy` | `Plans~/IMPORT_NAMESPACE_UNIFICATION_PLAN.md` | user request 2026-07-15 |
+| SAMPLES-NS | **READY TO EXECUTE** (hand to any agent) — modernize Samples to zero `@namespace` via `namespacePrefix` config; fully-researched plan with verbatim per-file edit appendices (A: name→ns map, B: exact C# using edits, C: exact uitkx import DELETEs/ADDs) + hard verification gates | `Plans~/SAMPLES_NAMESPACE_MODERNIZATION_PLAN.md` | user request 2026-07-16 |
 
 ## 8. Cleanup / Tech-debt
 
