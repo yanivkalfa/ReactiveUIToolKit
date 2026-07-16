@@ -17,7 +17,7 @@ namespace ReactiveUITK.Language
     /// </summary>
     public static class NamespaceDerivation
     {
-        /// <summary>The fixed root of every path-derived namespace.</summary>
+        /// <summary>The default root of a path-derived namespace when no prefix is configured.</summary>
         public const string Root = "ReactiveUITK.Uitkx";
 
         /// <summary>
@@ -25,19 +25,38 @@ namespace ReactiveUITK.Language
         /// of its owning .asmdef. Returns <c>null</c> when there is no owning asmdef (UITKX2310).
         /// Path comparison is ordinal-case-insensitive (Windows/macOS filesystem parity); segment
         /// casing is preserved verbatim in the output.
+        /// <para><paramref name="prefix"/> (namespace-import unification plan) replaces the default
+        /// <see cref="Root"/> — the caller resolves it from config/asmdef; each dotted segment is
+        /// sanitized so a mis-typed prefix can never emit invalid C#. <c>null</c>/empty → <see cref="Root"/>.</para>
         /// </summary>
-        public static string? Derive(string fileAbsolutePath, string? owningAsmdefDirAbsolutePath)
+        public static string? Derive(
+            string fileAbsolutePath, string? owningAsmdefDirAbsolutePath, string? prefix = null)
         {
             if (string.IsNullOrEmpty(owningAsmdefDirAbsolutePath))
                 return null;
 
+            string root = string.IsNullOrEmpty(prefix) ? Root : SanitizeDottedName(prefix!);
+
             var segments = RelativeDirSegments(fileAbsolutePath, owningAsmdefDirAbsolutePath!);
             if (segments.Count == 0)
-                return Root;
+                return root;
 
-            var sb = new StringBuilder(Root);
+            var sb = new StringBuilder(root);
             foreach (var seg in segments)
                 sb.Append('.').Append(Sanitize(seg));
+            return sb.ToString();
+        }
+
+        /// <summary>Sanitizes each dotted segment of a namespace prefix (e.g. <c>"My-Game.UI"</c> → <c>"My_Game.UI"</c>) so it is always a legal C# namespace.</summary>
+        public static string SanitizeDottedName(string dotted)
+        {
+            var parts = dotted.Split('.');
+            var sb = new StringBuilder();
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (i > 0) sb.Append('.');
+                sb.Append(Sanitize(parts[i]));
+            }
             return sb.ToString();
         }
 
