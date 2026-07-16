@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-07-16",
+      "versions": {
+        "vscode": "1.4.1",
+        "vs2022": "1.4.1",
+        "rider": "1.1.0"
+      },
+      "shared": [
+        "Ships library 0.8.1's import-resolution fixes in the bundled LSP server (virtual-document parity).\n\nFix: C# body references to a cross-namespace file-imported COMPONENT's type (`Widget.WidgetProps`, `TableView.Column`) showed false red squiggles in the editor -- component imports only qualified tags, never C# code. The virtual document now injects a type alias for each imported component (exactly like modules get), so IntelliSense matches the real build's new behavior. Surfaced by path-derived namespaces, where companions in other folders always land in different namespaces.\n\nNo new commands, settings, grammar, or diagnostic codes. Pairs with Unity package 0.8.1 (which carries the build-side halves: baseline-namespace resolver scope + component alias injection in the generator).\n\nSG suite 1532/1532, LSP suite 118/118."
+      ]
+    },
+    {
       "date": "2026-07-15",
       "versions": {
         "vscode": "1.4.0",

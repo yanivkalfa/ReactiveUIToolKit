@@ -579,6 +579,49 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return null;
         }
 
+        /// <summary>
+        /// Namespaces of the peer components this file imports BY PATH (import/export grammar): an
+        /// <c>import {{ X }} from "./file"</c> names the exact target file, so that peer's namespace
+        /// is visible to tag/props resolution on the strength of the file import alone — no separate
+        /// <c>import "@Target.Ns"</c> required. Without this, a cross-namespace file-imported
+        /// component tag produced false UITKX0109 ("declares no parameters") because
+        /// <see cref="TryFindVisiblePeerComponent"/> searched only namespace+usings+baseline.
+        /// </summary>
+        internal ImmutableArray<string> GetImportedPeerNamespaces(
+            Language.Parser.DirectiveSet directives, string importerFilePath)
+        {
+            if (directives.Imports.IsDefaultOrEmpty
+                || _peerComponentsByMetadataName.Count == 0
+                || string.IsNullOrEmpty(importerFilePath))
+                return ImmutableArray<string>.Empty;
+
+            static string Norm(string p) => p.Replace('\\', '/').TrimEnd('/');
+
+            // Peer source path → namespace (peers without a recorded path can't be matched).
+            var byPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var peer in _peerComponentsByMetadataName.Values)
+                if (!string.IsNullOrEmpty(peer.SourceFilePath) && !string.IsNullOrEmpty(peer.Namespace))
+                    byPath[Norm(peer.SourceFilePath!)] = peer.Namespace;
+            if (byPath.Count == 0)
+                return ImmutableArray<string>.Empty;
+
+            string importerDir = Norm(System.IO.Path.GetDirectoryName(importerFilePath) ?? string.Empty);
+            string rootDir = Language.EffectiveNamespace.UiSourceRootDir(importerFilePath) ?? importerDir;
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var result = ImmutableArray.CreateBuilder<string>();
+            foreach (var imp in directives.Imports)
+            {
+                string? target = Language.ImportResolver.MapSpecifierToPath(
+                    importerDir, imp.Specifier, rootDir, out _);
+                if (target != null
+                    && byPath.TryGetValue(Norm(target), out string? ns)
+                    && seen.Add(ns))
+                    result.Add(ns);
+            }
+            return result.ToImmutable();
+        }
+
         // ── Private helpers ───────────────────────────────────────────────────
 
         private string ResolveFuncComponentTypeName(

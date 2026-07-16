@@ -20,9 +20,21 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   emitters put in scope (one shared list, so they can never drift again), with two regression
   tests pinning the direct and alias-tag paths.
 
-  The 0.8.0 `dist` publish predates this fix — git-URL `#dist` consumers should update to
-  0.8.1. IDE extensions are unaffected (the LSP resolves through real Roslyn); 1.4.0 remains
-  current.
+- **File imports are now fully self-sufficient for components.** Surfaced by path-derived
+  namespaces (companions in other folders always land in different namespaces):
+  - A cross-namespace file-imported component's **tag attributes** failed to validate (false
+    UITKX0109 "declares no parameters") unless the file *also* carried a namespace-import of the
+    target's namespace. The resolver's search list now includes the namespaces of the file's
+    imported components — the import names the exact target file, so it is enough by itself.
+  - **C# body references** to an imported component's type (`Preset.PresetProps`,
+    `TableView.Column`) hit CS0246 in generated code — component imports only FQN-qualified tags.
+    Imported components now get a type alias injected (`using Widget = My.Widgets.Widget;`),
+    exactly like modules, with the same same-namespace/reserved-alias guards. Mirrored in the
+    editor virtual document so IntelliSense matches the build.
+
+  The 0.8.0 `dist` publish predates these fixes — git-URL `#dist` consumers should update to
+  0.8.1. IDE extensions 1.4.1 ship the virtual-document parity fix (see
+  `ide-extensions~/changelog.json`).
 
 ## [0.8.0] - 2026-07-15
 

@@ -197,6 +197,78 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void FileImportedComponent_CrossNamespace_AttributesValidate_WithoutNamespaceImport()
+        {
+            // Regression (JSO @namespace cleanup): an `import { X } from "./file"` names the exact
+            // target file, so the peer's namespace must be visible to tag/props resolution ON ITS
+            // OWN. Previously TryFindVisiblePeerComponent searched only {@namespace + usings +
+            // baseline}, so a cross-namespace file-imported component silently required an EXTRA
+            // `import "@Target.Ns"` line — without it, every attribute produced a false UITKX0109
+            // ("Component declares no parameters"). The samples masked this by carrying
+            // namespace-imports (e.g. PrettyUi AppRoot's import "@PrettyUi.App.Pages").
+            var files = new[]
+            {
+                ("Widget.uitkx",
+                    "@namespace My.Widgets\nexport component Widget(string title = \"\", bool busy = false) {\n  return (<VisualElement />);\n}"),
+                ("Screen.uitkx",
+                    "@namespace My.Screens\nimport { Widget } from \"./Widget\"\ncomponent Screen {\n  return (<Widget title=\"hi\" busy={true} />);\n}"),
+            };
+
+            var result = GeneratorTestHelper.RunMultiple(files, "Screen.uitkx");
+
+            Assert.True(result.SourceWasProduced,
+                $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0109");
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0008");
+            Assert.True(result.SourceContains("global::My.Widgets.Widget"),
+                $"Expected the imported component emitted by FQN. Got:\n{result.GeneratedSource}");
+        }
+
+        [Fact]
+        public void FileImportedComponent_CrossNamespace_GetsTypeAlias_ForCSharpBodyReferences()
+        {
+            // Regression (JSO Dialogs/TableView): C# BODY references to a file-imported component's
+            // type (`GameOverDialogPreset.GameOverDialogPresetProps`, `TableView.Column`) got no
+            // using — component imports only FQN-qualify TAGS — so a cross-namespace import hit
+            // CS0246 in generated code. The §6 injection seam now aliases imported components
+            // exactly like modules: `using Widget = My.Widgets.Widget;`.
+            var files = new[]
+            {
+                ("Widget.uitkx",
+                    "@namespace My.Widgets\nexport component Widget(string title = \"\") {\n  return (<VisualElement />);\n}"),
+                ("Panel.utils.uitkx",
+                    "@namespace My.Screens\nimport { Widget } from \"./Widget\"\nexport module Panel {\n  public static object MakeProps() => new Widget.WidgetProps { Title = \"x\" };\n}"),
+            };
+
+            var result = GeneratorTestHelper.RunMultiple(files, "Panel.utils.uitkx");
+
+            Assert.True(result.SourceWasProduced,
+                $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+            Assert.True(result.SourceContains("using Widget = My.Widgets.Widget;"),
+                $"Expected the imported component aliased for C# body references. Got:\n{result.GeneratedSource}");
+        }
+
+        [Fact]
+        public void FileImportedComponent_SameNamespace_NoAlias()
+        {
+            // Same-namespace alias would be CS0576 (conflicts with the declaration) — mirror the
+            // module guard.
+            var files = new[]
+            {
+                ("Widget.uitkx",
+                    "@namespace My.Ns\nexport component Widget(string title = \"\") {\n  return (<VisualElement />);\n}"),
+                ("Panel.utils.uitkx",
+                    "@namespace My.Ns\nimport { Widget } from \"./Widget\"\nexport module Panel {\n  public static object MakeProps() => new Widget.WidgetProps { Title = \"x\" };\n}"),
+            };
+
+            var result = GeneratorTestHelper.RunMultiple(files, "Panel.utils.uitkx");
+
+            Assert.True(result.SourceWasProduced);
+            Assert.False(result.SourceContains("using Widget = My.Ns.Widget;"),
+                "Same-namespace component must NOT be aliased (CS0576).");
+        }
+
+        [Fact]
         public void NamespaceImport_NoDiagnosticsForValidNamespace()
         {
             const string src =
