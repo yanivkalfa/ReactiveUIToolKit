@@ -1,5 +1,3 @@
-@namespace Samples.SnakeGame
-
 export component Menu(Action? onRestart = null) {
   var navigate = RouterHooks.UseNavigate();
   string location = RouterHooks.UseLocation();

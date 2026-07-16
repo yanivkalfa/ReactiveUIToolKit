@@ -4,11 +4,11 @@
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
         <Identity Id="UitkxVsix.ReactiveUITK"
-          Version="1.4.1"
+          Version="1.4.2"
               Language="en-US"
               Publisher="Yaniv Kalfa" />
-    <DisplayName>UITKX</DisplayName>
-    <Description xml:space="preserve">Language support for .uitkx ReactiveUIToolKit component templates. Provides completions, hover documentation, and LSP-based editor features.</Description>
+    <DisplayName>UITKX (Unity - VS2022)</DisplayName>
+    <Description xml:space="preserve">Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.</Description>
     <MoreInfo>https://github.com/ReactiveUITK/ReactiveUIToolKit</MoreInfo>
     <License>LICENSE.txt</License>
     <Tags>Unity;UI Toolkit;UITKX;ReactiveUI;language;lsp</Tags>

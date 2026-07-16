@@ -3,7 +3,8 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using Samples.MarioGame;
+using ReactiveUITK.Samples.Components.MarioGame;
+using ReactiveUITK.Samples.Components.MarioGame.components.Mario;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

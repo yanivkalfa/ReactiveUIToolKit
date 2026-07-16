@@ -1,6 +1,4 @@
-@namespace PrettyUi.App.Components
 import { Theme } from "../../Theme"
-import "@PrettyUi.App"
 
 export module AppButton {
   public static readonly Style Base = new Style {

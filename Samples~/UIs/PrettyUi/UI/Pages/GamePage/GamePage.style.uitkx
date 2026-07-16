@@ -1,6 +1,4 @@
-@namespace PrettyUi.App.Pages
 import { Theme } from "../../Theme"
-import "@PrettyUi.App"
 
 export module GamePage {
   public static readonly Style Root = new Style {

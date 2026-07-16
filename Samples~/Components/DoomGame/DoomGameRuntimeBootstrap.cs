@@ -1,7 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using Samples.DoomGame;
+using ReactiveUITK.Samples.Components.DoomGame;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -34,7 +34,7 @@ namespace Samples.DoomGame
 
             rootRenderer.Initialize(uiDocument.rootVisualElement);
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
-            rootRenderer.Render(V.Host(hostProps, null, V.Func(DoomGame.Render)));
+            rootRenderer.Render(V.Host(hostProps, null, V.Func(global::ReactiveUITK.Samples.Components.DoomGame.DoomGame.Render)));
         }
     }
 }

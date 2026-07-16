@@ -1,5 +1,5 @@
 using ReactiveUITK.Core;
-using ReactiveUITK.Samples.UITKXComponents;
+using ReactiveUITK.Samples.Components.SimpleTextFieldFunc;
 using UnityEngine;
 using UnityEngine.UIElements;
 

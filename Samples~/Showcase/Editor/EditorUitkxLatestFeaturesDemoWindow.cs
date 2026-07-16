@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Samples.UITKXComponents;
+using ReactiveUITK.Samples.Components.LatestFeaturesDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

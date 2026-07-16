@@ -1,7 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using Samples.StressTest;
+using ReactiveUITK.Samples.Components.StressTest;
 using UnityEngine;
 using UnityEngine.UIElements;
 

@@ -1,7 +1,7 @@
 #if UNITY_EDITOR
 using ReactiveUITK.Core;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Samples.UITKXComponents;
+using ReactiveUITK.Samples.Components.PortalEventScopeDemoFunc;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;

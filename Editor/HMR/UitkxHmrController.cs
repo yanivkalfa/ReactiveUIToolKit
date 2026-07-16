@@ -731,6 +731,43 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // whose hook signature changed. Single tree walk -- not
                 // per-component-type.
                 swapped = global::ReactiveUITK.Refresh.RefreshRuntime.PerformRefresh();
+
+                // A successful compile that refreshes NOTHING must explain itself — a silent
+                // no-op is undiagnosable. Name the exact leg that returned zero: the family key
+                // never matched (hot assembly registered a FRESH id → key mismatch between the
+                // project build and the HMR emit), no dirty families at all (ModuleInitializer
+                // didn't run / didn't Register), no live roots, or no mounted fiber of this family.
+                if (swapped == 0)
+                {
+                    var stats = global::ReactiveUITK.Refresh.RefreshRuntime.LastRefreshStats;
+                    global::ReactiveUITK.Refresh.RefreshRuntime.TryGetFamilyInfo(
+                        result.FamilyKey, out bool famExists, out bool famEverUpdated);
+                    string cause;
+                    if (!famExists)
+                        cause = "the family key was never registered at all — the hot assembly's "
+                            + "ModuleInitializer likely did not run or did not Register";
+                    else if (!famEverUpdated)
+                        cause = "the hot assembly registered a FRESH family (create path, no dirty "
+                            + "mark) — the family key does not match the one the project assembly "
+                            + "registered at load (key mismatch between build and HMR emit)";
+                    else if (stats.DirtyCount == 0)
+                        cause = "the family updated but nothing was dirty at refresh time (already "
+                            + "consumed by an earlier refresh this frame?)";
+                    else if (!stats.ProviderWired)
+                        cause = "the root-renderer provider was not wired (HMR session state)";
+                    else if (stats.RootsWalked == 0)
+                        cause = "no live root renderers — is the app in Play mode with this "
+                            + "component mounted?";
+                    else
+                        cause = "no mounted fiber belongs to this family — the component isn't "
+                            + "on screen (or its fibers carry no Family association)";
+                    Debug.LogWarning(
+                        $"[HMR] {result.ComponentName} compiled OK but 0 fibers refreshed. "
+                        + $"family='{result.FamilyKey}' exists={famExists} everUpdated={famEverUpdated}; "
+                        + $"dirty={stats.DirtyCount} providerWired={stats.ProviderWired} "
+                        + $"rootsWalked={stats.RootsWalked}. Likely cause: {cause}."
+                    );
+                }
             }
             swapSw.Stop();
             result.SwapMs = swapSw.Elapsed.TotalMilliseconds;

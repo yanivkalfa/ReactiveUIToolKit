@@ -3,6 +3,18 @@
     {
       "date": "2026-07-16",
       "versions": {
+        "vscode": "1.4.2",
+        "vs2022": "1.4.2",
+        "rider": "1.1.0"
+      },
+      "shared": [
+        "Ships library 0.8.2's import-scope parity in the bundled LSP server.\n\nFix: IntelliSense aliased imported modules/components with the target file's RAW parsed namespace -- wrong for every stamp-less (path-derived) file -- so projects using the new `namespacePrefix` config showed false red squiggles on cross-file references. The virtual document now computes aliases from the target's EFFECTIVE namespace (explicit `@namespace` wins, else path-derived + config prefix), and its same-namespace guard now matches the source generator's (no alias when importer and target share a namespace).\n\nThe injection rule is now a single shared helper (`ImportScopeFacts` in the language lib) consumed by the editor virtual document, the Unity build, and Unity's hot-reload compiler alike -- one rule, three consumers, contract-tested against drift.\n\nNo new commands, settings, grammar, or diagnostic codes. Pairs with Unity package 0.8.2 (which carries the HMR half).\n\nSG suite 1541/1541, LSP suite 118/118.",
+        "Marketplace listing overhaul: distinguishable display names -- `UITKX (Unity - VS Code)` / `UITKX (Unity - VS2022)` -- and a structured page body (Title / Description / Features / Requirements / Changelog) on both marketplaces + Open VSX."
+      ]
+    },
+    {
+      "date": "2026-07-16",
+      "versions": {
         "vscode": "1.4.1",
         "vs2022": "1.4.1",
         "rider": "1.1.0"

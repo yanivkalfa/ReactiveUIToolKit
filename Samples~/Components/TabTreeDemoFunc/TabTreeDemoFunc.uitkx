@@ -1,8 +1,7 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
 import { MultiColumnTreeViewStatefulDemoFunc } from "../../Shared/MultiColumnTreeViewStatefulDemoFunc"
 import { TreeViewStatefulDemoFunc } from "../../Shared/TreeViewStatefulDemoFunc"
-import "@ReactiveUITK.Samples.UITKXShared"
 import "@UnityEngine.UIElements"
+import "@ReactiveUITK.Samples.UITKXShared"
 
 export component TabTreeDemoFunc {
   var (tabIndex, setTabIndex) = useState(0);

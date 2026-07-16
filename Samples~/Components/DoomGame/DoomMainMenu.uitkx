@@ -1,6 +1,5 @@
-@namespace Samples.DoomGame
 import "@UnityEngine.UIElements"
-import "@static Samples.DoomGame.DoomTypes"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 
 export component DoomMainMenu(
   int level,

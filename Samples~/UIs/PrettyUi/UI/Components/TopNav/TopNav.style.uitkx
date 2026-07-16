@@ -1,6 +1,4 @@
-@namespace PrettyUi.App.Components
 import { Theme } from "../../Theme"
-import "@PrettyUi.App"
 
 export module TopNav {
   public static readonly Style Bar = new Style {

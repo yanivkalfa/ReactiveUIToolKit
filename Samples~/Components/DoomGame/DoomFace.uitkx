@@ -1,7 +1,6 @@
-@namespace Samples.DoomGame
 import { DoomTextures } from "./DoomTextures"
 import "@UnityEngine.UIElements"
-import "@static Samples.DoomGame.DoomTypes"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 
 export component DoomFace(int frame) {
   var idx = Mathf.Clamp(frame, 0, 7);

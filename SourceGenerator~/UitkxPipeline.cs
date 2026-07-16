@@ -731,16 +731,11 @@ namespace ReactiveUITK.SourceGenerator
         /// <summary>
         /// Type-alias identifiers the component/hook/module emitters emit unconditionally
         /// (<c>using Color = UnityEngine.Color;</c>, <c>using Length = …;</c>, …). An imported
-        /// module whose name matches one of these cannot be injected as a <c>using</c> alias
-        /// (CS1537). Kept in sync with the alias block in <c>CSharpEmitter</c>/<c>ModuleEmitter</c>.
+        /// module/component whose name matches one of these cannot be injected as a <c>using</c>
+        /// alias (CS1537). Canonical list lives in <see cref="ImportScopeFacts.ReservedTypeAliases"/>
+        /// (language-lib) so the LSP virtual doc + HMR share it; this is the SG-side view.
         /// </summary>
-        internal static readonly HashSet<string> ReservedTypeAliases = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "Color", "UColor", "EasingFunction", "EasingMode", "BackgroundRepeat",
-            "BackgroundPosition", "BackgroundSize", "TransformOrigin", "BackgroundPositionKeyword",
-            "BackgroundSizeType", "Repeat", "Length", "StyleKeyword", "TextAutoSizeMode",
-            "FilterFunction", "Ratio", "StyleRatio", "MaterialDefinition", "StyleMaterialDefinition",
-        };
+        internal static HashSet<string> ReservedTypeAliases => ImportScopeFacts.ReservedTypeAliases;
 
         private static string NormalizeAbs(string? p) =>
             (p ?? string.Empty).Replace('\\', '/').TrimEnd('/');
