@@ -32,11 +32,26 @@ plus the diagnostics that make a misspelled namespace visible instead of silent.
   with a "Remove redundant using" quick-fix.
 - **Quick-fixes + tooling:** a "Convert to `import \"@…\"`" refactor on any `@using` line; the
   codemod gains `--tidy` (convert `@using X` → `import "@X"` and strip redundant baseline usings in
-  bulk, idempotent, `--check` for CI); the formatter round-trips both spellings without rewriting
-  one to the other; TextMate grammar scopes `import "@Ns"` distinctly; a discoverable `import "@…"`
-  completion snippet.
+  bulk, idempotent, `--check` for CI) and a `--format` batch mode; the formatter round-trips both
+  spellings without rewriting one to the other; a discoverable `import "@…"` completion snippet.
 
-Additive: existing `@using` files keep working unchanged. SG suite 1515/1515, LSP suite 118/118.
+Follow-up polish (same release):
+
+- **Preamble ordering.** The formatter now emits `@namespace` first, then all `import` lines
+  grouped together (previously `@namespace` sat between file imports and namespace imports, splitting
+  them). One clean import block under the identity line.
+- **Router is auto-injected.** `RouterHooks.UseNavigate()` and friends now resolve with **no
+  import at all** — `ReactiveUITK.Router` joined the baseline usings every generated file receives.
+  An explicit `import "@ReactiveUITK.Router"` is now flagged redundant (2317) and stripped by `--tidy`.
+- **Project-wide namespace root — `namespacePrefix`.** A new `uitkx.config.json` key sets the root
+  of every path-derived namespace, so a whole project can drop per-file `@namespace`. Precedence:
+  `@namespace` → `namespacePrefix` → the owning `.asmdef`'s `rootNamespace` (Unity's own field) →
+  the `ReactiveUITK.Uitkx` default. Every step is opt-in — projects that set none keep the exact
+  legacy derivation.
+- **Consistent import colour.** `import "@Ns"` is highlighted identically to a file import (same
+  keyword + string scopes) so every import line reads as one colour.
+
+Additive: existing `@using`/`@namespace` files keep working unchanged. SG suite 1527/1527, LSP suite 118/118.
 
 ## [0.7.1] - 2026-07-15
 
