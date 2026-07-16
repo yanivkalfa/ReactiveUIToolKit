@@ -31,6 +31,14 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   component-only file — typed code guards with `IsDefaultOrEmpty`; the mirror now checks
   `IsDefault` too. Latent since the §7 hook-family-key work; surfaced by the first RUNTIME-V
   in-editor test.
+- **HMR: root components hot-reload.** Editing the ROOT component of a mount never swapped —
+  the SG rewrites *child* tags to family-based `V.Func(__fam_X, …)` calls, but a hand-written
+  root mount (`rootRenderer.Render(V.Func(App.Render))`) passes a raw method group, leaving the
+  root fiber with no Family; `PerformRefresh` then walks right past it ("compiled OK but 0 fibers
+  refreshed"). The plain `V.Func(delegate)` overloads now resolve the Family from the method
+  group's declaring type (a family's id IS the component type's FQN — exact by construction),
+  editor-only, one dictionary lookup; lambda mounts miss gracefully. Every root mount — samples
+  and games alike — is now hot-reloadable.
 - **HMR: a zero-swap now explains itself.** A compile that succeeded but refreshed nothing logged
   NOTHING — undiagnosable. The controller now reports exactly which leg returned zero (family key
   never registered / hot assembly registered a FRESH key ⇒ build↔HMR key mismatch / nothing dirty /

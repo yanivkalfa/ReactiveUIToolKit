@@ -625,6 +625,27 @@ namespace ReactiveUITK.Refresh
         public static RefreshStats LastRefreshStats;
 
         /// <summary>
+        /// Resolve a registered <see cref="Family"/> by id, or null. Used by the plain
+        /// <c>V.Func(delegate)</c> overloads (editor-only) to associate ROOT mounts with their
+        /// family: the SG rewrites CHILD component tags to family-based <c>V.Func(__fam_X, …)</c>
+        /// calls, but a hand-written root mount (<c>rootRenderer.Render(V.Func(App.Render))</c>)
+        /// passes a raw method group — and a fiber with no Family can never be hot-reloaded. The
+        /// architecture's invariant makes the lookup exact: a component family's id IS the
+        /// component type's FQN, which is precisely <c>delegate.Method.DeclaringType.FullName</c>
+        /// for a method-group mount. Lambda mounts resolve to a closure type (contains <c>+</c>) →
+        /// miss → null, the old behavior.
+        /// </summary>
+        public static Family FindRegisteredFamily(string id)
+        {
+            if (string.IsNullOrEmpty(id))
+                return null;
+            lock (s_lock)
+            {
+                return s_families.TryGetValue(id, out var f) ? f : null;
+            }
+        }
+
+        /// <summary>
         /// Introspection for zero-swap diagnostics: whether a family id is registered at all, and
         /// whether it has EVER taken the update path (<see cref="Family.Previous"/> non-null ⇔ a
         /// second Register hit the same id). <c>exists=true, everUpdated=false</c> after an HMR
