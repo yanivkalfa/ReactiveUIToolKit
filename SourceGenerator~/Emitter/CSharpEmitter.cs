@@ -1342,6 +1342,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     builder.Add(ns);
             }
 
+            // Namespaces of file-imported peer components: `import { X } from "./file"` names the
+            // exact target, so its namespace is visible on the file import alone — no separate
+            // `import "@Target.Ns"` needed for the tag's attributes to validate.
+            foreach (var ns in _resolver.GetImportedPeerNamespaces(_directives, _filePath))
+            {
+                if (seen.Add(ns))
+                    builder.Add(ns);
+            }
+
             return builder.ToImmutable();
         }
 

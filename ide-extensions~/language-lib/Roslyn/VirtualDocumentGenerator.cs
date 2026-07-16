@@ -290,6 +290,20 @@ namespace ReactiveUITK.Language.Roslyn
                             if (seen.Add(line))
                                 b.Scaffold($"using {line};\n");
                         }
+
+                // Component: alias each imported component too (mirrors the SG's §6.3 extension) so
+                // C# BODY references to an imported component's type (`Preset.PresetProps`,
+                // `TableView.Column`) resolve in IntelliSense exactly as they do in the real build.
+                // Same-namespace guard mirrors the SG (an alias would be CS0576 there).
+                if (!tds.ComponentDeclarations.IsDefaultOrEmpty)
+                    foreach (var c in tds.ComponentDeclarations)
+                        if (c.IsExported && importedNames.Contains(c.Name)
+                            && !string.Equals(tns, d.Namespace, StringComparison.Ordinal))
+                        {
+                            string line = $"{c.Name} = {tns}.{c.Name}";
+                            if (seen.Add(line))
+                                b.Scaffold($"using {line};\n");
+                        }
             }
         }
 

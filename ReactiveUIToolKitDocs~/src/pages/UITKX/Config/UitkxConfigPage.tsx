@@ -84,9 +84,11 @@ export const UitkxConfigPage: FC = () => (
             <TableCell>
               The root of every <strong>path-derived</strong> namespace (a file that has no explicit{' '}
               <code>@namespace</code>). Setting it lets a whole project carry its own namespace root
-              with <strong>no per-file <code>@namespace</code></strong> — the generated type for{' '}
-              <code>UI/App/pages/GameOverPage/GameOverPage.uitkx</code> becomes{' '}
-              <code>MyPrefix.App.Pages.GameOverPage</code>. Each dotted segment is sanitized to a
+              with <strong>no per-file <code>@namespace</code></strong> — with{' '}
+              <code>root: "Assets/UI/App"</code> and <code>namespacePrefix: "UI.App"</code>, the
+              generated type for <code>Assets/UI/App/pages/GameOverPage/GameOverPage.uitkx</code>{' '}
+              lands in <code>UI.App.pages.GameOverPage</code>. Folder-name <strong>casing is
+              preserved verbatim</strong> (no PascalCasing); each dotted segment is sanitized to a
               legal C# identifier.
             </TableCell>
           </TableRow>

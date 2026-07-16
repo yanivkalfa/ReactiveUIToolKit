@@ -1,4 +1,16 @@
-﻿## [0.8.0] - 2026-07-15
+﻿## [0.8.1] - 2026-07-16
+
+### Patch — Router resolution fix for 0.8.0
+
+**If `<Router>` / `<Routes>` / `<Route>` started erroring after 0.8.0 (`UITKX0008` "could not be found", `UITKX0109` unknown attribute `path`/`element`) — this is the fix.** 0.8.0 auto-injected `ReactiveUITK.Router`, so files stopped writing `import "@ReactiveUITK.Router"` — but the generator's tag/props resolver still searched only the file's own usings. The router tags then failed to resolve their props at build time even though the emitted C# was fine.
+
+The resolver now searches the exact auto-injected baseline the emitters put in scope — one shared list, so the two can never drift again. Regression tests pin the direct (`<RouteFunc>`) and alias (`<Router>/<Routes>/<Route>`) paths.
+
+**Also: file imports are now fully self-sufficient for components.** A cross-namespace `import { Widget } from "./file"` used to need an extra namespace-import for the tag's attributes to validate, and C# body references to the component's type (`Widget.WidgetProps`, `TableView.Column`) hit CS0246. The import now carries both: the target's namespace joins the resolver's scope, and a type alias is injected (like modules get) — mirrored in the editor virtual doc, shipped as extensions **1.4.1**.
+
+**The 0.8.0 `dist` publish predates these fixes** — git-URL `#dist` consumers should update to **0.8.1**. SG `1532/1532`, LSP `118/118`.
+
+## [0.8.0] - 2026-07-15
 
 ### Namespace imports + the diagnostics that make a typo visible
 
