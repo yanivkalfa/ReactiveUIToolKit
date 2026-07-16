@@ -27,7 +27,12 @@ const UITKX_CONFIG_JSON = `// uitkx.config.json — place it at your UI source r
 {
   // The project-relative folder that the '~/' import/asset alias resolves against.
   // Default: "Assets".
-  "root": "Assets/UI"
+  "root": "Assets/UI",
+
+  // The root of every path-derived namespace (files with no @namespace).
+  // Lets a whole project carry its own namespace root — no per-file @namespace.
+  // Default: falls back to the owning .asmdef's rootNamespace, else "ReactiveUITK.Uitkx".
+  "namespacePrefix": "MyGame.UI"
 }`
 
 export const UitkxConfigPage: FC = () => (
@@ -72,9 +77,31 @@ export const UitkxConfigPage: FC = () => (
               A <code>~/</code> path that escapes this root raises <code>UITKX2314</code>.
             </TableCell>
           </TableRow>
+          <TableRow>
+            <TableCell><code>namespacePrefix</code></TableCell>
+            <TableCell>string</TableCell>
+            <TableCell><code>(see below)</code></TableCell>
+            <TableCell>
+              The root of every <strong>path-derived</strong> namespace (a file that has no explicit{' '}
+              <code>@namespace</code>). Setting it lets a whole project carry its own namespace root
+              with <strong>no per-file <code>@namespace</code></strong> — the generated type for{' '}
+              <code>UI/App/pages/GameOverPage/GameOverPage.uitkx</code> becomes{' '}
+              <code>MyPrefix.App.Pages.GameOverPage</code>. Each dotted segment is sanitized to a
+              legal C# identifier.
+            </TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>
+    <Typography variant="body2" paragraph>
+      <strong>Namespace-prefix precedence</strong> (most-specific wins): a per-file{' '}
+      <code>@namespace</code> &rarr; the config <code>"namespacePrefix"</code> &rarr; the owning{' '}
+      <code>.asmdef</code>&rsquo;s <code>rootNamespace</code> (Unity&rsquo;s own field) &rarr; the
+      built-in <code>ReactiveUITK.Uitkx</code> default. Every step is opt-in, so a project that sets
+      neither a prefix nor an asmdef <code>rootNamespace</code> keeps deriving under{' '}
+      <code>ReactiveUITK.Uitkx</code>. The asmdef <em>name</em> is deliberately not used — it would
+      silently re-root every project the moment it named an assembly.
+    </Typography>
     <Typography variant="body2" paragraph>
       <strong>Discovery:</strong> resolution walks up from the <code>.uitkx</code> file to the
       nearest <code>uitkx.config.json</code> and uses its <code>"root"</code> outright &mdash;

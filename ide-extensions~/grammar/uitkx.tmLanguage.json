@@ -70,15 +70,12 @@
   ],
   "repository": {
     "namespace-import-declaration": {
-      "comment": "Handles namespace imports: import \"@Namespace\" (namespace-import unification plan). The leading @ inside the string disambiguates from a file specifier; the payload is scoped as a namespace so it reads differently from a `from \"./path\"` file import.",
+      "comment": "Handles namespace imports: import \"@Namespace\" (namespace-import unification plan). Scoped IDENTICALLY to a file import — same `keyword.control.import` keyword and `string.quoted.double` string — so every import line reads as the same colour; the leading @ inside the string is the only visual/semantic marker.",
       "name": "meta.import.namespace.uitkx",
-      "match": "^(\\s*)(import)\\s+(\")(@)([^\"]*)(\")",
+      "match": "^(\\s*)(import)\\s+(\"@[^\"]*\")",
       "captures": {
         "2": { "name": "keyword.control.import.uitkx" },
-        "3": { "name": "string.quoted.double.uitkx" },
-        "4": { "name": "punctuation.definition.namespace.uitkx" },
-        "5": { "name": "entity.name.namespace.uitkx" },
-        "6": { "name": "string.quoted.double.uitkx" }
+        "3": { "name": "string.quoted.double.uitkx" }
       }
     },
     "import-declaration": {
