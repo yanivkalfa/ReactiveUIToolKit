@@ -18,6 +18,17 @@ Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolK
 
 ## Changelog
 
+### [1.4.4] - 2026-07-16
+- Ships library 0.8.3's import-parser fix in the bundled LSP server + analyzer DLL.
+
+Fix: a trailing `;` on a file import (`import { X } from "./file";` -- the JS-canonical form) wrecked the whole file: the parser's cursor stalled on the semicolon, the preamble loop bailed, and the file failed with a misleading UITKX2105 ("no valid component declaration") plus phantom "single root element" squiggles on lines that were never markup. The file-import reader was the only preamble reader missing the consume-to-end-of-line step its siblings (`@using Ns;`, `import "@Ns";`) already had -- it now has parity, so the semicolon is tolerated in the editor, the Unity build, and hot reload alike. The formatter re-emits the canonical, semicolon-less form on save.
+
+With the meltdown gone, genuinely wrong imports get their real diagnostic -- e.g. importing a module's field instead of the module now correctly reports UITKX2301 ("not exported") on the exact name.
+
+No new commands, settings, grammar, or diagnostic codes. Pairs with Unity package 0.8.3 (same parser via the committed analyzer DLLs).
+
+SG suite 1550/1550, LSP suite 118/118.
+
 ### [1.4.3] - 2026-07-16
 - Ships library 0.8.2's import-scope parity in the bundled LSP server.
 

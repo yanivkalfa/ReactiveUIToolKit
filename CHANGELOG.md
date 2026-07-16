@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.8.3] - 2026-07-16
+
+### Fixed
+
+- **A trailing `;` on a file import no longer wrecks the whole file.** `import { X } from
+  "./file";` — the JS-canonical form, and pure muscle memory in a file whose body is C# —
+  left the parser's cursor stalled on the `;`, so the preamble loop bailed and the file
+  failed with a misleading `UITKX2105` ("no valid component declaration") plus cascading
+  phantom markup errors in the editor. The file-import reader was the only preamble reader
+  missing the family's consume-to-end-of-line step (`@using` and `import "@Ns"` both had
+  it); it now has parity, the `;` is tolerated everywhere, and the formatter re-emits the
+  canonical semicolon-less form. Found live: the very first hand-written import in an HMR
+  test session tripped it.
+
+SG suite 1550/1550, LSP suite 118/118.
+
 ## [0.8.2] - 2026-07-16
 
 ### Fixed

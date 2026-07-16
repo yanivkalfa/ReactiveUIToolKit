@@ -43,6 +43,42 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void ImportLine_TrailingSemicolon_Tolerated()
+        {
+            // The JS-canonical form ends with `;`. The file-import reader must consume the
+            // rest of the line (parity with the namespace-import and @using readers) —
+            // without it the preamble loop stalls on the `;` and the entire file fails
+            // with a misleading UITKX2105 instead of parsing.
+            var (ds, diags) = Parse("import { container } from \"./Foo.style\";\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Single(ds.Imports);
+            Assert.Equal(new[] { "container" }, ds.Imports[0].Names.ToArray());
+            Assert.Equal("./Foo.style", ds.Imports[0].Specifier);
+            Assert.Single(ds.ComponentDeclarations);
+            Assert.DoesNotContain(diags, d => d.Code == "UITKX2105");
+        }
+
+        [Fact]
+        public void ImportLine_TrailingSemicolonWithSpaces_Tolerated()
+        {
+            var (ds, diags) = Parse("import { A } from \"./A\"  ;  \nimport { B } from \"../B\";\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Equal(2, ds.Imports.Length);
+            Assert.Equal("./A", ds.Imports[0].Specifier);
+            Assert.Equal("../B", ds.Imports[1].Specifier);
+            Assert.DoesNotContain(diags, d => d.Code == "UITKX2105");
+        }
+
+        [Fact]
+        public void NamespaceImport_TrailingSemicolon_StillTolerated()
+        {
+            // Pin the pre-existing lenience of the namespace-import reader so the three
+            // preamble readers can never drift apart on line termination again.
+            var (ds, diags) = Parse("import \"@UnityEngine.UIElements\";\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Contains("UnityEngine.UIElements", ds.Usings);
+            Assert.Single(ds.ComponentDeclarations);
+            Assert.DoesNotContain(diags, d => d.Code == "UITKX2105");
+        }
+
+        [Fact]
         public void MultipleImports_MixedSpecifierForms()
         {
             var (ds, _) = Parse(
