@@ -2,7 +2,7 @@
 
 Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.
 
-💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+💬 Join the community on Discord: https://discord.gg/Knedqu4Wyv
 
 ## Features
 
@@ -18,7 +18,7 @@ Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolK
 
 ## Changelog
 
-### [1.4.2] - 2026-07-16
+### [1.4.3] - 2026-07-16
 - Ships library 0.8.2's import-scope parity in the bundled LSP server.
 
 Fix: IntelliSense aliased imported modules/components with the target file's RAW parsed namespace -- wrong for every stamp-less (path-derived) file -- so projects using the new `namespacePrefix` config showed false red squiggles on cross-file references. The virtual document now computes aliases from the target's EFFECTIVE namespace (explicit `@namespace` wins, else path-derived + config prefix), and its same-namespace guard now matches the source generator's (no alias when importer and target share a namespace).

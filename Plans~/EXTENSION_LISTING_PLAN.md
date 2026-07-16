@@ -39,12 +39,12 @@ if 1.4.2 went out, bump both to 1.4.3 (listing-only changes still bump — shipp
 | vsixmanifest `<DisplayName>` | `UITKX (Unity - VS2022)` |
 | VS Code body H1 | `# Reactive UI - Unity - VS Code (UITKX)` |
 | VS2022 body H1 (overview-template) | `# Reactive UI - Unity - VS2022 (UITKX)` |
-| package.json `description` | `Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.` |
-| vsixmanifest `<Description>` | same sentence |
+| package.json `description` | `Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required. Discord: https://discord.gg/Knedqu4Wyv \| Repo: https://github.com/ReactiveUITK/ReactiveUIToolKit` |
+| vsixmanifest `<Description>` | same sentence (post-2026-07-16 update: Unity leg appends the Discord + repo links; family parity with Unreal/Godot not yet reconciled) |
 
 Body structure (both templates, this exact order): H1 → description paragraph(s) →
 `## Features` → `## Requirements` → Changelog section (generated — the template file ENDS
-after Requirements). Keep the Discord link line (`https://discord.gg/QyydtqM3p9`) in the
+after Requirements). Keep the Discord link line (`https://discord.gg/Knedqu4Wyv`) in the
 description block — it is this repo's convention.
 
 **Content rule: PRESERVE existing prose.** The current README's feature bullets
