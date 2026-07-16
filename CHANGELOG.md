@@ -6,6 +6,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.8.1] - 2026-07-16
+
+### Fixed
+
+- **Router tags broke without an explicit import (UITKX0008 / false UITKX0109).** 0.8.0 made
+  `ReactiveUITK.Router` part of the auto-injected baseline, so files (including the bundled
+  samples) stopped writing `import "@ReactiveUITK.Router"` — but the generator's tag/props
+  resolver still searched only the file's own usings. `<Router>`/`<Routes>`/`<Route path
+  element>`/`<Outlet>` then failed to resolve their props at generation time (UITKX0008
+  warnings + false UITKX0109 errors) even though the emitted C# was fine — caught by the
+  floor-Unity store gate. The resolver now searches the same auto-injected baseline the
+  emitters put in scope (one shared list, so they can never drift again), with two regression
+  tests pinning the direct and alias-tag paths.
+
+- **File imports are now fully self-sufficient for components.** Surfaced by path-derived
+  namespaces (companions in other folders always land in different namespaces):
+  - A cross-namespace file-imported component's **tag attributes** failed to validate (false
+    UITKX0109 "declares no parameters") unless the file *also* carried a namespace-import of the
+    target's namespace. The resolver's search list now includes the namespaces of the file's
+    imported components — the import names the exact target file, so it is enough by itself.
+  - **C# body references** to an imported component's type (`Preset.PresetProps`,
+    `TableView.Column`) hit CS0246 in generated code — component imports only FQN-qualified tags.
+    Imported components now get a type alias injected (`using Widget = My.Widgets.Widget;`),
+    exactly like modules, with the same same-namespace/reserved-alias guards. Mirrored in the
+    editor virtual document so IntelliSense matches the build.
+
+  The 0.8.0 `dist` publish predates these fixes — git-URL `#dist` consumers should update to
+  0.8.1. IDE extensions 1.4.1 ship the virtual-document parity fix (see
+  `ide-extensions~/changelog.json`).
+
 ## [0.8.0] - 2026-07-15
 
 ### Added
@@ -50,6 +80,13 @@ Follow-up polish (same release):
   legacy derivation.
 - **Consistent import colour.** `import "@Ns"` is highlighted identically to a file import (same
   keyword + string scopes) so every import line reads as one colour.
+
+### Fixed
+
+- **Strict-import squiggles now land on the offending token.** Every 23xx diagnostic used to
+  render as a one-character squiggle at column 0 (on `import`). Now 2300/2308/2314 underline the
+  quoted specifier, 2301/2303/2304 the offending imported name, and 2305/2307 the referenced
+  identifier — in the editor and with matching columns at build.
 
 Additive: existing `@using`/`@namespace` files keep working unchanged. SG suite 1527/1527, LSP suite 118/118.
 

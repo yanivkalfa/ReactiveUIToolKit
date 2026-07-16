@@ -1329,6 +1329,28 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     builder.Add(ns);
             }
 
+            // The auto-injected baseline (AutoInjectedUsings) is in scope in every generated file,
+            // so the resolver MUST search it too or its view of scope drifts from the emitted C#.
+            // Regression: when ReactiveUITK.Router joined the baseline, files stopped writing
+            // `import "@ReactiveUITK.Router"` — the emitted C# still resolved <Route>/RouteFunc via
+            // the baseline `using`, but this list (then usings-only) no longer did → UITKX0008 on
+            // <Routes>/<Route>/<Outlet> and false UITKX0109 on their attributes broke the floor-Unity
+            // publish. User usings come first so a more-specific type still wins on name collision.
+            foreach (var ns in AutoInjectedUsings.Namespaces)
+            {
+                if (seen.Add(ns))
+                    builder.Add(ns);
+            }
+
+            // Namespaces of file-imported peer components: `import { X } from "./file"` names the
+            // exact target, so its namespace is visible on the file import alone — no separate
+            // `import "@Target.Ns"` needed for the tag's attributes to validate.
+            foreach (var ns in _resolver.GetImportedPeerNamespaces(_directives, _filePath))
+            {
+                if (seen.Add(ns))
+                    builder.Add(ns);
+            }
+
             return builder.ToImmutable();
         }
 

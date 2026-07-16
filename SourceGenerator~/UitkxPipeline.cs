@@ -154,7 +154,7 @@ namespace ReactiveUITK.SourceGenerator
                     directives = directives with
                     {
                         Usings = ResolveInjectedUsings(
-                            directives, peerHookContainers, filePath, strict: true, peerModules)
+                            directives, peerHookContainers, filePath, strict: true, peerModules, peerComponents)
                     };
 
                 // Emit hooks and modules as SEPARATE compilation units (each merges as a
@@ -333,7 +333,7 @@ namespace ReactiveUITK.SourceGenerator
             directives = directives with
             {
                 Usings = ResolveInjectedUsings(
-                    directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports, peerModules)
+                    directives, peerHookContainers, filePath, UitkxFeatureFlags.StrictImports, peerModules, peerComponents)
             };
 
             // Mixed-decl (§7): a file with hooks/modules AND a component needs the file's OWN hook
@@ -555,7 +555,8 @@ namespace ReactiveUITK.SourceGenerator
             ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
             string filePath,
             bool strict,
-            ImmutableArray<PeerModuleInfo>? peerModules = null)
+            ImmutableArray<PeerModuleInfo>? peerModules = null,
+            ImmutableArray<PeerComponentInfo>? peerComponents = null)
         {
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var result = ImmutableArray.CreateBuilder<string>();
@@ -640,6 +641,28 @@ namespace ReactiveUITK.SourceGenerator
                     if (ReservedTypeAliases.Contains(pm.Name))
                         continue;
                     string alias = $"{pm.Name} = {pm.Namespace}.{pm.Name}";
+                    if (seen.Add(alias))
+                        result.Add(alias);
+                }
+
+            // Component (§6.3 extension): alias each imported COMPONENT too, same guards as modules.
+            // Tags don't need it (they emit FQN V.Func calls), but C# BODY references to an imported
+            // component's type do — `Preset.PresetProps`, `TableView.Column` (nested via the merged
+            // module partial) — and those hit CS0246 the moment the peer lives in another namespace
+            // (surfaced by path-derived namespaces, where companions in other folders always do).
+            // The file import names the exact target, so the alias is the import doing its whole job.
+            if (peerComponents != null)
+                foreach (var pc in peerComponents.Value)
+                {
+                    if (pc.SourceFilePath == null || !pc.IsExported)
+                        continue;
+                    if (!importedFileNames.Contains(NormalizeAbs(pc.SourceFilePath) + "\0" + pc.Name))
+                        continue;
+                    if (string.Equals(pc.Namespace, directives.Namespace, StringComparison.Ordinal))
+                        continue; // same namespace → already accessible; an alias would be CS0576
+                    if (ReservedTypeAliases.Contains(pc.Name))
+                        continue; // built-in style-type alias wins (see the module comment above)
+                    string alias = $"{pc.Name} = {pc.Namespace}.{pc.Name}";
                     if (seen.Add(alias))
                         result.Add(alias);
                 }
