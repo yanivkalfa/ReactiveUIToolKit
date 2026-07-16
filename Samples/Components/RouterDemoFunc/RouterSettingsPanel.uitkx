@@ -1,6 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 import { RouterNavLink } from "./RouterNavLink"
-import "@ReactiveUITK.Router"
 
 export component RouterSettingsPanel {
   var locationPath = RouterHooks.UseLocation();

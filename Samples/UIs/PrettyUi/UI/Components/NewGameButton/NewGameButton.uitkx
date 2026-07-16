@@ -1,6 +1,5 @@
 @namespace PrettyUi.App.Components
 import { AppButton } from "../AppButton/AppButton"
-import "@ReactiveUITK.Router"
 import "@UnityEngine.UIElements"
 
 export component NewGameButton {

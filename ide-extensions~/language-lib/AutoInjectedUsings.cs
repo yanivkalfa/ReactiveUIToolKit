@@ -25,6 +25,7 @@ namespace ReactiveUITK.Language
             "ReactiveUITK",
             "ReactiveUITK.Core",
             "ReactiveUITK.Core.Animation",
+            "ReactiveUITK.Router",
             "ReactiveUITK.Props.Typed",
             "UnityEngine",
         };

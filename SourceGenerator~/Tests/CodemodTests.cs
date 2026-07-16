@@ -168,22 +168,24 @@ namespace ReactiveUITK.SourceGenerator.Tests
         [Fact]
         public void Tidy_ConvertsAtUsing_ToNamespaceImport()
         {
+            // UnityEngine.UIElements is a real, NON-baseline namespace → converted, not dropped.
             string outp = UitkxMigrator.TidyUsings(
-                "@using ReactiveUITK.Router\ncomponent Foo {\n  return ( <Box /> );\n}\n");
-            Assert.Contains("import \"@ReactiveUITK.Router\"", outp);
-            Assert.DoesNotContain("@using ReactiveUITK.Router", outp);
+                "@using UnityEngine.UIElements\ncomponent Foo {\n  return ( <Box /> );\n}\n");
+            Assert.Contains("import \"@UnityEngine.UIElements\"", outp);
+            Assert.DoesNotContain("@using UnityEngine.UIElements", outp);
         }
 
         [Fact]
         public void Tidy_DropsRedundantBaselineUsings_BothForms()
         {
-            // @using System / @using UnityEngine / import "@UnityEngine" are all auto-injected → dropped.
+            // @using System / @using UnityEngine / import "@UnityEngine" are all auto-injected → dropped;
+            // UnityEngine.UIElements is NOT baseline → survives (converted).
             string outp = UitkxMigrator.TidyUsings(
-                "@using System\n@using UnityEngine\nimport \"@UnityEngine\"\n@using ReactiveUITK.Router\n" +
+                "@using System\n@using UnityEngine\nimport \"@UnityEngine\"\n@using UnityEngine.UIElements\n" +
                 "component Foo {\n  return ( <Box /> );\n}\n");
             var preamble = outp.Split('\n').Where(l => l.Contains("using") || l.StartsWith("import")).ToList();
             Assert.Single(preamble);                                     // only the non-redundant one remains
-            Assert.Equal("import \"@ReactiveUITK.Router\"", preamble[0]);
+            Assert.Equal("import \"@UnityEngine.UIElements\"", preamble[0]);
         }
 
         [Fact]
@@ -216,12 +218,12 @@ namespace ReactiveUITK.SourceGenerator.Tests
         public void Migrate_WithTidyFlag_AppliesUsingCanonicalization()
         {
             var f = F("Foo.uitkx",
-                "@using UnityEngine\n@using ReactiveUITK.Router\ncomponent Foo {\n  return ( <Box /> );\n}\n");
+                "@using UnityEngine\n@using UnityEngine.UIElements\ncomponent Foo {\n  return ( <Box /> );\n}\n");
             var changed = UitkxMigrator.Migrate(new[] { f }, out _, tidyUsings: true);
             Assert.True(changed.ContainsKey(f.AbsPath));
             string outText = changed[f.AbsPath];
-            Assert.DoesNotContain("@using UnityEngine", outText); // redundant → dropped
-            Assert.Contains("import \"@ReactiveUITK.Router\"", outText);
+            Assert.DoesNotContain("@using UnityEngine\n", outText); // bare UnityEngine redundant → dropped
+            Assert.Contains("import \"@UnityEngine.UIElements\"", outText);
         }
     }
 }

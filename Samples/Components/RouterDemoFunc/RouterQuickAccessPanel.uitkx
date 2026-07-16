@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-import "@ReactiveUITK.Router"
 
 export component RouterQuickAccessPanel {
   var links = new (string Path, string Label, object? State)[] {

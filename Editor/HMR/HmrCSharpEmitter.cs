@@ -273,6 +273,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("using ReactiveUITK;");
                 L("using ReactiveUITK.Core;");
                 L("using ReactiveUITK.Core.Animation;");
+                L("using ReactiveUITK.Router;");
                 L("using ReactiveUITK.Props.Typed;");
                 L("using UnityEngine;");
                 L("using static ReactiveUITK.Props.Typed.StyleKeys;");

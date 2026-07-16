@@ -1,7 +1,6 @@
 @namespace PrettyUi.App.Pages
 import { Sidebar } from "../../Components/Sidebar/Sidebar"
 import "@PrettyUi.App.Components"
-import "@ReactiveUITK.Router"
 
 export component HomePageSidebar {
   var navigate = RouterHooks.UseNavigate();

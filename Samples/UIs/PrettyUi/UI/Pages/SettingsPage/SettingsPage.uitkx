@@ -3,7 +3,6 @@ import { ContentPanel } from "../../Components/ContentPanel/ContentPanel"
 import { PageShell } from "../../Components/PageShell/PageShell"
 import { SettingsPageSidebar } from "./SettingsPageSidebar"
 import "@PrettyUi.App.Components"
-import "@ReactiveUITK.Router"
 import "@UnityEngine.UIElements"
 
 export component SettingsPage {

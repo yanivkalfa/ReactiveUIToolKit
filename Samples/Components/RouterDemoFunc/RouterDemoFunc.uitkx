@@ -7,7 +7,6 @@ import { RouterNavigationGuardPanel } from "./RouterNavigationGuardPanel"
 import { RouterQuickAccessPanel } from "./RouterQuickAccessPanel"
 import { RouterSettingsPanel } from "./RouterSettingsPanel"
 import { RouterUserDetails } from "./RouterUserDetails"
-import "@ReactiveUITK.Router"
 
 export component RouterDemoFunc {
   var paddedContainer = new Style {

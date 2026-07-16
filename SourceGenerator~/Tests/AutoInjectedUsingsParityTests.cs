@@ -45,8 +45,9 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.True(AutoInjectedUsings.IsRedundant("UnityEngine"));
             Assert.True(AutoInjectedUsings.IsRedundant("System"));
             Assert.True(AutoInjectedUsings.IsRedundant("  System.Linq  ")); // trimmed
+            Assert.True(AutoInjectedUsings.IsRedundant("ReactiveUITK.Router")); // now auto-injected (feature 2)
             Assert.False(AutoInjectedUsings.IsRedundant("UnityEngine.UIElements")); // NOT auto-injected
-            Assert.False(AutoInjectedUsings.IsRedundant("ReactiveUITK.Router"));
+            Assert.False(AutoInjectedUsings.IsRedundant("ReactiveUITK.Router.Extras")); // sub-namespace is not
             Assert.False(AutoInjectedUsings.IsRedundant("static System.Math"));
         }
 

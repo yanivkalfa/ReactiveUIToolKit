@@ -63,6 +63,30 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void RouterNamespace_AutoInjected_NoImportNeeded()
+        {
+            // Feature 2: ReactiveUITK.Router is in the baseline, so RouterHooks resolves with no
+            // @using/import at all — and the generated file carries the using.
+            const string src =
+                "@namespace TestNs\ncomponent Screen {\n  var nav = RouterHooks.UseNavigate();\n  return (<VisualElement />);\n}";
+
+            var result = GeneratorTestHelper.Run(src);
+
+            Assert.True(result.SourceWasProduced);
+            Assert.Contains("using ReactiveUITK.Router;", result.GeneratedSource!);
+            // No unknown-namespace / unresolved-hook diagnostics from the bare RouterHooks call.
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX2316" || d.Id == "UITKX2307");
+        }
+
+        [Fact]
+        public void RouterImport_NowRedundant_Emits2317Hint_ViaTidyRule()
+        {
+            // Since Router is auto-injected, an explicit import "@ReactiveUITK.Router" is redundant —
+            // AutoInjectedUsings.IsRedundant reports it (drives the editor 2317 hint + --tidy strip).
+            Assert.True(ReactiveUITK.Language.AutoInjectedUsings.IsRedundant("ReactiveUITK.Router"));
+        }
+
+        [Fact]
         public void NamespaceImport_NoDiagnosticsForValidNamespace()
         {
             const string src =

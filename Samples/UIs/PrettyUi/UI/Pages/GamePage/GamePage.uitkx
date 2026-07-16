@@ -2,7 +2,6 @@
 import { AppButton } from "../../Components/AppButton/AppButton"
 import "@PrettyUi"
 import "@PrettyUi.App.Components"
-import "@ReactiveUITK.Router"
 import "@UnityEngine.UIElements"
 
 export component GamePage {

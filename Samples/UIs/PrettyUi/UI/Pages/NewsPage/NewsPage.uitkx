@@ -3,7 +3,6 @@ import { ContentPanel } from "../../Components/ContentPanel/ContentPanel"
 import { PageShell } from "../../Components/PageShell/PageShell"
 import { NewsPageSidebar } from "./NewsPageSidebar"
 import "@PrettyUi.App.Components"
-import "@ReactiveUITK.Router"
 import "@UnityEngine.UIElements"
 
 export component NewsPage {

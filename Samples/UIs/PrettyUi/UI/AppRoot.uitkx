@@ -5,7 +5,6 @@ import { MenuPage } from "./Pages/MenuPage/MenuPage"
 import { NewsPage } from "./Pages/NewsPage/NewsPage"
 import { SettingsPage } from "./Pages/SettingsPage/SettingsPage"
 import "@PrettyUi.App.Pages"
-import "@ReactiveUITK.Router"
 import "@UnityEngine.UIElements"
 
 export component AppRoot {

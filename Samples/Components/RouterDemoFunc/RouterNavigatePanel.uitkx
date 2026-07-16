@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-import "@ReactiveUITK.Router"
 import "@UnityEngine.UIElements"
 
 export component RouterNavigatePanel {
