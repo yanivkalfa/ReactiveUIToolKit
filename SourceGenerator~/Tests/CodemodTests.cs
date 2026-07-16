@@ -162,5 +162,68 @@ namespace ReactiveUITK.SourceGenerator.Tests
         {
             Assert.Equal(expected, UitkxMigrator.RelativeSpecifier(from, to));
         }
+
+        // ── --tidy using canonicalization (namespace-import unification plan, step 8) ──
+
+        [Fact]
+        public void Tidy_ConvertsAtUsing_ToNamespaceImport()
+        {
+            // UnityEngine.UIElements is a real, NON-baseline namespace → converted, not dropped.
+            string outp = UitkxMigrator.TidyUsings(
+                "@using UnityEngine.UIElements\ncomponent Foo {\n  return ( <Box /> );\n}\n");
+            Assert.Contains("import \"@UnityEngine.UIElements\"", outp);
+            Assert.DoesNotContain("@using UnityEngine.UIElements", outp);
+        }
+
+        [Fact]
+        public void Tidy_DropsRedundantBaselineUsings_BothForms()
+        {
+            // @using System / @using UnityEngine / import "@UnityEngine" are all auto-injected → dropped;
+            // UnityEngine.UIElements is NOT baseline → survives (converted).
+            string outp = UitkxMigrator.TidyUsings(
+                "@using System\n@using UnityEngine\nimport \"@UnityEngine\"\n@using UnityEngine.UIElements\n" +
+                "component Foo {\n  return ( <Box /> );\n}\n");
+            var preamble = outp.Split('\n').Where(l => l.Contains("using") || l.StartsWith("import")).ToList();
+            Assert.Single(preamble);                                     // only the non-redundant one remains
+            Assert.Equal("import \"@UnityEngine.UIElements\"", preamble[0]);
+        }
+
+        [Fact]
+        public void Tidy_PreservesStaticAndAliasPayloads()
+        {
+            string outp = UitkxMigrator.TidyUsings(
+                "@using static DoomGame.DoomTypes\n@using UColor = UnityEngine.Color\n" +
+                "component Foo {\n  return ( <Box /> );\n}\n");
+            Assert.Contains("import \"@static DoomGame.DoomTypes\"", outp);
+            Assert.Contains("import \"@UColor = UnityEngine.Color\"", outp);
+        }
+
+        [Fact]
+        public void Tidy_IsIdempotent()
+        {
+            string src = "@using ReactiveUITK.Router\n@using UnityEngine\ncomponent Foo {\n  return ( <Box /> );\n}\n";
+            string once = UitkxMigrator.TidyUsings(src);
+            string twice = UitkxMigrator.TidyUsings(once);
+            Assert.Equal(once, twice);
+        }
+
+        [Fact]
+        public void Tidy_NoUsings_Unchanged()
+        {
+            string src = "component Foo {\n  return ( <Box /> );\n}\n";
+            Assert.Equal(src, UitkxMigrator.TidyUsings(src));
+        }
+
+        [Fact]
+        public void Migrate_WithTidyFlag_AppliesUsingCanonicalization()
+        {
+            var f = F("Foo.uitkx",
+                "@using UnityEngine\n@using UnityEngine.UIElements\ncomponent Foo {\n  return ( <Box /> );\n}\n");
+            var changed = UitkxMigrator.Migrate(new[] { f }, out _, tidyUsings: true);
+            Assert.True(changed.ContainsKey(f.AbsPath));
+            string outText = changed[f.AbsPath];
+            Assert.DoesNotContain("@using UnityEngine\n", outText); // bare UnityEngine redundant → dropped
+            Assert.Contains("import \"@UnityEngine.UIElements\"", outText);
+        }
     }
 }

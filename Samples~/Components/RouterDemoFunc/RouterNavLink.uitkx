@@ -1,7 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
-@using System
-@using UnityEngine
 
 export component RouterNavLink(
   string path = "/",

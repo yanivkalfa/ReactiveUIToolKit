@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component ShowcaseFieldsPanel {
   var groupStyle = new Style { (MarginTop, 8f) };

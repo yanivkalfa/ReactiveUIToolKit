@@ -1,5 +1,4 @@
 @namespace Samples.MarioGame
-@using UnityEngine
 
 export module MarioGame {
   public static class Styles {

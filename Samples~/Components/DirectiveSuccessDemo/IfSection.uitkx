@@ -1,8 +1,7 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
-@namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component IfSection {
   var (count, setCount) = useState(0);

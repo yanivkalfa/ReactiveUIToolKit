@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component ToggleButtonGroupDemoFunc {
   var (selected, setSelected) = useState(0);

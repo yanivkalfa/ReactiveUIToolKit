@@ -1,6 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
-@using UnityEngine
 
 export component MainMenuSidebar {
   var navigate = RouterHooks.UseNavigate();

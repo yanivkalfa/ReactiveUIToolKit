@@ -1,8 +1,6 @@
-import { AppButton } from "../AppButton/AppButton"
 @namespace PrettyUi.App.Components
-@using System
-@using System.Collections.Generic
-@using UnityEngine.UIElements
+import { AppButton } from "../AppButton/AppButton"
+import "@UnityEngine.UIElements"
 
 export component Sidebar(IReadOnlyList<SidebarItem>? items = null) {
   var resolvedItems = items ?? Array.Empty<SidebarItem>();

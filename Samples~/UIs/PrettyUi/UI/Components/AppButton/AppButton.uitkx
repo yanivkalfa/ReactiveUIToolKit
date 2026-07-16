@@ -1,9 +1,7 @@
-import { StyleExtensions } from "../../StyleExtensions"
 @namespace PrettyUi.App.Components
-@using System
-@using PrettyUi.App
-@using UnityEngine
-@using UnityEngine.UIElements
+import { StyleExtensions } from "../../StyleExtensions"
+import "@PrettyUi.App"
+import "@UnityEngine.UIElements"
 
 export component AppButton(
   string text = "",

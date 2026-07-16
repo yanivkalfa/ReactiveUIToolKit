@@ -1,5 +1,4 @@
 @namespace Samples.GalagaGame
-@using UnityEngine
 
 export module MainMenu {
   public static class MainMenuStyles {

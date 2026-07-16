@@ -39,6 +39,71 @@ namespace ReactiveUITK.Language.Formatter
             _csharpFormatter = csharpFormatter;
         }
 
+        /// <summary>
+        /// Emits the canonical preamble order (namespace-import unification plan) and returns whether
+        /// anything was emitted. Single source of ordering truth for BOTH the component and
+        /// hook/module format paths, so they can never drift:
+        /// <list type="number">
+        ///   <item><c>@namespace</c> — the file's own identity, first (only when explicit).</item>
+        ///   <item>File imports (<c>import { X } from "./…"</c>) — peer <c>.uitkx</c> exports.</item>
+        ///   <item>Namespace imports (<c>import "@Ns"</c> / <c>@using Ns</c>) — grouped with the file
+        ///   imports so all <c>import</c> lines are contiguous under the identity line.</item>
+        ///   <item><c>@uss</c> stylesheet attachments (component files only).</item>
+        /// </list>
+        /// </summary>
+        private bool EmitPreamble(DirectiveSet directives, bool includeUss)
+        {
+            bool has = false;
+
+            if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
+            {
+                Ln($"@namespace {directives.Namespace}");
+                has = true;
+            }
+
+            if (!directives.Imports.IsDefaultOrEmpty)
+                foreach (var imp in directives.Imports)
+                {
+                    Ln($"import {{ {string.Join(", ", imp.Names)} }} from \"{imp.Specifier}\"");
+                    has = true;
+                }
+
+            foreach (string usingLine in FormatUsings(directives))
+            {
+                Ln(usingLine);
+                has = true;
+            }
+
+            if (includeUss && !directives.UssFiles.IsDefaultOrEmpty)
+                foreach (var uss in directives.UssFiles)
+                {
+                    Ln($"@uss \"{uss}\"");
+                    has = true;
+                }
+
+            return has;
+        }
+
+        /// <summary>
+        /// Formats each preamble using line in the spelling the author used — <c>import "@Ns"</c> when
+        /// it came from the namespace-import form, else <c>@using Ns</c> — so a format pass round-trips
+        /// both (namespace-import unification plan). Falls back to <c>@using</c> for any payload with no
+        /// positioned <see cref="UsingDirective"/> (e.g. a synthesised entry). The formatter does NOT
+        /// auto-convert between spellings — that is the codemod's <c>--tidy</c> job.
+        /// </summary>
+        private static IEnumerable<string> FormatUsings(DirectiveSet directives)
+        {
+            var uds = directives.UsingDirectives;
+            if (!uds.IsDefaultOrEmpty && uds.Length == directives.Usings.Length)
+            {
+                foreach (var u in uds)
+                    yield return u.FromImportSyntax ? $"import \"@{u.Payload}\"" : $"@using {u.Payload}";
+                yield break;
+            }
+            foreach (var u in directives.Usings)
+                yield return $"@using {u}";
+        }
+
         public AstFormatter()
             : this(FormatterOptions.Default) { }
 
@@ -127,41 +192,12 @@ namespace ReactiveUITK.Language.Formatter
                 _sb.Append('\n');
             }
 
-            // -- Preamble: re-emit import / @namespace / using lines before the component block -
+            // -- Preamble: re-emit @namespace / import / @uss lines before the component block -
             // A7f data-loss guard: the formatter re-prints the preamble from DirectiveSet fields and
-            // DROPS anything it does not model, so import lines MUST be re-emitted here (order:
-            // LeadingTrivia, imports, @namespace, @using, @uss) or a format pass would delete them.
-            bool hasPreamble = false;
-
-            if (!directives.Imports.IsDefaultOrEmpty)
-            {
-                foreach (var imp in directives.Imports)
-                {
-                    Ln($"import {{ {string.Join(", ", imp.Names)} }} from \"{imp.Specifier}\"");
-                    hasPreamble = true;
-                }
-            }
-
-            if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
-            {
-                Ln($"@namespace {directives.Namespace}");
-                hasPreamble = true;
-            }
-
-            foreach (var u in directives.Usings)
-            {
-                Ln($"@using {u}");
-                hasPreamble = true;
-            }
-
-            if (!directives.UssFiles.IsDefaultOrEmpty)
-            {
-                foreach (var uss in directives.UssFiles)
-                {
-                    Ln($"@uss \"{uss}\"");
-                    hasPreamble = true;
-                }
-            }
+            // DROPS anything it does not model, so every preamble line MUST be re-emitted here or a
+            // format pass would delete it. Canonical order (namespace-import unification plan) is
+            // owned by EmitPreamble: @namespace → imports (grouped) → @uss.
+            bool hasPreamble = EmitPreamble(directives, includeUss: true);
 
             if (hasPreamble || hasLeadingTrivia)
                 _sb.Append('\n');
@@ -333,30 +369,9 @@ namespace ReactiveUITK.Language.Formatter
             }
 
             // -- Preamble ------------------------------------------------------
-            // A7f data-loss guard: re-emit import lines (see the component path) so a format pass
-            // does not delete them. @uss is not part of the hook/module preamble.
-            bool hasPreamble = false;
-
-            if (!directives.Imports.IsDefaultOrEmpty)
-            {
-                foreach (var imp in directives.Imports)
-                {
-                    Ln($"import {{ {string.Join(", ", imp.Names)} }} from \"{imp.Specifier}\"");
-                    hasPreamble = true;
-                }
-            }
-
-            if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
-            {
-                Ln($"@namespace {directives.Namespace}");
-                hasPreamble = true;
-            }
-
-            foreach (var u in directives.Usings)
-            {
-                Ln($"@using {u}");
-                hasPreamble = true;
-            }
+            // Canonical order via the shared EmitPreamble (@namespace → imports grouped). @uss is not
+            // part of the hook/module preamble (no component to attach a stylesheet to).
+            bool hasPreamble = EmitPreamble(directives, includeUss: false);
 
             if (hasPreamble || hasLeadingTrivia)
                 _sb.Append('\n');

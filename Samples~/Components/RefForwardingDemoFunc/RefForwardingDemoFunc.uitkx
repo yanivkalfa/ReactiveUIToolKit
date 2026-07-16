@@ -1,7 +1,6 @@
-import { RefChild } from "./RefChild/RefChild"
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
-@using UnityEngine.UIElements
+import { RefChild } from "./RefChild/RefChild"
+import "@UnityEngine.UIElements"
 
 export component RefForwardingDemoFunc {
   var inputRef = useRef<TextField>();

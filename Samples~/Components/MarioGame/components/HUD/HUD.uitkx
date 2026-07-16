@@ -1,5 +1,4 @@
 @namespace Samples.MarioGame
-@using UnityEngine
 
 export component HUD(int score, int lives) {
   return (

@@ -1,6 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
-@using System.Collections.Generic
 
 export component ProgressBarDemoFunc {
   var (progress, setProgress) = useState(15f);

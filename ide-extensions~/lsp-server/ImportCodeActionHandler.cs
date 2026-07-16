@@ -38,31 +38,117 @@ public sealed class ImportCodeActionHandler : ICodeActionHandler
 
         foreach (var d in request.Context.Diagnostics)
         {
-            if (!TryBuildAddImportEdit(text, d.Message, out int line, out string insertText))
+            // UITKX2305 — "add import { X } from …" quick-fix.
+            if (TryBuildAddImportEdit(text, d.Message, out int line, out string insertText))
+            {
+                actions.Add(MakeEditAction(
+                    insertText.Trim(),
+                    request.TextDocument.Uri,
+                    new TextEdit
+                    {
+                        Range = new LspRange(new Position(line, 0), new Position(line, 0)),
+                        NewText = insertText,
+                    },
+                    d));
                 continue;
+            }
 
-            var edit = new TextEdit
+            // UITKX2317 — "remove redundant using" quick-fix (delete the whole line).
+            if (DiagnosticIs(d, "UITKX2317"))
             {
-                Range = new LspRange(new Position(line, 0), new Position(line, 0)),
-                NewText = insertText,
-            };
-            var wsEdit = new WorkspaceEdit
-            {
-                Changes = new Dictionary<DocumentUri, IEnumerable<TextEdit>>
+                int redundantLine = d.Range.Start.Line;
+                actions.Add(MakeEditAction(
+                    "Remove redundant using",
+                    request.TextDocument.Uri,
+                    new TextEdit
+                    {
+                        Range = new LspRange(
+                            new Position(redundantLine, 0), new Position(redundantLine + 1, 0)),
+                        NewText = string.Empty,
+                    },
+                    d));
+            }
+        }
+
+        // Cursor-position refactor (not diagnostic-gated): on a `@using X` / `using X;` line,
+        // offer "Convert to import \"@X\"" — the migration nudge toward the unified spelling.
+        int cursorLine = request.Range.Start.Line;
+        if (TryBuildConvertUsingToImport(GetLine(text, cursorLine), out string converted))
+        {
+            actions.Add(MakeEditAction(
+                $"Convert to import \"@…\"",
+                request.TextDocument.Uri,
+                new TextEdit
                 {
-                    [request.TextDocument.Uri] = new[] { edit },
+                    Range = new LspRange(
+                        new Position(cursorLine, 0), new Position(cursorLine, GetLine(text, cursorLine).Length)),
+                    NewText = converted,
                 },
-            };
-            actions.Add(new CommandOrCodeAction(new CodeAction
-            {
-                Title = insertText.Trim(),
-                Kind = CodeActionKind.QuickFix,
-                Diagnostics = new Container<Diagnostic>(d),
-                Edit = wsEdit,
-            }));
+                diagnostic: null,
+                kind: CodeActionKind.RefactorRewrite));
         }
 
         return Task.FromResult(new CommandOrCodeActionContainer(actions));
+    }
+
+    private static bool DiagnosticIs(Diagnostic d, string code) =>
+        d.Code.HasValue && d.Code.Value.IsString && d.Code.Value.String == code;
+
+    private static CommandOrCodeAction MakeEditAction(
+        string title, DocumentUri uri, TextEdit edit, Diagnostic? diagnostic,
+        CodeActionKind kind = default)
+    {
+        var wsEdit = new WorkspaceEdit
+        {
+            Changes = new Dictionary<DocumentUri, IEnumerable<TextEdit>>
+            {
+                [uri] = new[] { edit },
+            },
+        };
+        return new CommandOrCodeAction(new CodeAction
+        {
+            Title = title,
+            Kind = kind == default ? CodeActionKind.QuickFix : kind,
+            Diagnostics = diagnostic != null ? new Container<Diagnostic>(diagnostic) : null,
+            Edit = wsEdit,
+        });
+    }
+
+    /// <summary>The 0-based <paramref name="line"/> of <paramref name="text"/> (no terminator), or "".</summary>
+    public static string GetLine(string text, int line)
+    {
+        if (line < 0) return string.Empty;
+        string[] lines = text.Replace("\r\n", "\n").Split('\n');
+        return line < lines.Length ? lines[line] : string.Empty;
+    }
+
+    /// <summary>
+    /// Converts a single <c>@using X</c> / <c>using X;</c> line to <c>import "@X"</c>, preserving the
+    /// full payload (namespace / <c>static T</c> / <c>Alias = T</c>) and leading indentation. Returns
+    /// false when the line is not a plain using directive. Pure + side-effect-free for unit testing.
+    /// </summary>
+    public static bool TryBuildConvertUsingToImport(string lineText, out string replacement)
+    {
+        replacement = string.Empty;
+        if (string.IsNullOrEmpty(lineText)) return false;
+
+        int i = 0;
+        while (i < lineText.Length && (lineText[i] == ' ' || lineText[i] == '\t')) i++;
+        string indent = lineText.Substring(0, i);
+        string rest = lineText.Substring(i);
+
+        if (rest.StartsWith("@using ", System.StringComparison.Ordinal))
+            rest = rest.Substring("@using ".Length);
+        else if (rest.StartsWith("using ", System.StringComparison.Ordinal))
+            rest = rest.Substring("using ".Length);
+        else
+            return false;
+
+        string payload = rest.TrimEnd().TrimEnd(';').Trim();
+        if (payload.Length == 0) return false;
+
+        replacement = $"{indent}import \"@{payload}\"";
+        return true;
     }
 
     /// <summary>

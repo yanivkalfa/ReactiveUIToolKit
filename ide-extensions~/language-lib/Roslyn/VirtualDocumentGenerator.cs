@@ -166,6 +166,7 @@ namespace ReactiveUITK.Language.Roslyn
             "UnityEngine",
             "ReactiveUITK.Core",
             "ReactiveUITK.Core.Animation",
+            "ReactiveUITK.Router",
             "ReactiveUITK.Props.Typed",
         };
 

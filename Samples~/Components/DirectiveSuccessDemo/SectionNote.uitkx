@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component SectionNote(string label) {
   return (

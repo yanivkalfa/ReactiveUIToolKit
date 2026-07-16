@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component ContextConsumer(string label = "Primary Panel") {
   var theme = useContext<Color>("context-demo-theme");

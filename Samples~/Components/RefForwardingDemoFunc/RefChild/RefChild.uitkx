@@ -1,6 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
-@using UnityEngine.UIElements
+import "@UnityEngine.UIElements"
 
 export component RefChild(
   Ref<TextField>? inputRef = null,

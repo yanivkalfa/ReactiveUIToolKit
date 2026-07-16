@@ -1,6 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
-@using System
 
 export component DeferredEffectDemoFunc {
   var (commitCount, setCommitCount) = useState(0);

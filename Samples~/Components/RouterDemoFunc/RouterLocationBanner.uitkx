@@ -1,6 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
-@using System.Collections.Generic
 
 export component RouterLocationBanner {
   var location = RouterHooks.UseLocationInfo();

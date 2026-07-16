@@ -7,6 +7,9 @@
   ],
   "patterns": [
     {
+      "include": "#namespace-import-declaration"
+    },
+    {
       "include": "#import-declaration"
     },
     {
@@ -66,6 +69,15 @@
     }
   ],
   "repository": {
+    "namespace-import-declaration": {
+      "comment": "Handles namespace imports: import \"@Namespace\" (namespace-import unification plan). Scoped IDENTICALLY to a file import — same `keyword.control.import` keyword and `string.quoted.double` string — so every import line reads as the same colour; the leading @ inside the string is the only visual/semantic marker.",
+      "name": "meta.import.namespace.uitkx",
+      "match": "^(\\s*)(import)\\s+(\"@[^\"]*\")",
+      "captures": {
+        "2": { "name": "keyword.control.import.uitkx" },
+        "3": { "name": "string.quoted.double.uitkx" }
+      }
+    },
     "import-declaration": {
       "comment": "Handles import lines: import { A, B } from \"./specifier\" (import/export grammar, leg 3)",
       "name": "meta.import.uitkx",
