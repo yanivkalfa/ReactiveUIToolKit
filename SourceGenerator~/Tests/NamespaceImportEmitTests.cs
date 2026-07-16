@@ -87,6 +87,57 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void RouterComponentTags_ResolveProps_WithNoImport()
+        {
+            // Regression (Publish #105 floor-Unity failure): the resolver's search-namespace list was
+            // usings-only, so when the samples dropped `import "@ReactiveUITK.Router"` (now baseline),
+            // <Route path element> stopped resolving RouteFuncProps → UITKX0008 warnings + false
+            // UITKX0109 errors, even though the EMITTED C# resolved fine via the baseline using.
+            // BuildSearchNamespaces must include the auto-injected baseline. This mirrors the exact
+            // failing shape: Router types in the real ReactiveUITK.Router namespace, a <RouteFunc>
+            // tag with attributes, and ZERO usings/imports in the .uitkx.
+            const string extraCSharp = """
+                using ReactiveUITK.Core;
+                using System.Collections.Generic;
+
+                namespace ReactiveUITK.Router
+                {
+                    public static class RouteFunc
+                    {
+                        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
+                            => null;
+                    }
+
+                    public sealed class RouteFuncProps : IProps
+                    {
+                        public string Path { get; set; }
+                        public object Element { get; set; }
+                    }
+                }
+                """;
+
+            const string uitkx = """
+                @namespace MyApp.UI
+
+                component MyPage {
+                    return (<RouteFunc path="/home" element={null} />);
+                }
+                """;
+
+            var result = GeneratorTestHelper.RunWithExtraCSharp(uitkx, extraCSharp, "MyPage.uitkx");
+
+            Assert.True(result.SourceWasProduced,
+                $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+            // No false UITKX0109 (unknown attribute) — Path/Element resolve via the baseline using.
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0109");
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0008");
+            Assert.True(result.SourceContains("V.Func<global::ReactiveUITK.Router.RouteFuncProps>"),
+                $"Expected typed V.Func via the baseline namespace. Got:\n{result.GeneratedSource}");
+            Assert.True(result.SourceContains("Path = \"/home\""),
+                $"Expected Path prop forwarded. Got:\n{result.GeneratedSource}");
+        }
+
+        [Fact]
         public void NamespaceImport_NoDiagnosticsForValidNamespace()
         {
             const string src =
