@@ -3,7 +3,24 @@
 **Status: IMPLEMENTED** — 2026-07-15 (v0.8.0 / extensions 1.4.0), branch
 `fix/import-diagnostic-anchors`. Steps 0–10 done; deferred follow-ups noted inline
 (semantic unused-using 2317, per-segment namespace completion + hover, `2316` "did you mean"
-suggestion, bulk samples `--tidy`). SG 1515/1515, LSP 118/118.
+suggestion). SG 1527/1527, LSP 118/118.
+
+**Follow-up polish shipped in the same 0.8.0 release** (user-driven, after the core):
+1. **Formatter preamble ordering** — `@namespace` first, then all imports grouped (shared
+   `EmitPreamble`). Plus a `--format` batch mode on the codemod CLI.
+2. **`ReactiveUITK.Router` auto-injected** into the baseline (all 7 emit sites +
+   `AutoInjectedUsings`) — `RouterHooks` needs no import; an explicit one is 2317-redundant.
+3. **`namespacePrefix` config + asmdef `rootNamespace` default** — project-wide namespace root,
+   so `@namespace` can disappear from whole projects. Chain: `@namespace` > `namespacePrefix` >
+   asmdef `rootNamespace` > `ReactiveUITK.Uitkx` (asmdef *name* deliberately excluded). SG/LSP/HMR
+   all route through `EffectiveNamespace.Resolve` (HMR by reflection, signature unchanged).
+4. **Consistent import colour** — `import "@Ns"` scoped identically to a file import.
+
+**JSO status:** re-tidied (Router imports dropped, preamble reordered) — uncommitted. Removing the
+remaining `@namespace UI.App` + the file-import-covered `import "@UI.App.Pages…"` lines is a
+coordinated refactor (flat→structured namespaces + 3 hand-written `.cs` `using UI.App;` sites, and
+an unresolved `Styles` module reference) that must be **compile-verified**, which needs 0.8.0
+published first (JSO consumes `#dist` at 0.7.1). Deferred to a verified follow-up.
 **Scope: Unity leg only.** GDScript has no namespaces, so `.guitkx` never had `@using`; the shared
 `import { X } from "path"` family grammar is untouched. The family diagnostic table reserves the new
 codes (§5) with a Unity-only annotation.
