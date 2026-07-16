@@ -138,6 +138,65 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void RouterAliasTags_ResolveProps_WithNoImport()
+        {
+            // Same regression as above but through the ALIAS path the real samples use
+            // (<Router>/<Routes>/<Route> → RouterTagAliases → *Func) — mirrors AppRoot.uitkx.
+            const string extraCSharp = """
+                using ReactiveUITK.Core;
+                using System.Collections.Generic;
+
+                namespace ReactiveUITK.Router
+                {
+                    public static class RouterFunc
+                    {
+                        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children) => null;
+                    }
+                    public sealed class RouterFuncProps : IProps
+                    {
+                        public string InitialPath { get; set; }
+                    }
+                    public static class RoutesFunc
+                    {
+                        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children) => null;
+                    }
+                    public static class RouteFunc
+                    {
+                        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children) => null;
+                    }
+                    public sealed class RouteFuncProps : IProps
+                    {
+                        public string Path { get; set; }
+                        public object Element { get; set; }
+                    }
+                }
+                """;
+
+            const string uitkx = """
+                @namespace MyApp.UI
+
+                component AppShell {
+                    return (
+                        <Router initialPath="/home">
+                            <Routes>
+                                <Route path="/home" element={null} />
+                            </Routes>
+                        </Router>
+                    );
+                }
+                """;
+
+            var result = GeneratorTestHelper.RunWithExtraCSharp(uitkx, extraCSharp, "AppShell.uitkx");
+
+            Assert.True(result.SourceWasProduced,
+                $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0109");
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id == "UITKX0008");
+            Assert.True(result.SourceContains("Path = \"/home\""),
+                $"Expected Path prop forwarded through the <Route> alias. Got:\n{result.GeneratedSource}");
+        }
+
+        [Fact]
         public void NamespaceImport_NoDiagnosticsForValidNamespace()
         {
             const string src =
