@@ -114,6 +114,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         private MethodInfo _effectiveNamespaceResolve; // EffectiveNamespace.Resolve(bool, string, string)
         private MethodInfo _uiSourceRootDir;           // EffectiveNamespace.UiSourceRootDir(string)
         private MethodInfo _importResolverMap;         // ImportResolver.MapSpecifierToPath(string, string, string, out string)
+        // §6.2/§6.3 parity — ImportScopeFacts.ComputeInjectedUsingPayloads(DirectiveSet, string):
+        // the using lines a file's imports imply (cross-folder hook containers + module/component
+        // type aliases with EFFECTIVE namespaces). Optional (older Language.dll → skip).
+        private MethodInfo _importScopePayloads;
         private Type _parseDiagnosticType;
 
         // ── Reference cache (built once per session) ──────────────────────────
@@ -411,6 +415,43 @@ namespace ReactiveUITK.EditorSupport.HMR
                     foreach (var fqn in hookContainerFqns)
                         usingLines.AppendLine($"using static {fqn};");
                     sources[0] = usingLines.ToString() + sources[0];
+                }
+
+                // §6.2/§6.3 parity via the shared language-lib ImportScopeFacts: cross-folder
+                // imported hook containers PLUS type aliases for imported modules/components that
+                // live in another (effective) namespace — exactly what the SG injects, so a
+                // hot-swapped unit sees the same scope the real build does. Without this, a
+                // component whose C# body references an imported module (`SidebarItem`) or an
+                // imported component's type (`MetricDisplay.MetricType`) compiles in the full
+                // build but fails the HMR compile with CS0246 the moment namespaces are
+                // path-derived. Optional handle: an older Language.dll simply skips (pre-0.8.1
+                // behavior); same-folder companions are already inlined above (same namespace →
+                // the helper's same-ns guard skips them too).
+                if (_importScopePayloads != null)
+                {
+                    try
+                    {
+                        var payloads = _importScopePayloads.Invoke(
+                            null, new object[] { directives, uitkxPath }) as System.Collections.IEnumerable;
+                        if (payloads != null)
+                        {
+                            var already = new HashSet<string>(System.StringComparer.Ordinal);
+                            foreach (var fqn in hookContainerFqns)
+                                already.Add("static " + fqn);
+                            var aliasLines = new System.Text.StringBuilder();
+                            foreach (object p in payloads)
+                            {
+                                if (p is string payload && payload.Length > 0 && already.Add(payload))
+                                    aliasLines.AppendLine($"using {payload};");
+                            }
+                            if (aliasLines.Length > 0)
+                                sources[0] = aliasLines.ToString() + sources[0];
+                        }
+                    }
+                    catch
+                    {
+                        // Graceful: no injected import scope — matches pre-0.8.1 HMR behavior.
+                    }
                 }
 
                 if (companionCsFiles != null)
@@ -1431,6 +1472,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             _importResolverMap = _languageAsm
                 .GetType("ReactiveUITK.Language.ImportResolver")
                 ?.GetMethod("MapSpecifierToPath", BindingFlags.Public | BindingFlags.Static);
+            _importScopePayloads = _languageAsm
+                .GetType("ReactiveUITK.Language.ImportScopeFacts")
+                ?.GetMethod("ComputeInjectedUsingPayloads", BindingFlags.Public | BindingFlags.Static);
 
             // ParseDiagnostic type (for creating List<ParseDiagnostic>)
             _parseDiagnosticType = _languageAsm.GetType("ReactiveUITK.Language.ParseDiagnostic");

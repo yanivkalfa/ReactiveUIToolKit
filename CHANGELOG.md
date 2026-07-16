@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.8.2] - 2026-07-16
+
+### Fixed
+
+- **HMR: hot-swapped code now sees the same import scope as the real build.** The HMR compiler
+  injected `using static` only for same-folder hook companions — it never injected the module and
+  component **type aliases** that imports imply. With path-derived namespaces (where a cross-folder
+  peer always lives in another namespace), hot-editing a component whose C# body references an
+  imported module (`SidebarItem`) or an imported component's type (`MetricDisplay.MetricType`)
+  compiled fine in the full build but failed the hot-reload compile with CS0246. Extracted the
+  injection rule into a shared language-lib helper (`ImportScopeFacts` — hook containers +
+  module/component aliases, same-namespace/reserved-alias guards) consumed by the LSP virtual doc
+  (typed) and the HMR compiler (via reflection, tolerant of older DLLs); a contract test pins the
+  reflection seam by name on both sides.
+- **Editor IntelliSense used the target's RAW namespace for import aliases.** The virtual-document
+  generator aliased imported modules/components with the namespace as parsed — wrong for every
+  stamp-less (path-derived) file, so cross-file references in a `namespacePrefix` project showed
+  false squiggles. Aliases now use the target's EFFECTIVE namespace (explicit `@namespace` wins,
+  else path-derived + config), and the same-namespace guard now matches the source generator's.
+
+IDE extensions 1.4.2 ship the virtual-document half. SG suite 1541/1541, LSP suite 118/118.
+
 ## [0.8.1] - 2026-07-16
 
 ### Fixed

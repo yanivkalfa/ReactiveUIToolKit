@@ -1,4 +1,14 @@
-﻿## [0.8.1] - 2026-07-16
+﻿## [0.8.2] - 2026-07-16
+
+### Patch — HMR + IntelliSense parity for imports
+
+**Hot reload now sees exactly what the build sees.** HMR injected `using static` for same-folder hook companions only — it never injected the module/component **type aliases** that imports imply. With path-derived namespaces, hot-editing a component whose C# body references an imported module (`SidebarItem`) or an imported component's type (`MetricDisplay.MetricType`) compiled fine in a full build but failed the hot-swap with CS0246. The injection rule now lives in one shared helper (`ImportScopeFacts`) consumed by the source generator's world, the editor's virtual document, and the HMR compiler — one rule, three consumers, contract-tested so it can't silently drift.
+
+**Editor squiggle fix:** IntelliSense aliased imported modules/components with the target's *raw* parsed namespace — wrong for every stamp-less (path-derived) file, so `namespacePrefix` projects showed false red squiggles on cross-file references. Aliases now use the target's **effective** namespace (explicit `@namespace` wins, else path-derived + config).
+
+Unity package **0.8.2** + IDE extensions **1.4.2** (bundled LSP). SG `1541/1541`, LSP `118/118`.
+
+## [0.8.1] - 2026-07-16
 
 ### Patch — Router resolution fix for 0.8.0
 
