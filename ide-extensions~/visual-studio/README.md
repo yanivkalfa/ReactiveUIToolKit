@@ -2,7 +2,7 @@
 
 Adds language support for `.uitkx` ReactiveUIToolKit component templates in **Visual Studio 2022**.
 
-💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+💬 Join the community on Discord: https://discord.gg/Knedqu4Wyv
 
 ## Features
 

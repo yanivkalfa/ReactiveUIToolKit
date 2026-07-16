@@ -2,7 +2,7 @@
 
 Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.
 
-💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+💬 Join the community on Discord: https://discord.gg/Knedqu4Wyv
 
 ## Features
 
