@@ -3,7 +3,8 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Samples.UITKXComponents;
+using ReactiveUITK.Samples.Components.MainMenuRouterDemoFunc;
+using ReactiveUITK.Samples.Components.SnakeGame.components.Menu;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

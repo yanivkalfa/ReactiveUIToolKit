@@ -240,83 +240,16 @@ namespace ReactiveUITK.Language.Roslyn
         private static void AppendImportUsings(
             VirtualDocBuilder b, DirectiveSet d, string uitkxFilePath, HashSet<string> seen)
         {
-            if (d.Imports.IsDefaultOrEmpty || string.IsNullOrEmpty(uitkxFilePath))
-                return;
-
-            string importerDir = (Path.GetDirectoryName(uitkxFilePath) ?? string.Empty).Replace('\\', '/');
-            string? projectRoot = ReactiveUITK.Language.AssetPathUtil.GetProjectRoot(uitkxFilePath);
-            string rootDir = projectRoot != null
-                ? projectRoot + "/" + ReactiveUITK.Language.UitkxConfig.LoadRoot(importerDir)
-                : importerDir;
-
-            foreach (var imp in d.Imports)
+            // Single source of truth (ImportScopeFacts): hook using-statics + module/component
+            // aliases with the target's EFFECTIVE (path-derived, config-aware) namespace — the raw
+            // parsed namespace was wrong for every stamp-less file. Shared with the HMR compiler
+            // (via reflection) so IntelliSense, hot reload, and the build agree.
+            foreach (string payload in ReactiveUITK.Language.ImportScopeFacts
+                         .ComputeInjectedUsingPayloads(d, uitkxFilePath))
             {
-                string? target = ReactiveUITK.Language.ImportResolver.MapSpecifierToPath(
-                    importerDir, imp.Specifier, rootDir, out _);
-                if (target == null || !File.Exists(target))
-                    continue;
-
-                DirectiveSet tds;
-                try
-                {
-                    tds = DirectiveParser.Parse(File.ReadAllText(target), target, new List<ParseDiagnostic>());
-                }
-                catch { continue; }
-
-                string? tns = tds.Namespace;
-                if (string.IsNullOrEmpty(tns))
-                    continue;
-
-                var importedNames = new HashSet<string>(imp.Names, StringComparer.Ordinal);
-
-                // Hook: expose the whole owning container (C# has no per-method static import).
-                bool anyHook = false;
-                if (!tds.HookDeclarations.IsDefaultOrEmpty)
-                    foreach (var h in tds.HookDeclarations)
-                        if (h.IsExported && importedNames.Contains(h.Name)) { anyHook = true; break; }
-                if (anyHook)
-                {
-                    string line = $"static {tns}.{DeriveContainerClassNameForVdoc(target)}";
-                    if (seen.Add(line))
-                        b.Scaffold($"using {line};\n");
-                }
-
-                // Module: alias each imported module to its fully-qualified type.
-                if (!tds.ModuleDeclarations.IsDefaultOrEmpty)
-                    foreach (var m in tds.ModuleDeclarations)
-                        if (m.IsExported && importedNames.Contains(m.Name))
-                        {
-                            string line = $"{m.Name} = {tns}.{m.Name}";
-                            if (seen.Add(line))
-                                b.Scaffold($"using {line};\n");
-                        }
-
-                // Component: alias each imported component too (mirrors the SG's §6.3 extension) so
-                // C# BODY references to an imported component's type (`Preset.PresetProps`,
-                // `TableView.Column`) resolve in IntelliSense exactly as they do in the real build.
-                // Same-namespace guard mirrors the SG (an alias would be CS0576 there).
-                if (!tds.ComponentDeclarations.IsDefaultOrEmpty)
-                    foreach (var c in tds.ComponentDeclarations)
-                        if (c.IsExported && importedNames.Contains(c.Name)
-                            && !string.Equals(tns, d.Namespace, StringComparison.Ordinal))
-                        {
-                            string line = $"{c.Name} = {tns}.{c.Name}";
-                            if (seen.Add(line))
-                                b.Scaffold($"using {line};\n");
-                        }
+                if (seen.Add(payload))
+                    b.Scaffold($"using {payload};\n");
             }
-        }
-
-        /// <summary>Container class name from a hook file path — mirror of HookEmitter.DeriveContainerClassName.</summary>
-        private static string DeriveContainerClassNameForVdoc(string filePath)
-        {
-            string fileName = Path.GetFileNameWithoutExtension(filePath);
-            int dot = fileName.IndexOf('.');
-            if (dot > 0)
-                fileName = fileName.Substring(0, dot);
-            if (fileName.Length > 0 && char.IsLower(fileName[0]))
-                fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
-            return fileName + "Hooks";
         }
 
         public VirtualDocument Generate(

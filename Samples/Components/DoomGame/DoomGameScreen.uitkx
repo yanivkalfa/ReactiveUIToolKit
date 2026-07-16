@@ -1,12 +1,11 @@
-@namespace Samples.DoomGame
 import { useDoomGame } from "./DoomGameScreen.hooks"
 import { DoomGameScreenLogic } from "./DoomGameScreenLogic"
 import { DoomHUD } from "./DoomHUD"
 import { DoomMinimap } from "./DoomMinimap"
 import { DoomTextures } from "./DoomTextures"
 import "@UnityEngine.UIElements"
-import "@static Samples.DoomGame.DoomTypes"
-import "@static Samples.DoomGame.DoomTextures"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTextures"
 
 export component DoomGameScreen(
   int restartVersion,

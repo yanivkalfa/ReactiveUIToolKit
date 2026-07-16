@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Core;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Samples.UITKXComponents;
+using ReactiveUITK.Samples.Components.ShowcaseDemoPage;
 using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;

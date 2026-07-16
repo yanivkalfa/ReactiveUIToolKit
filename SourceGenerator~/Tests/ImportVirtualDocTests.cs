@@ -59,11 +59,24 @@ namespace ReactiveUITK.SourceGenerator.Tests
         [Fact]
         public void ImportedModule_LowersToAlias()
         {
+            // Cross-namespace → alias (with the target's EFFECTIVE namespace).
+            Write("Palette.uitkx", "@namespace My.Shared\nexport module Palette {\n    public const int Gap = 4;\n}\n");
+            string vdoc = Generate("Screen.uitkx",
+                "import { Palette } from \"./Palette\"\n@namespace My.Ns\ncomponent Screen {\n    var g = Palette.Gap;\n    return (<Box />);\n}\n");
+
+            Assert.Contains("using Palette = My.Shared.Palette;", vdoc);
+        }
+
+        [Fact]
+        public void ImportedModule_SameNamespace_NoAlias()
+        {
+            // Same namespace → NO alias (SG parity via ImportScopeFacts: the bare name already
+            // resolves through the shared namespace; the SG skips it to avoid CS0576).
             Write("Palette.uitkx", "@namespace My.Ns\nexport module Palette {\n    public const int Gap = 4;\n}\n");
             string vdoc = Generate("Screen.uitkx",
                 "import { Palette } from \"./Palette\"\n@namespace My.Ns\ncomponent Screen {\n    var g = Palette.Gap;\n    return (<Box />);\n}\n");
 
-            Assert.Contains("using Palette = My.Ns.Palette;", vdoc);
+            Assert.DoesNotContain("using Palette =", vdoc);
         }
 
         [Fact]

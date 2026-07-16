@@ -1,6 +1,5 @@
-@namespace PrettyUi.App.Pages
 import { Sidebar } from "../../Components/Sidebar/Sidebar"
-import "@PrettyUi.App.Components"
+import { SidebarItem } from "../../Components/Sidebar/SidebarItem.types"
 
 export component NewsPageSidebar {
   var navigate = RouterHooks.UseNavigate();

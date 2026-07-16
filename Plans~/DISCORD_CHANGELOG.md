@@ -1,4 +1,16 @@
-﻿## [0.8.1] - 2026-07-16
+﻿## [0.8.2] - 2026-07-16
+
+### Patch — HMR root reload + import parity
+
+**Root components hot-reload now.** Editing the root component of a mount never swapped: child tags go through Family-based `V.Func` calls the generator emits, but a hand-written root mount (`rootRenderer.Render(V.Func(App.Render))`) passes a raw delegate — leaving the root fiber with no Family, so the refresh walk skipped it silently. The plain `V.Func(delegate)` overloads now resolve the Family from the method group's declaring type (a family's id *is* the component's FQN — exact by construction). Editor-only, zero API change. Bonus: a zero-swap now logs *why* (key mismatch / not mounted / nothing dirty) instead of saying nothing.
+
+**Hot reload now sees exactly what the build sees.** HMR injected `using static` for same-folder hook companions only — it never injected the module/component **type aliases** that imports imply. With path-derived namespaces, hot-editing a component whose C# body references an imported module (`SidebarItem`) or an imported component's type (`MetricDisplay.MetricType`) compiled fine in a full build but failed the hot-swap with CS0246. The injection rule now lives in one shared helper (`ImportScopeFacts`) consumed by the source generator's world, the editor's virtual document, and the HMR compiler — one rule, three consumers, contract-tested so it can't silently drift.
+
+**Editor squiggle fix:** IntelliSense aliased imported modules/components with the target's *raw* parsed namespace — wrong for every stamp-less (path-derived) file, so `namespacePrefix` projects showed false red squiggles on cross-file references. Aliases now use the target's **effective** namespace (explicit `@namespace` wins, else path-derived + config).
+
+Unity package **0.8.2** + IDE extensions **1.4.2** (bundled LSP). SG `1541/1541`, LSP `118/118`.
+
+## [0.8.1] - 2026-07-16
 
 ### Patch — Router resolution fix for 0.8.0
 

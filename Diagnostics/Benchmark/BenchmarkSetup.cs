@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using ReactiveUITK.Bench;
 using ReactiveUITK.Core;
-using ReactiveUITK.Samples.UITKXComponents;
+using ReactiveUITK.Samples.Components.ShowcaseDemoPage;
 using UnityEngine;
 
 namespace ReactiveUITK.Benchmark

@@ -1,10 +1,10 @@
-@namespace Samples.GalagaGame
 import { GalagaGame } from "../../GalagaGame.style"
 import { GalagaTypes } from "../../GalagaTypes"
 import "@UnityEngine.UIElements"
-import "@static Samples.GalagaGame.GalagaTypes"
-import "@static Samples.GalagaGame.GalagaTypes.C"
-import "@static Samples.GalagaGame.GameLogic"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.C"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GameLogic"
+import "@GameState = ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.GameState"
 
 export hook useGalagaGame(
   Ref<VisualElement?> boardRef

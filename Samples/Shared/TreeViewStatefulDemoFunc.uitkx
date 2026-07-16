@@ -1,6 +1,6 @@
-@namespace ReactiveUITK.Samples.UITKXShared
 import { IntroCounterFunc } from "./IntroCounterFunc"
 import "@UnityEngine.UIElements"
+import "@ReactiveUITK.Samples.UITKXShared"
 
 export component TreeViewStatefulDemoFunc(
   IReadOnlyList<TreeViewRowState>? rows = null,

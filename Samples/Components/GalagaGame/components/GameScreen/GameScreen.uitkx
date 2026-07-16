@@ -1,12 +1,11 @@
-@namespace Samples.GalagaGame
 import { GalagaGame } from "../../GalagaGame.style"
 import { GalagaTypes } from "../../GalagaTypes"
 import { HUD } from "../HUD/HUD"
 import { useGalagaGame } from "./GameScreen.hooks"
 import "@UnityEngine.UIElements"
-import "@static Samples.GalagaGame.GalagaTypes"
-import "@static Samples.GalagaGame.GalagaTypes.C"
-import "@static Samples.GalagaGame.SpriteAtlas"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.C"
+import "@static ReactiveUITK.Samples.Components.GalagaGame.SpriteAtlas"
 
 export component GameScreen(int restartVersion = 0, Action? onQuit = null) {
   var boardRef = useRef<VisualElement?>(null);

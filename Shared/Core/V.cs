@@ -495,8 +495,41 @@ namespace ReactiveUITK
             v._children = children ?? EmptyChildren();
             v._typedFunctionRender = renderFunction;
             v._typedProps = (Core.IProps)typedProps ?? Core.EmptyProps.Instance;
+#if UNITY_EDITOR
+            v._family = ResolveFamilyForDelegate(renderFunction);
+#endif
             return v;
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Associates a plain-delegate mount with its Fast Refresh Family (editor only). The SG
+        /// rewrites CHILD component tags to family-based <c>V.Func(__fam_X, …)</c>, but hand-written
+        /// ROOT mounts (<c>rootRenderer.Render(V.Func(App.Render))</c>) pass a raw method group —
+        /// leaving the root fiber family-less, so editing the root component of any mount never
+        /// hot-reloaded (found by RUNTIME-V: "compiled OK but 0 fibers refreshed"). A component
+        /// family's id IS the component type's FQN — exactly the method group's
+        /// <c>Method.DeclaringType.FullName</c> — so the lookup is exact by construction. Lambda
+        /// mounts resolve to a closure type (name contains <c>+</c>) → registry miss → null, i.e.
+        /// the old behavior. Editor-only cost: one dictionary lookup per plain V.Func call.
+        /// </summary>
+        private static Refresh.Family ResolveFamilyForDelegate(System.Delegate render)
+        {
+            if (render == null)
+                return null;
+            try
+            {
+                var declaring = render.Method?.DeclaringType;
+                if (declaring == null)
+                    return null;
+                return Refresh.RefreshRuntime.FindRegisteredFamily(declaring.FullName);
+            }
+            catch
+            {
+                return null; // never let family association break a mount
+            }
+        }
+#endif // UNITY_EDITOR
 
         // ── Family-based overloads (UITKX Fast Refresh, editor-only) ────────
         //
@@ -555,6 +588,9 @@ namespace ReactiveUITK
             v._children = children ?? EmptyChildren();
             v._typedFunctionRender = render;
             v._typedProps = props ?? Core.EmptyProps.Instance;
+#if UNITY_EDITOR
+            v._family = ResolveFamilyForDelegate(render);
+#endif
             return v;
         }
 

@@ -1,4 +1,4 @@
-using PrettyUi.App;
+using ReactiveUITK.Samples.UIs.PrettyUi.UI;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;

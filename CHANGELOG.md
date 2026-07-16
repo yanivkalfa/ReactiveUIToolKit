@@ -6,6 +6,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.8.2] - 2026-07-16
+
+### Fixed
+
+- **HMR: hot-swapped code now sees the same import scope as the real build.** The HMR compiler
+  injected `using static` only for same-folder hook companions — it never injected the module and
+  component **type aliases** that imports imply. With path-derived namespaces (where a cross-folder
+  peer always lives in another namespace), hot-editing a component whose C# body references an
+  imported module (`SidebarItem`) or an imported component's type (`MetricDisplay.MetricType`)
+  compiled fine in the full build but failed the hot-reload compile with CS0246. Extracted the
+  injection rule into a shared language-lib helper (`ImportScopeFacts` — hook containers +
+  module/component aliases, same-namespace/reserved-alias guards) consumed by the LSP virtual doc
+  (typed) and the HMR compiler (via reflection, tolerant of older DLLs); a contract test pins the
+  reflection seam by name on both sides.
+- **Editor IntelliSense used the target's RAW namespace for import aliases.** The virtual-document
+  generator aliased imported modules/components with the namespace as parsed — wrong for every
+  stamp-less (path-derived) file, so cross-file references in a `namespacePrefix` project showed
+  false squiggles. Aliases now use the target's EFFECTIVE namespace (explicit `@namespace` wins,
+  else path-derived + config), and the same-namespace guard now matches the source generator's.
+- **HMR crashed on the first hot-reload of any plain component** (`InvalidOperationException:
+  default instance of ImmutableArray<T>` in `BuildHookFamilyKeyMap`). The reflective `GetItems`
+  enumerated `DirectiveSet.HookDeclarations`, which is a DEFAULT `ImmutableArray` on every
+  component-only file — typed code guards with `IsDefaultOrEmpty`; the mirror now checks
+  `IsDefault` too. Latent since the §7 hook-family-key work; surfaced by the first RUNTIME-V
+  in-editor test.
+- **HMR: root components hot-reload.** Editing the ROOT component of a mount never swapped —
+  the SG rewrites *child* tags to family-based `V.Func(__fam_X, …)` calls, but a hand-written
+  root mount (`rootRenderer.Render(V.Func(App.Render))`) passes a raw method group, leaving the
+  root fiber with no Family; `PerformRefresh` then walks right past it ("compiled OK but 0 fibers
+  refreshed"). The plain `V.Func(delegate)` overloads now resolve the Family from the method
+  group's declaring type (a family's id IS the component type's FQN — exact by construction),
+  editor-only, one dictionary lookup; lambda mounts miss gracefully. Every root mount — samples
+  and games alike — is now hot-reloadable.
+- **HMR: a zero-swap now explains itself.** A compile that succeeded but refreshed nothing logged
+  NOTHING — undiagnosable. The controller now reports exactly which leg returned zero (family key
+  never registered / hot assembly registered a FRESH key ⇒ build↔HMR key mismatch / nothing dirty /
+  no live roots / component not mounted), backed by `RefreshRuntime.LastRefreshStats` +
+  `TryGetFamilyInfo` and the emitted family key carried on the compile result.
+- **HMR: hooks companions no longer false-warn.** The "caught mid-write" companion warning fired
+  for every `.hooks` companion (it only counted module declarations); it now fires only when a
+  companion has neither modules nor hooks.
+
+### Changed
+
+- **Samples modernized to zero `@namespace`.** `Samples/uitkx.config.json` now carries
+  `namespacePrefix: "ReactiveUITK.Samples"`; all sample namespaces are path-derived
+  (`ReactiveUITK.Samples.<Folders>`), demo bootstraps/windows updated accordingly. The
+  UitkxTestFileDoNotTouch fixture intentionally keeps the legacy form.
+
+IDE extensions 1.4.2 ship the virtual-document half. SG suite 1541/1541, LSP suite 118/118.
+
 ## [0.8.1] - 2026-07-16
 
 ### Fixed

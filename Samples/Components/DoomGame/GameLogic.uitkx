@@ -1,8 +1,7 @@
-@namespace Samples.DoomGame
 import { DoomMaps } from "./DoomMaps"
 import { Raycast } from "./Raycast"
-import "@static Samples.DoomGame.DoomTypes"
-import "@static Samples.DoomGame.DoomTextures"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
+import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTextures"
 
 export module GameLogic {
   // ───── Public API ─────

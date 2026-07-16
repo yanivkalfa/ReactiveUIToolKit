@@ -114,6 +114,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         private MethodInfo _effectiveNamespaceResolve; // EffectiveNamespace.Resolve(bool, string, string)
         private MethodInfo _uiSourceRootDir;           // EffectiveNamespace.UiSourceRootDir(string)
         private MethodInfo _importResolverMap;         // ImportResolver.MapSpecifierToPath(string, string, string, out string)
+        // §6.2/§6.3 parity — ImportScopeFacts.ComputeInjectedUsingPayloads(DirectiveSet, string):
+        // the using lines a file's imports imply (cross-folder hook containers + module/component
+        // type aliases with EFFECTIVE namespaces). Optional (older Language.dll → skip).
+        private MethodInfo _importScopePayloads;
         private Type _parseDiagnosticType;
 
         // ── Reference cache (built once per session) ──────────────────────────
@@ -376,6 +380,15 @@ namespace ReactiveUITK.EditorSupport.HMR
                                     new object[] { src, ss, ae }
                                 );
 
+                // Effective namespace + the self family key the emitted ModuleInitializer will
+                // Register under — EXACTLY HmrCSharpEmitter's selfKey rule (ComputeEffectiveNs
+                // never returns null, so the emitter's `_ns` is always this value). Carried on the
+                // result so the controller can DIAGNOSE a zero-swap (key mismatch vs not-mounted).
+                string effectiveNs = ComputeEffectiveNs(directives, uitkxPath);
+                result.FamilyKey = string.IsNullOrEmpty(effectiveNs)
+                    ? componentName
+                    : effectiveNs + "." + componentName;
+
                 string csharp = HmrCSharpEmitter.Emit(
                     directives,
                     lowered,
@@ -384,7 +397,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     findJsxBlockRanges,
                     findBareJsxRanges,
                     findLhsStartForLogicalAnd,
-                    ComputeEffectiveNs(directives, uitkxPath),
+                    effectiveNs,
                     BuildHookFamilyKeyMap(directives, uitkxPath)
                 );
                 stepSw.Stop();
@@ -411,6 +424,43 @@ namespace ReactiveUITK.EditorSupport.HMR
                     foreach (var fqn in hookContainerFqns)
                         usingLines.AppendLine($"using static {fqn};");
                     sources[0] = usingLines.ToString() + sources[0];
+                }
+
+                // §6.2/§6.3 parity via the shared language-lib ImportScopeFacts: cross-folder
+                // imported hook containers PLUS type aliases for imported modules/components that
+                // live in another (effective) namespace — exactly what the SG injects, so a
+                // hot-swapped unit sees the same scope the real build does. Without this, a
+                // component whose C# body references an imported module (`SidebarItem`) or an
+                // imported component's type (`MetricDisplay.MetricType`) compiles in the full
+                // build but fails the HMR compile with CS0246 the moment namespaces are
+                // path-derived. Optional handle: an older Language.dll simply skips (pre-0.8.1
+                // behavior); same-folder companions are already inlined above (same namespace →
+                // the helper's same-ns guard skips them too).
+                if (_importScopePayloads != null)
+                {
+                    try
+                    {
+                        var payloads = _importScopePayloads.Invoke(
+                            null, new object[] { directives, uitkxPath }) as System.Collections.IEnumerable;
+                        if (payloads != null)
+                        {
+                            var already = new HashSet<string>(System.StringComparer.Ordinal);
+                            foreach (var fqn in hookContainerFqns)
+                                already.Add("static " + fqn);
+                            var aliasLines = new System.Text.StringBuilder();
+                            foreach (object p in payloads)
+                            {
+                                if (p is string payload && payload.Length > 0 && already.Add(payload))
+                                    aliasLines.AppendLine($"using {payload};");
+                            }
+                            if (aliasLines.Length > 0)
+                                sources[0] = aliasLines.ToString() + sources[0];
+                        }
+                    }
+                    catch
+                    {
+                        // Graceful: no injected import scope — matches pre-0.8.1 HMR behavior.
+                    }
                 }
 
                 if (companionCsFiles != null)
@@ -1163,16 +1213,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                         // future copy-rename or new-file races are diagnosable
                         // from a single log line (see also: TexasOne
                         // creation race tracked in HMR_DETERMINISM_REPORT.md).
-                        var moduleDecls = GetProp(companionDir, "ModuleDeclarations");
-                        int moduleCount = 0;
-                        if (moduleDecls is IEnumerable enumerable)
-                            foreach (var _m in enumerable) moduleCount++;
-                        if (moduleCount == 0)
+                        // GetItems is default-ImmutableArray-safe, so it can count BOTH arrays: a
+                        // .hooks companion legitimately has hook declarations and no modules — the
+                        // mid-write warning must fire only when the file has NEITHER (previously it
+                        // false-warned on every hooks companion, e.g. StressTest.hooks.uitkx).
+                        int moduleCount = GetItems(GetProp(companionDir, "ModuleDeclarations")).Count;
+                        int hookCount = GetItems(GetProp(companionDir, "HookDeclarations")).Count;
+                        if (moduleCount == 0 && hookCount == 0)
                         {
                             Debug.LogWarning(
                                 $"[HMR] Companion {Path.GetFileName(file)} matched the "
                                 + $"'{componentName}.*.uitkx' glob but its directives "
-                                + "contain no module declarations -- the parent's "
+                                + "contain no module or hook declarations -- the parent's "
                                 + "static member references (e.g. style identifiers "
                                 + "like 'Container') will fail to resolve. This "
                                 + "usually means the file was caught mid-write by "
@@ -1431,6 +1483,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             _importResolverMap = _languageAsm
                 .GetType("ReactiveUITK.Language.ImportResolver")
                 ?.GetMethod("MapSpecifierToPath", BindingFlags.Public | BindingFlags.Static);
+            _importScopePayloads = _languageAsm
+                .GetType("ReactiveUITK.Language.ImportScopeFacts")
+                ?.GetMethod("ComputeInjectedUsingPayloads", BindingFlags.Public | BindingFlags.Static);
 
             // ParseDiagnostic type (for creating List<ParseDiagnostic>)
             _parseDiagnosticType = _languageAsm.GetType("ReactiveUITK.Language.ParseDiagnostic");
@@ -2892,6 +2947,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             if (immutableArray == null)
                 return Array.Empty<object>();
+            // A DEFAULT ImmutableArray<T> (declared but never initialized — e.g.
+            // DirectiveSet.HookDeclarations on every component-only file) throws
+            // InvalidOperationException from GetEnumerator(). Typed consumers guard with
+            // IsDefaultOrEmpty; this reflective mirror must too, or the first hot-reload of a
+            // plain component crashes in BuildHookFamilyKeyMap (found by RUNTIME-V testing).
+            var isDefaultProp = immutableArray.GetType()
+                .GetProperty("IsDefault", BindingFlags.Public | BindingFlags.Instance);
+            if (isDefaultProp?.GetValue(immutableArray) is bool isDefault && isDefault)
+                return Array.Empty<object>();
             // ImmutableArray<T> implements IEnumerable<T>; cast to non-generic IEnumerable
             // and materialize to list for indexed access.
             var items = new List<object>();
@@ -3385,6 +3449,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// ordering).
         /// </summary>
         public string Namespace;
+
+        /// <summary>
+        /// The self family key the emitted ModuleInitializer Registers under
+        /// (<c>{EffectiveNs}.{ComponentName}</c>) — mirrors HmrCSharpEmitter's selfKey exactly.
+        /// Component files only. Lets the controller diagnose a zero-swap precisely: the key must
+        /// match the one the PROJECT assembly registered at load, or Register takes the create
+        /// path and no fiber ever refreshes.
+        /// </summary>
+        public string FamilyKey;
 
         public Assembly LoadedAssembly;
 

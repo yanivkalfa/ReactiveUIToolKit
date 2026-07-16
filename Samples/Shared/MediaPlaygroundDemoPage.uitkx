@@ -1,4 +1,3 @@
-@namespace ReactiveUITK.Samples.UITKXShared
 import "@UnityEngine.Video"
 import "@ReactiveUITK.Core.Media"
 
