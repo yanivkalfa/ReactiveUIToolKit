@@ -31,6 +31,14 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   component-only file — typed code guards with `IsDefaultOrEmpty`; the mirror now checks
   `IsDefault` too. Latent since the §7 hook-family-key work; surfaced by the first RUNTIME-V
   in-editor test.
+- **HMR: a zero-swap now explains itself.** A compile that succeeded but refreshed nothing logged
+  NOTHING — undiagnosable. The controller now reports exactly which leg returned zero (family key
+  never registered / hot assembly registered a FRESH key ⇒ build↔HMR key mismatch / nothing dirty /
+  no live roots / component not mounted), backed by `RefreshRuntime.LastRefreshStats` +
+  `TryGetFamilyInfo` and the emitted family key carried on the compile result.
+- **HMR: hooks companions no longer false-warn.** The "caught mid-write" companion warning fired
+  for every `.hooks` companion (it only counted module declarations); it now fires only when a
+  companion has neither modules nor hooks.
 
 IDE extensions 1.4.2 ship the virtual-document half. SG suite 1541/1541, LSP suite 118/118.
 

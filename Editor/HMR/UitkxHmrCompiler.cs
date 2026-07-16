@@ -380,6 +380,15 @@ namespace ReactiveUITK.EditorSupport.HMR
                                     new object[] { src, ss, ae }
                                 );
 
+                // Effective namespace + the self family key the emitted ModuleInitializer will
+                // Register under — EXACTLY HmrCSharpEmitter's selfKey rule (ComputeEffectiveNs
+                // never returns null, so the emitter's `_ns` is always this value). Carried on the
+                // result so the controller can DIAGNOSE a zero-swap (key mismatch vs not-mounted).
+                string effectiveNs = ComputeEffectiveNs(directives, uitkxPath);
+                result.FamilyKey = string.IsNullOrEmpty(effectiveNs)
+                    ? componentName
+                    : effectiveNs + "." + componentName;
+
                 string csharp = HmrCSharpEmitter.Emit(
                     directives,
                     lowered,
@@ -388,7 +397,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     findJsxBlockRanges,
                     findBareJsxRanges,
                     findLhsStartForLogicalAnd,
-                    ComputeEffectiveNs(directives, uitkxPath),
+                    effectiveNs,
                     BuildHookFamilyKeyMap(directives, uitkxPath)
                 );
                 stepSw.Stop();
@@ -1204,16 +1213,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                         // future copy-rename or new-file races are diagnosable
                         // from a single log line (see also: TexasOne
                         // creation race tracked in HMR_DETERMINISM_REPORT.md).
-                        var moduleDecls = GetProp(companionDir, "ModuleDeclarations");
-                        int moduleCount = 0;
-                        if (moduleDecls is IEnumerable enumerable)
-                            foreach (var _m in enumerable) moduleCount++;
-                        if (moduleCount == 0)
+                        // GetItems is default-ImmutableArray-safe, so it can count BOTH arrays: a
+                        // .hooks companion legitimately has hook declarations and no modules — the
+                        // mid-write warning must fire only when the file has NEITHER (previously it
+                        // false-warned on every hooks companion, e.g. StressTest.hooks.uitkx).
+                        int moduleCount = GetItems(GetProp(companionDir, "ModuleDeclarations")).Count;
+                        int hookCount = GetItems(GetProp(companionDir, "HookDeclarations")).Count;
+                        if (moduleCount == 0 && hookCount == 0)
                         {
                             Debug.LogWarning(
                                 $"[HMR] Companion {Path.GetFileName(file)} matched the "
                                 + $"'{componentName}.*.uitkx' glob but its directives "
-                                + "contain no module declarations -- the parent's "
+                                + "contain no module or hook declarations -- the parent's "
                                 + "static member references (e.g. style identifiers "
                                 + "like 'Container') will fail to resolve. This "
                                 + "usually means the file was caught mid-write by "
@@ -3438,6 +3449,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// ordering).
         /// </summary>
         public string Namespace;
+
+        /// <summary>
+        /// The self family key the emitted ModuleInitializer Registers under
+        /// (<c>{EffectiveNs}.{ComponentName}</c>) — mirrors HmrCSharpEmitter's selfKey exactly.
+        /// Component files only. Lets the controller diagnose a zero-swap precisely: the key must
+        /// match the one the PROJECT assembly registered at load, or Register takes the create
+        /// path and no fiber ever refreshes.
+        /// </summary>
+        public string FamilyKey;
 
         public Assembly LoadedAssembly;
 

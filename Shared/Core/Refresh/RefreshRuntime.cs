@@ -604,6 +604,49 @@ namespace ReactiveUITK.Refresh
         /// Family path is never instantiated, and this method is excluded
         /// from compilation.
         /// </summary>
+        /// <summary>
+        /// Post-mortem of the most recent <see cref="PerformRefresh"/> call, so the HMR controller
+        /// can explain a zero-swap instead of silently no-oping (a compile that succeeds but
+        /// refreshes nothing is otherwise undiagnosable — which leg returned 0?).
+        /// </summary>
+        public struct RefreshStats
+        {
+            /// <summary>Families dirty at entry (after hook-signature propagation).</summary>
+            public int DirtyCount;
+            /// <summary>Whether the root-renderer provider was wired at all.</summary>
+            public bool ProviderWired;
+            /// <summary>Live root fibers walked.</summary>
+            public int RootsWalked;
+            /// <summary>Fibers that matched a dirty family and were scheduled.</summary>
+            public int FibersNotified;
+        }
+
+        /// <summary>Stats of the last <see cref="PerformRefresh"/> call.</summary>
+        public static RefreshStats LastRefreshStats;
+
+        /// <summary>
+        /// Introspection for zero-swap diagnostics: whether a family id is registered at all, and
+        /// whether it has EVER taken the update path (<see cref="Family.Previous"/> non-null ⇔ a
+        /// second Register hit the same id). <c>exists=true, everUpdated=false</c> after an HMR
+        /// compile means the hot assembly registered under a FRESH id — a family-key mismatch
+        /// between the project build and the HMR emit.
+        /// </summary>
+        public static bool TryGetFamilyInfo(string id, out bool exists, out bool everUpdated)
+        {
+            lock (s_lock)
+            {
+                if (!string.IsNullOrEmpty(id) && s_families.TryGetValue(id, out var f))
+                {
+                    exists = true;
+                    everUpdated = f.Previous != null;
+                    return true;
+                }
+            }
+            exists = false;
+            everUpdated = false;
+            return false;
+        }
+
         public static int PerformRefresh()
         {
             HashSet<Family> dirty;
@@ -618,6 +661,12 @@ namespace ReactiveUITK.Refresh
                 // snapshot below so the consumers picked up here participate
                 // in this same PerformRefresh pass.
                 PropagateHookSignatureChanges();
+
+                LastRefreshStats = new RefreshStats
+                {
+                    DirtyCount = s_dirty.Count,
+                    ProviderWired = s_rootRendererProvider != null,
+                };
 
                 if (s_dirty.Count == 0)
                     return 0;
@@ -637,11 +686,15 @@ namespace ReactiveUITK.Refresh
             if (provider == null)
                 return 0;
 
+            int rootsWalked = 0;
             foreach (var rootFiber in provider())
             {
                 if (rootFiber == null) continue;
+                rootsWalked++;
                 RefreshFiberTree(rootFiber, dirty, forceRemount, ref notified);
             }
+            LastRefreshStats.RootsWalked = rootsWalked;
+            LastRefreshStats.FibersNotified = notified;
             return notified;
         }
 
