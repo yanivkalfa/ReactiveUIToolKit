@@ -1,5 +1,5 @@
-import { IntroCounterFunc } from "./IntroCounterFunc"
 @namespace ReactiveUITK.Samples.UITKXShared
+import { IntroCounterFunc } from "./IntroCounterFunc"
 import "@System.Collections"
 
 export component ListViewStatefulDemoFunc(

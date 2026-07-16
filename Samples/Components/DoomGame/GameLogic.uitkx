@@ -1,6 +1,6 @@
+@namespace Samples.DoomGame
 import { DoomMaps } from "./DoomMaps"
 import { Raycast } from "./Raycast"
-@namespace Samples.DoomGame
 import "@static Samples.DoomGame.DoomTypes"
 import "@static Samples.DoomGame.DoomTextures"
 

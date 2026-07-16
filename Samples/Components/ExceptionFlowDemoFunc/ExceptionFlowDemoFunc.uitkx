@@ -1,5 +1,5 @@
-import { UnstableChild } from "./UnstableChild"
 @namespace ReactiveUITK.Samples.UITKXComponents
+import { UnstableChild } from "./UnstableChild"
 import "@System.Threading.Tasks"
 
 export component ExceptionFlowDemoFunc {

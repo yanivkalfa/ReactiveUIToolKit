@@ -1,9 +1,9 @@
+@namespace Samples.DoomGame
 import { useDoomGame } from "./DoomGameScreen.hooks"
 import { DoomGameScreenLogic } from "./DoomGameScreenLogic"
 import { DoomHUD } from "./DoomHUD"
 import { DoomMinimap } from "./DoomMinimap"
 import { DoomTextures } from "./DoomTextures"
-@namespace Samples.DoomGame
 import "@UnityEngine.UIElements"
 import "@static Samples.DoomGame.DoomTypes"
 import "@static Samples.DoomGame.DoomTextures"

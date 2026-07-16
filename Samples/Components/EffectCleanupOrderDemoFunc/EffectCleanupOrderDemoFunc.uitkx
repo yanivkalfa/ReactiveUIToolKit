@@ -1,5 +1,5 @@
-import { EffectPanel } from "./EffectPanel"
 @namespace ReactiveUITK.Samples.UITKXComponents
+import { EffectPanel } from "./EffectPanel"
 
 export component EffectCleanupOrderDemoFunc {
   var (generation, setGeneration) = useState(0);

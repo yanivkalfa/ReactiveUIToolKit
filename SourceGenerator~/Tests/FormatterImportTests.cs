@@ -99,5 +99,37 @@ namespace ReactiveUITK.SourceGenerator.Tests
             string once = Fmt(src);
             Assert.Equal(once, Fmt(once));
         }
+
+        // ── Preamble ordering: @namespace first, imports grouped (unification plan, feature 1) ──
+
+        [Fact]
+        public void Format_PutsNamespaceFirst_ThenAllImportsGrouped()
+        {
+            // Author order is deliberately jumbled: file import, @namespace, namespace import.
+            string outp = Fmt(
+                "import { Chip } from \"./Chip\"\n@namespace My.Ns\nimport \"@ReactiveUITK.Router\"\n\n" +
+                "component Foo {\n  return ( <Spacer /> );\n}\n");
+
+            int ns   = outp.IndexOf("@namespace My.Ns", System.StringComparison.Ordinal);
+            int file = outp.IndexOf("import { Chip } from \"./Chip\"", System.StringComparison.Ordinal);
+            int nsi  = outp.IndexOf("import \"@ReactiveUITK.Router\"", System.StringComparison.Ordinal);
+
+            Assert.True(ns >= 0 && file >= 0 && nsi >= 0);
+            Assert.True(ns < file, "@namespace must come before the imports");
+            Assert.True(file < nsi, "file imports then namespace imports — all grouped after @namespace");
+        }
+
+        [Fact]
+        public void Format_NamespaceBeforeImports_IsIdempotent()
+        {
+            string src =
+                "import { Chip } from \"./Chip\"\n@namespace My.Ns\nimport \"@ReactiveUITK.Router\"\n\n" +
+                "component Foo {\n  return ( <Spacer /> );\n}\n";
+            string once = Fmt(src);
+            Assert.Equal(once, Fmt(once));
+            // Second pass must keep @namespace on top (not re-jumble).
+            Assert.True(once.IndexOf("@namespace", System.StringComparison.Ordinal)
+                      < once.IndexOf("import {", System.StringComparison.Ordinal));
+        }
     }
 }

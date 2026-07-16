@@ -32,6 +32,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             string root = Path.GetFullPath(args[0]);
             bool check = args.Contains("--check");
             bool tidy = args.Contains("--tidy");
+            bool format = args.Contains("--format");
             if (!Directory.Exists(root))
             {
                 Console.Error.WriteLine($"error: directory not found: {root}");
@@ -44,6 +45,28 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 if (IsInsideIgnoredFolder(path)) continue;
                 string asmdef = FindOwningAsmdefName(path) ?? "<Assembly-CSharp>";
                 files.Add(new MigratorFile(Path.GetFullPath(path), asmdef, File.ReadAllText(path)));
+            }
+
+            // --format: batch-run the canonical AST formatter (same output as editor format-on-save),
+            // no import/export migration. Useful in CI to enforce FormatterSnapshotTests' idempotency.
+            if (format)
+            {
+                var fmt = new ReactiveUITK.Language.Formatter.AstFormatter(
+                    ReactiveUITK.Language.Formatter.FormatterOptions.Default);
+                var fmtChanged = new List<string>();
+                foreach (var f in files)
+                {
+                    string formatted = fmt.Format(f.Text, f.AbsPath);
+                    if (!string.Equals(formatted, f.Text, StringComparison.Ordinal))
+                    {
+                        fmtChanged.Add(f.AbsPath);
+                        if (!check) File.WriteAllText(f.AbsPath, formatted);
+                    }
+                }
+                if (check)
+                    foreach (var p in fmtChanged) Console.Error.WriteLine($"would reformat: {p}");
+                Console.WriteLine($"{files.Count} file(s) scanned; {fmtChanged.Count} {(check ? "would reformat" : "reformatted")}.");
+                return check && fmtChanged.Count > 0 ? 1 : 0;
             }
 
             var changed = UitkxMigrator.Migrate(files, out var errors, tidyUsings: tidy);

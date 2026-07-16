@@ -1,5 +1,5 @@
-import { Sidebar } from "../../Components/Sidebar/Sidebar"
 @namespace PrettyUi.App.Pages
+import { Sidebar } from "../../Components/Sidebar/Sidebar"
 import "@PrettyUi.App.Components"
 import "@ReactiveUITK.Router"
 

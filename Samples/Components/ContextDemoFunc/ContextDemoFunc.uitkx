@@ -1,5 +1,5 @@
-import { ContextConsumer } from "./ContextConsumer"
 @namespace ReactiveUITK.Samples.UITKXComponents
+import { ContextConsumer } from "./ContextConsumer"
 
 export component ContextDemoFunc {
   var (usePrimaryTheme, setUsePrimaryTheme) = useState(true);

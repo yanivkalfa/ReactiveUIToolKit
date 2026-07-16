@@ -1,5 +1,5 @@
-import { GameLogic } from "./GameLogic"
 @namespace Samples.DoomGame
+import { GameLogic } from "./GameLogic"
 import "@static Samples.DoomGame.DoomTypes"
 import "@static Samples.DoomGame.DoomTextures"
 

@@ -1,3 +1,4 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { ShowcaseExtrasPanel } from "./components/ShowcaseExtrasPanel/ShowcaseExtrasPanel"
 import { ShowcaseFieldsPanel } from "./components/ShowcaseFieldsPanel/ShowcaseFieldsPanel"
 import { ShowcaseListTabsSection } from "./components/ShowcaseListTabsSection/ShowcaseListTabsSection"
@@ -5,7 +6,6 @@ import { ShowcaseNewComponentsPanel } from "./components/ShowcaseNewComponentsPa
 import { ShowcaseTopBar } from "./components/ShowcaseTopBar/ShowcaseTopBar"
 import { ShowcaseTreeTabsSection } from "./components/ShowcaseTreeTabsSection/ShowcaseTreeTabsSection"
 import { ValuesBar } from "./components/ValuesBar/ValuesBar"
-@namespace ReactiveUITK.Samples.UITKXComponents
 import "@UnityEngine.UIElements"
 
 export component ShowcaseDemoPage {

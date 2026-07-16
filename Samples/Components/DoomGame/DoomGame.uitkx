@@ -1,6 +1,6 @@
+@namespace Samples.DoomGame
 import { DoomGameScreen } from "./DoomGameScreen"
 import { DoomMainMenu } from "./DoomMainMenu"
-@namespace Samples.DoomGame
 import "@UnityEngine.UIElements"
 import "@static Samples.DoomGame.DoomTypes"
 

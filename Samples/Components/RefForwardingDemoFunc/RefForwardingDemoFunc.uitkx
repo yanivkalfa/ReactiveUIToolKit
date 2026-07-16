@@ -1,5 +1,5 @@
-import { RefChild } from "./RefChild/RefChild"
 @namespace ReactiveUITK.Samples.UITKXComponents
+import { RefChild } from "./RefChild/RefChild"
 import "@UnityEngine.UIElements"
 
 export component RefForwardingDemoFunc {

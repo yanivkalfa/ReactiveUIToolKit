@@ -1,5 +1,5 @@
-import { ValueItem } from "./components/ValueItem/ValueItem"
 @namespace ReactiveUITK.Samples.UITKXComponents
+import { ValueItem } from "./components/ValueItem/ValueItem"
 
 export component ValuesBar(
   IEnumerable<KeyValuePair<string, string>>? items = null

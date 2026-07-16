@@ -1,5 +1,5 @@
-import { useSnakeGame } from "./GameScreen.hooks"
 @namespace Samples.SnakeGame
+import { useSnakeGame } from "./GameScreen.hooks"
 import "@UnityEngine.UIElements"
 
 export component GameScreen(int restartVersion = 0) {

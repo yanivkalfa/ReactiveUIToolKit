@@ -1,5 +1,5 @@
-import { ThemeConsumer } from "./ThemeConsumer"
 @namespace ReactiveUITK.Samples.UITKXComponents
+import { ThemeConsumer } from "./ThemeConsumer"
 
 export component MiddleLayer {
   var renderCountRef = useRef<int>(0);

@@ -1,5 +1,5 @@
-import { DoomFace } from "./DoomFace"
 @namespace Samples.DoomGame
+import { DoomFace } from "./DoomFace"
 import "@UnityEngine.UIElements"
 import "@static Samples.DoomGame.DoomTypes"
 

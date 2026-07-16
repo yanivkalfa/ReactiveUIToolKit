@@ -1,6 +1,6 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { MainMenuLayout } from "./MainMenuLayout"
 import { MainMenuNavigationRow } from "./MainMenuNavigationRow"
-@namespace ReactiveUITK.Samples.UITKXComponents
 import "@ReactiveUITK.Router"
 
 export component MainMenuRouterDemoFunc {

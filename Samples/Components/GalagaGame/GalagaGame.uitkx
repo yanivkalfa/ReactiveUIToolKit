@@ -1,6 +1,6 @@
+@namespace Samples.GalagaGame
 import { GameScreen } from "./components/GameScreen/GameScreen"
 import { MainMenu } from "./components/MainMenu/MainMenu"
-@namespace Samples.GalagaGame
 
 export component GalagaGame {
   var (screen, setScreen) = useState(Screen.MainMenu);

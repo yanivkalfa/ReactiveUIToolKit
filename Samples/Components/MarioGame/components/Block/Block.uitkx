@@ -1,5 +1,5 @@
-import { MarioGame } from "../../MarioGame.style"
 @namespace Samples.MarioGame
+import { MarioGame } from "../../MarioGame.style"
 import "@static Samples.MarioGame.MarioConstants"
 
 export component Block(LevelTile tile, float cameraX = 0) {

@@ -1,7 +1,7 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
-@namespace ReactiveUITK.Samples.UITKXComponents
 
 export component DeepNestedSection {
   var (depth, setDepth) = useState(2);

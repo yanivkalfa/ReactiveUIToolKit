@@ -1,6 +1,6 @@
+@namespace Samples.GalagaGame
 import { GalagaGame } from "./GalagaGame.style"
 import { GalagaTypes } from "./GalagaTypes"
-@namespace Samples.GalagaGame
 import "@UnityEngine.UIElements"
 import "@static Samples.GalagaGame.GalagaTypes"
 import "@static Samples.GalagaGame.GalagaTypes.C"

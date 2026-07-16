@@ -1,7 +1,7 @@
+@namespace Samples.SnakeGame
 import { GameScreen } from "./components/GameScreen/GameScreen"
 import { Menu } from "./components/Menu/Menu"
 import { WelcomeScreen } from "./components/WelcomeScreen/WelcomeScreen"
-@namespace Samples.SnakeGame
 import "@ReactiveUITK.Router"
 
 export component SnakeGame {

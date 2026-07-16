@@ -1,5 +1,5 @@
-import { DoomTextures } from "./DoomTextures"
 @namespace Samples.DoomGame
+import { DoomTextures } from "./DoomTextures"
 import "@UnityEngine.UIElements"
 import "@static Samples.DoomGame.DoomTypes"
 

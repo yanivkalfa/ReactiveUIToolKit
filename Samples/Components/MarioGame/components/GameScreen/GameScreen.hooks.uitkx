@@ -1,5 +1,5 @@
-import { MarioGame } from "../../MarioGame.style"
 @namespace Samples.MarioGame
+import { MarioGame } from "../../MarioGame.style"
 import "@UnityEngine.UIElements"
 import "@static Samples.MarioGame.MarioConstants"
 

@@ -1,7 +1,7 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { IntroCounterFunc } from "../../../../Shared/IntroCounterFunc"
 import { MultiColumnTreeViewStatefulDemoFunc } from "../../../../Shared/MultiColumnTreeViewStatefulDemoFunc"
 import { TreeViewStatefulDemoFunc } from "../../../../Shared/TreeViewStatefulDemoFunc"
-@namespace ReactiveUITK.Samples.UITKXComponents
 import "@ReactiveUITK.Samples.UITKXShared"
 import "@UnityEngine.UIElements"
 

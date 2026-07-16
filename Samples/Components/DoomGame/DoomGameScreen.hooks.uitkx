@@ -1,5 +1,5 @@
-import { GameLogic } from "./GameLogic"
 @namespace Samples.DoomGame
+import { GameLogic } from "./GameLogic"
 import "@UnityEngine.InputSystem"
 import "@UnityEngine.UIElements"
 import "@static Samples.DoomGame.DoomTypes"

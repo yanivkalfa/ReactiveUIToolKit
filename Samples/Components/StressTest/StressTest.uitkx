@@ -1,5 +1,5 @@
-import { useStressTestLoop } from "./StressTest.hooks"
 @namespace Samples.StressTest
+import { useStressTestLoop } from "./StressTest.hooks"
 import "@UnityEngine.UIElements"
 
 export component StressTest {

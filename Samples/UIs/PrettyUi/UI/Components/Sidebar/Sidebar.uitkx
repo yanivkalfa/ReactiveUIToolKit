@@ -1,5 +1,5 @@
-import { AppButton } from "../AppButton/AppButton"
 @namespace PrettyUi.App.Components
+import { AppButton } from "../AppButton/AppButton"
 import "@UnityEngine.UIElements"
 
 export component Sidebar(IReadOnlyList<SidebarItem>? items = null) {

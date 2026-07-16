@@ -1,5 +1,5 @@
-import { DeepNode } from "./DeepNode"
 @namespace ReactiveUITK.Samples.UITKXComponents
+import { DeepNode } from "./DeepNode"
 
 export component RenderDepthGuardDemoFunc {
   var (depth, setDepth) = useState(0);

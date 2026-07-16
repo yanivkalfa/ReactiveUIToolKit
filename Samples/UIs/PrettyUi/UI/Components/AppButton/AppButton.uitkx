@@ -1,5 +1,5 @@
-import { StyleExtensions } from "../../StyleExtensions"
 @namespace PrettyUi.App.Components
+import { StyleExtensions } from "../../StyleExtensions"
 import "@PrettyUi.App"
 import "@UnityEngine.UIElements"
 

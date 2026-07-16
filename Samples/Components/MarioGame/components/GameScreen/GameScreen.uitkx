@@ -1,3 +1,4 @@
+@namespace Samples.MarioGame
 import { MarioGame } from "../../MarioGame.style"
 import { Block } from "../Block/Block"
 import { Enemy } from "../Enemy/Enemy"
@@ -5,7 +6,6 @@ import { HUD } from "../HUD/HUD"
 import { Mario } from "../Mario/Mario"
 import { Mushroom } from "../Mushroom/Mushroom"
 import { useMarioGame } from "./GameScreen.hooks"
-@namespace Samples.MarioGame
 import "@UnityEngine.UIElements"
 import "@static Samples.MarioGame.MarioConstants"
 
