@@ -25,6 +25,12 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   stamp-less (path-derived) file, so cross-file references in a `namespacePrefix` project showed
   false squiggles. Aliases now use the target's EFFECTIVE namespace (explicit `@namespace` wins,
   else path-derived + config), and the same-namespace guard now matches the source generator's.
+- **HMR crashed on the first hot-reload of any plain component** (`InvalidOperationException:
+  default instance of ImmutableArray<T>` in `BuildHookFamilyKeyMap`). The reflective `GetItems`
+  enumerated `DirectiveSet.HookDeclarations`, which is a DEFAULT `ImmutableArray` on every
+  component-only file — typed code guards with `IsDefaultOrEmpty`; the mirror now checks
+  `IsDefault` too. Latent since the §7 hook-family-key work; surfaced by the first RUNTIME-V
+  in-editor test.
 
 IDE extensions 1.4.2 ship the virtual-document half. SG suite 1541/1541, LSP suite 118/118.
 

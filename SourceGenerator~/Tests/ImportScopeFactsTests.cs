@@ -137,6 +137,21 @@ namespace ReactiveUITK.SourceGenerator.Tests
             string hmr = File.ReadAllText(HmrCompilerPath());
             Assert.Contains("ReactiveUITK.Language.ImportScopeFacts", hmr);
             Assert.Contains("ComputeInjectedUsingPayloads", hmr);
+        }
+
+        [Fact]
+        public void HmrGetItems_GuardsDefaultImmutableArray()
+        {
+            // RUNTIME-V regression: a DEFAULT ImmutableArray (e.g. DirectiveSet.HookDeclarations on
+            // every component-only file) throws from GetEnumerator(); HMR's reflective GetItems must
+            // check IsDefault before enumerating or the first hot-reload of a plain component
+            // crashes in BuildHookFamilyKeyMap. Pins the guard textually (Editor code cannot be
+            // referenced from this test project).
+            string hmr = File.ReadAllText(HmrCompilerPath());
+            int getItems = hmr.IndexOf("internal static IList GetItems", System.StringComparison.Ordinal);
+            Assert.True(getItems >= 0, "GetItems not found in UitkxHmrCompiler");
+            string body = hmr.Substring(getItems, Math.Min(1200, hmr.Length - getItems));
+            Assert.Contains("IsDefault", body);
 
             // And the reflected-to method really exists with the expected shape.
             var mi = typeof(ImportScopeFacts).GetMethod("ComputeInjectedUsingPayloads");

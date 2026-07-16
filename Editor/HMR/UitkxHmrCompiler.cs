@@ -2936,6 +2936,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             if (immutableArray == null)
                 return Array.Empty<object>();
+            // A DEFAULT ImmutableArray<T> (declared but never initialized — e.g.
+            // DirectiveSet.HookDeclarations on every component-only file) throws
+            // InvalidOperationException from GetEnumerator(). Typed consumers guard with
+            // IsDefaultOrEmpty; this reflective mirror must too, or the first hot-reload of a
+            // plain component crashes in BuildHookFamilyKeyMap (found by RUNTIME-V testing).
+            var isDefaultProp = immutableArray.GetType()
+                .GetProperty("IsDefault", BindingFlags.Public | BindingFlags.Instance);
+            if (isDefaultProp?.GetValue(immutableArray) is bool isDefault && isDefault)
+                return Array.Empty<object>();
             // ImmutableArray<T> implements IEnumerable<T>; cast to non-generic IEnumerable
             // and materialize to list for indexed access.
             var items = new List<object>();
