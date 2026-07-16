@@ -1,7 +1,4 @@
 @namespace Samples.GalagaGame
-@using System
-@using System.Collections.Generic
-@using UnityEngine
 
 export module GalagaTypes {
   // ───── Enums ─────

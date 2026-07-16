@@ -1,9 +1,6 @@
-import { useStressTestLoop } from "./StressTest.hooks"
 @namespace Samples.StressTest
-@using System
-@using System.Collections.Generic
-@using UnityEngine
-@using UnityEngine.UIElements
+import { useStressTestLoop } from "./StressTest.hooks"
+import "@UnityEngine.UIElements"
 
 export component StressTest {
   var areaRef = useRef<VisualElement?>(null);

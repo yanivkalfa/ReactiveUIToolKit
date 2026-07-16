@@ -6,6 +6,53 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.8.0] - 2026-07-15
+
+### Added
+
+Namespace-import unification — a single, consistent way to bring things into a `.uitkx` file,
+plus the diagnostics that make a misspelled namespace visible instead of silent.
+
+- **`import "@Namespace"` — the unified spelling of `@using`.** A C# namespace can now be brought
+  into scope with `import "@ReactiveUITK.Router"`, exactly equivalent to `@using ReactiveUITK.Router`
+  (same generated `using`, byte-identical output). It also accepts the full using grammar:
+  `import "@static UnityEngine.Mathf"`, `import "@V = UnityEngine.Vector2"`. The distinction is the
+  point: `import { X } from "./file"` (braces + `from`) imports a **peer `.uitkx` file** and is
+  name-checked; a quoted `"@Namespace"` imports a **C# namespace**. `@using` keeps working forever —
+  the unified form is the recommended spelling for new code.
+- **UITKX2316 — unknown namespace.** A `@using` / `import "@Ns"` whose namespace resolves nowhere in
+  the assembly or its references is now flagged (the namespace analogue of UITKX2300). Previously a
+  misspelled `@using` produced no editor feedback and only a raw CS0246 buried in generated code.
+  Now it's an **error in the editor** (a squiggle anchored on the namespace token) and a **warning at
+  build** — it never breaks an otherwise-valid build; the emitted `using`'s CS0246 remains the gate.
+  False positives are avoided by construction (validated against the compilation's global namespace
+  unioned with every peer `.uitkx` namespace, so generated namespaces are never flagged).
+- **UITKX2317 — redundant using (Hint).** `@using UnityEngine`, `@using System`, and the other
+  namespaces auto-injected into every generated file are flagged as redundant (faded, editor-only)
+  with a "Remove redundant using" quick-fix.
+- **Quick-fixes + tooling:** a "Convert to `import \"@…\"`" refactor on any `@using` line; the
+  codemod gains `--tidy` (convert `@using X` → `import "@X"` and strip redundant baseline usings in
+  bulk, idempotent, `--check` for CI) and a `--format` batch mode; the formatter round-trips both
+  spellings without rewriting one to the other; a discoverable `import "@…"` completion snippet.
+
+Follow-up polish (same release):
+
+- **Preamble ordering.** The formatter now emits `@namespace` first, then all `import` lines
+  grouped together (previously `@namespace` sat between file imports and namespace imports, splitting
+  them). One clean import block under the identity line.
+- **Router is auto-injected.** `RouterHooks.UseNavigate()` and friends now resolve with **no
+  import at all** — `ReactiveUITK.Router` joined the baseline usings every generated file receives.
+  An explicit `import "@ReactiveUITK.Router"` is now flagged redundant (2317) and stripped by `--tidy`.
+- **Project-wide namespace root — `namespacePrefix`.** A new `uitkx.config.json` key sets the root
+  of every path-derived namespace, so a whole project can drop per-file `@namespace`. Precedence:
+  `@namespace` → `namespacePrefix` → the owning `.asmdef`'s `rootNamespace` (Unity's own field) →
+  the `ReactiveUITK.Uitkx` default. Every step is opt-in — projects that set none keep the exact
+  legacy derivation.
+- **Consistent import colour.** `import "@Ns"` is highlighted identically to a file import (same
+  keyword + string scopes) so every import line reads as one colour.
+
+Additive: existing `@using`/`@namespace` files keep working unchanged. SG suite 1527/1527, LSP suite 118/118.
+
 ## [0.7.1] - 2026-07-15
 
 ### Fixed

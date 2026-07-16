@@ -1,12 +1,11 @@
+@namespace PrettyUi.App
 import { GamePage } from "./Pages/GamePage/GamePage"
 import { HomePage } from "./Pages/HomePage/HomePage"
 import { MenuPage } from "./Pages/MenuPage/MenuPage"
 import { NewsPage } from "./Pages/NewsPage/NewsPage"
 import { SettingsPage } from "./Pages/SettingsPage/SettingsPage"
-@namespace PrettyUi.App
-@using PrettyUi.App.Pages
-@using ReactiveUITK.Router
-@using UnityEngine.UIElements
+import "@PrettyUi.App.Pages"
+import "@UnityEngine.UIElements"
 
 export component AppRoot {
   return (

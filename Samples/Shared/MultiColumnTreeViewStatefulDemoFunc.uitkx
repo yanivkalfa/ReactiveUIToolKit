@@ -1,10 +1,6 @@
-import { IntroCounterFunc } from "./IntroCounterFunc"
 @namespace ReactiveUITK.Samples.UITKXShared
-@using System
-@using System.Collections.Generic
-@using ReactiveUITK.Core
-@using ReactiveUITK.Props.Typed
-@using UnityEngine.UIElements
+import { IntroCounterFunc } from "./IntroCounterFunc"
+import "@UnityEngine.UIElements"
 
 export component MultiColumnTreeViewStatefulDemoFunc(
   IReadOnlyList<MultiColumnTreeViewRowState>? rows = null,

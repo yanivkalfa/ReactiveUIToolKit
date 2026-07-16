@@ -1,8 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using ReactiveUITK.Core
-@using UnityEngine
-@using System.Diagnostics
+import "@System.Diagnostics"
 
 export component ShowcaseTopBar(
   string inputText = "",

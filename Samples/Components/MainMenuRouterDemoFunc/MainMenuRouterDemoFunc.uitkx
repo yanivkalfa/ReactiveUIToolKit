@@ -1,7 +1,6 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { MainMenuLayout } from "./MainMenuLayout"
 import { MainMenuNavigationRow } from "./MainMenuNavigationRow"
-@namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
 
 export component MainMenuRouterDemoFunc {
   var rootStyle = new Style {

@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
 
 export component FlushSyncDemoFunc {
   var (batchedCount, setBatchedCount) = useState(0);

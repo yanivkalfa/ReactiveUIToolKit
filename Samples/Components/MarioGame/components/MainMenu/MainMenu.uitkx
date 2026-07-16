@@ -1,6 +1,4 @@
 @namespace Samples.MarioGame
-@using System
-@using UnityEngine
 
 export component MainMenu(Action onStartGame) {
   return (

@@ -1,8 +1,6 @@
 @namespace Samples.TicTacToe
-@using ReactiveUITK.Props.Typed
-@using static ReactiveUITK.Props.Typed.StyleKeys
-@using static ReactiveUITK.Props.Typed.CssHelpers
-@using UnityEngine
+import "@static ReactiveUITK.Props.Typed.StyleKeys"
+import "@static ReactiveUITK.Props.Typed.CssHelpers"
 
 export module TicTacToe {
   public static readonly Style containerStyle = new Style

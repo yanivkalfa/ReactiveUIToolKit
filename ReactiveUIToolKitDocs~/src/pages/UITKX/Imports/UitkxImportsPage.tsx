@@ -22,6 +22,7 @@ import {
   EXAMPLE_STRICT,
   EXAMPLE_CODEMOD,
   EXAMPLE_NAMESPACE,
+  EXAMPLE_NAMESPACE_IMPORT,
 } from './UitkxImportsPage.example'
 
 const DIAGS: [string, string][] = [
@@ -38,6 +39,8 @@ const DIAGS: [string, string][] = [
   ['UITKX2311', 'export mismatch across parts merging into one type (e.g. a `component` and a same-named `module` disagree) — the component wins; align them (warning)'],
   ['UITKX2312', 'hook-container merge conflict: same-named containers in two files disagree (duplicate hook or accessibility)'],
   ['UITKX2314', '`~/` root is not configured or the path resolves outside the project — set `"root"` in uitkx.config.json'],
+  ['UITKX2316', 'unknown namespace — a `@using`/`import "@Ns"` whose namespace resolves nowhere in the assembly or its references (the namespace analogue of 2300). Editor error; build warning (the emitted `using`’s CS0246 stays the real gate)'],
+  ['UITKX2317', 'redundant using — the namespace is already in scope by default (e.g. `@using UnityEngine`); editor Hint (faded), safe to delete. `--tidy` strips these'],
 ]
 
 export const UitkxImportsPage: FC = () => (
@@ -66,7 +69,7 @@ export const UitkxImportsPage: FC = () => (
         <ListItemText primary="export" secondary="Makes a declaration visible to other files. No export = file-private (internal + strict-invisible)." />
       </ListItem>
       <ListItem>
-        <ListItemText primary="import { A, B } from '…'" secondary="Named imports only — no default, no namespace import. Preamble only (before the first declaration)." />
+        <ListItemText primary="import { A, B } from '…'" secondary="Named imports of peer .uitkx exports. Preamble only (before the first declaration). A namespace import uses a different shape — import '@Namespace' — see below." />
       </ListItem>
     </List>
 
@@ -79,6 +82,28 @@ export const UitkxImportsPage: FC = () => (
       are extensionless; <code>.uitkx</code> is implied.
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_SPECIFIERS} />
+
+    <Typography variant="h5" component="h2" gutterBottom>
+      Namespace imports
+    </Typography>
+    <Typography variant="body1" paragraph>
+      There are two preamble shapes, and the distinction is the point.{' '}
+      <code>import {'{ X }'} from &quot;./file&quot;</code> (braces + <code>from</code>) pulls a
+      name from a peer <code>.uitkx</code> file and is name-checked. A quoted{' '}
+      <code>import &quot;@Namespace&quot;</code> brings a <em>C# namespace</em> into scope — it is
+      exactly equivalent to <code>@using Namespace</code> and emits the same <code>using</code>.
+      The leading <code>@</code> inside the string is what tells the two apart.
+    </Typography>
+    <CodeBlock language="jsx" code={EXAMPLE_NAMESPACE_IMPORT} />
+    <Typography variant="body1" paragraph>
+      <code>@using</code> keeps working indefinitely and is never flagged; the unified{' '}
+      <code>import &quot;@Ns&quot;</code> spelling is the recommended form for new code. The
+      formatter round-trips whichever you write (it never rewrites one to the other); the codemod{' '}
+      <code>--tidy</code> converts <code>@using</code>→<code>import &quot;@Ns&quot;</code> and drops
+      redundant baseline usings in bulk. Most files need <strong>no</strong> namespace import at all
+      — write one only when the editor red-squiggles a C# name that isn&rsquo;t from another{' '}
+      <code>.uitkx</code> file (that squiggle is <code>UITKX2316</code>).
+    </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>
       Mixed declarations
@@ -132,7 +157,7 @@ export const UitkxImportsPage: FC = () => (
     <CodeBlock language="jsx" code={EXAMPLE_STRICT} />
 
     <Typography variant="h6" component="h3" gutterBottom>
-      Diagnostics (UITKX2300–2315)
+      Diagnostics (UITKX2300–2317)
     </Typography>
     <TableContainer component={Paper} sx={{ my: 2 }}>
       <Table size="small">

@@ -78,6 +78,9 @@ namespace ReactiveUITK.SourceGenerator
                 AppendImportValidationDiags(
                     directives, filePath,
                     peerComponents, peerHookContainers, peerModules, parseDiags);
+                AppendUsingValidationDiags(
+                    directives, compilation,
+                    peerComponents, peerHookContainers, peerModules, parseDiags);
                 AppendStrictReferenceDiags(
                     directives, source, filePath,
                     peerComponents, peerHookContainers, peerModules, parseDiags);
@@ -816,8 +819,99 @@ namespace ReactiveUITK.SourceGenerator
                     Code = f.Code,
                     Severity = ParseSeverity.Error,
                     SourceLine = f.Line,
+                    SourceColumn = Math.Max(0, f.Column),
+                    EndLine = f.EndColumn > 0 ? f.Line : 0,
+                    EndColumn = Math.Max(0, f.EndColumn),
                     Message = f.Message,
                 });
+        }
+
+        /// <summary>
+        /// UITKX2316 (namespace-import unification plan): validates each plain-namespace
+        /// <c>@using</c> / <c>import "@Ns"</c> against the real compilation symbol table, appending a
+        /// diagnostic anchored at the namespace token when it resolves nowhere.
+        /// <para>Emitted as a <b>WARNING</b>, not an error: build-time namespace validation is only as
+        /// sound as the compilation is complete (guaranteed in a real Unity build, but not provable by
+        /// the analyzer), so — per the codebase's "never break an otherwise-valid build" rule — it must
+        /// never be the build gate. The genuine gate remains the CS0246 the emitted <c>using</c>
+        /// produces when the namespace is truly absent; 2316 just names the offending .uitkx token. The
+        /// rich, error-tier, located feedback is the editor (LSP) pass. Mirrors UITKX2304's build/editor
+        /// split.</para>
+        /// <para>False positives are avoided by construction: the known set is the compilation's global
+        /// namespace UNIONed with every peer <c>.uitkx</c> namespace (and their ancestors), so a using
+        /// pointing at a namespace that only exists in OTHER generated output is never flagged.
+        /// <c>static</c>/alias payloads (type targets) are out of scope for v1 — they resolve via the
+        /// emitted C# / editor Roslyn pass, not this namespace-only check.</para>
+        /// </summary>
+        private static void AppendUsingValidationDiags(
+            DirectiveSet directives,
+            Compilation compilation,
+            ImmutableArray<PeerComponentInfo>? peerComponents,
+            ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
+            ImmutableArray<PeerModuleInfo>? peerModules,
+            List<ParseDiagnostic> parseDiags)
+        {
+            if (directives.UsingDirectives.IsDefaultOrEmpty)
+                return;
+
+            // Generated namespaces (peer .uitkx + this file) are invisible to the pre-generation
+            // compilation — seed them, with all ancestor prefixes, so they never false-positive.
+            var known = new HashSet<string>(StringComparer.Ordinal);
+            void AddWithAncestors(string? ns)
+            {
+                if (string.IsNullOrEmpty(ns)) return;
+                string[] segs = ns!.Split('.');
+                for (int n = 1; n <= segs.Length; n++)
+                    known.Add(string.Join(".", segs, 0, n));
+            }
+            AddWithAncestors(directives.Namespace);
+            if (peerComponents != null)
+                foreach (var pc in peerComponents.Value) AddWithAncestors(pc.Namespace);
+            if (peerHookContainers != null)
+                foreach (var ph in peerHookContainers.Value) AddWithAncestors(ph.Namespace);
+            if (peerModules != null)
+                foreach (var pm in peerModules.Value) AddWithAncestors(pm.Namespace);
+
+            foreach (var u in directives.UsingDirectives)
+            {
+                var (kind, target, targetOffset) = UsingPayloadFacts.Classify(u.Payload);
+                if (kind != UsingPayloadFacts.PayloadKind.Namespace)
+                    continue; // static/alias (type targets) — out of scope for the SG namespace check
+                if (target.Length == 0)
+                    continue;
+                if (known.Contains(target) || NamespaceExistsInCompilation(compilation, target))
+                    continue;
+
+                int col = u.PayloadColumn >= 0 ? u.PayloadColumn + targetOffset : -1;
+                parseDiags.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2316",
+                    Severity = ParseSeverity.Warning,
+                    SourceLine = u.Line,
+                    SourceColumn = Math.Max(0, col),
+                    EndLine = col >= 0 ? u.Line : 0,
+                    EndColumn = col >= 0 ? col + target.Length : 0,
+                    Message =
+                        $"unknown namespace `{target}` — no such namespace in this assembly or its references"
+                        + (u.FromImportSyntax ? "" : " (check the spelling, or remove the @using)"),
+                });
+            }
+        }
+
+        /// <summary>Walks <paramref name="c"/>'s merged global namespace segment-by-segment; true when the whole dotted name resolves to a namespace.</summary>
+        private static bool NamespaceExistsInCompilation(Compilation c, string dotted)
+        {
+            INamespaceSymbol ns = c.GlobalNamespace;
+            foreach (string seg in dotted.Split('.'))
+            {
+                INamespaceSymbol? next = null;
+                foreach (var m in ns.GetNamespaceMembers())
+                    if (m.Name == seg) { next = m; break; }
+                if (next == null)
+                    return false;
+                ns = next;
+            }
+            return true;
         }
 
         /// <summary>
@@ -875,6 +969,9 @@ namespace ReactiveUITK.SourceGenerator
                         ? ParseSeverity.Warning
                         : ParseSeverity.Error,
                     SourceLine = f.Line,
+                    SourceColumn = Math.Max(0, f.Column),
+                    EndLine = f.EndColumn > 0 ? f.Line : 0,
+                    EndColumn = Math.Max(0, f.EndColumn),
                     Message = f.Message,
                 });
         }

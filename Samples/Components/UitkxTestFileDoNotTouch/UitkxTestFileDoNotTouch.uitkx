@@ -1,6 +1,6 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { IntroCounterFunc } from "../../Shared/IntroCounterFunc"
 import { UitkxTestSubFileDoNotTouch } from "./UitkxTestSubFileDoNotTouch"
-@namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
 @using UnityEngine

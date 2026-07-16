@@ -43,6 +43,38 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.Null(NamespaceDerivation.Derive("C:/proj/Assets/x/Board.uitkx", ""));
         }
 
+        // ── Configurable prefix (namespace-import unification plan, feature 3) ──
+
+        [Fact]
+        public void Derive_NullPrefix_UsesDefaultRoot()
+        {
+            Assert.Equal("ReactiveUITK.Uitkx.Widget",
+                NamespaceDerivation.Derive("C:/p/Assets/S/Widget/W.uitkx", "C:/p/Assets/S"));
+        }
+
+        [Fact]
+        public void Derive_WithPrefix_ReplacesRoot()
+        {
+            Assert.Equal("UI.App.Components.Widget",
+                NamespaceDerivation.Derive(
+                    "C:/p/Assets/UI/App/Components/Widget/W.uitkx", "C:/p/Assets/UI/App", "UI.App"));
+        }
+
+        [Fact]
+        public void Derive_PrefixBesideAsmdef_PrefixOnly()
+        {
+            Assert.Equal("UI.App",
+                NamespaceDerivation.Derive("C:/p/Assets/UI/App/Root.uitkx", "C:/p/Assets/UI/App", "UI.App"));
+        }
+
+        [Fact]
+        public void Derive_SanitizesBadPrefix()
+        {
+            // A mis-typed prefix can never emit invalid C#.
+            Assert.Equal("My_Game.Widget",
+                NamespaceDerivation.Derive("C:/p/Assets/S/Widget/W.uitkx", "C:/p/Assets/S", "My-Game"));
+        }
+
         [Theory]
         // keep [A-Za-z0-9_]; case preserved verbatim
         [InlineData("Components", "Components")]

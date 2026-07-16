@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXShared
-@using ReactiveUITK.Props.Typed
 
 export component IntroCounterFunc {
   var (count, setCount) = useState(0);

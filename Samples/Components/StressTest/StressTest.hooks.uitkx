@@ -1,8 +1,5 @@
 @namespace Samples.StressTest
-@using System
-@using System.Collections.Generic
-@using UnityEngine
-@using UnityEngine.UIElements
+import "@UnityEngine.UIElements"
 
 export hook useStressTestLoop(
   Ref<VisualElement?> areaRef,

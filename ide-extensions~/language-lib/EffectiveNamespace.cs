@@ -26,8 +26,62 @@ namespace ReactiveUITK.Language
                 return rawNamespace;
             if (hasExplicitNamespace)
                 return rawNamespace;
-            string? derived = NamespaceDerivation.Derive(filePath, ResolveDerivationAnchor(filePath));
+            string? derived = NamespaceDerivation.Derive(
+                filePath, ResolveDerivationAnchor(filePath), ResolveNamespacePrefix(filePath));
             return derived ?? rawNamespace;
+        }
+
+        /// <summary>
+        /// The root prefix for a path-derived namespace (namespace-import unification plan),
+        /// most-specific WINS: the nearest <c>uitkx.config.json</c> <c>"namespacePrefix"</c>, else the
+        /// owning <c>.asmdef</c>'s <c>"rootNamespace"</c> (Unity's own convention), else the
+        /// <c>ReactiveUITK.Uitkx</c> default. The asmdef <c>"name"</c> is DELIBERATELY not used — it
+        /// would silently re-root every named-asmdef project. Every step is opt-in, so a project with
+        /// neither config nor an asmdef rootNamespace keeps the exact legacy derivation.
+        /// </summary>
+        public static string ResolveNamespacePrefix(string filePath)
+        {
+            string dir = Path.GetDirectoryName(filePath) ?? filePath;
+
+            string? configured = UitkxConfig.LoadNamespacePrefix(dir);
+            if (!string.IsNullOrEmpty(configured))
+                return configured!;
+
+            string? asmdefDir = FindOwningAsmdefDir(filePath);
+            if (asmdefDir != null)
+            {
+                string? rootNs = ReadAsmdefRootNamespace(asmdefDir);
+                if (!string.IsNullOrEmpty(rootNs))
+                    return rootNs!;
+            }
+
+            return NamespaceDerivation.Root;
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex s_asmdefRootNsRe =
+            new System.Text.RegularExpressions.Regex(
+                "\"rootNamespace\"\\s*:\\s*\"([^\"]*)\"",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>The <c>"rootNamespace"</c> field of the <c>*.asmdef</c> in <paramref name="asmdefDir"/>
+        /// (Unity 2020.2+), or <c>null</c> when the key is absent/empty.</summary>
+        private static string? ReadAsmdefRootNamespace(string asmdefDir)
+        {
+            try
+            {
+                foreach (string asmdef in Directory.GetFiles(asmdefDir, "*.asmdef"))
+                {
+                    var m = s_asmdefRootNsRe.Match(File.ReadAllText(asmdef));
+                    if (m.Success)
+                    {
+                        string v = m.Groups[1].Value.Trim();
+                        if (v.Length > 0)
+                            return v;
+                    }
+                }
+            }
+            catch { /* never crash on filesystem errors */ }
+            return null;
         }
 
         /// <summary>

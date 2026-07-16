@@ -30,6 +30,19 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void ImportLine_CapturesSpecifierColumn()
+        {
+            // import { A, B } from "./X"
+            // 0123456789...        ^ col 21 = opening quote
+            var (ds, _) = Parse("import { A, B } from \"./X\"\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            var imp = ds.Imports[0];
+            Assert.Equal(21, imp.SpecifierColumn);
+            Assert.Equal(new[] { 9, 12 }, imp.NameColumns.ToArray());
+            // The specifier span (quotes included) closes exactly at the line's last char.
+            Assert.Equal("import { A, B } from \"./X\"".Length, imp.SpecifierColumn + imp.Specifier.Length + 2);
+        }
+
+        [Fact]
         public void MultipleImports_MixedSpecifierForms()
         {
             var (ds, _) = Parse(
@@ -90,6 +103,86 @@ namespace ReactiveUITK.SourceGenerator.Tests
             var (_, diags) = Parse(
                 "component Foo {\n  return ( <Spacer /> );\n}\nimport { A } from \"./X\"\n");
             Assert.Contains(diags, d => d.Code == "UITKX2309");
+        }
+
+        // ── Namespace imports (import "@Ns") + positioned UsingDirectives ────────
+        // Namespace-import unification plan: `import "@Ns"` desugars to the same model
+        // a `@using` line produces, and both now carry source positions for 2316/2317.
+
+        [Fact]
+        public void AtUsing_PopulatesPositionedUsingDirective()
+        {
+            // @using ReactiveUITK.Router
+            // @ col 0, `using` 1-5, space 6, payload `R` col 7
+            var (ds, _) = Parse("@using ReactiveUITK.Router\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Contains("ReactiveUITK.Router", ds.Usings);          // back-compat string view intact
+            var u = Assert.Single(ds.UsingDirectives);
+            Assert.Equal("ReactiveUITK.Router", u.Payload);
+            Assert.False(u.FromImportSyntax);
+            Assert.Equal(1, u.Line);
+            Assert.Equal(0, u.Column);
+            Assert.Equal(7, u.PayloadColumn);
+        }
+
+        [Fact]
+        public void NamespaceImport_DesugarsToUsing()
+        {
+            // import "@UnityEngine.Audio"
+            // `import ` 0-6, `"` col 7, `@` col 8, payload `U` col 9
+            var (ds, diags) = Parse("import \"@UnityEngine.Audio\"\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Empty(diags);
+            Assert.Contains("UnityEngine.Audio", ds.Usings);            // feeds the emitters unchanged
+            Assert.Empty(ds.Imports);                                   // NOT a file import
+            var u = Assert.Single(ds.UsingDirectives);
+            Assert.Equal("UnityEngine.Audio", u.Payload);
+            Assert.True(u.FromImportSyntax);
+            Assert.Equal(0, u.Column);
+            Assert.Equal(9, u.PayloadColumn);
+        }
+
+        [Fact]
+        public void NamespaceImport_StaticPayload_Preserved()
+        {
+            var (ds, _) = Parse("import \"@static DoomGame.DoomTypes\"\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Contains("static DoomGame.DoomTypes", ds.Usings);
+            Assert.True(Assert.Single(ds.UsingDirectives).FromImportSyntax);
+        }
+
+        [Fact]
+        public void NamespaceImport_AliasPayload_Preserved()
+        {
+            var (ds, _) = Parse("import \"@UColor = UnityEngine.Color\"\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Contains("UColor = UnityEngine.Color", ds.Usings);
+        }
+
+        [Fact]
+        public void NamespaceImport_And_FileImport_And_AtUsing_Coexist()
+        {
+            var (ds, _) = Parse(
+                "import { Chip } from \"./Chip\"\nimport \"@ReactiveUITK.Router\"\n@using UnityEngine\n" +
+                "component Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Single(ds.Imports);                                  // file import
+            Assert.Equal("./Chip", ds.Imports[0].Specifier);
+            Assert.Equal(new[] { "ReactiveUITK.Router", "UnityEngine" }, ds.Usings.ToArray());
+            Assert.Equal(2, ds.UsingDirectives.Length);
+            Assert.True(ds.UsingDirectives[0].FromImportSyntax);        // the import "@..." one
+            Assert.False(ds.UsingDirectives[1].FromImportSyntax);       // the @using one
+        }
+
+        [Fact]
+        public void NamespaceImport_MissingAtSigil_NotTreatedAsUsing()
+        {
+            // `import "Ns"` (no @) is reserved/ambiguous — must NOT silently become a using.
+            var (ds, _) = Parse("import \"Foo.Bar\"\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.DoesNotContain("Foo.Bar", ds.Usings);
+        }
+
+        [Fact]
+        public void NamespaceImport_InHookFile_PopulatesUsingDirectives()
+        {
+            var (ds, _) = Parse("import \"@UnityEngine.Audio\"\nexport hook useThing() { }\n");
+            Assert.Contains("UnityEngine.Audio", ds.Usings);
+            Assert.True(Assert.Single(ds.UsingDirectives).FromImportSyntax);
         }
     }
 }

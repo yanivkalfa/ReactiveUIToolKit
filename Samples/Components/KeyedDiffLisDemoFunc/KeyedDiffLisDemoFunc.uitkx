@@ -1,7 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using System.Collections.Generic
-@using UnityEngine
 
 export component KeyedDiffLisDemoFunc {
   var seedItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf" };

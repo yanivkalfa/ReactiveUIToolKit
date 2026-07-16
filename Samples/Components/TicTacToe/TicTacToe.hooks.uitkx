@@ -1,5 +1,5 @@
 @namespace Samples.TicTacToe
-@using UnityEngine.UIElements
+import "@UnityEngine.UIElements"
 
 export hook useTestHomeState() -> (
   bool gameStarted,

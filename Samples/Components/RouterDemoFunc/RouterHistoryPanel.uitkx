@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Router
 
 export component RouterHistoryPanel {
   var go = RouterHooks.UseGo();

@@ -1,6 +1,5 @@
 @namespace ReactiveUITK.Samples.PortalsPlayground
-@using UnityEngine
-@using UnityEngine.UIElements
+import "@UnityEngine.UIElements"
 
 export component PortalsPlayground {
   var slotA = useContext<VisualElement>("portals:slot-a");

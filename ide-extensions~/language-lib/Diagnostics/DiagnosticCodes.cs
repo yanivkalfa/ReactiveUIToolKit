@@ -260,5 +260,19 @@ namespace ReactiveUITK.Language.Diagnostics
         public const string RootNotConfigured = "UITKX2314";
 
         // UITKX2315 — reserved (family).
+
+        /// <summary>`unknown namespace '{0}' — no such namespace in this assembly or its references`
+        /// (namespace-import unification plan; Unity-local). Fires on a <c>@using</c> or
+        /// <c>import "@Ns"</c> whose (plain-namespace) payload does not resolve against the
+        /// compilation's global namespace ∪ peer .uitkx namespaces. The namespace analogue of
+        /// UITKX2300. <b>Warning</b> at build time (never breaks a valid build — the emitted
+        /// <c>using</c>'s CS0246 remains the gate), <b>Error</b> in the editor (a located squiggle).</summary>
+        public const string UnknownNamespace = "UITKX2316";
+
+        /// <summary>`unused using '{0}'` (namespace-import unification plan; editor-only Hint,
+        /// <c>Unnecessary</c> tag → faded). Fires when a <c>@using</c>/namespace-import contributes
+        /// nothing to the file. Never emitted by the source generator (a redundant using is a no-op),
+        /// never build-breaking.</summary>
+        public const string UnusedUsing = "UITKX2317";
     }
 }

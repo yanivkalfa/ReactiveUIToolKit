@@ -212,6 +212,11 @@ public sealed class DiagnosticsPublisher
                 ? ParseSeverity.Warning
                 : ParseSeverity.Error,
             SourceLine = f.Line,
+            // Column span of the offending token (specifier string / imported name / referenced
+            // identifier) when tracked; -1 → line-start fallback (a 1-char squiggle at col 0).
+            SourceColumn = Math.Max(0, f.Column),
+            EndLine = f.EndColumn > 0 ? f.Line : 0,
+            EndColumn = Math.Max(0, f.EndColumn),
             Message = f.Message,
         };
 
@@ -251,6 +256,43 @@ public sealed class DiagnosticsPublisher
         if (cycleDiag != null)
             diags.Add(cycleDiag);
 
+        // 2317 — a @using/namespace-import that exactly duplicates the auto-injected baseline
+        // (e.g. `@using UnityEngine`, `@using System`). Provably redundant (no compilation needed),
+        // editor-only Hint (faded, never build-breaking). The compilation-dependent 2316 is pushed
+        // separately from the Roslyn tier (RoslynHost.ValidateNamespaceUsings).
+        foreach (var d in ComputeRedundantUsingDiagnostics(directives))
+            diags.Add(d);
+
+        return diags;
+    }
+
+    /// <summary>
+    /// UITKX2317 (namespace-import unification plan): flags each plain-namespace <c>@using</c> /
+    /// <c>import "@Ns"</c> whose payload is already in <see cref="AutoInjectedUsings"/> — a provably
+    /// redundant line the author can delete. Hint severity (rendered faded via the Unnecessary tag in
+    /// <see cref="ToLsp"/>); sound and compilation-free, so it never false-positives.
+    /// </summary>
+    private static List<ParseDiagnostic> ComputeRedundantUsingDiagnostics(DirectiveSet directives)
+    {
+        var diags = new List<ParseDiagnostic>();
+        if (directives.UsingDirectives.IsDefaultOrEmpty)
+            return diags;
+        foreach (var u in directives.UsingDirectives)
+        {
+            if (!AutoInjectedUsings.IsRedundant(u.Payload))
+                continue;
+            int col = u.PayloadColumn >= 0 ? u.PayloadColumn : 0;
+            diags.Add(new ParseDiagnostic
+            {
+                Code = DiagnosticCodes.UnusedUsing,
+                Severity = ParseSeverity.Hint,
+                SourceLine = u.Line,
+                SourceColumn = col,
+                EndLine = u.Line,
+                EndColumn = col + u.Payload.Length,
+                Message = $"redundant using `{u.Payload}` — already in scope by default; safe to remove",
+            });
+        }
         return diags;
     }
 
@@ -305,11 +347,18 @@ public sealed class DiagnosticsPublisher
             return null;
 
         string chain = string.Join(" -> ", cycle.Select(c => Path.GetFileName(c)));
+        var imp0 = directives.Imports[0];
+        // Squiggle the whole first import statement (keyword through closing quote) when the
+        // specifier span is tracked; line-start fallback otherwise.
+        int endCol = imp0.SpecifierColumn >= 0 ? imp0.SpecifierColumn + imp0.Specifier.Length + 2 : 0;
         return new ParseDiagnostic
         {
             Code = "UITKX2306",
             Severity = ParseSeverity.Error,
-            SourceLine = directives.Imports[0].Line,
+            SourceLine = imp0.Line,
+            SourceColumn = Math.Max(0, imp0.Column),
+            EndLine = endCol > 0 ? imp0.Line : 0,
+            EndColumn = endCol,
             Message = $"value-import cycle: {chain} (hooks/modules load eagerly — break the chain or move to component refs)",
         };
     }
@@ -527,13 +576,21 @@ public sealed class DiagnosticsPublisher
             SourceMapEntry? MapEntry,
             bool IsStateSetterCS1503
         )> roslynDiags,
-        string? uitkxSource = null
+        string? uitkxSource = null,
+        IReadOnlyList<ParseDiagnostic>? extraUitkxDiags = null
     )
     {
         try
         {
             // Map Roslyn diagnostics → ParseDiagnostic
             var t3 = _roslynMapper.Map(roslynDiags, uitkxFilePath, uitkxSource);
+
+            // Namespace-import diagnostics (UITKX2316/2317) are computed by RoslynHost from the same
+            // compilation but have no source-map entry (using lines are scaffold), so they arrive as
+            // ready-made ParseDiagnostics rather than through the mapper. Fold them into the T3 tier
+            // so they cache + carry-forward like every other Roslyn-tier diagnostic.
+            if (extraUitkxDiags != null && extraUitkxDiags.Count > 0)
+                t3 = t3.Concat(extraUitkxDiags).ToList();
 
             // Expand CS0162 (unreachable code) from a single statement to the
             // full unreachable range up to the enclosing closing `}`.
@@ -743,6 +800,7 @@ public sealed class DiagnosticsPublisher
                 || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
                 || d.Code == "CS0162" // Roslyn: Unreachable code detected
                 || d.Code == DiagnosticCodes.UnusedParameter // UITKX0111
+                || d.Code == DiagnosticCodes.UnusedUsing // UITKX2317 redundant using
                 || d.Code == "CS0219" // Roslyn: unused local variable
                 || d.Code == "CS8321" // Roslyn: unused local function
                     ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)

@@ -1,7 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using System.Collections.Generic
-@using UnityEngine
 
 export component HookStateQueueDemoFunc {
   var (value, setValue) = useState(0);

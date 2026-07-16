@@ -180,5 +180,87 @@ namespace ReactiveUITK.SourceGenerator.Tests
                 _ => true, _ => "Game", (_, _) => true);
             Assert.Single(findings, f => f.Code == "UITKX2314");
         }
+
+        // ── Squiggle anchoring (Finding.Column/EndColumn) ───────────────────────
+        // Regression: every strict finding used to carry only a line, so editors
+        // rendered a 1-char squiggle at column 0 (on `import`) instead of on the
+        // offending token — the specifier string, imported name, or reference.
+
+        /// <summary>An import of `X` as it appears in `import { X } from "spec"`: name at col 9, opening quote at col 18.</summary>
+        private static DirectiveSet DsWithAnchoredImport(string name, string spec)
+        {
+            var ds = DsWithImports();
+            return ds with
+            {
+                Imports = ImmutableArray.Create(new ImportDeclaration(
+                    ImmutableArray.Create(name), spec, 1, 0,
+                    ImmutableArray.Create(9), SpecifierColumn: 9 + name.Length + 8)),
+            };
+        }
+
+        [Fact]
+        public void UnresolvableSpecifier_2300_AnchorsToSpecifierString()
+        {
+            var ds = DsWithAnchoredImport("X", "./missing");
+            var findings = Validate(ds, "C:/p/Assets/UI", "C:/p/Assets", "Game",
+                _ => false, _ => "Game", (_, _) => true);
+            var f = Assert.Single(findings, x => x.Code == "UITKX2300");
+            Assert.Equal(18, f.Column);                              // opening quote
+            Assert.Equal(18 + "./missing".Length + 2, f.EndColumn);  // past closing quote
+        }
+
+        [Fact]
+        public void NotExported_2301_AnchorsToImportedName()
+        {
+            var ds = DsWithAnchoredImport("Chip", "./Chip");
+            var findings = Validate(ds, "C:/p/Assets/UI", "C:/p/Assets", "Game",
+                p => p.EndsWith("Chip.uitkx"), _ => "Game", (_, _) => false);
+            var f = Assert.Single(findings, x => x.Code == "UITKX2301");
+            Assert.Equal(9, f.Column);
+            Assert.Equal(9 + "Chip".Length, f.EndColumn);
+        }
+
+        [Fact]
+        public void UnusedImport_2304_AnchorsToImportedName()
+        {
+            var ds = DsWithAnchoredImport("StatusChip", "./StatusChip");
+            var findings = DetectUnusedImports(ds, "<Box />");
+            var f = Assert.Single(findings, x => x.Code == "UITKX2304");
+            Assert.Equal(9, f.Column);
+            Assert.Equal(9 + "StatusChip".Length, f.EndColumn);
+        }
+
+        [Fact]
+        public void NotImportedReference_2305_AnchorsToIdentifier_MultiLine()
+        {
+            // Palette on line 2, col 8 of the scannable text.
+            var findings = Detect(DsWithImports(), Importer, "var a = 1;\nvar g = Palette.Gap;", Peers, BuiltinUseState);
+            var f = Assert.Single(findings, x => x.Code == "UITKX2305");
+            Assert.Equal(2, f.Line);
+            Assert.Equal(8, f.Column);
+            Assert.Equal(8 + "Palette".Length, f.EndColumn);
+        }
+
+        [Fact]
+        public void UnknownHook_2307_AnchorsToIdentifier()
+        {
+            var findings = Detect(DsWithImports(), Importer, "var x = useMystery();", Peers, BuiltinUseState);
+            var f = Assert.Single(findings, x => x.Code == "UITKX2307");
+            Assert.Equal(8, f.Column);
+            Assert.Equal(8 + "useMystery".Length, f.EndColumn);
+        }
+
+        [Fact]
+        public void UntrackedColumns_FallBackToMinusOne()
+        {
+            // Legacy 5-arg ImportDeclaration (no SpecifierColumn/NameColumns) → spans untracked,
+            // consumers fall back to the old line-start anchor instead of a bogus span.
+            var ds = DsWithImports((new[] { "X" }, "./missing"));
+            var findings = Validate(ds, "C:/p/Assets/UI", "C:/p/Assets", "Game",
+                _ => false, _ => "Game", (_, _) => true);
+            var f = Assert.Single(findings, x => x.Code == "UITKX2300");
+            Assert.Equal(-1, f.Column);
+            Assert.Equal(-1, f.EndColumn);
+        }
     }
 }

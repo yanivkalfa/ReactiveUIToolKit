@@ -1,7 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Signals
-@using System
-@using UnityEngine
+import "@ReactiveUITK.Signals"
 
 export component SignalCounterDemoFunc {
   var counterSignal = useMemo(() => SignalFactory.Get<int>("demo.counter", 0), Array.Empty<object>());

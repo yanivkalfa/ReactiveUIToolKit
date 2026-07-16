@@ -1,3 +1,4 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { DeepNestedSection } from "./DeepNestedSection"
 import { ForSection } from "./ForSection"
 import { ForeachSection } from "./ForeachSection"
@@ -6,9 +7,6 @@ import { NestedSection } from "./NestedSection"
 import { SetupCodeSection } from "./SetupCodeSection"
 import { SwitchSection } from "./SwitchSection"
 import { WhileSection } from "./WhileSection"
-@namespace ReactiveUITK.Samples.UITKXComponents
-@using UnityEngine
-@using System.Collections.Generic
 
 export component DirectiveSuccessDemo {
   var (tab, setTab) = useState("if");

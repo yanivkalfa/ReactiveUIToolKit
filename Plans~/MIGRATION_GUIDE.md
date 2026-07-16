@@ -113,6 +113,25 @@ Since 0.7.0 cross-file references are explicit: prefix declarations with `export
 add `import { X } from "./path"` lines (or run the bundled `UitkxMigrateImports` codemod
 once over the project — it does both and stamps each file's current `@namespace`).
 
+#### Tidying `@using` → `import "@Ns"` (optional, `--tidy`)
+
+Since 0.8.0 a C# namespace can be brought into scope with either `@using Ns` or the
+unified `import "@Ns"` spelling — they are exactly equivalent (same generated `using`).
+`import "@Ns"` reads consistently with file imports and is the recommended form for new
+code; `@using` keeps working forever. The `--tidy` flag canonicalizes an existing project:
+
+```bash
+# Dry run — shows which files would change:
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --check --tidy
+
+# Apply: rewrites @using X → import "@X" AND deletes redundant baseline usings
+# (@using UnityEngine / @using System / … are auto-injected into every generated file):
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --tidy
+```
+
+`--tidy` is idempotent and composes with the import migration. Prefer writing a namespace
+import only when the editor red-squiggles a C# name (`UITKX2316`); most files need none.
+
 ### Step 3 — Move hook calls to function setup section
 
 Everything that was inside `Render()` before the `return` statement goes into

@@ -1,9 +1,8 @@
+@namespace PrettyUi.App.Pages
 import { NewGameButton } from "../../Components/NewGameButton/NewGameButton"
 import { TopNav } from "../../Components/TopNav/TopNav"
-@namespace PrettyUi.App.Pages
-@using PrettyUi.App.Components
-@using ReactiveUITK.Router
-@using UnityEngine.UIElements
+import "@PrettyUi.App.Components"
+import "@UnityEngine.UIElements"
 
 export component MenuPage {
   return (

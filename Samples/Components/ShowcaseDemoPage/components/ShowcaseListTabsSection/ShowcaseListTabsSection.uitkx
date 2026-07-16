@@ -1,11 +1,7 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
 import { IntroCounterFunc } from "../../../../Shared/IntroCounterFunc"
 import { ListViewStatefulDemoFunc } from "../../../../Shared/ListViewStatefulDemoFunc"
-@namespace ReactiveUITK.Samples.UITKXComponents
-@using System
-@using System.Collections.Generic
-@using ReactiveUITK.Props.Typed
-@using ReactiveUITK.Samples.UITKXShared
-@using UnityEngine
+import "@ReactiveUITK.Samples.UITKXShared"
 
 export component ShowcaseListTabsSection(
   Action<int>? onListCountChanged = null,

@@ -1,5 +1,4 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
-@using System
 
 export component SimpleUseEffectFunc {
   var (message, setMessage) = useState("Waiting...");

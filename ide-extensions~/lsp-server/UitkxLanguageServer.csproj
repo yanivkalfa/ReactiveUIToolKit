@@ -19,6 +19,10 @@
     <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Expose internal testable cores (e.g. RoslynHost.ValidateNamespaceUsings) to the test project. -->
+    <InternalsVisibleTo Include="UitkxLanguageServer.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
     <!--

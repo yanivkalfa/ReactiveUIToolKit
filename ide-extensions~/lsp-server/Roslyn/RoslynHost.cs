@@ -609,6 +609,102 @@ namespace UitkxLanguageServer.Roslyn
         }
 
         /// <summary>
+        /// Namespace-import unification plan — the editor tier of UITKX2316: validates each
+        /// plain-namespace <c>@using</c> / <c>import "@Ns"</c> against the file's virtual-document
+        /// compilation (which references the real Unity assemblies, so <c>UnityEngine.*</c> and
+        /// already-compiled peer namespaces resolve). Emitted as an <b>Error</b> (a located squiggle)
+        /// — the editor counterpart to the build-time warning. Computed here because it needs the
+        /// compilation's global namespace, and returned as <see cref="ParseDiagnostic"/>s (not Roslyn
+        /// diagnostics) because using lines are scaffold — they carry no source-map entry.
+        /// <para>Own namespace (+ ancestors) is unioned in so a file legally using its own namespace
+        /// is never flagged; freshly-created peer namespaces not yet compiled by Unity may produce a
+        /// transient 2316 that self-heals on the next compile.</para>
+        /// </summary>
+        private List<ParseDiagnostic> ComputeNamespaceDiagnostics(FileState state, ParseResult parseResult)
+        {
+            if (parseResult.Directives.UsingDirectives.IsDefaultOrEmpty
+                || state.Workspace == null || state.DocumentId == null)
+                return new List<ParseDiagnostic>();
+            try
+            {
+                var doc = state.Workspace.CurrentSolution.GetDocument(state.DocumentId);
+                var comp = doc?.Project.GetCompilationAsync().GetAwaiter().GetResult();
+                if (comp == null)
+                    return new List<ParseDiagnostic>();
+                return ValidateNamespaceUsings(comp, parseResult.Directives);
+            }
+            catch (Exception ex)
+            {
+                ServerLog.Log($"[RoslynHost] ComputeNamespaceDiagnostics error: {ex.Message}");
+                return new List<ParseDiagnostic>();
+            }
+        }
+
+        /// <summary>
+        /// Pure core of the editor UITKX2316 check: validate each plain-namespace using in
+        /// <paramref name="directives"/> against <paramref name="comp"/>'s global namespace (∪ the
+        /// file's own namespace + ancestors). Error-tier findings anchored at the namespace token.
+        /// <c>internal</c> so it is directly unit-testable with a hand-built compilation, decoupled
+        /// from the workspace plumbing.
+        /// </summary>
+        internal static List<ParseDiagnostic> ValidateNamespaceUsings(Compilation comp, DirectiveSet directives)
+        {
+            var diags = new List<ParseDiagnostic>();
+            if (directives.UsingDirectives.IsDefaultOrEmpty)
+                return diags;
+
+            var known = new HashSet<string>(StringComparer.Ordinal);
+            void AddWithAncestors(string? ns)
+            {
+                if (string.IsNullOrEmpty(ns)) return;
+                string[] segs = ns!.Split('.');
+                for (int n = 1; n <= segs.Length; n++)
+                    known.Add(string.Join(".", segs, 0, n));
+            }
+            AddWithAncestors(directives.Namespace);
+
+            foreach (var u in directives.UsingDirectives)
+            {
+                var (kind, target, targetOffset) = UsingPayloadFacts.Classify(u.Payload);
+                if (kind != UsingPayloadFacts.PayloadKind.Namespace || target.Length == 0)
+                    continue; // static/alias (type targets) resolve via the normal Roslyn pass
+                if (known.Contains(target) || NamespaceExistsInCompilation(comp, target))
+                    continue;
+
+                int col = u.PayloadColumn >= 0 ? u.PayloadColumn + targetOffset : -1;
+                diags.Add(new ParseDiagnostic
+                {
+                    Code = DiagnosticCodes.UnknownNamespace,
+                    Severity = ParseSeverity.Error,
+                    SourceLine = u.Line,
+                    SourceColumn = Math.Max(0, col),
+                    EndLine = col >= 0 ? u.Line : 0,
+                    EndColumn = col >= 0 ? col + target.Length : 0,
+                    Message =
+                        $"unknown namespace `{target}` — no such namespace in this assembly or its references"
+                        + (u.FromImportSyntax ? "" : " (check the spelling, or remove the @using)"),
+                });
+            }
+            return diags;
+        }
+
+        /// <summary>Walks <paramref name="c"/>'s merged global namespace segment-by-segment; true when the whole dotted name resolves to a namespace.</summary>
+        private static bool NamespaceExistsInCompilation(Compilation c, string dotted)
+        {
+            INamespaceSymbol ns = c.GlobalNamespace;
+            foreach (string seg in dotted.Split('.'))
+            {
+                INamespaceSymbol? next = null;
+                foreach (var m in ns.GetNamespaceMembers())
+                    if (m.Name == seg) { next = m; break; }
+                if (next == null)
+                    return false;
+                ns = next;
+            }
+            return true;
+        }
+
+        /// <summary>
         /// Returns the current <see cref="VirtualDocument"/> for
         /// <paramref name="uitkxFilePath"/>, or <c>null</c> if not yet built.
         /// Used by completions, hover, and semantic-token handlers.
@@ -965,8 +1061,14 @@ namespace UitkxLanguageServer.Roslyn
                 if (ct.IsCancellationRequested)
                     return;
 
-                // 4. Push T3 diagnostics through the publisher
-                publisher.PushTier3(uitkxFilePath, GetLatestDiagnostics(uitkxFilePath), source);
+                // 4. Push T3 diagnostics through the publisher (+ namespace-import diagnostics
+                //    computed from the same compilation — UITKX2316/2317, which have no source-map
+                //    entry so they cannot ride the Roslyn-diagnostic path).
+                publisher.PushTier3(
+                    uitkxFilePath,
+                    GetLatestDiagnostics(uitkxFilePath),
+                    source,
+                    ComputeNamespaceDiagnostics(state, parseResult));
 
                 // 5. Push classification overrides to VS2022 (custom notification).
                 //    VSCode uses LSP semantic tokens for delegate coloring; VS2022
