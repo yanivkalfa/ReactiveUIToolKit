@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.8.1] - 2026-07-16
+
+### Fixed
+
+- **Router tags broke without an explicit import (UITKX0008 / false UITKX0109).** 0.8.0 made
+  `ReactiveUITK.Router` part of the auto-injected baseline, so files (including the bundled
+  samples) stopped writing `import "@ReactiveUITK.Router"` — but the generator's tag/props
+  resolver still searched only the file's own usings. `<Router>`/`<Routes>`/`<Route path
+  element>`/`<Outlet>` then failed to resolve their props at generation time (UITKX0008
+  warnings + false UITKX0109 errors) even though the emitted C# was fine — caught by the
+  floor-Unity store gate. The resolver now searches the same auto-injected baseline the
+  emitters put in scope (one shared list, so they can never drift again), with two regression
+  tests pinning the direct and alias-tag paths.
+
+  The 0.8.0 `dist` publish predates this fix — git-URL `#dist` consumers should update to
+  0.8.1. IDE extensions are unaffected (the LSP resolves through real Roslyn); 1.4.0 remains
+  current.
+
 ## [0.8.0] - 2026-07-15
 
 ### Added
@@ -50,6 +68,13 @@ Follow-up polish (same release):
   legacy derivation.
 - **Consistent import colour.** `import "@Ns"` is highlighted identically to a file import (same
   keyword + string scopes) so every import line reads as one colour.
+
+### Fixed
+
+- **Strict-import squiggles now land on the offending token.** Every 23xx diagnostic used to
+  render as a one-character squiggle at column 0 (on `import`). Now 2300/2308/2314 underline the
+  quoted specifier, 2301/2303/2304 the offending imported name, and 2305/2307 the referenced
+  identifier — in the editor and with matching columns at build.
 
 Additive: existing `@using`/`@namespace` files keep working unchanged. SG suite 1527/1527, LSP suite 118/118.
 

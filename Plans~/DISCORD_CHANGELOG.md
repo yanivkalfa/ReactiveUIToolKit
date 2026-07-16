@@ -1,4 +1,14 @@
-﻿## [0.8.0] - 2026-07-15
+﻿## [0.8.1] - 2026-07-16
+
+### Patch — Router resolution fix for 0.8.0
+
+**If `<Router>` / `<Routes>` / `<Route>` started erroring after 0.8.0 (`UITKX0008` "could not be found", `UITKX0109` unknown attribute `path`/`element`) — this is the fix.** 0.8.0 auto-injected `ReactiveUITK.Router`, so files stopped writing `import "@ReactiveUITK.Router"` — but the generator's tag/props resolver still searched only the file's own usings. The router tags then failed to resolve their props at build time even though the emitted C# was fine.
+
+The resolver now searches the exact auto-injected baseline the emitters put in scope — one shared list, so the two can never drift again. Two regression tests pin the direct (`<RouteFunc>`) and alias (`<Router>/<Routes>/<Route>`) paths.
+
+**The 0.8.0 `dist` publish predates this fix** — git-URL `#dist` consumers should update to **0.8.1**. IDE extensions are unaffected (the editor resolves through real Roslyn); **1.4.0** remains current. SG `1529/1529`, LSP `118/118`.
+
+## [0.8.0] - 2026-07-15
 
 ### Namespace imports + the diagnostics that make a typo visible
 
