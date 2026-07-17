@@ -33,6 +33,20 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void ImportLine_TrailingSemicolon_FormatsToCanonicalForm()
+        {
+            // The parser tolerates the JS-canonical trailing `;` and drops it from the
+            // model, so the formatter re-emits the canonical, semicolon-less line. The
+            // second pass pins idempotency of the canonical output.
+            string once = Fmt(
+                "import { container } from \"./Foo.style\";\n\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
+            Assert.Contains("import { container } from \"./Foo.style\"\n", once);
+            Assert.DoesNotContain("\"./Foo.style\";", once);
+            Assert.Contains("component Foo", once); // the file parsed as a component, not a 2105 wreck
+            Assert.Equal(once, Fmt(once));
+        }
+
+        [Fact]
         public void ExportComponent_PrefixSurvives()
         {
             Assert.Contains("export component Foo", Fmt("export component Foo {\n  return ( <Spacer /> );\n}\n"));

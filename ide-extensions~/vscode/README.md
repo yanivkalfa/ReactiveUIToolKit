@@ -19,6 +19,35 @@ Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolK
 
 ## Changelog
 
+### [1.4.4] - 2026-07-16
+- Ships library 0.8.3's import-parser fix in the bundled LSP server + analyzer DLL.
+
+Fix: a trailing `;` on a file import (`import { X } from "./file";` -- the JS-canonical form) wrecked the whole file: the parser's cursor stalled on the semicolon, the preamble loop bailed, and the file failed with a misleading UITKX2105 ("no valid component declaration") plus phantom "single root element" squiggles on lines that were never markup. The file-import reader was the only preamble reader missing the consume-to-end-of-line step its siblings (`@using Ns;`, `import "@Ns";`) already had -- it now has parity, so the semicolon is tolerated in the editor, the Unity build, and hot reload alike. The formatter re-emits the canonical, semicolon-less form on save.
+
+With the meltdown gone, genuinely wrong imports get their real diagnostic -- e.g. importing a module's field instead of the module now correctly reports UITKX2301 ("not exported") on the exact name.
+
+No new commands, settings, grammar, or diagnostic codes. Pairs with Unity package 0.8.3 (same parser via the committed analyzer DLLs).
+
+SG suite 1550/1550, LSP suite 118/118.
+- Two editor-only false-positive classes fixed (both surfaced by the stamp-less, path-derived samples; every build was clean throughout).
+
+Fix: companion-hook calls showed CS0121 "call is ambiguous" in the editor. The virtual-document generator emitted its component/hook/module classes under the RAW parsed namespace -- the parser default `ReactiveUITK.FunctionStyle` for every stamp-less file -- while the injected import using-statics (and the compiled assembly) used the EFFECTIVE namespace. Two containers with the same name in scope = ambiguous everything. All virtual documents and the peer-companion `using static` injection now resolve through the same `EffectiveNamespace` seam the build uses, so the editor sees exactly one container in exactly the namespace the build emits.
+
+Fix: `onClick` (and every other BaseProps attribute) false-flagged UITKX0109 on 30 built-in elements that were registered in the element registry but missing from uitkx-schema.json -- the whole editor Toolbar family, MultiColumnListView/TreeView, ObjectField, TwoPaneSplitView, ColorField, MinMaxSlider, the editor value fields, and more. Schema-less elements fell into the user-component branch (declared-parameters-only). All 30 now have schema entries generated from their actual Props classes, so they also gain real attribute completion and hover docs. A new registry<->schema parity test fails the suite if an element is ever registered without a schema entry again.
+
+SG suite 1551/1551, LSP suite 119/119.
+- Two more editor-only fixes from the same F5 field-testing session (build clean throughout).
+
+Fix: a false CS1662 ("cannot convert lambda") on block-bodied lambdas whose body calls a state setter in value form (`setGrid(newGrid)` -- the suppressed sugar for `.Set(_ => v)`). The cascade suppression compared spans: it only worked for expression-bodied lambdas, where Roslyn's CS1662 span covers the whole body -- for block-bodied lambdas Roslyn anchors the diagnostic on the parameter/arrow tokens alone, so the causal (already-suppressed) CS1503 was never inside it and the phantom error surfaced. The check now resolves the enclosing lambda NODE from the syntax tree and suppresses when a suppressed setter call sits anywhere in it. A genuinely wrong return still reports at its own site.
+
+Fix: go-to-definition on an exported hook or module call site silently did nothing. The peer text-search fallback (used because a hook's method signature is scaffold with no source-map entry) matched lines starting with `hook ` / `module ` -- written before the 0.7.0 import/export grammar put `export ` in front of every consumable declaration. The prefix is now stripped before matching, so F12 on `useMyHook()` lands on the `export hook useMyHook` line.
+
+SG suite 1551/1551, LSP suite 121/121.
+- Fix: F2-renaming a hook, module, or component updated the declaration and every call site/tag -- but left `import { oldName }` lists untouched, instantly breaking each importing file (the import bound a name that no longer existed). Import names are uitkx-only preamble syntax: they never appear in the C# virtual document (imports lower to `using` lines), so Roslyn's renamer cannot see them, and the text-scan collectors match call/tag shapes an import list doesn't have. Rename now runs an import-list pass over every file participating in the edit, patching the exact name tokens via the parsed import model (line + column precise, no regex-over-text).
+
+SG suite 1551/1551, LSP suite 123/123.
+- Perf: editing a peer .uitkx or companion .cs file re-published diagnostics for EVERY dependent file INLINE inside the didChange notification handler, serializing seconds of re-analysis into the server message pipeline -- queued requests (formatting, hover, completion) lagged behind it on every keystroke in a widely-imported file. Dependent re-publishes now ride the existing 500 ms debounced revalidation; the edited file itself keeps its immediate per-keystroke publish.
+
 ### [1.4.3] - 2026-07-16
 - Ships library 0.8.2's import-scope parity in the bundled LSP server.
 

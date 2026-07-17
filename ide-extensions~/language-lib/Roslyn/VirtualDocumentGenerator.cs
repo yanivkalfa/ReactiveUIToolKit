@@ -305,9 +305,7 @@ namespace ReactiveUITK.Language.Roslyn
                 return GenerateModuleDocument(b, parseResult, source, uitkxFilePath);
 
             // -- Namespace + class header -------------------------------------
-            string ns = !string.IsNullOrEmpty(d.Namespace)
-                ? d.Namespace!
-                : "ReactiveUITK.Generated";
+            string ns = DocumentNamespace(d, uitkxFilePath);
             string className = !string.IsNullOrEmpty(d.ComponentName)
                 ? d.ComponentName!
                 : "Component";
@@ -331,6 +329,25 @@ namespace ReactiveUITK.Language.Roslyn
             return b.Build(uitkxFilePath);
         }
 
+        /// <summary>
+        /// The namespace a virtual document's types are declared in. Must be the file's
+        /// EFFECTIVE namespace (explicit <c>@namespace</c> wins, else path-derived + config
+        /// prefix) — the same namespace the real build emits into — so the virtual-doc type
+        /// SHADOWS the identical compiled-DLL symbol instead of coexisting with it. Emitting
+        /// under the RAW parsed namespace (the parser default <c>ReactiveUITK.FunctionStyle</c>
+        /// for every stamp-less file) creates a SECOND container in a foreign namespace; with
+        /// both pulled into scope (peer-enrich uses one, import payloads the other) every
+        /// companion-hook call turns CS0121-ambiguous in the editor while the build is clean.
+        /// </summary>
+        private static string DocumentNamespace(DirectiveSet d, string uitkxFilePath)
+        {
+            string? effective = EffectiveNamespace.Resolve(
+                d.HasExplicitNamespace, d.Namespace, uitkxFilePath);
+            if (!string.IsNullOrEmpty(effective))
+                return effective!;
+            return !string.IsNullOrEmpty(d.Namespace) ? d.Namespace! : "ReactiveUITK.Generated";
+        }
+
         // -- Hook document -----------------------------------------------------
 
         /// <summary>
@@ -346,9 +363,7 @@ namespace ReactiveUITK.Language.Roslyn
         )
         {
             var d = parseResult.Directives;
-            string ns = !string.IsNullOrEmpty(d.Namespace)
-                ? d.Namespace!
-                : "ReactiveUITK.Generated";
+            string ns = DocumentNamespace(d, uitkxFilePath);
             string escapedPath = EscapePathForLineDirective(uitkxFilePath);
 
             // Derive class name same as HookEmitter - take the part before
@@ -434,9 +449,7 @@ namespace ReactiveUITK.Language.Roslyn
         )
         {
             var d = parseResult.Directives;
-            string ns = !string.IsNullOrEmpty(d.Namespace)
-                ? d.Namespace!
-                : "ReactiveUITK.Generated";
+            string ns = DocumentNamespace(d, uitkxFilePath);
             string escapedPath = EscapePathForLineDirective(uitkxFilePath);
 
             b.Scaffold($"namespace {ns}\n{{\n");

@@ -146,6 +146,18 @@ public sealed class DiagnosticsPublisher
         }
     }
 
+    /// <summary>
+    /// Public entry to the debounced open-document revalidation. Used by the
+    /// text-sync handler for PEER-DEPENDENT refreshes: republishing every
+    /// dependent inline inside a didChange notification serializes seconds of
+    /// analysis into the message pipeline — queued requests (notably
+    /// textDocument/formatting on save) then miss VS Code's format-on-save
+    /// budget and their responses are silently discarded. The changed file
+    /// itself still gets its immediate synchronous publish; only the fan-out
+    /// rides the debounce.
+    /// </summary>
+    public void ScheduleRevalidation() => ScheduleDebouncedRevalidation();
+
     private void ScheduleDebouncedRevalidation()
     {
         // LSP small: read-cancel-then-write on a plain field races when

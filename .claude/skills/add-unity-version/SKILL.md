@@ -1,16 +1,6 @@
 ---
-description: "Add support for a new Unity version to ReactiveUIToolKit. Run when a new Unity release is available. Discovers API changes, classifies them, and implements support."
-agent: "agent"
-tools:
-  - run_in_terminal
-  - read_file
-  - replace_string_in_file
-  - create_file
-  - grep_search
-  - semantic_search
-  - file_search
-  - fetch_webpage
-  - runSubagent
+name: add-unity-version
+description: Add support for a new Unity version to ReactiveUIToolKit. Run when a new Unity release is available (user says "add Unity 6.5 support", "new Unity version came out", etc.). Discovers API changes via the automation~ diff scripts, classifies them, and implements support across all layers (PropsApplier/Style/StyleKeys/CssHelpers, schema, LSP, docs site) plus record-keeping.
 ---
 
 # Add Unity Version Support
@@ -26,8 +16,8 @@ Follow these phases **in order**. Do not skip steps. Mark each step done as you 
 
 Read these files for full context before starting:
 
-- [VERSIONING_PROCESS.md](../../Plans~/VERSIONING_PROCESS.md) — Full reference with discovery sources (§1), classification taxonomy (§2), version matrix (§3), implementation checklists (§4), and codebase surface inventory (§8)
-- [AUTOMATION.md](../../AUTOMATION.md) — Overview of automation tooling
+- [VERSIONING_PROCESS.md](../../../Plans~/VERSIONING_PROCESS.md) — Full reference with discovery sources (§1), classification taxonomy (§2), version matrix (§3), implementation checklists (§4), and codebase surface inventory (§8)
+- [AUTOMATION.md](../../../AUTOMATION.md) — Overview of automation tooling
 
 ---
 
@@ -257,7 +247,7 @@ Update the docs site so the website reflects the new version.
 
 2. **Deprecation Tracker** — If any deprecations found, add to §3.3
 
-3. **TECH_DEBT.md** — Update relevant entries if any tech debt was resolved or created
+3. **Plans~/REMAINING_WORK.md** — Update relevant entries if any tracked work was resolved or created
 
 ---
 

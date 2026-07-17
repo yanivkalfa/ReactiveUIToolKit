@@ -1,13 +1,13 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using ReactiveUITK.Samples.Components.StressTest;
+using ReactiveUITK.Samples.Components.HmrTests;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Samples.FunctionalComponents
 {
-    public class RuntimeAppExampleUIBootstrap : MonoBehaviour
+    public class HmrTestUIBootstrap : MonoBehaviour
     {
         [SerializeField]
         private UIDocument uiDocument;
@@ -20,19 +20,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             rootRenderer = GetComponent<RootRenderer>();
             if (rootRenderer == null)
             {
-                Debug.LogError(
-                    "RuntimeAppExampleUIBootstrap: RootRenderer component missing on GameObject"
-                );
+                Debug.LogError("HmrTestUIBootstrap: RootRenderer component missing on GameObject");
                 return;
             }
             if (uiDocument == null)
             {
-                Debug.LogError("RuntimeAppExampleUIBootstrap: UIDocument not assigned");
+                Debug.LogError("HmrTestUIBootstrap: UIDocument not assigned");
                 return;
             }
             rootRenderer.Initialize(uiDocument);
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
-            rootRenderer.Render(V.Host(hostProps, null, V.Func(StressTest.Render)));
+            rootRenderer.Render(V.Host(hostProps, null, V.Func(HmrTests.Render)));
         }
     }
 }

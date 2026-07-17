@@ -11,11 +11,15 @@ Use this skill when the user wants to test changes to the VS Code or
 VS 2022 extension by launching an Extension Development Host (F5) or the
 VS 2022 experimental hive.
 
+**The loop:** the assistant researches/fixes/rebuilds per this skill and says
+"F5-ready"; the OWNER presses F5 and tests. Never publish to a marketplace to
+test anything.
+
 ## Out of scope — Marketplace / OpenVSX releases
 
 Releasing to the VS Code Marketplace, OpenVSX, or the VS 2022 Marketplace
 is handled by the CI pipeline at
-[.github/workflows/publish.yml](../../workflows/publish.yml). Do **not**
+[.github/workflows/publish.yml](../../../.github/workflows/publish.yml). Do **not**
 run `vsce publish`, `ovsx publish`, or any equivalent command from a
 developer machine. If the user asks to "ship a release" or "push to
 marketplace", point them at the CI workflow instead — this skill stops
@@ -58,7 +62,7 @@ cmd /c "cd /d ide-extensions~\vscode && npm run build"
 **Verify the artifacts** before launching F5:
 
 ```powershell
-Get-ChildItem ide-extensions~/vscode/dist/extension.js,
+Get-ChildItem ide-extensions~/vscode/out/extension.js,
               ide-extensions~/vscode/server/UitkxLanguageServer.dll,
               ide-extensions~/vscode/server/ReactiveUITK.Language.dll |
   Select-Object Name, @{n='KB';e={[int]($_.Length/1KB)}}, LastWriteTime
@@ -66,11 +70,12 @@ Get-ChildItem ide-extensions~/vscode/dist/extension.js,
 
 Expected sizes (rough sanity check, drift-tolerant):
 - `extension.js` ~ 700-900 KB
-- `UitkxLanguageServer.dll` ~ 250-300 KB
-- `ReactiveUITK.Language.dll` ~ 200-250 KB
+- `UitkxLanguageServer.dll` ~ 250-320 KB
+- `ReactiveUITK.Language.dll` ~ 200-320 KB
 
-If `extension.js` is < 50 KB the bundle is broken (esbuild silently
-emitted a stub) — check `npm run build` output.
+If `out/extension.js` is < 50 KB the bundle is broken (esbuild silently
+emitted a stub) — check `npm run build` output. (The bundle path is
+`out/extension.js` — `package.json` `"main"` — not `dist/`.)
 
 Then in VS Code: open the `ide-extensions~/vscode` folder, **F5**.
 Close any prior Extension Development Host first; the LSP DLL is
@@ -129,7 +134,7 @@ parity contract tests run against the new SG.
   use", close the running Extension Development Host (or the VS 2022
   experimental hive) first.
 - **Stale TS bundle.** `npm run build` is incremental; if the output
-  looks wrong, `Remove-Item ide-extensions~/vscode/dist -Recurse -Force`
+  looks wrong, `Remove-Item ide-extensions~/vscode/out -Recurse -Force`
   and re-run.
 - **VS 2022 sees an old server.** Almost always the binary copy step
   was skipped — re-run step 2 of the VS 2022 sequence.

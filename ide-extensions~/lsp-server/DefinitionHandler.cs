@@ -634,6 +634,13 @@ public sealed class DefinitionHandler : IDefinitionHandler
             var line = rawLine.TrimEnd('\r');
             var trimmed = line.TrimStart();
 
+            // Optional `export ` prefix (import/export grammar, 0.7.0+) — every
+            // consumable hook/module carries it now; without stripping it the
+            // StartsWith below never matches and go-to-definition on any exported
+            // hook/module silently dead-ends.
+            if (trimmed.StartsWith("export ", StringComparison.Ordinal))
+                trimmed = trimmed.Substring("export ".Length).TrimStart();
+
             // Match:  hook symbolName(...)  or  module symbolName(...)
             foreach (var keyword in new[] { "hook ", "module " })
             {

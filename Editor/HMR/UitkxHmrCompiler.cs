@@ -297,7 +297,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 string componentName = (string)GetProp(directives, "ComponentName");
-                string ns = (string)GetProp(directives, "Namespace");
+                // EFFECTIVE namespace, not the raw parsed value: raw is a parser default
+                // for stamp-less files, and everything downstream that resolves types by
+                // this value (swappers matching Type.FullName, controller diagnostics)
+                // must aim at the namespace the REAL build emitted into.
+                string ns = ComputeEffectiveNs(directives, uitkxPath);
                 result.Namespace = ns ?? string.Empty;
 
                 if (string.IsNullOrEmpty(componentName))
@@ -384,7 +388,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Register under — EXACTLY HmrCSharpEmitter's selfKey rule (ComputeEffectiveNs
                 // never returns null, so the emitter's `_ns` is always this value). Carried on the
                 // result so the controller can DIAGNOSE a zero-swap (key mismatch vs not-mounted).
-                string effectiveNs = ComputeEffectiveNs(directives, uitkxPath);
+                // `ns` above is already the same effective value; alias for readability.
+                string effectiveNs = ns;
                 result.FamilyKey = string.IsNullOrEmpty(effectiveNs)
                     ? componentName
                     : effectiveNs + "." + componentName;
@@ -413,7 +418,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Also collects hook container class names so we can inject
                 // `using static Ns.XxxHooks;` into the component source.
                 var hookContainerFqns = new List<string>();
-                EmitCompanionUitkxSources(uitkxPath, componentName, ns, sources, hookContainerFqns);
+                EmitCompanionUitkxSources(directives, uitkxPath, componentName, ns, sources, hookContainerFqns);
 
                 // Inject using-static for peer hook containers so the component
                 // can call hook methods (e.g. useXxx()) without qualification —
@@ -578,7 +583,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 string componentName = (string)GetProp(directives, "ComponentName");
-                string ns = (string)GetProp(directives, "Namespace");
+                // EFFECTIVE namespace — FullyQualifiedName below drives the trampoline
+                // swapper's type lookup, which must match the REAL build's FQN; the raw
+                // parsed value is a parser default for stamp-less files and aims batch/
+                // cascade swaps at a type that does not exist.
+                string ns = ComputeEffectiveNs(directives, uitkxPath);
 
                 if (string.IsNullOrEmpty(componentName))
                 {
@@ -669,6 +678,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // the batch can dedupe shared style/hook files across members.
                 var companionInline = new List<string>();
                 EmitCompanionUitkxSources(
+                    directives,
                     uitkxPath,
                     componentName,
                     ns,
@@ -1100,7 +1110,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // (a module-only file has no container to find).
                 result.HasHooks = !string.IsNullOrEmpty(hookCSharp);
 
-                string moduleCSharp = HmrHookEmitter.EmitModules(directives, uitkxPath);
+                string moduleCSharp = HmrHookEmitter.EmitModules(
+                    directives, uitkxPath, ComputeEffectiveNs(directives, uitkxPath));
                 if (!string.IsNullOrEmpty(moduleCSharp))
                     sources.Add(moduleCSharp);
 
@@ -1158,6 +1169,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// so the caller can inject <c>using static</c> directives into the component source.
         /// </summary>
         private void EmitCompanionUitkxSources(
+            object componentDirectives,
             string uitkxPath,
             string componentName,
             string componentNs,
@@ -1173,12 +1185,61 @@ namespace ReactiveUITK.EditorSupport.HMR
             // below doesn't add a duplicate `using static` for the same FQN.
             var inlinePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // Pattern: ComponentName.*.uitkx  (e.g. TicTacToe.style.uitkx)
+            // Candidate set = name-glob companions (ComponentName.*.uitkx) UNION the
+            // component's file-import targets. The real build compiles EVERY .uitkx in
+            // the asmdef together, so an imported module/hook file is always visible to
+            // it; the hot unit must inline the same set or a module whose FILE NAME does
+            // not match the component (e.g. a companion renamed to SomeOtherFile.style
+            // .uitkx and consumed via `import { SomeOtherFile } from "./SomeOtherFile
+            // .style"`) resolves nowhere mid-session — the real assembly has not
+            // compiled it (reload locked) and the glob never picks it up. Single-level:
+            // the imported file's own imports are not walked (parity with the glob,
+            // which is also non-recursive).
+            var candidateFiles = new List<string>();
+            var seenCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             string prefix = componentName + ".";
-            foreach (var file in Directory.GetFiles(dir, prefix + "*.uitkx"))
+            foreach (var f in Directory.GetFiles(dir, prefix + "*.uitkx"))
+                if (seenCandidates.Add(Path.GetFullPath(f)))
+                    candidateFiles.Add(f);
+            if (componentDirectives != null && _importResolverMap != null)
+            {
+                try
+                {
+                    string importerDir = (Path.GetDirectoryName(uitkxPath) ?? uitkxPath).Replace('\\', '/');
+                    string rootDir = importerDir;
+                    if (_uiSourceRootDir != null)
+                    {
+                        try { rootDir = (_uiSourceRootDir.Invoke(null, new object[] { uitkxPath }) as string) ?? importerDir; }
+                        catch { }
+                    }
+                    foreach (var imp in GetItems(GetProp(componentDirectives, "Imports")))
+                    {
+                        string specifier = (string)GetProp(imp, "Specifier");
+                        if (string.IsNullOrEmpty(specifier))
+                            continue;
+                        string targetFile = null;
+                        try
+                        {
+                            var args = new object[] { importerDir, specifier, rootDir, null };
+                            targetFile = _importResolverMap.Invoke(null, args) as string;
+                        }
+                        catch { }
+                        if (string.IsNullOrEmpty(targetFile) || !File.Exists(targetFile))
+                            continue;
+                        if (seenCandidates.Add(Path.GetFullPath(targetFile)))
+                            candidateFiles.Add(targetFile);
+                    }
+                }
+                catch { /* import-target discovery is best-effort */ }
+            }
+
+            foreach (var file in candidateFiles)
             {
                 // Skip the component file itself
-                if (string.Equals(file, uitkxPath, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(
+                        Path.GetFullPath(file),
+                        Path.GetFullPath(uitkxPath),
+                        StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 try
@@ -1196,8 +1257,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                     if (companionDir == null)
                         continue;
 
-                    // Emit module bodies (style constants, utility methods, etc.)
-                    string moduleCSharp = HmrHookEmitter.EmitModules(companionDir, file);
+                    // An imported COMPONENT file is a candidate now too (import-target
+                    // discovery above) but is never inlined — component types resolve via
+                    // the real assembly + alias payloads. Skipping here also keeps the
+                    // mid-write warning below meaningful (a component file legitimately
+                    // has neither modules nor hooks).
+                    if (!string.IsNullOrEmpty((string)GetProp(companionDir, "ComponentName")))
+                        continue;
+
+                    // Emit module bodies (style constants, utility methods, etc.) under the
+                    // companion's EFFECTIVE namespace — same folder as the component, so the
+                    // partial-class fragment lands in the component's namespace and merges,
+                    // exactly like the SG's ModuleEmitter output in the real build.
+                    string companionNs = ComputeEffectiveNs(companionDir, file);
+                    string moduleCSharp = HmrHookEmitter.EmitModules(companionDir, file, companionNs);
                     if (!string.IsNullOrEmpty(moduleCSharp))
                     {
                         sources.Add(moduleCSharp);
@@ -1240,15 +1313,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                         file,
                         containerClass,
                         withTrampoline: true,
-                        effectiveNs: ComputeEffectiveNs(companionDir, file),
+                        effectiveNs: companionNs,
                         hookKeyMap: BuildHookFamilyKeyMap(companionDir, file)
                     );
                     if (!string.IsNullOrEmpty(hookCSharp))
                     {
                         sources.Add(hookCSharp);
 
-                        // Collect FQN so caller can inject using-static
-                        string hookNs = (string)GetProp(companionDir, "Namespace");
+                        // Collect FQN so caller can inject using-static. Must be the SAME
+                        // effective namespace Emit() just placed the container in — the raw
+                        // parsed value pointed the using-static at a namespace where no
+                        // container exists for stamp-less companions.
+                        string hookNs = companionNs;
                         if (string.IsNullOrEmpty(hookNs))
                             hookNs = componentNs ?? "ReactiveUITK.Generated";
                         hookContainerFqns.Add($"{hookNs}.{containerClass}");

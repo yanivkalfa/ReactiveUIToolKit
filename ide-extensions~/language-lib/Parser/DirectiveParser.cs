@@ -907,6 +907,17 @@ namespace ReactiveUITK.Language.Parser
             string specifier = source.Substring(specStart, i - specStart);
             i++; // past closing quote
 
+            // Skip to end of line + newline (parity with the other preamble readers:
+            // the namespace-import form and `@using` both consume the rest of the line).
+            // In particular this tolerates the JS-canonical trailing `;` — without it the
+            // cursor stalls on the `;`, the preamble loop exits, and the whole file fails
+            // with a misleading UITKX2105 (same pathology as the U-09 duplicate-@namespace
+            // case). The formatter re-emits the canonical, semicolon-less form.
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
             imports.Add(new ImportDeclaration(
                 names.ToImmutableArray(),
                 specifier,

@@ -6,6 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.8.3] - 2026-07-16
+
+### Fixed
+
+- **HMR: companion style/module edits work in the path-derived world.** The module leg of
+  the hot-reload pipeline still emitted under the RAW parsed namespace (a parser default
+  for every stamp-less file) while the component/hook legs and the real build use the
+  EFFECTIVE namespace. Consequences, all fixed at the one seam (`EmitModules` +
+  `ComputeEffectiveNs` threading, mirroring the hook leg's 0.8.2 conversion): a companion
+  module's partial class landed in a foreign namespace and never merged with its component
+  in the hot unit (bare style refs like `container` failed CS0103 under HMR while the full
+  build was clean — even a companion created MID-session now works, no domain reload); the
+  module static swapper matched hot↔project types by `Type.FullName` and silently swapped
+  nothing on `.style` edits; and the batch path's `FullyQualifiedName` aimed cascade
+  trampoline swaps at a nonexistent type. Three source-text contract tests pin the
+  threading so the raw-namespace shapes cannot reappear.
+
+- **A trailing `;` on a file import no longer wrecks the whole file.** `import { X } from
+  "./file";` — the JS-canonical form, and pure muscle memory in a file whose body is C# —
+  left the parser's cursor stalled on the `;`, so the preamble loop bailed and the file
+  failed with a misleading `UITKX2105` ("no valid component declaration") plus cascading
+  phantom markup errors in the editor. The file-import reader was the only preamble reader
+  missing the family's consume-to-end-of-line step (`@using` and `import "@Ns"` both had
+  it); it now has parity, the `;` is tolerated everywhere, and the formatter re-emits the
+  canonical semicolon-less form. Found live: the very first hand-written import in an HMR
+  test session tripped it.
+
+SG suite 1550/1550, LSP suite 118/118.
+
 ## [0.8.2] - 2026-07-16
 
 ### Fixed

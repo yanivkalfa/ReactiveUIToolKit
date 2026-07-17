@@ -1,12 +1,11 @@
 ---
-name: 'Discord changelog'
-description: 'Style and constraints for Plans~/DISCORD_CHANGELOG.md entries.'
-applyTo: '**/DISCORD_CHANGELOG.md'
+name: discord-changelog
+description: Style and hard constraints for Plans~/DISCORD_CHANGELOG.md entries (the Discord release-notes posts). Use whenever adding or editing an entry there — hard 2000-char-per-entry cap, ASCII-only, prepend-only.
 ---
 
 # Discord changelog
 
-Rules for editing [Plans~/DISCORD_CHANGELOG.md](../../Plans~/DISCORD_CHANGELOG.md).
+Rules for editing [Plans~/DISCORD_CHANGELOG.md](../../../Plans~/DISCORD_CHANGELOG.md).
 The file is the source for what gets pasted into the project's Discord
 release-notes channel.
 
@@ -31,6 +30,9 @@ release-notes channel.
   This rule has no exceptions. Windows/PowerShell pipelines and Discord
   syntax highlighting can mangle non-ASCII bytes silently, leaving
   replacement chars (`?` or U+FFFD) in production posts.
+  (Known drift: the 0.8.0-0.8.2 entries were written before this rule was
+  discoverable by the assistant and contain em-dashes/arrows; already-posted
+  entries stay as-is - apply the rule strictly to NEW entries.)
 - **Backticks for diagnostic IDs and code identifiers** (`UITKX0026`,
   `CS0019`, `FindLhsStartForLogicalAnd`).
 - **No `//` C# line comments inside fenced code blocks** unless they carry
@@ -54,7 +56,7 @@ it mattered.
 
 Follow-up paragraph(s) describing implementation strategy at a high level
 (walker, splicer, parity), diagnostic IDs, and any deferred work tracked
-in `Plans~/TECH_DEBT_V2.md`.
+in `Plans~/REMAINING_WORK.md`.
 
 **Fix - short headline.** Paragraph for any secondary fix shipping in the
 same release.
