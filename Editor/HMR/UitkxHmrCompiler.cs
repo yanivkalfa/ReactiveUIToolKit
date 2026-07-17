@@ -111,7 +111,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         // §7 — shared language-lib functions so HMR computes the SAME qualified hook family
         // key ({EffectiveNs}.{Container}::{name}) the source generator does. Optional (tolerate
         // an older Language.dll): when null, HMR falls back to the file's raw namespace.
-        private MethodInfo _effectiveNamespaceResolve; // EffectiveNamespace.Resolve(bool, string, string)
+        private MethodInfo _effectiveNamespaceResolve; // EffectiveNamespace.Resolve(bool, string, string, bool) — 4-arg mode-aware overload (U-01)
         private MethodInfo _uiSourceRootDir;           // EffectiveNamespace.UiSourceRootDir(string)
         private MethodInfo _importResolverMap;         // ImportResolver.MapSpecifierToPath(string, string, string, out string)
         // §6.2/§6.3 parity — ImportScopeFacts.ComputeInjectedUsingPayloads(DirectiveSet, string):
@@ -1553,8 +1553,36 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
 
             // §7 shared functions (optional — older Language.dll may lack them).
+            // ES-modules campaign (U-01): the DLL now carries TWO Resolve overloads (3-arg
+            // legacy + 4-arg mode-aware), so a bare name-only GetMethod throws
+            // AmbiguousMatchException. Bind the 4-arg overload BY PARAMETER TYPES; a DLL that
+            // has EffectiveNamespace but NOT the 4-arg overload is a stale committed
+            // Analyzers/ReactiveUITK.Language.dll — fail loudly (a silent 3-arg fallback would
+            // put every migrated file's HMR family key in the WRONG namespace, the exact
+            // split-brain class of bug the effective-namespace seam exists to prevent).
             var effNsType = _languageAsm.GetType("ReactiveUITK.Language.EffectiveNamespace");
-            _effectiveNamespaceResolve = effNsType?.GetMethod("Resolve", BindingFlags.Public | BindingFlags.Static);
+            if (effNsType != null)
+            {
+                _effectiveNamespaceResolve = effNsType.GetMethod(
+                    "Resolve",
+                    BindingFlags.Public | BindingFlags.Static,
+                    binder: null,
+                    types: new[] { typeof(bool), typeof(string), typeof(string), typeof(bool) },
+                    modifiers: null);
+                if (_effectiveNamespaceResolve == null
+                    && effNsType.GetMethod(
+                        "Resolve",
+                        BindingFlags.Public | BindingFlags.Static,
+                        binder: null,
+                        types: new[] { typeof(bool), typeof(string), typeof(string) },
+                        modifiers: null) != null)
+                {
+                    throw new MissingMethodException(
+                        "EffectiveNamespace.Resolve(bool, string, string, bool) not found — the committed "
+                        + "Analyzers/ReactiveUITK.Language.dll predates the ES-modules namespace overload. "
+                        + "Rebuild it with scripts/build-generator.ps1 and restart Unity.");
+                }
+            }
             _uiSourceRootDir = effNsType?.GetMethod("UiSourceRootDir", BindingFlags.Public | BindingFlags.Static);
             _importResolverMap = _languageAsm
                 .GetType("ReactiveUITK.Language.ImportResolver")
@@ -3048,7 +3076,12 @@ namespace ReactiveUITK.EditorSupport.HMR
         // (EffectiveNamespace.Resolve / UiSourceRootDir, ImportResolver.MapSpecifierToPath),
         // reached by reflection, plus the container-name algorithm all worlds keep in sync.
 
-        /// <summary>The file's effective namespace via the shared resolver; raw fallback if absent.</summary>
+        /// <summary>The file's effective namespace via the shared resolver; raw fallback if absent.
+        /// Mode-aware (ES-modules campaign, U-01): the 4-arg overload is bound by parameter types;
+        /// the mode flag comes from the reflected DirectiveSet's UsesLegacySyntax (additive
+        /// property, U-12). A model without the property at all defaults to LEGACY folder-keyed —
+        /// unreachable in practice (such a DLL also lacks the 4-arg Resolve and fails the loud
+        /// bind-time check), but the safe direction regardless.</summary>
         internal string ComputeEffectiveNs(object directives, string filePath)
         {
             string rawNs = (string)GetProp(directives, "Namespace") ?? string.Empty;
@@ -3057,7 +3090,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             try
             {
                 bool hasExplicit = GetProp(directives, "HasExplicitNamespace") is bool b && b;
-                var r = _effectiveNamespaceResolve.Invoke(null, new object[] { hasExplicit, rawNs, filePath });
+                object usesLegacyProp = GetProp(directives, "UsesLegacySyntax");
+                bool usesLegacy = !(usesLegacyProp is bool l) || l;
+                var r = _effectiveNamespaceResolve.Invoke(
+                    null, new object[] { hasExplicit, rawNs, filePath, !usesLegacy });
                 return (r as string) ?? rawNs;
             }
             catch { return rawNs; }
@@ -3082,6 +3118,19 @@ namespace ReactiveUITK.EditorSupport.HMR
                     if (!string.IsNullOrEmpty(name))
                         map[name] = ns + "." + ownContainer + "::" + name;
                 }
+            }
+
+            // Same-file plain-declaration hooks (ES-modules campaign, U-06): new-mode hooks live
+            // in MemberDeclarations (Kind == Hook) on the per-file __Exports container. Enum
+            // compared by name — the DeclKind type lives in the reflected Language.dll.
+            var memberDecls = GetItems(GetProp(directives, "MemberDeclarations"));
+            foreach (var m in memberDecls)
+            {
+                if (!string.Equals(GetProp(m, "Kind")?.ToString(), "Hook", StringComparison.Ordinal))
+                    continue;
+                string name = (string)GetProp(m, "Name");
+                if (!string.IsNullOrEmpty(name))
+                    map[name] = ns + ".__Exports::" + name;
             }
 
             // Imported hooks → resolve each specifier to its target file, qualify with the
@@ -3113,8 +3162,15 @@ namespace ReactiveUITK.EditorSupport.HMR
                         catch { }
                         if (string.IsNullOrEmpty(targetFile) || !File.Exists(targetFile))
                             continue;
-                        string targetNs = ComputeEffectiveNsForFile(targetFile);
-                        string targetContainer = HmrHookEmitter.DeriveContainerClassName(targetFile);
+                        object targetDs = ParseDirectivesForFile(targetFile);
+                        string targetNs = targetDs != null
+                            ? ComputeEffectiveNs(targetDs, targetFile) : string.Empty;
+                        // Mode-aware container (U-06): new-mode targets keep everything on
+                        // __Exports; legacy targets keep the historical {Stem}Hooks name.
+                        bool targetLegacy = !(GetProp(targetDs, "UsesLegacySyntax") is bool tl) || tl;
+                        string targetContainer = targetLegacy
+                            ? HmrHookEmitter.DeriveContainerClassName(targetFile)
+                            : "__Exports";
                         foreach (var nObj in names)
                         {
                             string nm = nObj as string;
@@ -3130,14 +3186,20 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// <summary>Parses a target hook file just to compute its effective namespace.</summary>
         private string ComputeEffectiveNsForFile(string targetFile)
         {
+            var ds = ParseDirectivesForFile(targetFile);
+            return ds != null ? ComputeEffectiveNs(ds, targetFile) : string.Empty;
+        }
+
+        /// <summary>Parses a target file's directives (reflected DirectiveSet), null on failure.</summary>
+        private object ParseDirectivesForFile(string targetFile)
+        {
             try
             {
                 string src = ReadTextWithRetry(targetFile);
                 var diag = CreateDiagnosticList();
-                var ds = InvokeWithDefaults(_directiveParse, null, src, targetFile, diag, true);
-                return ComputeEffectiveNs(ds, targetFile);
+                return InvokeWithDefaults(_directiveParse, null, src, targetFile, diag, true);
             }
-            catch { return string.Empty; }
+            catch { return null; }
         }
 
         /// <summary>Maps bare custom-hook keys to their qualified form via <paramref name="map"/>.</summary>

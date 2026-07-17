@@ -532,7 +532,9 @@ namespace ReactiveUITK.SourceGenerator
         /// </list>
         /// </summary>
         internal static string? ResolveEffectiveNamespace(DirectiveSet directives, string filePath)
-            => EffectiveNamespace.Resolve(directives.HasExplicitNamespace, directives.Namespace, filePath);
+            => EffectiveNamespace.Resolve(
+                directives.HasExplicitNamespace, directives.Namespace, filePath,
+                fileKeyed: !directives.UsesLegacySyntax);
 
         /// <summary>
         /// The full <c>using</c> list for a component file after hook-container injection (§6.2).

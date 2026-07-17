@@ -342,7 +342,8 @@ namespace ReactiveUITK.Language.Roslyn
         private static string DocumentNamespace(DirectiveSet d, string uitkxFilePath)
         {
             string? effective = EffectiveNamespace.Resolve(
-                d.HasExplicitNamespace, d.Namespace, uitkxFilePath);
+                d.HasExplicitNamespace, d.Namespace, uitkxFilePath,
+                fileKeyed: !d.UsesLegacySyntax);
             if (!string.IsNullOrEmpty(effective))
                 return effective!;
             return !string.IsNullOrEmpty(d.Namespace) ? d.Namespace! : "ReactiveUITK.Generated";

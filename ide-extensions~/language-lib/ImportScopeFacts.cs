@@ -60,9 +60,11 @@ namespace ReactiveUITK.Language
             string rootDir = EffectiveNamespace.UiSourceRootDir(uitkxFilePath) ?? importerDir;
 
             // The importer's EFFECTIVE namespace drives the same-namespace guards — raw would be
-            // wrong for every stamp-less (path-derived) file.
+            // wrong for every stamp-less (path-derived) file. Mode-aware (U-01): a new-syntax
+            // importer is file-keyed.
             string? importerNs = EffectiveNamespace.Resolve(
-                directives.HasExplicitNamespace, directives.Namespace, uitkxFilePath);
+                directives.HasExplicitNamespace, directives.Namespace, uitkxFilePath,
+                fileKeyed: !directives.UsesLegacySyntax);
 
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var imp in directives.Imports)
@@ -80,14 +82,94 @@ namespace ReactiveUITK.Language
                 catch { continue; }
 
                 // EFFECTIVE namespace of the target — the namespace its generated types actually
-                // land in (explicit @namespace wins, else path-derived + config prefix).
+                // land in (explicit @namespace wins, else path-derived + config prefix). Mode from
+                // the TARGET's own parse (U-01): a migrated target is file-keyed even when the
+                // importer is legacy.
                 string? tns = EffectiveNamespace.Resolve(
-                    tds.HasExplicitNamespace, tds.Namespace, target);
+                    tds.HasExplicitNamespace, tds.Namespace, target,
+                    fileKeyed: !tds.UsesLegacySyntax);
                 if (string.IsNullOrEmpty(tns))
                     continue;
 
                 var importedNames = new HashSet<string>(imp.Names, StringComparer.Ordinal);
                 bool sameNs = string.Equals(tns, importerNs, StringComparison.Ordinal);
+
+                if (!tds.UsesLegacySyntax)
+                {
+                    // ── New-mode target (ES-modules campaign, U-03 lowering table) ──
+                    // Members (values/utils/hooks) live on the target's per-file `__Exports`
+                    // container. Aliased member imports get typed BRIDGES (emitter-side, not
+                    // usings); aliased component imports are plain alias-renames.
+                    var aliasesN = imp.Aliases.IsDefaultOrEmpty
+                        ? System.Collections.Immutable.ImmutableArray<string?>.Empty : imp.Aliases;
+                    bool AliasedAt(int k) => k < aliasesN.Length && aliasesN[k] != null;
+
+                    if (imp.IsStar && imp.StarAlias != null)
+                    {
+                        // `import * as X` → alias-to-type of the whole exports container.
+                        if (!ReservedTypeAliases.Contains(imp.StarAlias))
+                        {
+                            string line = $"{imp.StarAlias} = {tns}.__Exports";
+                            if (seen.Add(line))
+                                result.Add(line);
+                        }
+                        continue;
+                    }
+
+                    if (imp.IsDefault && imp.DefaultAlias != null)
+                    {
+                        // Default import: component default → alias to the component type;
+                        // member default → bridge (emitter-side, no using here).
+                        string? defName = tds.DefaultExportName;
+                        if (defName != null
+                            && !tds.ComponentDeclarations.IsDefaultOrEmpty
+                            && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == defName)
+                            && !ReservedTypeAliases.Contains(imp.DefaultAlias))
+                        {
+                            string line = $"{imp.DefaultAlias} = {tns}.{defName}";
+                            if (seen.Add(line))
+                                result.Add(line);
+                        }
+                        continue;
+                    }
+
+                    bool exportsContainerAdded = false;
+                    for (int k = 0; k < imp.Names.Length; k++)
+                    {
+                        string name = imp.Names[k];
+
+                        bool isComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
+                            && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.IsExported && c.Name == name);
+                        if (isComponent)
+                        {
+                            string bound = AliasedAt(k) ? aliasesN[k]! : name;
+                            if (!ReservedTypeAliases.Contains(bound))
+                            {
+                                string line = $"{bound} = {tns}.{name}";
+                                if (seen.Add(line))
+                                    result.Add(line);
+                            }
+                            continue;
+                        }
+
+                        bool isMember = !tds.MemberDeclarations.IsDefaultOrEmpty
+                            && System.Linq.Enumerable.Any(tds.MemberDeclarations, m => m.IsExported && m.Name == name);
+                        if (isMember && !AliasedAt(k) && !exportsContainerAdded)
+                        {
+                            // Un-aliased member import → the whole container once per target
+                            // file (C# has no per-member static import; per-name strictness
+                            // stays a uitkx diagnostic, same rationale as the legacy hook path).
+                            string line = $"static {tns}.__Exports";
+                            if (seen.Add(line))
+                                result.Add(line);
+                            exportsContainerAdded = true;
+                        }
+                        // Aliased members → bridge emission (M3, consumer's __Exports) — no using.
+                    }
+                    continue;
+                }
+
+                // ── Legacy-mode target: today's payloads exactly (deprecation window) ──
 
                 // Hook: expose the whole owning container. No same-ns skip — a redundant
                 // `using static` is harmless (CS0105 is suppressed in generated output).
@@ -124,6 +206,15 @@ namespace ReactiveUITK.Language
             }
             return result;
         }
+
+        /// <summary>
+        /// Mode-aware container name (ES-modules campaign, U-06): a NEW-mode target's members all
+        /// live on the per-file <c>__Exports</c> container; a legacy target keeps the historical
+        /// <c>{Stem}Hooks</c> naming. Additive overload (U-12) — the 1-arg form below stays for
+        /// legacy callers and the HMR reflection seam.
+        /// </summary>
+        public static string DeriveHookContainerClassName(string filePath, bool targetUsesLegacySyntax)
+            => targetUsesLegacySyntax ? DeriveHookContainerClassName(filePath) : "__Exports";
 
         /// <summary>Container class name from a hook file path — mirror of <c>HookEmitter.DeriveContainerClassName</c> (part before the first dot, PascalCased, + <c>Hooks</c>).</summary>
         public static string DeriveHookContainerClassName(string filePath)
