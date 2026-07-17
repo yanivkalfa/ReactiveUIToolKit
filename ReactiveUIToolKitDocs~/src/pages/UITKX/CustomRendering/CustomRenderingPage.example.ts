@@ -67,7 +67,7 @@ public static class DrawHelpers
 export const CUSTOM_RENDERING_PAINTER_EXAMPLE = `@using System
 @using UnityEngine.UIElements
 
-component PolygonCanvas {
+VirtualNode PolygonCanvas() {
   var (sides, setSides) = useState(3);
 
   var canvas = new Style {
@@ -90,7 +90,7 @@ export const CUSTOM_RENDERING_RAW_MESH_EXAMPLE = `@using System
 @using UnityEngine
 @using UnityEngine.UIElements
 
-component QuadCanvas {
+VirtualNode QuadCanvas() {
   var (blue, setBlue) = useState(true);
 
   var canvas = new Style { (StyleKeys.Height, 130f) };
@@ -110,7 +110,7 @@ component QuadCanvas {
 export const CUSTOM_RENDERING_REDRAW_KEY_EXAMPLE = `@using System
 @using UnityEngine.UIElements
 
-component ScatterCanvas {
+VirtualNode ScatterCanvas() {
   var (tick, setTick) = useState(0);
 
   // Stable delegate: its reference never changes between renders, so the

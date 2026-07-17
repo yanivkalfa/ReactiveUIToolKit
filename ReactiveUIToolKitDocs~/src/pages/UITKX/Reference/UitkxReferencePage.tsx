@@ -23,7 +23,7 @@ const DIRECTIVE_HEADER_EXAMPLE = `@namespace My.Game.UI
 
 const FUNCTION_STYLE_EXAMPLE = `@using UnityEngine
 
-component Counter(string label = "Count") {
+VirtualNode Counter(string label = "Count") {
   var (count, setCount) = useState(0);
 
   return (
@@ -151,7 +151,7 @@ export const UitkxReferencePage: FC = () => (
       Function-Style Components
     </Typography>
     <Typography variant="body2" paragraph>
-      Function-style components use a <code>component Name {'{ ... }'}</code>{' '}
+      Components are plain typed declarations — <code>export VirtualNode Name(...) {'{ ... }'}</code> (the legacy <code>component Name {'{ ... }'}</code> wrapper still parses with a UITKX2320 deprecation warning){' '}
       syntax with optional typed parameters. They replace the directive-header
       form for most use cases.
     </Typography>
@@ -166,11 +166,11 @@ export const UitkxReferencePage: FC = () => (
         <TableBody>
           <TableRow>
             <TableCell>Declaration</TableCell>
-            <TableCell><code>component Name {'{ ... }'}</code></TableCell>
+            <TableCell><code>export VirtualNode Name() {'{ ... }'}</code></TableCell>
           </TableRow>
           <TableRow>
             <TableCell>With parameters</TableCell>
-            <TableCell><code>component Name(string text = "default") {'{ ... }'}</code></TableCell>
+            <TableCell><code>export VirtualNode Name(string text = "default") {'{ ... }'}</code></TableCell>
           </TableRow>
           <TableRow>
             <TableCell>Preamble <code>@using</code></TableCell>
@@ -363,13 +363,13 @@ export const UitkxReferencePage: FC = () => (
         Migration: declare the attribute as a parameter and forward it.
       </Typography>
       <CodeBlock language="jsx" code={`// before — silent slip-through, then CS0117 on AppButtonProps.Style
-component AppButton(string text = "") {
+VirtualNode AppButton(string text = "") {
     return (<Button text={text}/>);
 }
 <AppButton text="Save" style={btnStyle}/>   // UITKX0109 in 0.5.4+
 
 // after — declare style as a parameter and forward it explicitly
-component AppButton(string text = "", IStyle? style = null) {
+VirtualNode AppButton(string text = "", IStyle? style = null) {
     return (<Button text={text} style={style}/>);
 }
 <AppButton text="Save" style={btnStyle}/>   // OK`} />

@@ -187,7 +187,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX0102" size="small" color="default" variant="outlined" /></TableCell>
             <TableCell><Chip label="Reserved" size="small" /></TableCell>
             <TableCell>Missing <code>@component</code> — no longer flagged</TableCell>
-            <TableCell>Function-style <code>component Name {'{ … }'}</code> needs no directive; hook/module-only files are legal. Reserved, never emitted.</TableCell>
+            <TableCell>Plain-declaration files need no directive; member-only files are legal. Reserved, never emitted.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0103" size="small" color="default" variant="outlined" /></TableCell>
@@ -407,7 +407,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX2104" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Mixed directive and function-style syntax</TableCell>
-            <TableCell>Use either directive headers (<code>@namespace</code> / <code>@component</code>) or function-style (<code>component Name {'{ }'}</code>), not both.</TableCell>
+            <TableCell>Use either directive headers (<code>@namespace</code> / <code>@component</code>) or declarations (<code>export VirtualNode Name() {'{ }'}</code>), not both.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2105" size="small" color="error" variant="outlined" /></TableCell>
@@ -419,7 +419,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX2106" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Missing parameter name</TableCell>
-            <TableCell>Each parameter in the component signature must have a name: <code>component Name(string text)</code>.</TableCell>
+            <TableCell>Each parameter in the component signature must have a name: <code>export VirtualNode Name(string text)</code>.</TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -547,6 +547,78 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Hint" size="small" /></TableCell>
             <TableCell>Redundant using (already in scope)</TableCell>
             <TableCell>The namespace is auto-injected into every generated file (e.g. <code>@using UnityEngine</code>, <code>@using System</code>), so the line is dead weight. Editor Hint (faded); the &ldquo;Remove redundant using&rdquo; quick-fix or the codemod <code>--tidy</code> strips it.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2320" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Deprecated wrapper keyword (<code>component</code>/<code>hook</code>/<code>module</code>)</TableCell>
+            <TableCell>0.9.0 ES modules: write a plain <code>export</code> declaration instead — the <code>UitkxMigrateImports --es-modules</code> codemod rewrites whole trees. The wrapper is removed in a later minor. Family code (identical in all three engines).</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2321" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell><code>use</code>-prefixed declaration returns <code>VirtualNode</code></TableCell>
+            <TableCell>Did you mean a component? Components are PascalCase and return <code>VirtualNode</code>; hooks are <code>use</code>-prefixed and return anything else.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2322" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Value export cannot infer its type</TableCell>
+            <TableCell>The type-less form is legal only when the initializer names the type: <code>export theme = new Style {'{'} … {'}'}</code>. Otherwise declare it: <code>export Style theme = …</code>.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2323" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell><code>export default</code> / <code>export {'{ … }'}</code> names an undeclared symbol</TableCell>
+            <TableCell>The name must match a top-level declaration in this file.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2324" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Duplicate export</TableCell>
+            <TableCell>A name is exported twice — inline <code>export</code> + a list entry, twice in one list, or across lists. Remove the duplicate.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2325" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Import alias collision</TableCell>
+            <TableCell>An <code>as</code>-rename, <code>* as X</code>, or default-import binding collides with a declaration in this file or another import. Rename the import.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2326" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Default import of a file with no <code>export default</code></TableCell>
+            <TableCell>Use a named import instead (the message suggests one), or add <code>export default Name;</code> to the target.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2327" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Duplicate <code>export default</code></TableCell>
+            <TableCell>A file has at most one default export.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2107" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Deprecated companion partial-class merge (Unity-local)</TableCell>
+            <TableCell>A legacy <code>module</code> is merging into a component declared in another file via shared folder namespaces. Migrate the companion set to plain declarations + file imports.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2108" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Mixed declaration styles in one file (Unity-local)</TableCell>
+            <TableCell>Legacy wrapper declarations and plain declarations cannot coexist — the file&rsquo;s FIRST declaration sets its style (it also selects folder-keyed vs file-keyed namespace derivation, which is why Unity errors where the sibling engines only warn). Migrate the whole file.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2109" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Import form needs a migrated target (Unity-local)</TableCell>
+            <TableCell>Namespace (<code>* as</code>), default, and renamed imports require the TARGET file to use plain-declaration syntax. Migrate the target first — named imports of legacy targets stay fine.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2110" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Hook rename drops the <code>use</code> prefix (Unity-local)</TableCell>
+            <TableCell><code>import {'{ useX as y }'}</code> — hook bindings must stay <code>use</code>-prefixed (the prefix drives Rules-of-Hooks analysis and emission).</TableCell>
           </TableRow>
         </TableBody>
       </Table>

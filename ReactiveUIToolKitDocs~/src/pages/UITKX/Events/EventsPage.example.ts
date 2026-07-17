@@ -1,4 +1,4 @@
-export const EVENTS_CLICK_EXAMPLE = `component ClickDemo {
+export const EVENTS_CLICK_EXAMPLE = `VirtualNode ClickDemo() {
   var (message, setMessage) = useState("Click the button");
 
   return (
@@ -10,7 +10,7 @@ export const EVENTS_CLICK_EXAMPLE = `component ClickDemo {
   );
 }`
 
-export const EVENTS_POINTER_EXAMPLE = `component PointerTracker {
+export const EVENTS_POINTER_EXAMPLE = `VirtualNode PointerTracker() {
   var (pos, setPos) = useState(Vector2.zero);
 
   return (
@@ -21,7 +21,7 @@ export const EVENTS_POINTER_EXAMPLE = `component PointerTracker {
   );
 }`
 
-export const EVENTS_KEYBOARD_EXAMPLE = `component KeyboardDemo {
+export const EVENTS_KEYBOARD_EXAMPLE = `VirtualNode KeyboardDemo() {
   var (lastKey, setLastKey) = useState("None");
 
   return (
@@ -32,7 +32,7 @@ export const EVENTS_KEYBOARD_EXAMPLE = `component KeyboardDemo {
   );
 }`
 
-export const EVENTS_FOCUS_EXAMPLE = `component FocusDemo {
+export const EVENTS_FOCUS_EXAMPLE = `VirtualNode FocusDemo() {
   var (focused, setFocused) = useState(false);
 
   return (
@@ -45,7 +45,7 @@ export const EVENTS_FOCUS_EXAMPLE = `component FocusDemo {
   );
 }`
 
-export const EVENTS_GEOMETRY_EXAMPLE = `component ResizeWatcher {
+export const EVENTS_GEOMETRY_EXAMPLE = `VirtualNode ResizeWatcher() {
   var (size, setSize) = useState(Rect.zero);
 
   return (
@@ -68,7 +68,7 @@ export const EVENTS_CHANGE_EXAMPLE = `// Toggle — onChange receives ChangeEven
 <TextField value={name}
            onInput={newValue => setName(newValue)} />`
 
-export const EVENTS_PROPAGATION_EXAMPLE = `component PropagationDemo {
+export const EVENTS_PROPAGATION_EXAMPLE = `VirtualNode PropagationDemo() {
   return (
     <VisualElement onClick={_ => Debug.Log("Parent clicked")}>
       <Button text="Stop propagation"
@@ -81,7 +81,7 @@ export const EVENTS_PROPAGATION_EXAMPLE = `component PropagationDemo {
 }`
 
 export const EVENTS_DRAG_EXAMPLE = `// Editor-only — requires UNITY_EDITOR
-component DragTarget {
+VirtualNode DragTarget() {
   var (isDragOver, setIsDragOver) = useState(false);
 
   return (
@@ -103,7 +103,7 @@ component DragTarget {
 
 export const EVENTS_CAPTURE_EXAMPLE = `// Capture-phase handler fires BEFORE the target's bubble handler.
 // Useful for intercepting events before children process them.
-component CaptureDemo {
+VirtualNode CaptureDemo() {
   var (log, setLog) = useState("");
 
   return (

@@ -1,21 +1,22 @@
-// Code samples for the Imports & Exports docs page (import/export grammar, leg 3).
+// Code samples for the Imports & Exports docs page (ES-modules dialect, 0.9.0).
 
 export const EXAMPLE_GRAMMAR = `import { StatusChip } from "./components/StatusChip"
-import { useCounter, CounterStyles } from "~/Shared/Counter.hooks"
+import { useCounter, FormatCount } from "~/Shared/Counter"
 
-export component Screen(int Start = 0) {
+export VirtualNode Screen(int Start = 0) {
     var (count, setCount) = useCounter(Start);
     return (
         <Box>
-            <StatusChip label={count.ToString()} />
+            <StatusChip label={FormatCount(count)} />
         </Box>
     );
 }
 
-export hook useCounter(int start) { /* ... */ }
-export module CounterStyles { /* ... */ }
+export (int value, Action bump) useCounter(int start) { /* ... */ }
+export string FormatCount(int c) => $"#{c}";
+export Style barStyle = new Style { /* ... */ };
 
-component LocalHelper { /* ... */ }   // no export = file-private (strict-invisible)`
+VirtualNode LocalHelper() { /* ... */ }   // no export = file-private`
 
 export const EXAMPLE_SPECIFIERS = `import { Card } from "./Card"              // same folder
 import { Theme } from "../theme/Theme"     // parent folder
@@ -25,6 +26,21 @@ import { Icons } from "~/Shared/Icons"     // '~/' = UI source root (default Ass
 // import specifiers (they never resolve → UITKX2300):
 //   import { X } from "Assets/UI/X"       // ✗
 //   import { X } from "Packages/p/X"      // ✗`
+
+export const EXAMPLE_FULL_SURFACE = `// The full ES import surface (0.9.0):
+
+import { Card } from "./Card"                 // named
+import { Card as Tile } from "./Card"         // rename-on-import (hooks must keep 'use')
+import * as Tokens from "../shared/Tokens"    // namespace import: Tokens.Gap in C#,
+                                              //   <Tokens.Circle /> in markup
+import ScorePanel from "./ScorePanel"         // default import — binds the target's
+                                              //   'export default' declaration
+
+// Export forms compose the same way:
+export int MaxItems = 5;                      // inline export
+int Threshold = 3;
+export { Threshold };                         // deferred export list
+export default ScorePanel;                    // one default per file`
 
 export const EXAMPLE_NAMESPACE_IMPORT = `// Two shapes, two jobs — both live in the preamble:
 
@@ -45,31 +61,33 @@ import "@V = UnityEngine.Vector2"      // = using V = UnityEngine.Vector2;
 export const EXAMPLE_MIXED = `// A file is a SEQUENCE of declarations, any kind, any order:
 import { Palette } from "./Palette"
 
-export component Header { return (<Box style={Palette.Bar} />); }
-export component Footer { return (<Box style={Palette.Bar} />); }
-export hook useNav() { /* ... */ }
-module LocalConst { public const int Gap = 8; }   // file-private`
+export VirtualNode Header() { return (<Box style={Palette.Bar} />); }
+export VirtualNode Footer() { return (<Box style={Palette.Bar} />); }
+export void useNav() { /* ... */ }
+int gap = 8;                                       // file-private value`
 
 export const EXAMPLE_STRICT = `// Screen references StatusChip but never imports it:
-export component Screen {
+export VirtualNode Screen() {
     return (<StatusChip />);   // UITKX2305: 'StatusChip' is defined in
                                // StatusChip.uitkx but not imported —
                                // add: import { StatusChip } from "./StatusChip"
 }`
 
-export const EXAMPLE_CODEMOD = `# Dry run first — reports which files WOULD change, exits non-zero if any would.
-dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --check
+export const EXAMPLE_CODEMOD = `# Migrate legacy wrapper-keyword files to plain declarations (0.9.0 ES modules):
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --es-modules
 
-# Then migrate in place (rewrites the .uitkx files under the given directory):
-dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets
+# Dry run / idempotence gate — reports which files WOULD change, exits non-zero if any:
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --es-modules --check
 
-# Re-running --check afterwards should report 0 changes (the migration is idempotent).`
+# Companion sets (X.uitkx + X.*.uitkx) migrate atomically; shapes the plain dialect
+# cannot express (generic hooks, modules with nested types/properties) are reported
+# and stay legacy under the deprecation window.`
 
-export const EXAMPLE_NAMESPACE = `// No @namespace? The default is derived from the file's path relative to the
-// owning .asmdef:  Samples/Components/Board/Board.uitkx  (asmdef at Samples/)
-//   → namespace ReactiveUITK.Uitkx.Components.Board
+export const EXAMPLE_NAMESPACE = `// No @namespace? The default derives from the file's path INCLUDING its stem
+// (a file IS a module):  Samples/Components/Board/Board.uitkx  (asmdef at Samples/)
+//   → namespace ReactiveUITK.Uitkx.Components.Board.Board
 //
-// @namespace is now an OPTIONAL interop override (for hand-written C# that
+// @namespace is an OPTIONAL interop override (for hand-written C# that
 // references the generated type by a fixed namespace):
 @namespace MyGame.UI
-export component Board { /* ... */ }`
+export VirtualNode Board() { /* ... */ }`

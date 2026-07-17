@@ -17,6 +17,7 @@ import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import Styles from '../../GettingStarted/GettingStartedPage.style'
 import {
   EXAMPLE_GRAMMAR,
+  EXAMPLE_FULL_SURFACE,
   EXAMPLE_SPECIFIERS,
   EXAMPLE_MIXED,
   EXAMPLE_STRICT,
@@ -59,9 +60,11 @@ export const UitkxImportsPage: FC = () => (
       Grammar
     </Typography>
     <Typography variant="body1" paragraph>
-      A file is a preamble of <code>import</code> lines followed by a sequence of
-      declarations, each optionally <code>export</code>-prefixed. Multiple components, hooks,
-      and modules may live in one file, in any order.
+      A file is a preamble of <code>import</code> lines followed by a sequence of plain
+      typed declarations, each optionally <code>export</code>-prefixed. Classification is
+      read from the signature alone: a <code>VirtualNode</code> return type is a component
+      (PascalCase enforced), a <code>use</code>-prefixed name is a hook, <code>= initializer</code>
+      is a value, anything else is a util. Any mix may live in one file, in any order.
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_GRAMMAR} />
     <List>
@@ -72,6 +75,17 @@ export const UitkxImportsPage: FC = () => (
         <ListItemText primary="import { A, B } from '…'" secondary="Named imports of peer .uitkx exports. Preamble only (before the first declaration). A namespace import uses a different shape — import '@Namespace' — see below." />
       </ListItem>
     </List>
+
+    <Typography variant="h5" component="h2" gutterBottom>
+      The full import surface
+    </Typography>
+    <Typography variant="body1" paragraph>
+      0.9.0 completes the ES surface: rename-on-import (<code>as</code>), namespace imports
+      (<code>* as X</code> — reach members as <code>X.Gap</code> in C# and{' '}
+      <code>&lt;X.Comp /&gt;</code> in markup), default imports bound to a file&rsquo;s{' '}
+      <code>export default</code>, and deferred <code>export {'{ … }'}</code> lists.
+    </Typography>
+    <CodeBlock language="jsx" code={EXAMPLE_FULL_SURFACE} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Specifiers

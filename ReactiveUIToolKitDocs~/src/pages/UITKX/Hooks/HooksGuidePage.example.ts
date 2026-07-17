@@ -1,4 +1,4 @@
-export const HOOKS_USESTATE_EXAMPLE = `component CounterDemo {
+export const HOOKS_USESTATE_EXAMPLE = `VirtualNode CounterDemo() {
   var (count, setCount) = useState(0);
 
   // Direct value
@@ -25,7 +25,7 @@ export const HOOKS_USEREDUCER_EXAMPLE = `// Define reducer and action types in a
 //   _ => state
 // };
 
-component ReducerDemo {
+VirtualNode ReducerDemo() {
   var (count, dispatch) = useReducer(CounterReducer, 0);
 
   return (
@@ -38,7 +38,7 @@ component ReducerDemo {
   );
 }`
 
-export const HOOKS_USEEFFECT_EXAMPLE = `component EffectDemo {
+export const HOOKS_USEEFFECT_EXAMPLE = `VirtualNode EffectDemo() {
   var (seconds, setSeconds) = useState(0);
 
   // Runs once on mount — empty dependency array
@@ -56,7 +56,7 @@ export const HOOKS_USEEFFECT_EXAMPLE = `component EffectDemo {
   return (<Label text={$"Elapsed: {seconds}s"} />);
 }`
 
-export const HOOKS_USELAYOUTEFFECT_EXAMPLE = `component LayoutMeasure {
+export const HOOKS_USELAYOUTEFFECT_EXAMPLE = `VirtualNode LayoutMeasure() {
   var elRef = useRef();   // VisualElement ref
   var (width, setWidth) = useState(0f);
 
@@ -74,7 +74,7 @@ export const HOOKS_USELAYOUTEFFECT_EXAMPLE = `component LayoutMeasure {
   );
 }`
 
-export const HOOKS_USEMEMO_EXAMPLE = `component ExpensiveList {
+export const HOOKS_USEMEMO_EXAMPLE = `VirtualNode ExpensiveList() {
   var (filter, setFilter) = useState("");
   var (items, _) = useState(GetAllItems());
 
@@ -93,7 +93,7 @@ export const HOOKS_USEMEMO_EXAMPLE = `component ExpensiveList {
   );
 }`
 
-export const HOOKS_USECALLBACK_EXAMPLE = `component StableCallback {
+export const HOOKS_USECALLBACK_EXAMPLE = `VirtualNode StableCallback() {
   var (count, setCount) = useState(0);
 
   // Returns Func<int> — identity stable across renders
@@ -107,7 +107,7 @@ export const HOOKS_USECALLBACK_EXAMPLE = `component StableCallback {
   );
 }`
 
-export const HOOKS_USEREF_EXAMPLE = `component RefDemo {
+export const HOOKS_USEREF_EXAMPLE = `VirtualNode RefDemo() {
   // Mutable value ref — persists across renders, no re-render on change
   var renderCount = useRef(0);
   renderCount.Current++;
@@ -130,7 +130,7 @@ export const HOOKS_USEREF_EXAMPLE = `component RefDemo {
 }`
 
 export const HOOKS_CONTEXT_EXAMPLE = `// Provider component
-component ThemeProvider {
+VirtualNode ThemeProvider() {
   provideContext("theme", "dark");
 
   return (
@@ -141,7 +141,7 @@ component ThemeProvider {
 }
 
 // Consumer component — any depth in subtree
-component ThemedCard {
+VirtualNode ThemedCard() {
   var theme = useContext<string>("theme"); // "dark"
 
   return (
@@ -153,7 +153,7 @@ component ThemedCard {
   );
 }`
 
-export const HOOKS_STABLE_EXAMPLE = `component EventOptimization {
+export const HOOKS_STABLE_EXAMPLE = `VirtualNode EventOptimization() {
   var (name, setName) = useState("");
 
   // UseStableAction wraps the setter so identity never changes
@@ -170,7 +170,7 @@ export const HOOKS_STABLE_EXAMPLE = `component EventOptimization {
   );
 }`
 
-export const HOOKS_DEFERRED_EXAMPLE = `component SearchResults {
+export const HOOKS_DEFERRED_EXAMPLE = `VirtualNode SearchResults() {
   var (query, setQuery) = useState("");
 
   // Deferred value updates at lower priority — prevents blocking input
@@ -184,7 +184,7 @@ export const HOOKS_DEFERRED_EXAMPLE = `component SearchResults {
   );
 }`
 
-export const HOOKS_IMPERATIVE_EXAMPLE = `component FancyInput {
+export const HOOKS_IMPERATIVE_EXAMPLE = `VirtualNode FancyInput() {
   // Expose an imperative handle to parent via ref
   var handle = useImperativeHandle(() => new FancyInputHandle {
     Focus = () => inputRef?.Focus(),

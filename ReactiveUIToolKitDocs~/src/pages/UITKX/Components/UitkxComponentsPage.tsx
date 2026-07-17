@@ -20,7 +20,7 @@ import {
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import Styles from '../../Components/Button/ButtonPage.style'
 
-const COMPONENT_SAMPLE = `component ButtonShowcase {
+const COMPONENT_SAMPLE = `VirtualNode ButtonShowcase() {
   var (enabled, setEnabled) = useState(true);
 
   return (

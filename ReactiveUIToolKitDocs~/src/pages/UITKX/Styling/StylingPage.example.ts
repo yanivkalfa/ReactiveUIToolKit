@@ -157,7 +157,7 @@ Rgba(1f, 0f, 0f, 0.5f)  → Color from 0-1 float values`
 
 export const EXAMPLE_USS_BASIC = `@uss "./Card.uss"
 
-component Card {
+VirtualNode Card() {
   return (
     <VisualElement>
       <Label text="Styled with USS" className="card-title" />
@@ -181,7 +181,7 @@ VisualElement {
 export const EXAMPLE_USS_MULTIPLE = `@uss "./base.uss"
 @uss "./theme-dark.uss"
 
-component ThemedPanel {
+VirtualNode ThemedPanel() {
   return (
     <VisualElement className="panel">
       <Label text="Multiple stylesheets applied in order" />
@@ -192,7 +192,7 @@ component ThemedPanel {
 export const EXAMPLE_USS_COMBINED = `@uss "./Card.uss"
 @using static ReactiveUITK.Props.Typed.CssHelpers
 
-component Card {
+VirtualNode Card() {
   // USS handles static layout, typed Style handles dynamic values
   var highlight = new Style {
       BorderColor = isSelected ? Hex("#00AAFF") : ColorTransparent,

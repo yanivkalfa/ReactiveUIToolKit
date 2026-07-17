@@ -18,6 +18,9 @@ Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolK
 
 ## Changelog
 
+### [1.5.0] - 2026-07-18
+- ES-modules redesign (family campaign): a .uitkx file IS a module. Plain typed `export` declarations replace the `component`/`hook`/`module` wrapper keywords (classification from the signature alone: a VirtualNode return is a component, a use-prefixed name is a hook, `= initializer` is a value, anything else a util); full ES import surface (`import { a as b }`, `import * as X`, default imports + `export default`, deferred `export { ... }` lists); per-file (file-keyed) namespaces with real file-privacy; companion partial-class merging deprecated. Wrapper keywords keep parsing for this minor with UITKX2320/2107 deprecation warnings; the `UitkxMigrateImports --es-modules` codemod migrates whole trees (companion sets atomically). New family diagnostics UITKX2320-2327 + Unity-local 2107-2110. Editor surface updated across the board: grammar (star/default/rename imports, export lists, plain declaration heads), completions (plain-declaration snippets; wrapper snippets marked deprecated), go-to-definition/rename/references across both grammars (rename is alias-aware), semantic tokens, schema 1.2, and the Roslyn virtual documents mirror the new `__Exports` emission so editor diagnostics match the build byte-for-byte.
+
 ### [1.4.4] - 2026-07-16
 - Ships library 0.8.3's import-parser fix in the bundled LSP server + analyzer DLL.
 

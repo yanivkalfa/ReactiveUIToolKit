@@ -6,6 +6,63 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.9.0] - 2026-07-18
+
+### Changed — ES-modules redesign (family campaign; owner-approved plan `Plans~/ES_MODULES_GENERAL_PLAN.md`)
+
+- **A `.uitkx` file IS a module.** Plain typed `export` declarations replace the
+  `component` / `hook` / `module` wrapper keywords. Classification is read from the
+  signature alone (G-03): a `VirtualNode` return type is a **component** (PascalCase
+  enforced), a `use`-prefixed name is a **hook**, `= initializer` after the name is a
+  **value** (`export Style container = new Style {…}`, with `export theme = new T {…}`
+  inference sugar), anything else is a **util**. Non-exported declarations are
+  file-private (`internal` on the per-file `__Exports` container / `internal` component
+  partials).
+- **Full ES import surface** (G-05): rename-on-import `import { a as b }`, namespace
+  imports `import * as X` (markup access via dotted tags `<X.Comp/>`), default imports
+  `import X from "./file"` + `export default Name;`, and deferred `export { a, b };`
+  lists. Renamed/default member imports lower to typed bridges on the consumer's
+  `__Exports`.
+- **File-keyed namespaces** (G-01/U-01): a new-syntax file's namespace is its folder path
+  PLUS its file stem — every file is its own module; two files in one folder no longer
+  share a namespace. The explicit `@namespace` stamp still wins (escape hatch). Legacy
+  files keep folder-keyed derivation for the deprecation window.
+- **Companion partial-class merging is deprecated** (U-07): new-syntax files never merge
+  partials across files — a companion's members are imported like any other module's.
+  The legacy merge still works for legacy files and now warns (`UITKX2107`).
+- **Deprecation window** (G-10): wrapper keywords keep parsing this minor with
+  `UITKX2320` warnings; removal comes in a later minor. The
+  `UitkxMigrateImports --es-modules` codemod migrates whole trees — tidy, export-
+  normalize, wrapper rewrite (modules are exploded member-by-member via Roslyn), importer
+  rewrite (`import { Module }` becomes `import * as Module`, call sites untouched),
+  companion sets atomically, formatter last; idempotent, with a `--check` gate. Sets the
+  plain dialect cannot express (generic hooks; modules with nested types/properties) stay
+  legacy with a report.
+- **New diagnostics.** Family band `UITKX2320-2327` (wrapper deprecation, hook-returns-
+  markup, value-inference failure, undeclared/duplicate exports, alias collisions,
+  default-import mismatches) + Unity-local `UITKX2107-2110` (companion-merge deprecation,
+  mixed-declaration-styles error, import-form-needs-migrated-target, hook-rename-drops-
+  use-prefix).
+- **Hot reload parity** (U-06/G-09): new-mode members hot-swap through the same machinery
+  (values re-initialize via `[UitkxHmrSwap]`, utils re-bind by name, hooks re-register
+  under `{ns}.__Exports::{hook}` family keys). **Migrating a file resets its hot-reload
+  state once** (family keys change with the namespace); steady-state behavior is
+  unchanged. In-editor smoke run: **pending** (owner-run milestone M8).
+- **Editor surface** across VS Code / VS2022 / Rider: grammar, schema 1.2, completions
+  (plain-declaration snippets; wrapper snippets marked deprecated), definition / rename
+  (alias-aware) / references, semantic tokens, and Roslyn virtual documents mirroring the
+  `__Exports` emission — including the C# name-resolution subtlety file-keyed namespaces
+  introduce (usings emitted inside the namespace block, `global::`-qualified, in ALL four
+  emit layers so editor and build resolve identically).
+- **Samples migrated** (130 files); 21 companion sets deliberately remain legacy (their
+  modules host structs/enums/classes — no plain-dialect form) and compile under the
+  deprecation window. `Samples/Components/UitkxTestFileDoNotTouch/` byte-identical.
+- Family corpus hash re-pin deferred pending the family's shared ES-modules corpus cases
+  (G-13/R2; recorded).
+
+SG suite 1668/1668, LSP suite 132/132. Unity package **0.9.0**; VS Code + VS2022
+extensions **1.5.0**; Rider **1.2.0**.
+
 ## [0.8.3] - 2026-07-16
 
 ### Fixed

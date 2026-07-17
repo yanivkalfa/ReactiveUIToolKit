@@ -118,7 +118,7 @@ export const VIRTUALNODE_EXAMPLE = `// VirtualNode is the return type of all ren
 // Typically you never construct VirtualNode directly.
 // Use V.Button(...), V.Label(...), V.Func(...) etc.`
 
-export const FLUSHSYNC_EXAMPLE = `component SearchForm {
+export const FLUSHSYNC_EXAMPLE = `VirtualNode SearchForm() {
   var (query, setQuery) = useState("");
   var (results, setResults) = useState(new List<string>());
 
@@ -145,7 +145,7 @@ export const FLUSHSYNC_EXAMPLE = `component SearchForm {
 }`
 
 export const ERROR_PATTERNS_EXAMPLE = `// Pattern 1: ErrorBoundary with fallback UI
-component SafeApp {
+VirtualNode SafeApp() {
   return (
     <ErrorBoundary
       fallback={V.Label(new LabelProps { Text = "Something went wrong" })}
@@ -157,7 +157,7 @@ component SafeApp {
 }
 
 // Pattern 2: Nested boundaries for granular recovery
-component Dashboard {
+VirtualNode Dashboard() {
   return (
     <VisualElement>
       <ErrorBoundary fallback={V.Label(new LabelProps { Text = "Chart failed" })}>
@@ -171,7 +171,7 @@ component Dashboard {
 }
 
 // Pattern 3: Reset via key change
-component RecoverablePanel {
+VirtualNode RecoverablePanel() {
   var (resetKey, setResetKey) = useState("v1");
 
   return (

@@ -1,4 +1,38 @@
-﻿## [0.8.3] - 2026-07-16
+﻿## [0.9.0] - 2026-07-18
+
+### Minor - ES modules: a file IS a module
+
+**The wrapper keywords are gone (deprecated).** No more `component X {}`, `hook useX {}`, `module M {}` - you write plain typed declarations and the signature says what it is:
+
+```
+import { FormatTime } from "../Shared/TimeUtils"
+
+export Style container = new Style { Padding = 10f };
+export int MaxItems = 5;
+
+export string FormatScore(int s) { return $"Score: {s}"; }
+
+export (int value, Action reset) useCountdown(int start) { ... }
+
+export VirtualNode ScoreRow(string label) {
+  return ( <Label text={label} style={container} /> );
+}
+export default ScoreRow;
+```
+
+A `VirtualNode` return = component (PascalCase enforced). A `use`-prefixed name = hook. `= initializer` = value. Anything else = util. No `export` = file-private, for real.
+
+**Full ES import surface:** `import { a as b }`, `import * as X` (use `<X.Comp/>` in markup), default imports, and `export { a, b };` lists.
+
+**Every file gets its own namespace** (folder + file stem) - two files in one folder no longer share one, and companion partial-merging is deprecated (`UITKX2107`): a companion's members are imported like anything else.
+
+**Migration is one command:** `UitkxMigrateImports --es-modules` rewrites whole trees - wrappers to plain declarations, modules exploded member-by-member, `import { Module }` becomes `import * as Module` with call sites untouched, companion sets atomically, idempotent. Old syntax still parses this minor with `UITKX2320` warnings; removal comes later. Migrating a file resets its hot-reload state once.
+
+New diagnostics `UITKX2320-2327` + `2107-2110`. Full editor support in all three IDEs (grammar, completions, rename/go-to-def across both syntaxes). Samples migrated (130 files).
+
+Unity package **0.9.0** + IDE extensions **1.5.0** (VS Code/VS2022), **1.2.0** (Rider).
+
+## [0.8.3] - 2026-07-16
 
 ### Patch - a trailing `;` no longer wrecks an import
 

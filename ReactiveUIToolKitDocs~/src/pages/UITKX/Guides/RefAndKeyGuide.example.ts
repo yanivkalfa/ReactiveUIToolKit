@@ -1,4 +1,4 @@
-export const REF_BASIC_EXAMPLE = `component MeasureDemo {
+export const REF_BASIC_EXAMPLE = `VirtualNode MeasureDemo() {
   var labelRef = useRef();  // VisualElement ref
   var (width, setWidth) = useState(0f);
 
@@ -16,7 +16,7 @@ export const REF_BASIC_EXAMPLE = `component MeasureDemo {
   );
 }`
 
-export const REF_MUTABLE_EXAMPLE = `component RenderCounter {
+export const REF_MUTABLE_EXAMPLE = `VirtualNode RenderCounter() {
   var renderCount = useRef(0);
   renderCount.Current++;
 
@@ -31,7 +31,7 @@ export const REF_MUTABLE_EXAMPLE = `component RenderCounter {
   );
 }`
 
-export const REF_FOCUS_EXAMPLE = `component AutoFocusInput {
+export const REF_FOCUS_EXAMPLE = `VirtualNode AutoFocusInput() {
   var inputRef = useRef();
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export const REF_FOCUS_EXAMPLE = `component AutoFocusInput {
 }`
 
 export const REF_IMPERATIVE_EXAMPLE = `// Child exposes an imperative handle
-component FancyInput {
+VirtualNode FancyInput() {
   var inputRef = useRef();
   var (val, setVal) = useState("");
 
@@ -61,7 +61,7 @@ component FancyInput {
 }
 
 // Parent uses the handle
-component FormHost {
+VirtualNode FormHost() {
   // The child's useImperativeHandle return value is not accessed via
   // ref — it's available through the component's internal wiring.
   // This pattern is useful when you need to call imperative methods
@@ -73,7 +73,7 @@ component FormHost {
   );
 }`
 
-export const KEY_BASIC_EXAMPLE = `component TodoList {
+export const KEY_BASIC_EXAMPLE = `VirtualNode TodoList() {
   var (items, setItems) = useState(new List<string> { "Buy milk", "Walk dog" });
 
   return (
@@ -96,7 +96,7 @@ export const KEY_INDEX_ANTIPATTERN = `// BAD — using index as key causes issue
   return (<TodoItem todo={todo} key={todo.Id.ToString()} />);
 }`
 
-export const KEY_REORDER_EXAMPLE = `component ReorderDemo {
+export const KEY_REORDER_EXAMPLE = `VirtualNode ReorderDemo() {
   var (items, setItems) = useState(new List<TodoItem> {
     new("A", "First"), new("B", "Second"), new("C", "Third")
   });
@@ -121,14 +121,14 @@ export const KEY_REORDER_EXAMPLE = `component ReorderDemo {
   );
 }`
 
-export const KEY_RESET_EXAMPLE = `component UserProfile(string userId) {
+export const KEY_RESET_EXAMPLE = `VirtualNode UserProfile(string userId) {
   // Changing key forces full unmount + remount of the component
   return (
     <ProfileContent key={userId} userId={userId} />
   );
 }
 
-component ProfileContent(string userId) {
+VirtualNode ProfileContent(string userId) {
   // All hooks reset when key changes — fresh state for each user
   var (data, setData) = useState<UserData>(null);
 

@@ -1,6 +1,6 @@
 export const UITKX_ROUTER_EXAMPLE = `@using ReactiveUITK.Router
 
-component RouterDemo {
+VirtualNode RouterDemo() {
   var navigate = RouterHooks.UseNavigate();
   var (query, setQuery) = RouterHooks.UseSearchParams();
 
@@ -40,7 +40,7 @@ component RouterDemo {
   );
 }
 
-component UsersLayout {
+VirtualNode UsersLayout() {
   return (
     <VisualElement>
       <Text text="Users header" />
@@ -50,7 +50,7 @@ component UsersLayout {
   );
 }
 
-component UserDetails {
+VirtualNode UserDetails() {
   var parameters = RouterHooks.UseParams();
   var matches = RouterHooks.UseMatches();   // breadcrumb chain
   return <Text text={$"User id: {parameters["id"]}"} />;
