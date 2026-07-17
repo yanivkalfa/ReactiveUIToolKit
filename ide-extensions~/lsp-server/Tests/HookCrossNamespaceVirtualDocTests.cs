@@ -76,6 +76,212 @@ public sealed class HookCrossNamespaceVirtualDocTests : IAsyncLifetime, IDisposa
         Assert.Contains("using static MyApp.Hooks.UseFlagHooks;", vdoc!.Text);
     }
 
+    [Fact]
+    public async Task StamplessPeerHook_UsesEffectiveNamespace_NotParserDefault()
+    {
+        // Path-derived world (no @namespace stamps, uitkx.config.json namespacePrefix —
+        // the bundled-samples shape since 0.8.2): the injected using-static must name the
+        // hook container's EFFECTIVE namespace. The RAW parsed namespace is the parser
+        // default `ReactiveUITK.FunctionStyle`, where no real container ever exists — a
+        // second phantom container there made every companion-hook call CS0121-ambiguous
+        // in the editor while the build was clean.
+        // An .asmdef makes the temp dir a resolvable derivation anchor (without one —
+        // no asmdef, no Assets/ ancestor — Resolve correctly degrades to the raw value).
+        File.WriteAllText(Path.Combine(_tempDir, "Test.asmdef"), "{ \"name\": \"TestAsm\" }\n");
+        File.WriteAllText(Path.Combine(_tempDir, "uitkx.config.json"),
+            "{ \"namespacePrefix\": \"TestApp.Derived\" }\n");
+        var hookContent =
+            "hook useFlag() -> bool {\n"
+            + "  var (v, _) = useState(false);\n"
+            + "  return v;\n"
+            + "}\n";
+        var consumerContent =
+            "component ConsumerComp {\n"
+            + "  return (\n"
+            + "    <VisualElement />\n"
+            + "  );\n"
+            + "}\n";
+
+        string hookPath = Path.Combine(_tempDir, "UseFlag.hooks.uitkx");
+        string consumerPath = Path.Combine(_tempDir, "ConsumerComp.uitkx");
+        File.WriteAllText(hookPath, hookContent);
+        File.WriteAllText(consumerPath, consumerContent);
+
+        var parseResult = Parse(consumerContent, consumerPath);
+        await _host.EnsureReadyAsync(consumerPath, consumerContent, parseResult, CancellationToken.None);
+
+        var vdoc = _host.GetVirtualDocument(consumerPath);
+        Assert.NotNull(vdoc);
+        Assert.Contains("using static TestApp.Derived.UseFlagHooks;", vdoc!.Text);
+        Assert.DoesNotContain("ReactiveUITK.FunctionStyle.UseFlagHooks", vdoc.Text);
+    }
+
+    [Fact]
+    public async Task GoToDefinition_OnExportedHookCall_JumpsToHookDeclaration()
+    {
+        // `export hook useX()` — the `export ` prefix (0.7.0 grammar) must not break
+        // DefinitionHandler.FindDeclarationInUitkx's keyword match. Before the fix,
+        // go-to-definition on any EXPORTED hook's call site silently returned nothing:
+        // the hook method's signature is scaffold (no source-map entry), so the peer
+        // text-search fallback was the only route — and it only knew bare `hook `.
+        var hookContent =
+            "export hook useFlag() -> bool {\n"
+            + "  var (v, _) = useState(false);\n"
+            + "  return v;\n"
+            + "}\n";
+        var consumerContent =
+            "import { useFlag } from \"./UseFlag.hooks\"\n\n"
+            + "component ConsumerComp {\n"
+            + "  var flag = useFlag();\n"
+            + "  return (\n"
+            + "    <VisualElement />\n"
+            + "  );\n"
+            + "}\n";
+
+        string hookPath = Path.Combine(_tempDir, "UseFlag.hooks.uitkx");
+        string consumerPathRaw = Path.Combine(_tempDir, "ConsumerComp.uitkx");
+        File.WriteAllText(hookPath, hookContent);
+        File.WriteAllText(consumerPathRaw, consumerContent);
+
+        // Use the exact path shape the handler derives from the URI (Uri.LocalPath)
+        // so the host's per-file registry lookups match.
+        var uri = OmniSharp.Extensions.LanguageServer.Protocol.DocumentUri
+            .FromFileSystemPath(consumerPathRaw);
+        string consumerPath = new Uri(uri.ToString()).LocalPath;
+
+        var parseResult = Parse(consumerContent, consumerPath);
+        await _host.EnsureReadyAsync(consumerPath, consumerContent, parseResult, CancellationToken.None);
+
+        // Cursor inside the CALL `useFlag()` (line 4, not the import line).
+        int callOffset = consumerContent.IndexOf("useFlag()", StringComparison.Ordinal);
+        int line0 = consumerContent.Substring(0, callOffset).Count(c => c == '\n');
+        int lineStart = consumerContent.LastIndexOf('\n', callOffset - 1) + 1;
+        int char0 = callOffset - lineStart + 2;
+
+        var store = new DocumentStore();
+        store.Set(uri, consumerContent);
+        var handler = new DefinitionHandler(store, new WorkspaceIndex(), _host);
+
+        var result = await handler.Handle(
+            new OmniSharp.Extensions.LanguageServer.Protocol.Models.DefinitionParams
+            {
+                TextDocument = new OmniSharp.Extensions.LanguageServer.Protocol.Models
+                    .TextDocumentIdentifier(uri),
+                Position = new OmniSharp.Extensions.LanguageServer.Protocol.Models
+                    .Position(line0, char0),
+            },
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        var loc = result!.First().Location;
+        Assert.NotNull(loc);
+        Assert.EndsWith("UseFlag.hooks.uitkx", loc!.Uri.GetFileSystemPath(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, (int)loc.Range.Start.Line); // decl is line 1 (0-based 0)
+    }
+
+    [Fact]
+    public async Task Rename_HookFromCallSite_AlsoRenamesImportListName()
+    {
+        // F2 on the CALL site renames the declaration (hook path) and every C#
+        // usage (Roslyn) — but `import { useFlag }` is uitkx-only preamble syntax
+        // that neither collector can see. The import-list pass must patch it, or
+        // the rename leaves the file broken (import binds a name that no longer
+        // exists → UITKX2300).
+        var hookContent =
+            "export hook useFlag() -> bool {\n"
+            + "  var (v, _) = useState(false);\n"
+            + "  return v;\n"
+            + "}\n";
+        var consumerContent =
+            "import { useFlag } from \"./UseFlag.hooks\"\n\n"
+            + "component ConsumerComp {\n"
+            + "  var flag = useFlag();\n"
+            + "  return (\n"
+            + "    <VisualElement />\n"
+            + "  );\n"
+            + "}\n";
+
+        string hookPathRaw = Path.Combine(_tempDir, "UseFlag.hooks.uitkx");
+        string consumerPathRaw = Path.Combine(_tempDir, "ConsumerComp.uitkx");
+        File.WriteAllText(hookPathRaw, hookContent);
+        File.WriteAllText(consumerPathRaw, consumerContent);
+
+        var uri = OmniSharp.Extensions.LanguageServer.Protocol.DocumentUri
+            .FromFileSystemPath(consumerPathRaw);
+        string consumerPath = new Uri(uri.ToString()).LocalPath;
+
+        var parseResult = Parse(consumerContent, consumerPath);
+        await _host.EnsureReadyAsync(consumerPath, consumerContent, parseResult, CancellationToken.None);
+
+        int callOffset = consumerContent.IndexOf("useFlag()", StringComparison.Ordinal);
+        int line0 = consumerContent.Substring(0, callOffset).Count(c => c == '\n');
+        int lineStart = consumerContent.LastIndexOf('\n', callOffset - 1) + 1;
+        int char0 = callOffset - lineStart + 2;
+
+        var store = new DocumentStore();
+        store.Set(uri, consumerContent);
+        var handler = new RenameHandler(store, new WorkspaceIndex(), _host, null!);
+
+        var edit = await handler.Handle(
+            new OmniSharp.Extensions.LanguageServer.Protocol.Models.RenameParams
+            {
+                TextDocument = new OmniSharp.Extensions.LanguageServer.Protocol.Models
+                    .TextDocumentIdentifier(uri),
+                Position = new OmniSharp.Extensions.LanguageServer.Protocol.Models
+                    .Position(line0, char0),
+                NewName = "useFlagRenamed",
+            },
+            CancellationToken.None);
+
+        Assert.NotNull(edit);
+        Assert.NotNull(edit!.Changes);
+        // The consumer file's edits must include one on LINE 0 (the import line)
+        // replacing the imported name.
+        var consumerEdits = edit.Changes!
+            .First(kvp => kvp.Key.GetFileSystemPath()
+                .EndsWith("ConsumerComp.uitkx", StringComparison.OrdinalIgnoreCase))
+            .Value.ToList();
+        Assert.Contains(consumerEdits, e =>
+            e.Range.Start.Line == 0 && e.NewText == "useFlagRenamed");
+    }
+
+    [Fact]
+    public async Task Formatting_ModuleCompanionFile_FixesIndentation()
+    {
+        // Style-module companion with a misindented closing `};` — the formatting
+        // handler must return an edit that canonicalizes it (field-reported as
+        // "formatting doesn't work" on a .style.uitkx).
+        var styleContent =
+            "export module HmrTests {\n"
+            + "  public static readonly Style container = new Style {\n"
+            + "    BackgroundColor = ColorGray,\n"
+            + "    Padding = 10f,\n"
+            + "      };\n"
+            + "}\n";
+        string stylePathRaw = Path.Combine(_tempDir, "HmrTests.style.uitkx");
+        File.WriteAllText(stylePathRaw, styleContent);
+        var uri = OmniSharp.Extensions.LanguageServer.Protocol.DocumentUri
+            .FromFileSystemPath(stylePathRaw);
+
+        var store = new DocumentStore();
+        store.Set(uri, styleContent);
+        var handler = new FormattingHandler(store);
+
+        var edits = await handler.Handle(
+            new OmniSharp.Extensions.LanguageServer.Protocol.Models.DocumentFormattingParams
+            {
+                TextDocument = new OmniSharp.Extensions.LanguageServer.Protocol.Models
+                    .TextDocumentIdentifier(uri),
+                Options = new OmniSharp.Extensions.LanguageServer.Protocol.Models
+                    .FormattingOptions { TabSize = 2, InsertSpaces = true },
+            },
+            CancellationToken.None);
+
+        Assert.NotNull(edits);
+        Assert.Contains(edits!, e => e.NewText.Contains("  };"));
+    }
+
     private static ParseResult Parse(string source, string path)
     {
         var diags = new List<ParseDiagnostic>();

@@ -351,6 +351,8 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                                 localPath, symbol.Name, newName, changes);
                         }
 
+                        CollectImportListRenameEdits(symbol.Name, newName, changes, localPath);
+
                         // Log what we're returning
                         int totalEdits = 0;
                         foreach (var kvp in changes)
@@ -394,6 +396,7 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
             {
                 ServerLog.Log($"[Rename] Component rename: '{word}' → '{newName}'");
                 CollectComponentRenameEdits(word, newName, changes);
+                CollectImportListRenameEdits(word, newName, changes, localPath);
 
                 // U-37: F2-renaming a component only renamed the TEXT (declaration + tag
                 // references); the declaring .uitkx file itself kept its old name, so the
@@ -458,6 +461,7 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                     {
                         ServerLog.Log($"[Rename] Hook rename: '{word}' → '{newName}'");
                         CollectHookRenameEdits(localPath, word, newName, changes);
+                        CollectImportListRenameEdits(word, newName, changes, localPath);
                         return new WorkspaceEdit { Changes = changes };
                     }
                 }
@@ -465,6 +469,88 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         }
 
         return null;
+    }
+
+    // ── Import-list rename ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Renames <paramref name="oldName"/> inside `import { … }` name lists. Import
+    /// names are uitkx-only preamble syntax: they never appear in the C# virtual
+    /// document (imports lower to `using` lines), so Roslyn's renamer cannot see
+    /// them, and the text-based collectors match call/tag shapes (`name(`, `&lt;Name`)
+    /// that an import list doesn't have. Without this pass an F2 rename updates the
+    /// declaration and every call site but leaves the import binding the OLD name —
+    /// instantly breaking the file with UITKX2300/2304.
+    ///
+    /// Candidate files are the ones already participating in the rename (keys of
+    /// <paramref name="changes"/>) plus the invoking file — i.e. every file where
+    /// the symbol is actually used. A file that imports the name but never uses it
+    /// is already flagged UITKX2304 and is deliberately out of scope.
+    /// </summary>
+    private void CollectImportListRenameEdits(
+        string oldName,
+        string newName,
+        Dictionary<DocumentUri, IEnumerable<TextEdit>> changes,
+        string invokingFilePath)
+    {
+        var candidatePaths = new Dictionary<string, DocumentUri>(StringComparer.OrdinalIgnoreCase);
+        foreach (var uri in changes.Keys.ToList())
+        {
+            var p = UriToPath(uri);
+            if (p != null && p.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                candidatePaths[p] = uri;
+        }
+        if (invokingFilePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase)
+            && !candidatePaths.ContainsKey(invokingFilePath))
+        {
+            candidatePaths[invokingFilePath] = DocumentUri.FromFileSystemPath(invokingFilePath);
+        }
+
+        foreach (var (path, uri) in candidatePaths)
+        {
+            try
+            {
+                if (!TryGetText(uri, path, out var fileText))
+                    continue;
+
+                var diags = new List<ReactiveUITK.Language.ParseDiagnostic>();
+                var directives = DirectiveParser.Parse(fileText, path, diags);
+                if (directives.Imports.IsDefaultOrEmpty)
+                    continue;
+
+                var importEdits = new List<TextEdit>();
+                foreach (var imp in directives.Imports)
+                {
+                    for (int i = 0; i < imp.Names.Length; i++)
+                    {
+                        if (imp.Names[i] != oldName)
+                            continue;
+                        int line0 = imp.Line - 1;
+                        int col0 = imp.NameColumns[i];
+                        importEdits.Add(new TextEdit
+                        {
+                            Range = new LspRange(
+                                new Position(line0, col0),
+                                new Position(line0, col0 + oldName.Length)),
+                            NewText = newName,
+                        });
+                    }
+                }
+
+                if (importEdits.Count == 0)
+                    continue;
+
+                ServerLog.Log(
+                    $"[Rename] import-list: {importEdits.Count} edit(s) in {Path.GetFileName(path)}");
+                changes[uri] = changes.TryGetValue(uri, out var existing)
+                    ? existing.Concat(importEdits)
+                    : importEdits;
+            }
+            catch (Exception ex)
+            {
+                ServerLog.Log($"[Rename] import-list scan failed for {path}: {ex.Message}");
+            }
+        }
     }
 
     // ── .cs companion rename ──────────────────────────────────────────────────

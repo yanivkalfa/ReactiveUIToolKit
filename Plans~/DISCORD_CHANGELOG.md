@@ -1,14 +1,16 @@
 ﻿## [0.8.3] - 2026-07-16
 
-### Patch — a trailing `;` no longer wrecks an import
+### Patch - a trailing `;` no longer wrecks an import
 
-**If `import { X } from "./file";` blew up your whole file — this is the fix.** That trailing semicolon is the *JS-canonical* form, and pure muscle memory when the rest of the file is C# — but the file-import reader stopped right after the closing quote. The parser's cursor stalled on the `;`, the preamble loop bailed, and the entire file failed with a misleading `UITKX2105` ("no valid component declaration") plus phantom "single root element" errors on lines that were never markup.
+**If `import { X } from "./file";` blew up your whole file - this is the fix.** That trailing semicolon is the JS-canonical form, and pure muscle memory when the rest of the file is C# - but the file-import reader stopped right after the closing quote. The parser's cursor stalled on the `;`, the preamble loop bailed, and the entire file failed with a misleading `UITKX2105` ("no valid component declaration") plus phantom "single root element" errors on lines that were never markup.
 
-The fix is parity, not a patch: `@using Ns;` and `import "@Ns";` both already consumed to end-of-line — the file-import reader was the one sibling missing that step. Now all three preamble forms tolerate the semicolon, and the formatter re-emits the canonical, semicolon-less line on save.
+The fix is parity, not a patch: `@using Ns;` and `import "@Ns";` both already consumed to end-of-line - the file-import reader was the one sibling missing that step. Now all three preamble forms tolerate the semicolon, and the formatter re-emits the canonical, semicolon-less line on save.
 
-Bonus: with the parse meltdown gone, a genuinely wrong import gets its *real* diagnostic — e.g. importing a style-module field (`import { container } from "./X.style"`) now correctly reports `UITKX2301: not exported` instead of nuking the file. (Reminder: same-folder `X.style.uitkx` companions need **no import at all** — their module statics are visible bare, like `style={container}`.)
+Bonus: with the parse meltdown gone, a genuinely wrong import gets its real diagnostic - e.g. importing a style-module field (`import { container } from "./X.style"`) now correctly reports `UITKX2301: not exported` instead of nuking the file. (Reminder: same-folder `X.style.uitkx` companions need **no import at all** - their module statics are visible bare, like `style={container}`.)
 
-Unity package **0.8.3** + IDE extensions **1.4.4** (bundled LSP carries the same parser). SG `1550/1550`, LSP `118/118`.
+**HMR - style/module companions hot-reload again.** The module leg of hot reload still emitted under the RAW parsed namespace while everything else moved to the EFFECTIVE one - so in a stamp-less project, a companion's partial class never merged with its component (bare `container` refs failed `CS0103` under HMR while the build was clean) and `.style` edits silently swapped nothing (the static swapper matches types by `FullName`). All namespace threading now goes through the same effective-namespace seam as the build; even a companion file created mid-session hot-compiles - no domain reload. Contract tests pin the seam.
+
+Unity package **0.8.3** + IDE extensions **1.4.4** (bundled LSP carries the same parser). SG suites green.
 
 ## [0.8.2] - 2026-07-16
 

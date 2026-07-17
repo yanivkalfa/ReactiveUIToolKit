@@ -10,6 +10,19 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 
 ### Fixed
 
+- **HMR: companion style/module edits work in the path-derived world.** The module leg of
+  the hot-reload pipeline still emitted under the RAW parsed namespace (a parser default
+  for every stamp-less file) while the component/hook legs and the real build use the
+  EFFECTIVE namespace. Consequences, all fixed at the one seam (`EmitModules` +
+  `ComputeEffectiveNs` threading, mirroring the hook leg's 0.8.2 conversion): a companion
+  module's partial class landed in a foreign namespace and never merged with its component
+  in the hot unit (bare style refs like `container` failed CS0103 under HMR while the full
+  build was clean — even a companion created MID-session now works, no domain reload); the
+  module static swapper matched hot↔project types by `Type.FullName` and silently swapped
+  nothing on `.style` edits; and the batch path's `FullyQualifiedName` aimed cascade
+  trampoline swaps at a nonexistent type. Three source-text contract tests pin the
+  threading so the raw-namespace shapes cannot reappear.
+
 - **A trailing `;` on a file import no longer wrecks the whole file.** `import { X } from
   "./file";` — the JS-canonical form, and pure muscle memory in a file whose body is C# —
   left the parser's cursor stalled on the `;`, so the preamble loop bailed and the file

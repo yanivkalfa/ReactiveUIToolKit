@@ -402,9 +402,38 @@ namespace UitkxLanguageServer.Roslyn
                 var map = state.VirtualDoc.Map;
                 var result = new List<(Diagnostic, SourceMapEntry?, bool)>();
 
-                foreach (var diag in semantic.GetDiagnostics())
+                var allDiags = semantic.GetDiagnostics();
+
+                // Pre-pass: spans of state-setter CS1503s (the suppressed "setCount(5)"
+                // sugar false positives). Needed before the main loop so a CS1662 can be
+                // recognized as their cascade. Cache the per-diagnostic verdict so the
+                // main loop doesn't re-run the semantic check.
+                var stateSetter1503 = new HashSet<Diagnostic>();
+                var stateSetter1503Spans = new List<Microsoft.CodeAnalysis.Text.TextSpan>();
+                foreach (var d in allDiags)
+                {
+                    if (d.Id == "CS1503" && IsStateSetterInvocation(d, semantic))
+                    {
+                        stateSetter1503.Add(d);
+                        stateSetter1503Spans.Add(d.Location.SourceSpan);
+                    }
+                }
+
+                foreach (var diag in allDiags)
                 {
                     if (diag.Severity == DiagnosticSeverity.Hidden)
+                        continue;
+
+                    // CS1662 "cannot convert lambda — return types not convertible":
+                    // Roslyn anchors this on the lambda's PARAMETER/ARROW tokens only for
+                    // block-bodied lambdas, so the mapper's span-containment cascade check
+                    // (U-39) can never match there — it only ever worked for
+                    // expression-bodied lambdas, whose diagnostic span covers the whole
+                    // body. Resolve the ENCLOSING LAMBDA NODE from the syntax tree and
+                    // suppress when a suppressed state-setter CS1503 sits anywhere inside
+                    // it: the lambda's "error return type" IS that suppressed error.
+                    if (diag.Id == "CS1662"
+                        && IsStateSetterCascadeCs1662(diag, semantic, stateSetter1503Spans))
                         continue;
 
                     // #pragma warning disable in the virtual document marks a
@@ -437,7 +466,7 @@ namespace UitkxLanguageServer.Roslyn
                     // message alone cannot distinguish the two (probe-verified; the
                     // previously-suggested `msg.Contains("__StateSetter__")` string never
                     // actually appears in the message and would have suppressed nothing).
-                    bool isStateSetterCs1503 = diag.Id == "CS1503" && IsStateSetterInvocation(diag, semantic);
+                    bool isStateSetterCs1503 = stateSetter1503.Contains(diag);
 
                     result.Add((diag, mapped, isStateSetterCs1503));
                 }
@@ -575,6 +604,44 @@ namespace UitkxLanguageServer.Roslyn
         /// otherwise the mismatch is real and the CS1503 must surface.
         /// </para>
         /// </summary>
+        /// <summary>
+        /// True when a CS1662 ("cannot convert lambda — return types not convertible") is
+        /// a cascade artefact of a suppressed state-setter CS1503 in the SAME lambda's
+        /// body. The diagnostic's own span cannot be used for this: for block-bodied
+        /// lambdas Roslyn anchors CS1662 on the parameter/arrow tokens only, so the
+        /// causal CS1503 (deeper in the body) is never inside it. The enclosing
+        /// <see cref="AnonymousFunctionExpressionSyntax"/> node's span is the correct
+        /// containment scope. The residual real error (if any) still surfaces at its own
+        /// site (CS0029/CS1503) — only the lambda-level echo is dropped.
+        /// </summary>
+        private static bool IsStateSetterCascadeCs1662(
+            Diagnostic diag,
+            SemanticModel semantic,
+            List<Microsoft.CodeAnalysis.Text.TextSpan> stateSetter1503Spans)
+        {
+            if (stateSetter1503Spans.Count == 0)
+                return false;
+            try
+            {
+                var root = semantic.SyntaxTree.GetRoot();
+                var node = root.FindNode(diag.Location.SourceSpan, getInnermostNodeForTie: true);
+                var lambda = node.AncestorsAndSelf()
+                    .OfType<AnonymousFunctionExpressionSyntax>()
+                    .FirstOrDefault();
+                if (lambda == null)
+                    return false;
+                var lambdaSpan = lambda.Span;
+                foreach (var span in stateSetter1503Spans)
+                    if (lambdaSpan.Contains(span))
+                        return true;
+            }
+            catch
+            {
+                // Never let syntax lookups break diagnostics publishing.
+            }
+            return false;
+        }
+
         private static bool IsStateSetterInvocation(Diagnostic diag, SemanticModel semantic)
         {
             var root = diag.Location.SourceTree?.GetRoot();
@@ -1535,7 +1602,16 @@ namespace UitkxLanguageServer.Roslyn
 
                     if (peerDirectives.HookDeclarations.IsDefaultOrEmpty)
                         continue;
-                    if (string.IsNullOrEmpty(peerDirectives.Namespace))
+                    // EFFECTIVE namespace — where the peer's generated container actually
+                    // lives (explicit @namespace wins, else path-derived + config prefix).
+                    // The RAW parsed namespace is the parser default for stamp-less files
+                    // and points at a container that exists only in the (pre-fix) virtual
+                    // doc, never in the real build.
+                    string? peerNs = ReactiveUITK.Language.EffectiveNamespace.Resolve(
+                        peerDirectives.HasExplicitNamespace, peerDirectives.Namespace, peerPath);
+                    if (string.IsNullOrEmpty(peerNs))
+                        peerNs = peerDirectives.Namespace;
+                    if (string.IsNullOrEmpty(peerNs))
                         continue;
                     if (!string.Equals(
                             AsmdefResolver.OwningAsmdefName(peerPath),
@@ -1544,7 +1620,7 @@ namespace UitkxLanguageServer.Roslyn
                         continue;
 
                     string containerClass = DerivePeerHookContainerClass(peerPath);
-                    string fqn = $"static {peerDirectives.Namespace}.{containerClass}";
+                    string fqn = $"static {peerNs}.{containerClass}";
                     if (seen.Add(fqn))
                         extraUsings.Add(fqn);
                 }

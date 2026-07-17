@@ -201,9 +201,16 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// <summary>
         /// Emits C# source for all module bodies in the given DirectiveSet.
         /// </summary>
-        public static string EmitModules(object directives, string filePath)
+        public static string EmitModules(object directives, string filePath, string effectiveNs = null)
         {
-            string ns = (string)GetProp(directives, "Namespace") ?? "ReactiveUITK.Generated";
+            // Prefer the EFFECTIVE namespace (matches the source generator's ModuleEmitter) —
+            // same rule as Emit() above. The RAW parsed namespace is a parser default for
+            // every stamp-less (path-derived) file, so raw emission puts the module's
+            // partial class in a namespace where (a) it never merges with the component's
+            // partial class in the same hot unit (bare style refs like `container` fail
+            // CS0103), and (b) the module static swapper — which matches hot↔project types
+            // by Type.FullName — finds no project type and silently swaps nothing.
+            string ns = effectiveNs ?? (string)GetProp(directives, "Namespace") ?? "ReactiveUITK.Generated";
             var moduleDecls = GetProp(directives, "ModuleDeclarations");
 
             var moduleList = new List<object>();
