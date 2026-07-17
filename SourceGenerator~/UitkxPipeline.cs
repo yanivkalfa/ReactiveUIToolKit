@@ -829,7 +829,13 @@ namespace ReactiveUITK.SourceGenerator
                 directives, importerDir, rootDir, importerAsmdef,
                 path => File.Exists(path),
                 path => FindOwningAsmdefAssemblyName(path),
-                IsExportedByFile);
+                IsExportedByFile,
+                path =>
+                {
+                    if (!File.Exists(path)) return null;
+                    try { return DirectiveParser.Parse(File.ReadAllText(path), path, new List<ParseDiagnostic>()); }
+                    catch { return null; }
+                });
 
             foreach (var f in findings)
                 parseDiags.Add(new ParseDiagnostic

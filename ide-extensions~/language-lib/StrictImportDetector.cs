@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 using ReactiveUITK.Language.Parser;
 
@@ -177,11 +179,30 @@ namespace ReactiveUITK.Language
             string? importerAsmdef,
             Func<string, bool> fileExists,
             Func<string, string?> owningAsmdefOf,
-            Func<string, string, bool> isExportedByFile)
+            Func<string, string, bool> isExportedByFile,
+            Func<string, DirectiveSet?>? parseTargetFile = null)
         {
             var findings = new List<Finding>();
             if (directives.Imports.IsDefaultOrEmpty)
                 return findings;
+
+            // UITKX2325 (G-05): an import alias colliding with a declaration in THIS file. Import-
+            // vs-import bound-name collisions are already the parser's UITKX2303 (keyed on the
+            // bound name, DirectiveParser.ReportDuplicateImports) — this covers the sub-case 2303
+            // cannot see: the local declaration namespace.
+            var localNames = new HashSet<string>(StringComparer.Ordinal);
+            if (!directives.ComponentDeclarations.IsDefaultOrEmpty)
+                foreach (var c in directives.ComponentDeclarations) localNames.Add(c.Name);
+            if (!directives.MemberDeclarations.IsDefaultOrEmpty)
+                foreach (var m in directives.MemberDeclarations) localNames.Add(m.Name);
+
+            void CheckAliasCollision(string alias, int line, int col)
+            {
+                if (localNames.Contains(alias))
+                    findings.Add(new Finding("UITKX2325",
+                        $"import alias `{alias}` collides with a declaration in this file — rename the import",
+                        line, Column: col, EndColumn: col >= 0 ? col + alias.Length : -1));
+            }
 
             foreach (var imp in directives.Imports)
             {
@@ -221,6 +242,78 @@ namespace ReactiveUITK.Language
                                 imp.Line,
                                 Column: nameCol,
                                 EndColumn: nameCol >= 0 ? nameCol + name.Length : -1));
+                        }
+
+                        // G-05 full import surface: alias-collision (2325), default-import (2326),
+                        // legacy-target (2109, Unity-local), and hook-rename-prefix (2110, Unity-local)
+                        // checks. All require the target's parsed DirectiveSet.
+                        // Aliases defaults to an uninitialized ImmutableArray (record default params
+                        // must be compile-time constants, so `= ImmutableArray<string?>.Empty` is not
+                        // legal there) — normalize before indexing/length checks, matching the
+                        // IsDefaultOrEmpty convention used throughout this file/the pipeline.
+                        var aliases = imp.Aliases.IsDefaultOrEmpty ? ImmutableArray<string?>.Empty : imp.Aliases;
+
+                        for (int k = 0; k < imp.Names.Length && k < aliases.Length; k++)
+                        {
+                            string? alias = aliases[k];
+                            if (alias == null) continue;
+                            int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column;
+                            CheckAliasCollision(alias, imp.Line, nameCol);
+                        }
+                        if (imp.IsStar && imp.StarAlias != null)
+                            CheckAliasCollision(imp.StarAlias, imp.Line, imp.Column);
+                        if (imp.IsDefault && imp.DefaultAlias != null)
+                            CheckAliasCollision(imp.DefaultAlias, imp.Line, imp.Column);
+
+                        if ((imp.IsStar || imp.IsDefault || aliases.Any(a => a != null))
+                            && parseTargetFile != null)
+                        {
+                            var target = parseTargetFile(res.ProjectRelativePath!);
+                            if (target != null)
+                            {
+                                if (target.UsesLegacySyntax && (imp.IsStar || imp.IsDefault))
+                                {
+                                    findings.Add(new Finding("UITKX2109",
+                                        $"namespace/default/renamed import of `{ShortName(res.ProjectRelativePath!)}` requires the target file to use plain-declaration syntax — migrate `{ShortName(res.ProjectRelativePath!)}` first",
+                                        imp.Line, Column: specCol, EndColumn: specEnd));
+                                }
+
+                                if (imp.IsDefault && target.DefaultExportName == null)
+                                {
+                                    string suggested = target.ComponentDeclarations.Length > 0
+                                        ? target.ComponentDeclarations[0].Name
+                                        : (target.MemberDeclarations.Length > 0 ? target.MemberDeclarations[0].Name : "Name");
+                                    findings.Add(new Finding("UITKX2326",
+                                        $"`{ShortName(res.ProjectRelativePath!)}` has no default export — use a named import: import {{ {suggested} }} from \"{imp.Specifier}\"",
+                                        imp.Line, Column: specCol, EndColumn: specEnd));
+                                }
+
+                                if (target.UsesLegacySyntax)
+                                {
+                                    // Rename-prefix guard needs the target's declared kind — only
+                                    // meaningful against a parsed (non-legacy) target's hook
+                                    // members; legacy targets already hit 2109 above for rename
+                                    // forms, so there is nothing further to check here.
+                                }
+                                else
+                                {
+                                    for (int k = 0; k < imp.Names.Length && k < aliases.Length; k++)
+                                    {
+                                        string? alias = aliases[k];
+                                        if (alias == null) continue;
+                                        string original = imp.Names[k];
+                                        bool originalIsHook = !target.MemberDeclarations.IsDefaultOrEmpty
+                                            && target.MemberDeclarations.Any(m => m.Name == original && m.Kind == DeclKind.Hook);
+                                        if (originalIsHook && !(alias.Length > 3 && alias[0] == 'u' && alias[1] == 's' && alias[2] == 'e' && char.IsUpper(alias[3])))
+                                        {
+                                            int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column;
+                                            findings.Add(new Finding("UITKX2110",
+                                                $"renaming hook `{original}` to `{alias}` drops the 'use' prefix — hook bindings must stay 'use'-prefixed",
+                                                imp.Line, Column: nameCol, EndColumn: nameCol >= 0 ? nameCol + alias.Length : -1));
+                                        }
+                                    }
+                                }
+                            }
                         }
                         break;
                 }

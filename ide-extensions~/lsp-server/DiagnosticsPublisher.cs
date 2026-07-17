@@ -256,9 +256,16 @@ public sealed class DiagnosticsPublisher
             bool IsExportedByFile(string name, string targetPath) =>
                 exportedSet.Contains((targetPath.Replace('\\', '/'), name));
 
+            DirectiveSet? ParseTargetFile(string path)
+            {
+                if (!File.Exists(path)) return null;
+                try { return DirectiveParser.Parse(File.ReadAllText(path), path, new List<ParseDiagnostic>()); }
+                catch { return null; }
+            }
+
             foreach (var f in StrictImportDetector.ValidateImports(
                          directives, importerDir, rootDir, importerAsmdef,
-                         File.Exists, FindAsmdefName, IsExportedByFile))
+                         File.Exists, FindAsmdefName, IsExportedByFile, ParseTargetFile))
                 diags.Add(ToDiag(f));
         }
 
