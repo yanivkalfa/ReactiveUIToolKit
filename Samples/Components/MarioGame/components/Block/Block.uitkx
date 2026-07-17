@@ -2,7 +2,7 @@ import { MarioGame } from "../../MarioGame.style"
 import "@static Samples.MarioGame.MarioConstants"
 import "@Samples.MarioGame"
 
-export component Block(LevelTile tile, float cameraX = 0) {
+export VirtualNode Block(LevelTile tile, float cameraX = 0) {
   Color color;
   switch (tile.Type) {
     case TileType.Ground:

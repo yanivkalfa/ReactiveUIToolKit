@@ -1,5 +1,3 @@
-export module SettingsPage {
-  public static readonly Style ContentRoot = new Style {
-    FlexGrow = 1f,
-  };
-}
+export Style ContentRoot = new Style {
+  FlexGrow = 1f,
+};

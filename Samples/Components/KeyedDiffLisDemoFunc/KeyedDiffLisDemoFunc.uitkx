@@ -1,4 +1,4 @@
-export component KeyedDiffLisDemoFunc {
+export VirtualNode KeyedDiffLisDemoFunc() {
   var seedItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf" };
   var rng = useMemo(() => new System.Random(), Array.Empty<object>());
 

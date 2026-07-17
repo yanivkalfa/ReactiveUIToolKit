@@ -66,7 +66,8 @@ namespace ReactiveUITK.SourceGenerator.Tools
             => Migrate(files, out _);
 
         public static Dictionary<string, string> Migrate(
-            IReadOnlyList<MigratorFile> files, out List<MigrationError> errors, bool tidyUsings = false)
+            IReadOnlyList<MigratorFile> files, out List<MigrationError> errors, bool tidyUsings = false,
+            bool stampNamespace = true)
         {
             errors = new List<MigrationError>();
 
@@ -102,7 +103,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             {
                 var table = tables[pf.File.AsmdefKey];
                 var refs = ScanReferences(pf, table, errors);
-                string newText = Rewrite(pf, refs);
+                string newText = Rewrite(pf, refs, stampNamespace);
                 if (tidyUsings)
                     newText = TidyUsings(newText);
                 if (!string.Equals(newText, pf.File.Text, StringComparison.Ordinal))
@@ -248,7 +249,11 @@ namespace ReactiveUITK.SourceGenerator.Tools
             return best;
         }
 
-        private static string Rewrite(ParsedFile pf, List<Ref> refs)
+        // `allowNamespaceStamp` (ES-modules campaign, M7): the imports-leg identity-freezing stamp
+        // is WRONG for the ES-modules pipeline — stamping (with the raw parsed fallback, no less)
+        // would pin every migrated file to its pre-migration namespace and defeat G-01's
+        // file-keyed derivation. Legacy callers keep the stamp (pinned by CodemodTests).
+        private static string Rewrite(ParsedFile pf, List<Ref> refs, bool allowNamespaceStamp = true)
         {
             var ds = pf.Directives;
             string text = pf.File.Text;
@@ -292,7 +297,8 @@ namespace ReactiveUITK.SourceGenerator.Tools
             // 3) preamble boundary = first non-trivia line (skip leading blank/comment lines).
             int preambleStart = FirstNonTriviaLine(lines);
 
-            bool stampNamespace = !ds.HasExplicitNamespace && !string.IsNullOrEmpty(ds.Namespace);
+            bool stampNamespace = allowNamespaceStamp
+                && !ds.HasExplicitNamespace && !string.IsNullOrEmpty(ds.Namespace);
 
             var sb = new StringBuilder(text.Length + importBlock.Length + 64);
             for (int i = 0; i < preambleStart; i++)

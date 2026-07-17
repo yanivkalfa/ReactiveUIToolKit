@@ -284,6 +284,34 @@ namespace ReactiveUITK.Language
             return result;
         }
 
+        /// <summary>
+        /// Rewrites a using payload for emission INSIDE a namespace block (ES-modules campaign,
+        /// M7): inside-namespace usings resolve RELATIVE to the enclosing namespaces, so
+        /// <c>using Samples.X;</c> inside <c>ReactiveUITK.Samples…</c> re-resolves `Samples`
+        /// against <c>ReactiveUITK.Samples</c> and breaks (found live). <c>global::</c> makes the
+        /// payload absolute: plain → <c>global::Ns</c>; <c>static T</c> → <c>static global::T</c>;
+        /// <c>A = T</c> → <c>A = global::T</c>. Idempotent on already-global payloads.
+        /// </summary>
+        public static string GlobalizeUsingPayload(string payload)
+        {
+            string p = payload.Trim();
+            if (p.StartsWith("static ", StringComparison.Ordinal))
+            {
+                string rest = p.Substring("static ".Length).TrimStart();
+                return rest.StartsWith("global::", StringComparison.Ordinal)
+                    ? p : "static global::" + rest;
+            }
+            int eq = p.IndexOf('=');
+            if (eq > 0)
+            {
+                string left = p.Substring(0, eq).TrimEnd();
+                string right = p.Substring(eq + 1).TrimStart();
+                return right.StartsWith("global::", StringComparison.Ordinal)
+                    ? p : left + " = global::" + right;
+            }
+            return p.StartsWith("global::", StringComparison.Ordinal) ? p : "global::" + p;
+        }
+
         /// <summary>Extracts <c>T</c> from a <c>new T {...}</c>/<c>new T(...)</c> initializer
         /// (G-04 inference sugar) — the language-lib single source; the SG's ExportsEmitter keeps
         /// a thin call-through, HMR keeps a reflective-world mirror pinned by contract test.</summary>

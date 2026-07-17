@@ -68,8 +68,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             sb.AppendLine("using static ReactiveUITK.Props.Typed.CssHelpers;");
             sb.AppendLine("using static ReactiveUITK.AssetHelpers;");
             sb.AppendLine("using UColor = UnityEngine.Color;");
-            foreach (var u in directives.Usings)
-                sb.AppendLine($"using {u};");
+            // User + injected usings go INSIDE the namespace block (below): file-keyed
+            // namespaces make every file stem an enclosing-namespace member, which shadows
+            // file-level using-aliases (see the matching note in CSharpEmitter).
             sb.AppendLine("using Color = UnityEngine.Color;");
             sb.AppendLine("using EasingFunction = UnityEngine.UIElements.EasingFunction;");
             sb.AppendLine("using EasingMode = UnityEngine.UIElements.EasingMode;");
@@ -99,6 +100,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
+            foreach (var u in directives.Usings)
+                sb.AppendLine($"    using {ReactiveUITK.Language.ImportScopeFacts.GlobalizeUsingPayload(u)};");
+            if (!directives.Usings.IsDefaultOrEmpty)
+                sb.AppendLine();
             sb.AppendLine($"    [global::ReactiveUITK.UitkxSource(@\"{filePath.Replace("\"", "\"\"")}\")]");
             sb.AppendLine("    public static partial class __Exports");
             sb.AppendLine("    {");

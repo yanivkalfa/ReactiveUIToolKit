@@ -2,11 +2,7 @@ import { IntroCounterFunc } from "../../../../Shared/IntroCounterFunc"
 import { ListViewStatefulDemoFunc } from "../../../../Shared/ListViewStatefulDemoFunc"
 import "@ReactiveUITK.Samples.UITKXShared"
 
-export component ShowcaseListTabsSection(
-  Action<int>? onListCountChanged = null,
-  Action<int>? onMclvCountChanged = null,
-  Action<int>? onListTabIndexChanged = null
-) {
+export VirtualNode ShowcaseListTabsSection(Action<int>? onListCountChanged = null, Action<int>? onMclvCountChanged = null, Action<int>? onListTabIndexChanged = null) {
   // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var (listTabIndex, setListTabIndex) = useState(0);
   var (showTabs, setShowTabs) = useState(true);

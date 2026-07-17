@@ -1,6 +1,6 @@
 @uss "./StyledAssetDemoFunc.uss"
 
-export component StyledAssetDemoFunc {
+export VirtualNode StyledAssetDemoFunc() {
   var (count, setCount) = useState(0);
 
   return (

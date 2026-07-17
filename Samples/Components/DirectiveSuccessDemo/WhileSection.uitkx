@@ -2,7 +2,7 @@ import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
 
-export component WhileSection {
+export VirtualNode WhileSection() {
   // Build Fibonacci sequence in component setup.
   var fibs = new List<int>();
   {

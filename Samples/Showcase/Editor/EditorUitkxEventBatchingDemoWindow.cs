@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.EventBatchingDemoFunc;
+using ReactiveUITK.Samples.Components.EventBatchingDemoFunc.EventBatchingDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

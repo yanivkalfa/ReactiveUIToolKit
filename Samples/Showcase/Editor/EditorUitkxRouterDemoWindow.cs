@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.RouterDemoFunc;
+using ReactiveUITK.Samples.Components.RouterDemoFunc.RouterDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

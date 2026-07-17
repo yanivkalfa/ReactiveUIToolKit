@@ -2,7 +2,7 @@ import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
 
-export component ForeachSection {
+export VirtualNode ForeachSection() {
   var fruits = new[] { "Apple", "Banana", "Cherry", "Date", "Elderberry" };
 
   var palette = new Dictionary<string, Color> {

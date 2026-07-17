@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.ExceptionFlowDemoFunc;
+using ReactiveUITK.Samples.Components.ExceptionFlowDemoFunc.ExceptionFlowDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

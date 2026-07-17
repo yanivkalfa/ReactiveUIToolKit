@@ -187,6 +187,32 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
+        public void MigratedFile_NeverGetsNamespaceStamp()
+        {
+            // The imports-leg identity-freezing @namespace stamp is WRONG here: it would pin every
+            // migrated file to its pre-migration namespace (with the raw parsed fallback, no
+            // less) and defeat G-01's file-keyed derivation. Found live: the first samples run
+            // stamped `@namespace ReactiveUITK.FunctionStyle` into all 165 files.
+            var comp = F("Stamp.uitkx", "component Stamp {\n    return (\n        <Box />\n    );\n}\n");
+            var changed = Run(out var errors, comp);
+
+            Assert.Empty(errors);
+            Assert.DoesNotContain("@namespace", changed[comp.AbsPath]);
+        }
+
+        [Fact]
+        public void ExplicitNamespaceStamp_IsPreserved()
+        {
+            // An AUTHORED @namespace is the escape hatch (G-07/U-01) — it must survive migration.
+            var comp = F("Stamped.uitkx",
+                "@namespace My.Stamp\ncomponent Stamped {\n    return (\n        <Box />\n    );\n}\n");
+            var changed = Run(out var errors, comp);
+
+            Assert.Empty(errors);
+            Assert.Contains("@namespace My.Stamp", changed[comp.AbsPath]);
+        }
+
+        [Fact]
         public void AlreadyMigratedFile_Untouched()
         {
             var file = F("Done.uitkx",

@@ -1,4 +1,4 @@
-export component ToggleButtonGroupDemoFunc {
+export VirtualNode ToggleButtonGroupDemoFunc() {
   var (selected, setSelected) = useState(0);
 
   var options = new string[] { "Alpha", "Beta", "Gamma" };

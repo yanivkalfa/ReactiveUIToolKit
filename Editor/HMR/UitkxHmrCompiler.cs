@@ -423,12 +423,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Inject using-static for peer hook containers so the component
                 // can call hook methods (e.g. useXxx()) without qualification —
                 // mirrors SG's Stage 3d peer-hook-container injection.
+                bool srcUsesLegacy = !(GetProp(directives, "UsesLegacySyntax") is bool sul) || sul;
                 if (hookContainerFqns.Count > 0)
                 {
-                    var usingLines = new System.Text.StringBuilder();
+                    var usingLines = new List<string>();
                     foreach (var fqn in hookContainerFqns)
-                        usingLines.AppendLine($"using static {fqn};");
-                    sources[0] = usingLines.ToString() + sources[0];
+                        usingLines.Add($"static {fqn}");
+                    sources[0] = InjectUsings(sources[0], ns, usingLines, srcUsesLegacy);
                 }
 
                 // §6.2/§6.3 parity via the shared language-lib ImportScopeFacts: cross-folder
@@ -452,14 +453,14 @@ namespace ReactiveUITK.EditorSupport.HMR
                             var already = new HashSet<string>(System.StringComparer.Ordinal);
                             foreach (var fqn in hookContainerFqns)
                                 already.Add("static " + fqn);
-                            var aliasLines = new System.Text.StringBuilder();
+                            var aliasLines = new List<string>();
                             foreach (object p in payloads)
                             {
                                 if (p is string payload && payload.Length > 0 && already.Add(payload))
-                                    aliasLines.AppendLine($"using {payload};");
+                                    aliasLines.Add(payload);
                             }
-                            if (aliasLines.Length > 0)
-                                sources[0] = aliasLines.ToString() + sources[0];
+                            if (aliasLines.Count > 0)
+                                sources[0] = InjectUsings(sources[0], ns, aliasLines, srcUsesLegacy);
                         }
                     }
                     catch
@@ -489,7 +490,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                                 if (hasAliasedImports) break;
                             }
                         if (hasMembers || hasAliasedImports)
-                            sources[0] = $"using static {ns}.__Exports;\n" + sources[0];
+                            sources[0] = InjectUsings(
+                                sources[0], ns,
+                                new List<string> { $"static {ns}.__Exports" },
+                                usesLegacySyntax: false);
                     }
                 }
 
@@ -3111,6 +3115,71 @@ namespace ReactiveUITK.EditorSupport.HMR
             throw new DirectoryNotFoundException(
                 "Cannot find Analyzers/ directory containing ReactiveUITK.Language.dll"
             );
+        }
+
+        /// <summary>
+        /// Adds using payloads to an emitted unit. LEGACY units keep the historical file-top
+        /// prepend; NEW-MODE units get the usings INSIDE the namespace block (global::-qualified)
+        /// — file-keyed namespaces make sibling file stems enclosing-namespace members, which
+        /// shadow file-level using-aliases, and inside-namespace usings resolve RELATIVE to the
+        /// enclosing namespaces (mirrors the SG emitters' M7 move).
+        /// </summary>
+        internal static string InjectUsings(
+            string source, string ns, List<string> payloads, bool usesLegacySyntax)
+        {
+            if (payloads == null || payloads.Count == 0)
+                return source;
+            if (usesLegacySyntax || string.IsNullOrEmpty(ns))
+            {
+                var sbTop = new System.Text.StringBuilder();
+                foreach (var p in payloads)
+                    sbTop.AppendLine($"using {p};");
+                return sbTop.ToString() + source;
+            }
+            string marker = "namespace " + ns;
+            int at = source.IndexOf(marker, StringComparison.Ordinal);
+            if (at >= 0)
+            {
+                int brace = source.IndexOf('{', at);
+                if (brace >= 0)
+                {
+                    int insertAt = brace + 1;
+                    var sbIns = new System.Text.StringBuilder();
+                    sbIns.Append('\n');
+                    foreach (var p in payloads)
+                        sbIns.Append("    using ").Append(GlobalizeUsingPayload(p)).Append(";\n");
+                    return source.Substring(0, insertAt) + sbIns + source.Substring(insertAt);
+                }
+            }
+            // Fallback: no namespace marker found — file-top prepend (still legal C#).
+            var sbFb = new System.Text.StringBuilder();
+            foreach (var p in payloads)
+                sbFb.AppendLine($"using {p};");
+            return sbFb.ToString() + source;
+        }
+
+        /// <summary>Mirror of language-lib's ImportScopeFacts.GlobalizeUsingPayload (Editor/HMR
+        /// cannot reference language-lib): rewrites a using payload for emission INSIDE a
+        /// namespace block — inside-namespace usings resolve RELATIVE to enclosing namespaces,
+        /// so payloads must be global::-qualified. Keep in lockstep (pinned by contract test).</summary>
+        internal static string GlobalizeUsingPayload(string payload)
+        {
+            string p = (payload ?? string.Empty).Trim();
+            if (p.StartsWith("static ", StringComparison.Ordinal))
+            {
+                string rest = p.Substring("static ".Length).TrimStart();
+                return rest.StartsWith("global::", StringComparison.Ordinal)
+                    ? p : "static global::" + rest;
+            }
+            int eq = p.IndexOf('=');
+            if (eq > 0)
+            {
+                string left = p.Substring(0, eq).TrimEnd();
+                string right = p.Substring(eq + 1).TrimStart();
+                return right.StartsWith("global::", StringComparison.Ordinal)
+                    ? p : left + " = global::" + right;
+            }
+            return p.StartsWith("global::", StringComparison.Ordinal) ? p : "global::" + p;
         }
 
         internal static object GetProp(object obj, string name)

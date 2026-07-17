@@ -1,6 +1,6 @@
 import { StatusBadge } from "./StatusBadge"
 
-export component PropTypesDemoFunc {
+export VirtualNode PropTypesDemoFunc() {
   var (useDefaults, setUseDefaults) = useState(false);
 
   string? badgeLabel = useDefaults ? null : "All systems nominal";

@@ -2,7 +2,7 @@ import { MarioGame } from "../../MarioGame.style"
 import "@static Samples.MarioGame.MarioConstants"
 import "@Samples.MarioGame"
 
-export component Enemy(EnemyState enemy, float cameraX = 0) {
+export VirtualNode Enemy(EnemyState enemy, float cameraX = 0) {
   if (!enemy.Alive) {
     return (<VisualElement />);
   }

@@ -1,7 +1,8 @@
 import { AppButton } from "../AppButton/AppButton"
+import { Bar, ItemSpacing } from "./TopNav.style"
 import "@UnityEngine.UIElements"
 
-export component TopNav {
+export VirtualNode TopNav() {
   var location = RouterHooks.UseLocation() ?? "/";
   var navigate = RouterHooks.UseNavigate();
 

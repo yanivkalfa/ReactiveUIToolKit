@@ -4,6 +4,7 @@ using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Samples.Components.StressTest;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.StressTest.StressTest;
 
 namespace ReactiveUITK.Samples.FunctionalComponents
 {

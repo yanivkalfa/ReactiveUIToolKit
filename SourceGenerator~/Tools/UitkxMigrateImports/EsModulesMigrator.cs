@@ -38,9 +38,18 @@ namespace ReactiveUITK.SourceGenerator.Tools
     public static class EsModulesMigrator
     {
         public static Dictionary<string, string> Migrate(
-            IReadOnlyList<MigratorFile> files, out List<UitkxMigrator.MigrationError> errors)
+            IReadOnlyList<MigratorFile> inputFiles, out List<UitkxMigrator.MigrationError> errors)
         {
             errors = new List<UitkxMigrator.MigrationError>();
+
+            // Normalize to LF FIRST, before ANY parse: the parser's Body*Offset values are indices
+            // into the text it was handed, and the line-span/slice surgery below reads the same
+            // text — a CRLF file parsed raw but sliced normalized shifts every offset (found live:
+            // ArgumentOutOfRange on the first CRLF working tree). The final AstFormatter pass
+            // outputs LF-only anyway, so LF intake changes nothing downstream.
+            var files = new List<MigratorFile>(inputFiles.Count);
+            foreach (var inF in inputFiles)
+                files.Add(inF with { Text = inF.Text.Replace("\r\n", "\n").Replace("\r", "\n") });
 
             // ── Step 1+2: tidy + export-normalize/import-insert (existing passes) ──
             // LEGACY files only: the legacy migrator's @namespace stamping (identity freezing)
@@ -57,7 +66,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             var tidied = new List<MigratorFile>(files.Count);
             foreach (var f in files)
                 tidied.Add(newMode.Contains(f.AbsPath) ? f : f with { Text = UitkxMigrator.TidyUsings(f.Text) });
-            var step2 = UitkxMigrator.Migrate(tidied, out var step2Errors);
+            var step2 = UitkxMigrator.Migrate(tidied, out var step2Errors, tidyUsings: false, stampNamespace: false);
             errors.AddRange(step2Errors);
             var current = new List<MigratorFile>(tidied.Count);
             foreach (var f in tidied)
@@ -87,8 +96,12 @@ namespace ReactiveUITK.SourceGenerator.Tools
                     continue;
                 }
                 rewritten[f.AbsPath] = newText;
-                if (modNames.Count > 0) moduleNamesByFile[f.AbsPath] = modNames;
-                if (memNames.Count > 0) memberNamesByFile[f.AbsPath] = memNames;
+                // Keyed by NORMALIZED path: ImportResolver.MapSpecifierToPath returns
+                // forward-slash paths, while the CLI hands in Windows backslash AbsPaths —
+                // an un-normalized key made every cross-file module lookup a silent miss
+                // (found live: `import { Theme }` never became `import * as Theme`, 2301).
+                if (modNames.Count > 0) moduleNamesByFile[Norm(f.AbsPath)] = modNames;
+                if (memNames.Count > 0) memberNamesByFile[Norm(f.AbsPath)] = memNames;
             }
 
             // ── Step 5 (before 4 by necessity): companion atomicity ─────────────
@@ -107,8 +120,8 @@ namespace ReactiveUITK.SourceGenerator.Tools
                     foreach (var m in members)
                     {
                         rewritten[m.AbsPath] = m.Text; // revert to step-2 (still-legacy) text
-                        moduleNamesByFile.Remove(m.AbsPath);
-                        memberNamesByFile.Remove(m.AbsPath);
+                        moduleNamesByFile.Remove(Norm(m.AbsPath));
+                        memberNamesByFile.Remove(Norm(m.AbsPath));
                     }
                     foreach (var m in failures)
                         errors.Add(new UitkxMigrator.MigrationError(m.AbsPath,
@@ -117,7 +130,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 else
                 {
                     foreach (var m in members)
-                        migratedFiles.Add(m.AbsPath);
+                        migratedFiles.Add(Norm(m.AbsPath));
                 }
             }
 
@@ -128,7 +141,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             foreach (var f in current)
             {
                 string text = rewritten[f.AbsPath];
-                if (migratedFiles.Contains(f.AbsPath))
+                if (migratedFiles.Contains(Norm(f.AbsPath)))
                     text = RewriteImports(f.AbsPath, text, moduleNamesByFile, memberNamesByFile, migratedFiles);
 
                 // ── Step 6: format last ─────────────────────────────────────────
@@ -348,8 +361,8 @@ namespace ReactiveUITK.SourceGenerator.Tools
                     if (imp.IsStar || imp.IsDefault)
                         continue;
                     string? target = ImportResolver.MapSpecifierToPath(importerDir, imp.Specifier, importerDir, out _);
-                    if (target == null || !migratedFiles.Contains(target)
-                        || !moduleNamesByFile.TryGetValue(target, out var modNames))
+                    if (target == null || !migratedFiles.Contains(Norm(target))
+                        || !moduleNamesByFile.TryGetValue(Norm(target), out var modNames))
                         continue;
 
                     var starNames = imp.Names.Where(n => modNames.Contains(n)).ToList();
@@ -376,7 +389,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             foreach (var kv in memberNamesByFile)
             {
                 if (!migratedFiles.Contains(kv.Key)) continue;
-                if (string.Equals(kv.Key, absPath, StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(kv.Key, Norm(absPath), StringComparison.OrdinalIgnoreCase)) continue;
                 if (!string.Equals(Norm(System.IO.Path.GetDirectoryName(kv.Key) ?? ""), importerDir, StringComparison.OrdinalIgnoreCase))
                     continue;
                 if (!StemOf(kv.Key).StartsWith(stem + ".", StringComparison.OrdinalIgnoreCase)

@@ -1,4 +1,4 @@
-export component RouterQuickAccessPanel {
+export VirtualNode RouterQuickAccessPanel() {
   var links = new (string Path, string Label, object? State)[] {
     ("/users/10", "User 10", null),
     ("/users/20?tab=activity", "User 20 (tab=activity)", null),

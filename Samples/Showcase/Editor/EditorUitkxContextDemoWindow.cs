@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.ContextDemoFunc;
+using ReactiveUITK.Samples.Components.ContextDemoFunc.ContextDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

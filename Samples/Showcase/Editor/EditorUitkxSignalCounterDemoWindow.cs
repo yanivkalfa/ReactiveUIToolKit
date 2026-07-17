@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.SignalCounterDemoFunc;
+using ReactiveUITK.Samples.Components.SignalCounterDemoFunc.SignalCounterDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

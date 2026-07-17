@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.ToggleButtonGroupDemoFunc;
+using ReactiveUITK.Samples.Components.ToggleButtonGroupDemoFunc.ToggleButtonGroupDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

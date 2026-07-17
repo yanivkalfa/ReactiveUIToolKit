@@ -1,6 +1,7 @@
+import { Body, Card, Title } from "./ContentPanel.style"
 import "@UnityEngine.UIElements"
 
-export component ContentPanel(string title = "", string body = "") {
+export VirtualNode ContentPanel(string title = "", string body = "") {
   return (
     <VisualElement style={Card}>
       <Label text={title} style={Title} />

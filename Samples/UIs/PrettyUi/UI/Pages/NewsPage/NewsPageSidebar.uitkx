@@ -1,7 +1,7 @@
 import { Sidebar } from "../../Components/Sidebar/Sidebar"
 import { SidebarItem } from "../../Components/Sidebar/SidebarItem.types"
 
-export component NewsPageSidebar {
+export VirtualNode NewsPageSidebar() {
   var navigate = RouterHooks.UseNavigate();
   var location = RouterHooks.UseLocation() ?? "/";
 

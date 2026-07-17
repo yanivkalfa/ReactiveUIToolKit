@@ -1,4 +1,4 @@
-export component HelloWorldFunc {
+export VirtualNode HelloWorldFunc() {
   return (
     <Text text="Hello, world! (Functional Component)" />
   );

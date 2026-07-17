@@ -2,7 +2,7 @@ import { MarioGame } from "../../MarioGame.style"
 import "@static Samples.MarioGame.MarioConstants"
 import "@Samples.MarioGame"
 
-export component Mushroom(ItemState item, float cameraX = 0) {
+export VirtualNode Mushroom(ItemState item, float cameraX = 0) {
   if (!item.Spawned || item.Collected) {
     return (<VisualElement />);
   }

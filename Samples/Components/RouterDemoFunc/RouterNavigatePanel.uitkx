@@ -1,6 +1,6 @@
 import "@UnityEngine.UIElements"
 
-export component RouterNavigatePanel {
+export VirtualNode RouterNavigatePanel() {
   var pathRef = useRef<TextField?>(null);
   var stateRef = useRef<TextField?>(null);
 

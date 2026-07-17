@@ -71,9 +71,12 @@ public class HmrExportsParityContractTests
     [Fact]
     public void Compiler_InjectsOwnExportsUsing_ForNewModeComponents()
     {
-        Assert.Contains(
-            "sources[0] = $\"using static {ns}.__Exports;\\n\" + sources[0];",
-            HmrCompilerSource());
+        var src = HmrCompilerSource();
+        // The own-exports payload routes through the mode-aware InjectUsings (inside-the-
+        // namespace + global:: for new-mode; file-top prepend for legacy — the M7 shadowing fix).
+        Assert.Contains("new List<string> { $\"static {ns}.__Exports\" }", src);
+        Assert.Contains("internal static string InjectUsings(", src);
+        Assert.Contains("internal static string GlobalizeUsingPayload(string payload)", src);
     }
 
     [Fact]

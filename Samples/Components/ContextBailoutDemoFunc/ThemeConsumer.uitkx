@@ -1,4 +1,4 @@
-export component ThemeConsumer {
+export VirtualNode ThemeConsumer() {
   var renderCountRef = useRef<int>(0);
   renderCountRef.Current++;
   var renderCount = renderCountRef.Current;

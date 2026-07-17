@@ -112,7 +112,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.True(result.AllSources.Any(s => s.Text.Contains("public static partial class __Exports")));
             // U-02: every new-syntax file's own generated sources see their own members bare-name.
             Assert.True(result.AllSources.Any(s =>
-                s.Text.Contains("partial class Panel") && s.Text.Contains("using static Test.Ns.__Exports;")));
+                s.Text.Contains("partial class Panel") && s.Text.Contains("using static global::Test.Ns.__Exports;")));
             Assert.Empty(result.SyntaxErrors());
         }
 
@@ -146,7 +146,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
                 "Home.uitkx");
 
             Assert.True(result.AllSources.Any(s =>
-                s.Text.Contains("partial class Home") && s.Text.Contains("using static Toks.Ns.__Exports;")));
+                s.Text.Contains("partial class Home") && s.Text.Contains("using static global::Toks.Ns.__Exports;")));
             Assert.Empty(result.SyntaxErrors());
         }
 
@@ -164,7 +164,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
                 "Home.uitkx");
 
             Assert.True(result.AllSources.Any(s =>
-                s.Text.Contains("partial class Home") && s.Text.Contains("using Tokens = Toks.Ns.__Exports;")));
+                s.Text.Contains("partial class Home") && s.Text.Contains("using Tokens = global::Toks.Ns.__Exports;")));
         }
 
         [Fact]
@@ -219,7 +219,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
                 "Home.uitkx");
 
             Assert.True(result.AllSources.Any(s =>
-                s.Text.Contains("partial class Home") && s.Text.Contains("using Panel = Pan.Ns.ScorePanel;")));
+                s.Text.Contains("partial class Home") && s.Text.Contains("using Panel = global::Pan.Ns.ScorePanel;")));
             Assert.Empty(result.SyntaxErrors());
         }
 

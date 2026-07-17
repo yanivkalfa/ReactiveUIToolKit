@@ -1,4 +1,4 @@
-export component ValueItem(string typeText = "", string typeValue = "") {
+export VirtualNode ValueItem(string typeText = "", string typeValue = "") {
   var containerStyle = new Style {
     (FlexDirection, "row"),
     (AlignItems, "center"),

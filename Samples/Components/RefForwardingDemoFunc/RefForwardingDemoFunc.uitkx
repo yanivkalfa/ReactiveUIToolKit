@@ -1,7 +1,7 @@
 import { RefChild } from "./RefChild/RefChild"
 import "@UnityEngine.UIElements"
 
-export component RefForwardingDemoFunc {
+export VirtualNode RefForwardingDemoFunc() {
   var inputRef = useRef<TextField>();
   var labelRef = useRef<Label>();
 

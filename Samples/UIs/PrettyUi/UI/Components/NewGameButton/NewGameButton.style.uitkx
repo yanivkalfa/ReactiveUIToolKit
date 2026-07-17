@@ -1,17 +1,15 @@
-import { Theme } from "../../Theme"
+import * as Theme from "../../Theme"
 
-export module NewGameButton {
-  public static readonly Style Wrapper = new Style {
-    Position = PosAbsolute,
-    Right = 24f,
-    Bottom = 24f,
-  };
+export Style Wrapper = new Style {
+  Position = PosAbsolute,
+  Right = 24f,
+  Bottom = 24f,
+};
 
-  public static readonly Style Button = new Style {
-    PaddingTop = 12f,
-    PaddingBottom = 12f,
-    PaddingLeft = 24f,
-    PaddingRight = 24f,
-    FontSize = Theme.FsHeading,
-  };
-}
+export Style ButtonStyle = new Style {
+  PaddingTop = 12f,
+  PaddingBottom = 12f,
+  PaddingLeft = 24f,
+  PaddingRight = 24f,
+  FontSize = Theme.FsHeading,
+};

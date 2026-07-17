@@ -1,4 +1,4 @@
-export component SectionHeading(string label) {
+export VirtualNode SectionHeading(string label) {
   return (
     <Label
       text={label}

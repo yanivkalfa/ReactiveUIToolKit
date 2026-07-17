@@ -1,7 +1,8 @@
 import { AppButton } from "../AppButton/AppButton"
+import { Item, Wrapper } from "./Sidebar.style"
 import "@UnityEngine.UIElements"
 
-export component Sidebar(IReadOnlyList<SidebarItem>? items = null) {
+export VirtualNode Sidebar(IReadOnlyList<SidebarItem>? items = null) {
   var resolvedItems = items ?? Array.Empty<SidebarItem>();
 
   return (

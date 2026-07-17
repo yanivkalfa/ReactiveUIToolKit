@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.SimpleTextFieldFunc;
+using ReactiveUITK.Samples.Components.SimpleTextFieldFunc.SimpleTextFieldFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

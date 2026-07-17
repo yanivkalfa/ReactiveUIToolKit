@@ -204,8 +204,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using static ReactiveUITK.Props.Typed.CssHelpers;");
             L("using static ReactiveUITK.AssetHelpers;");
             L("using UColor = UnityEngine.Color;");
-            foreach (var u in _directives.Usings)
-                L($"using {u};");
+            // NEW-MODE files (ES-modules campaign, M7): user + injected usings are emitted
+            // INSIDE the namespace block instead of here. File-keyed namespaces make every
+            // file stem a member of its folder namespace, and C# resolves enclosing-namespace
+            // MEMBERS before file-level using-aliases — so a file-level `using Theme =
+            // {ns}.__Exports;` silently loses to the sibling namespace `…Folder.Theme` (found
+            // live: every star-imported member ref broke with CS0234). A using directive
+            // INSIDE the namespace declaration wins that lookup. Legacy files keep the
+            // file-level position byte-identically.
+            if (_directives.UsesLegacySyntax)
+                foreach (var u in _directives.Usings)
+                    L($"using {u};");
             // `using static StyleKeys` imports string constants (e.g. FlexDirection = "flexDirection")
             // that collide with identically-named enums/structs from UnityEngine.UIElements.
             // We cannot import UIElements wholesale. Instead, targeted aliases import only
@@ -240,6 +249,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // -- Namespace + class --------------------------------------------
             L($"namespace {_directives.Namespace}");
             L("{");
+            // New-mode: user + injected usings INSIDE the namespace (see the note above).
+            if (!_directives.UsesLegacySyntax && !_directives.Usings.IsDefaultOrEmpty)
+            {
+                foreach (var u in _directives.Usings)
+                    L($"    using {ReactiveUITK.Language.ImportScopeFacts.GlobalizeUsingPayload(u)};");
+                L("");
+            }
             L($"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]");
             L($"    [global::ReactiveUITK.UitkxElement(\"{_directives.ComponentName}\")]");
 

@@ -1,4 +1,4 @@
-export component RouterNavigationGuardPanel {
+export VirtualNode RouterNavigationGuardPanel() {
   var (enabled, setEnabled) = useState(false);
   var (message, setMessage) = useState("Guard disabled; all navigation allowed.");
   var (clicks, setClicks) = useState(0);

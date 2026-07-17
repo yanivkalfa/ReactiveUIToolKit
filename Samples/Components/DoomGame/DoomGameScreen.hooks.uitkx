@@ -3,18 +3,14 @@ import "@UnityEngine.InputSystem"
 import "@UnityEngine.UIElements"
 import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 
-export hook useDoomGame(
-  Ref<VisualElement?> viewRef,
-  int level,
-  Difficulty difficulty
-) -> (
+export (
   GameState state,
   Action restart,
   KeyboardEventHandler onKeyDown,
   PointerEventHandler onPointerMove,
   PointerEventHandler onPointerDown,
   PointerEventHandler onPointerUp
-) {
+) useDoomGame(Ref<VisualElement?> viewRef, int level, Difficulty difficulty) {
   var initialState = useMemo(() => GameLogic.NewGame(level, difficulty), level + (int)difficulty * 100);
   var (state, setState) = useState<GameState>(initialState);
   var stateRef = useRef<GameState>(initialState);

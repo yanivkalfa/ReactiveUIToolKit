@@ -3,6 +3,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.UIs.PrettyUi.UI.AppRoot;
 
 namespace ReactiveUITK.Samples.UIs.PrettyUi
 {

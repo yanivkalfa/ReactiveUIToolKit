@@ -280,8 +280,14 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("using static ReactiveUITK.Props.Typed.CssHelpers;");
                 L("using static ReactiveUITK.AssetHelpers;");
                 L("using UColor = UnityEngine.Color;");
-                foreach (var u in _usings)
-                    L($"using {u};");
+                // NEW-MODE files: user + injected usings move INSIDE the namespace block (mirror
+                // of the SG's CSharpEmitter) — file-keyed namespaces make sibling file stems
+                // enclosing-namespace members, which shadow file-level using-aliases. Legacy
+                // files keep the file-level position byte-identically.
+                bool usesLegacy = !(UitkxHmrCompiler.GetProp(_directives, "UsesLegacySyntax") is bool ul2) || ul2;
+                if (usesLegacy)
+                    foreach (var u in _usings)
+                        L($"using {u};");
                 L("using Color = UnityEngine.Color;");
                 // Targeted UIElements aliases - must stay in lock-step with
                 // CSharpEmitter's alias block. `using static StyleKeys` imports string
@@ -313,6 +319,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Namespace + class
                 L($"namespace {_ns}");
                 L("{");
+                if (!usesLegacy)
+                {
+                    foreach (var u in _usings)
+                        L($"    using {UitkxHmrCompiler.GlobalizeUsingPayload((string)u)};");
+                    L("");
+                }
                 L(
                     $"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]"
                 );

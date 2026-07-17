@@ -1,6 +1,6 @@
 import "@UnityEngine.UIElements"
 
-export component PortalsPlayground {
+export VirtualNode PortalsPlayground() {
   var slotA = useContext<VisualElement>("portals:slot-a");
   var slotB = useContext<VisualElement>("portals:slot-b");
 

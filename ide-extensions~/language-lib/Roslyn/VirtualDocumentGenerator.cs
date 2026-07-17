@@ -252,6 +252,28 @@ namespace ReactiveUITK.Language.Roslyn
             }
         }
 
+        /// <summary>Same payloads as <see cref="AppendImportUsings"/> but emitted INSIDE the
+        /// namespace block (ES-modules campaign, M7): file-keyed namespaces make sibling file
+        /// stems enclosing-namespace members, which shadow FILE-level using-aliases — the editor
+        /// must resolve exactly like the build (whose emitters made the same move).</summary>
+        private static void AppendImportUsingsInsideNamespace(
+            VirtualDocBuilder b, DirectiveSet d, string uitkxFilePath, HashSet<string> seen)
+        {
+            foreach (string payload in ReactiveUITK.Language.ImportScopeFacts
+                         .ComputeInjectedUsingPayloads(d, uitkxFilePath))
+            {
+                if (seen.Add(payload))
+                    b.Scaffold($"    using {ImportScopeFacts.GlobalizeUsingPayload(payload)};\n");
+            }
+            // The file's own @using / namespace-import lines move inside too (same relative-
+            // resolution + shadowing rules apply to them once the namespace is file-keyed).
+            foreach (var u in d.Usings)
+            {
+                if (seen.Add(u))
+                    b.Scaffold($"    using {ImportScopeFacts.GlobalizeUsingPayload(u)};\n");
+            }
+        }
+
         public VirtualDocument Generate(
             ParseResult parseResult,
             string source,
@@ -292,7 +314,12 @@ namespace ReactiveUITK.Language.Roslyn
             // containers) / alias (modules) lines the real emit produces, so C# IntelliSense inside
             // setup code resolves imported hooks/modules. Scaffold-only (hidden preamble) → the
             // length-preserving source map is unaffected.
-            AppendImportUsings(b, d, uitkxFilePath, seen);
+            // NEW-MODE files (ES-modules campaign): these payloads are emitted INSIDE the
+            // namespace block instead (mirror of the real emitters) — file-keyed namespaces make
+            // sibling file stems enclosing-namespace members, which shadow FILE-level
+            // using-aliases; the editor must resolve exactly like the build.
+            if (d.UsesLegacySyntax)
+                AppendImportUsings(b, d, uitkxFilePath, seen);
             // Static / alias usings that cannot go through the simple "using X;" path
             foreach (var line in s_extraUsingLines)
                 b.Scaffold(line + "\n");
@@ -325,8 +352,9 @@ namespace ReactiveUITK.Language.Roslyn
                 : ImportScopeFacts.ComputeImportedMemberBridges(d, uitkxFilePath);
             if (hasMembers || bridges.Count > 0)
             {
-                b.Scaffold($"using static {ns}.__Exports;\n\n");
                 b.Scaffold($"namespace {ns}\n{{\n");
+                AppendImportUsingsInsideNamespace(b, d, uitkxFilePath, seen);
+                b.Scaffold($"    using static {ns}.__Exports;\n\n");
                 EmitExportsScaffold(b, d, bridges, escapedPath);
                 if (string.IsNullOrEmpty(d.ComponentName))
                 {
@@ -341,6 +369,8 @@ namespace ReactiveUITK.Language.Roslyn
             }
 
             b.Scaffold($"namespace {ns}\n{{\n");
+            if (!d.UsesLegacySyntax)
+                AppendImportUsingsInsideNamespace(b, d, uitkxFilePath, seen);
             b.Scaffold($"    partial class {className}\n    {{\n");
             b.Scaffold("#line hidden\n");
 

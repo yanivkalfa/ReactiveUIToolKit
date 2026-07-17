@@ -1,13 +1,8 @@
-import { StyleExtensions } from "../../StyleExtensions"
+import * as StyleExtensions from "../../StyleExtensions"
+import { Active, Base, Disabled } from "./AppButton.style"
 import "@UnityEngine.UIElements"
 
-export component AppButton(
-  string text = "",
-  Action? onClick = null,
-  bool active = false,
-  bool disabled = false,
-  Style? style = null
-) {
+export VirtualNode AppButton(string text = "", Action? onClick = null, bool active = false, bool disabled = false, Style? style = null) {
   var resolved = StyleExtensions.Extend(
     Base,
     active ? Active : null,

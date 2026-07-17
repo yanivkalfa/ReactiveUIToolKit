@@ -1,9 +1,10 @@
 import { ContentPanel } from "../../Components/ContentPanel/ContentPanel"
 import { PageShell } from "../../Components/PageShell/PageShell"
 import { SettingsPageSidebar } from "./SettingsPageSidebar"
+import { ContentRoot } from "./SettingsPage.style"
 import "@UnityEngine.UIElements"
 
-export component SettingsPage {
+export VirtualNode SettingsPage() {
   var navigate = RouterHooks.UseNavigate(replace: true);
   var location = RouterHooks.UseLocation() ?? "/";
 

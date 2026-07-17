@@ -369,11 +369,6 @@ namespace ReactiveUITK.EditorSupport.HMR
             sb.AppendLine("using static ReactiveUITK.AssetHelpers;");
             sb.AppendLine("using UColor = UnityEngine.Color;");
 
-            var usings = GetProp(directives, "Usings");
-            if (usings is IEnumerable usingList)
-                foreach (var u in usingList)
-                    sb.AppendLine($"using {u};");
-
             sb.AppendLine("using Color = UnityEngine.Color;");
             sb.AppendLine("using EasingFunction = UnityEngine.UIElements.EasingFunction;");
             sb.AppendLine("using EasingMode = UnityEngine.UIElements.EasingMode;");
@@ -399,6 +394,13 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
+            // User + injected usings INSIDE the namespace (mirror of the SG's ExportsEmitter):
+            // file-keyed namespaces make sibling file stems enclosing-namespace members, which
+            // shadow file-level using-aliases — inside-the-namespace usings win that lookup.
+            var usings = GetProp(directives, "Usings");
+            if (usings is IEnumerable usingList)
+                foreach (var u in usingList)
+                    sb.AppendLine($"    using {UitkxHmrCompiler.GlobalizeUsingPayload(u?.ToString())};");
             sb.AppendLine("    public static partial class __Exports");
             sb.AppendLine("    {");
 
