@@ -276,7 +276,11 @@ namespace ReactiveUITK.SourceGenerator.Tests
 
             var result = GeneratorTestHelper.Run(src);
 
-            Assert.DoesNotContain(result.Diagnostics, d => d.Id.StartsWith("UITKX23"));
+            // Legacy `component` wrapper keyword deprecation warning (UITKX2320, ES-modules
+            // campaign G-10) is expected — this test is about namespace-import diagnostics
+            // (2300-2317), not the unrelated 2320-2327 ES-modules band that happens to share
+            // the "UITKX23" string prefix.
+            Assert.DoesNotContain(result.Diagnostics, d => d.Id.StartsWith("UITKX23") && d.Id != "UITKX2320");
         }
     }
 }
