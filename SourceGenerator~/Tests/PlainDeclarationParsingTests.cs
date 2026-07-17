@@ -254,7 +254,8 @@ namespace ReactiveUITK.SourceGenerator.Tests
 
             Assert.Equal(new[] { "ScoreRow", "ScorePanel" }, ds.ComponentDeclarations.Select(c => c.Name).ToArray());
             Assert.True(ds.ComponentDeclarations.Single(c => c.Name == "ScoreRow").IsExported);
-            Assert.False(ds.ComponentDeclarations.Single(c => c.Name == "ScorePanel").IsExported);
+            // `export default ScorePanel;` marks ScorePanel exported (a default export IS an export).
+            Assert.True(ds.ComponentDeclarations.Single(c => c.Name == "ScorePanel").IsExported);
         }
 
         // ── Empty file (U-08: no declarations at all ⇒ new mode, no error) ──

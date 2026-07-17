@@ -189,7 +189,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
-        private static void EmitSingleHook(StringBuilder sb, HookDeclaration hook, string linePath, IList<Diagnostic> diagnostics)
+        // `access` (ES-modules campaign, U-02): the legacy hook-container path always emits
+        // `public` (every legacy container member was public); the __Exports path passes
+        // `internal` for non-exported members. Optional with the legacy default so the
+        // existing call site — and the HMR mirror's shape — are unchanged.
+        internal static void EmitSingleHook(StringBuilder sb, HookDeclaration hook, string linePath, IList<Diagnostic> diagnostics, string access = "public")
         {
             bool isGeneric = !string.IsNullOrEmpty(hook.GenericParams);
             bool isVoid = string.IsNullOrEmpty(hook.ReturnType);
@@ -226,7 +230,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Trampoline
                 if (!string.IsNullOrEmpty(hookSig))
                     sb.AppendLine($"        [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
-                sb.AppendLine($"        public static {returnType} {hook.Name}{genericSuffix}({paramList})");
+                sb.AppendLine($"        {access} static {returnType} {hook.Name}{genericSuffix}({paramList})");
                 sb.AppendLine("        {");
                 sb.AppendLine("#if UNITY_EDITOR");
                 sb.AppendLine($"            if (global::ReactiveUITK.Core.HmrState.IsActive && {hmrFieldName} != null)");
@@ -266,7 +270,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Trampoline
                 if (!string.IsNullOrEmpty(hookSig))
                     sb.AppendLine($"        [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
-                sb.AppendLine($"        public static {returnType} {hook.Name}({paramList})");
+                sb.AppendLine($"        {access} static {returnType} {hook.Name}({paramList})");
                 sb.AppendLine("        {");
                 sb.AppendLine("#if UNITY_EDITOR");
                 sb.AppendLine($"            if (global::ReactiveUITK.Core.HmrState.IsActive)");

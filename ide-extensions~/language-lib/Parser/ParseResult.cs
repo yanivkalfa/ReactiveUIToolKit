@@ -255,7 +255,16 @@ namespace ReactiveUITK.Language.Parser
         int BodyStartOffset,
         /// <summary>Absolute char offset just before the closing <c>}</c>/<c>;</c>.</summary>
         int BodyEndOffset
-    );
+    )
+    {
+        /// <summary>
+        /// Typed parameters parsed from the head (function-shaped members only; empty for
+        /// <see cref="DeclKind.Value"/>). The raw <c>ParamsText</c> stays authoritative for
+        /// re-emission (formatter); this parsed view feeds the emitters (trampoline param
+        /// lists, delegate types, bridges) exactly like <see cref="HookDeclaration.Params"/>.
+        /// </summary>
+        public ImmutableArray<FunctionParam> Params { get; init; } = ImmutableArray<FunctionParam>.Empty;
+    };
 
     // ── Directive data ────────────────────────────────────────────────────────
 

@@ -2200,7 +2200,8 @@ namespace ReactiveUITK.Language.Parser
                         NameColumn: declNameCol,
                         BodyStartLine: LineAtPos(source, exprStart),
                         BodyStartOffset: exprStart,
-                        BodyEndOffset: exprEndExclusive));
+                        BodyEndOffset: exprEndExclusive)
+                    { Params = declParams });
                     continue;
                 }
 
@@ -2249,7 +2250,8 @@ namespace ReactiveUITK.Language.Parser
                     NameColumn: declNameCol,
                     BodyStartLine: declBodyStartLine,
                     BodyStartOffset: declActualBodyStart,
-                    BodyEndOffset: declBodyEnd));
+                    BodyEndOffset: declBodyEnd)
+                { Params = declParams });
 
                 i = declBodyCloseExclusive;
                 line = LineAtPos(source, i);
@@ -2286,10 +2288,14 @@ namespace ReactiveUITK.Language.Parser
                 }
             }
 
-            if (exportListNames.Count > 0)
+            if (exportListNames.Count > 0 || defaultExportName != null)
             {
+                // `export { a, b };` marks the matching declarations exported — and so does
+                // `export default X;` (ES semantics: a default export IS an export; the
+                // default-marked declaration is part of the file's public surface).
                 var boundNames = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var entry in exportListNames) boundNames.Add(entry.Name);
+                if (defaultExportName != null) boundNames.Add(defaultExportName);
                 for (int ci = 0; ci < components.Count; ci++)
                     if (boundNames.Contains(components[ci].Name))
                         components[ci] = components[ci] with { IsExported = true };

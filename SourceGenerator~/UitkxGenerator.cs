@@ -170,6 +170,7 @@ namespace ReactiveUITK.SourceGenerator
                     var peerComponentsBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                     var peerHookContainersBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                     var peerModulesBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                    var peerExportsBuilder = ImmutableArray.CreateBuilder<PeerExportsInfo>();
                     var importsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                     foreach (var txt in uitkxFiles)
                     {
@@ -185,6 +186,8 @@ namespace ReactiveUITK.SourceGenerator
                         if (TryBuildPeerHookContainerInfo(src, txt.Path, out var hookInfo))
                             peerHookContainersBuilder.Add(hookInfo);
                         CollectPeerModuleInfos(src, txt.Path, peerModulesBuilder);
+                        if (TryBuildPeerExportsInfo(src, txt.Path, out var exportsInfo))
+                            peerExportsBuilder.Add(exportsInfo);
                         importsByFile.Add((txt.Path, ExtractImportsForCycle(src)));
                     }
                     ImmutableArray<PeerComponentInfo> peerComponents =
@@ -193,6 +196,8 @@ namespace ReactiveUITK.SourceGenerator
                         peerHookContainersBuilder.ToImmutable();
                     ImmutableArray<PeerModuleInfo> peerModules =
                         peerModulesBuilder.ToImmutable();
+                    ImmutableArray<PeerExportsInfo> peerExports =
+                        peerExportsBuilder.ToImmutable();
                     var valueCycles = UitkxFeatureFlags.StrictImports
                         ? BuildValueCycleMap(importsByFile, peerHookContainers, peerModules)
                         : null;
@@ -210,7 +215,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = ReadUitkxSource(txt, ct);
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules, valueCycles));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules, valueCycles, peerExports));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -228,6 +233,7 @@ namespace ReactiveUITK.SourceGenerator
                             var diskPeerBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                             var diskHookBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                             var diskModuleBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                            var diskExportsBuilder = ImmutableArray.CreateBuilder<PeerExportsInfo>();
                             var diskImportsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                             foreach (string fp in diskFiles)
                             {
@@ -239,6 +245,8 @@ namespace ReactiveUITK.SourceGenerator
                                 if (TryBuildPeerHookContainerInfo(raw, fp, out var hookInfo))
                                     diskHookBuilder.Add(hookInfo);
                                 CollectPeerModuleInfos(raw, fp, diskModuleBuilder);
+                                if (TryBuildPeerExportsInfo(raw, fp, out var exportsInfo))
+                                    diskExportsBuilder.Add(exportsInfo);
                                 diskImportsByFile.Add((fp, ExtractImportsForCycle(raw)));
                             }
                             ImmutableArray<PeerComponentInfo> diskPeerComponents =
@@ -247,6 +255,8 @@ namespace ReactiveUITK.SourceGenerator
                                 diskHookBuilder.ToImmutable();
                             ImmutableArray<PeerModuleInfo> diskPeerModules =
                                 diskModuleBuilder.ToImmutable();
+                            ImmutableArray<PeerExportsInfo> diskPeerExports =
+                                diskExportsBuilder.ToImmutable();
                             var diskValueCycles = UitkxFeatureFlags.StrictImports
                                 ? BuildValueCycleMap(diskImportsByFile, diskPeerHookContainers, diskPeerModules)
                                 : null;
@@ -257,7 +267,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules, diskValueCycles));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules, diskValueCycles, diskPeerExports));
                             }
                         }
                     }
@@ -444,7 +454,36 @@ namespace ReactiveUITK.SourceGenerator
             var throwawayDiags = new List<ParseDiagnostic>();
             var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
             string? hookNs = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
-            if (ds.HookDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(hookNs))
+            if (string.IsNullOrEmpty(hookNs))
+            {
+                hookInfo = default!;
+                return false;
+            }
+
+            // New-mode file (ES-modules campaign, U-06): hooks are plain declarations on the
+            // per-file __Exports container; the container-name convention changes, the peer
+            // table shape does not.
+            if (!ds.UsesLegacySyntax)
+            {
+                var newModeHooks = ImmutableArray.CreateBuilder<string>();
+                if (!ds.MemberDeclarations.IsDefaultOrEmpty)
+                    foreach (var m in ds.MemberDeclarations)
+                        if (m.Kind == DeclKind.Hook && m.IsExported)
+                            newModeHooks.Add(m.Name);
+                if (newModeHooks.Count == 0)
+                {
+                    hookInfo = default!;
+                    return false;
+                }
+                hookInfo = new PeerHookContainerInfo(hookNs!, "__Exports")
+                {
+                    SourceFilePath = filePath,
+                    ExportedHookNames = newModeHooks.ToImmutable(),
+                };
+                return true;
+            }
+
+            if (ds.HookDeclarations.IsDefaultOrEmpty)
             {
                 hookInfo = default!;
                 return false;
@@ -462,6 +501,43 @@ namespace ReactiveUITK.SourceGenerator
                 SourceFilePath = filePath,
                 ExportedHookNames = exportedHooks.ToImmutable(),
             };
+            return true;
+        }
+
+        /// <summary>
+        /// Builds the per-file export surface for a NEW-MODE (plain-declaration) peer (ES-modules
+        /// campaign, U-03). Legacy files never get an entry.
+        /// </summary>
+        private static bool TryBuildPeerExportsInfo(
+            string source,
+            string filePath,
+            out PeerExportsInfo exportsInfo
+        )
+        {
+            var throwawayDiags = new List<ParseDiagnostic>();
+            var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
+            string? ns = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
+            if (ds.UsesLegacySyntax || string.IsNullOrEmpty(ns)
+                || (ds.MemberDeclarations.IsDefaultOrEmpty && ds.ComponentDeclarations.IsDefaultOrEmpty))
+            {
+                exportsInfo = default!;
+                return false;
+            }
+
+            var exportedComponents = ImmutableArray.CreateBuilder<string>();
+            if (!ds.ComponentDeclarations.IsDefaultOrEmpty)
+                foreach (var c in ds.ComponentDeclarations)
+                    if (c.IsExported)
+                        exportedComponents.Add(c.Name);
+
+            exportsInfo = new PeerExportsInfo(
+                filePath,
+                ns!,
+                ds.MemberDeclarations.IsDefaultOrEmpty
+                    ? ImmutableArray<MemberDeclaration>.Empty
+                    : ds.MemberDeclarations,
+                exportedComponents.ToImmutable(),
+                ds.DefaultExportName);
             return true;
         }
 

@@ -147,6 +147,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         {
                             mergesWithComponent = true;
                             componentIsExported = pc.IsExported;
+                            // UITKX2107 (Unity-local deprecation, ES-modules campaign U-07): the
+                            // legacy cross-file companion partial-merge is engaging — this module
+                            // silently becomes part of a component declared in ANOTHER file via
+                            // shared folder namespaces. Warn alongside the (unchanged) legacy
+                            // behavior for the deprecation window; removal in a later minor.
+                            string mergeSource = System.IO.Path.GetFileName(pc.SourceFilePath ?? filePath);
+                            diagnostics.Add(Diagnostic.Create(
+                                new DiagnosticDescriptor(
+                                    "UITKX2107", "Deprecated companion merge",
+                                    $"companion partial-class merging is deprecated — '{displayName}' merges into '{mergeSource}' via legacy folder namespaces; migrate the companion set to plain declarations and file imports",
+                                    "ReactiveUITK.Imports", DiagnosticSeverity.Warning, true),
+                                Location.None));
                             break;
                         }
 
