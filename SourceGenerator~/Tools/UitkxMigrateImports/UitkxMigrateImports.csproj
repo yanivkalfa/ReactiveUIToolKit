@@ -26,6 +26,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\ide-extensions~\language-lib\UitkxLanguage.csproj" />
+    <!-- ES-modules campaign (M7/U-09): the module-explosion pass parses legacy `module { … }`
+         bodies (arbitrary C# class members) to hoist them into plain declarations. Version
+         matches the SG's pin. Tool-only — never shipped to Unity. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" />
   </ItemGroup>
 
 </Project>
