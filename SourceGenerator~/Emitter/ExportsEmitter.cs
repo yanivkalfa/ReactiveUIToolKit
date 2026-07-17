@@ -205,37 +205,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         }
 
         /// <summary>Extracts <c>T</c> from a <c>new T {...}</c> / <c>new T(...)</c> initializer
-        /// (G-04 inference sugar). Null when the initializer is not new-shaped — the parser
-        /// already reported UITKX2322 in that case; the <c>object</c> fallback merely keeps the
-        /// emitted file syntactically parseable next to the #error.</summary>
+        /// (G-04 inference sugar). Thin call-through to the language-lib single source
+        /// (<see cref="ReactiveUITK.Language.ImportScopeFacts.ExtractNewInitializerTypeName"/> —
+        /// the VDG shares it; HMR keeps a reflective-world mirror pinned by contract test). Null
+        /// when the initializer is not new-shaped — the parser already reported UITKX2322 in that
+        /// case; the <c>object</c> fallback merely keeps the emitted file syntactically parseable
+        /// next to the #error.</summary>
         internal static string? ExtractInitializerTypeName(string initText)
-        {
-            string t = initText.TrimStart();
-            if (!t.StartsWith("new", StringComparison.Ordinal))
-                return null;
-            int p = 3;
-            while (p < t.Length && (t[p] == ' ' || t[p] == '\t')) p++;
-            int start = p;
-            int depth = 0;
-            while (p < t.Length)
-            {
-                char c = t[p];
-                if (c == '<') { depth++; p++; continue; }
-                if (c == '>') { depth--; p++; continue; }
-                if (depth == 0 && (c == '{' || c == '(' || c == ' ' || c == '\t' || c == '\r' || c == '\n'))
-                    break;
-                if (depth == 0 && c == '[')
-                {
-                    // Array type: consume the [] pairs as part of the type.
-                    while (p < t.Length && t[p] != ']') p++;
-                    if (p < t.Length) p++;
-                    continue;
-                }
-                p++;
-            }
-            string name = t.Substring(start, p - start).Trim();
-            return name.Length > 0 ? name : null;
-        }
+            => ReactiveUITK.Language.ImportScopeFacts.ExtractNewInitializerTypeName(initText);
 
         private static string? NormalizeVoid(string? returnTypeText)
             => string.Equals(returnTypeText?.Trim(), "void", StringComparison.Ordinal)

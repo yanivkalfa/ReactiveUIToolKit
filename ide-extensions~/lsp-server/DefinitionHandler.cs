@@ -422,12 +422,17 @@ public sealed class DefinitionHandler : IDefinitionHandler
         return ImportResolver.MapSpecifierToPath(importerDir, specifier, rootDir, out _);
     }
 
-    /// <summary>1-based line of the <c>[export] component|hook|module Name</c> declaration in a file, or 0.</summary>
+    /// <summary>1-based line of the declaration of <paramref name="name"/> in a file, or 0. BOTH
+    /// grammars (ES-modules campaign, M5): the legacy wrapper head
+    /// (<c>[export] component|hook|module Name</c>) and the plain-declaration head
+    /// (<c>[export] &lt;Type&gt; Name(</c> / <c>[export] [&lt;Type&gt;] Name =</c>).</summary>
     private static int FindDeclarationLine(string filePath, string name)
     {
         try
         {
-            var re = new Regex($@"^\s*(?:export\s+)?(?:component|hook|module)\s+{Regex.Escape(name)}\b");
+            string n = Regex.Escape(name);
+            var re = new Regex(
+                $@"^\s*(?:export\s+)?(?:(?:component|hook|module)\s+{n}\b|(?:[\w<>\[\],\s\.\?\(\)]+?\s)?{n}\s*[=\(])");
             string[] lines = File.ReadAllLines(filePath);
             for (int i = 0; i < lines.Length; i++)
                 if (re.IsMatch(lines[i]))
@@ -661,7 +666,21 @@ public sealed class DefinitionHandler : IDefinitionHandler
                 int col = line.IndexOf(symbolName, StringComparison.Ordinal);
                 return (lineNum, col >= 0 ? col : 0);
             }
+
+            // Plain-declaration head (ES-modules campaign, M5): `[export] <Type> Name(` /
+            // `[export] [<Type>] Name =`. The name is the LAST identifier before the first
+            // top-level '(' or '='; checked on the trimmed line so directives/markup never match.
+            if (s_plainDeclHeadRe.Match(trimmed) is { Success: true } pm
+                && string.Equals(pm.Groups["name"].Value, symbolName, StringComparison.Ordinal))
+            {
+                int col = line.IndexOf(symbolName, StringComparison.Ordinal);
+                return (lineNum, col >= 0 ? col : 0);
+            }
         }
         return (0, 0);
     }
+
+    private static readonly Regex s_plainDeclHeadRe = new(
+        @"^(?:export\s+)?(?:[\w<>\[\],\s\.\?\(\)]+?\s)?(?<name>[A-Za-z_]\w*)\s*[=\(]",
+        RegexOptions.CultureInvariant);
 }

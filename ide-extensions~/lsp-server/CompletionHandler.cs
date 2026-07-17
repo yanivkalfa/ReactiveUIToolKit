@@ -339,22 +339,58 @@ public sealed class CompletionHandler : ICompletionHandler
                 doc: "Loads a USS stylesheet and attaches it to the component's root element before panel attachment.\n\nPath is relative to the `.uitkx` file:\n```\n@uss \"./PlayerCard.uss\"\n@uss \"../shared/buttons.uss\"\n```"
             ),
             (
+                label: "export VirtualNode",
+                insert: "export VirtualNode ${1:MyComponent}(${2}) {\n\treturn (\n\t\t$0\n\t);\n}",
+                detail: "Declares an exported component (plain declaration).",
+                doc: "Defines a component as a plain typed declaration (ES-modules syntax):\n```\nexport VirtualNode ScoreRow(string label) {\n    return ( <Label text={label} /> );\n}\n```\nA `VirtualNode` return type classifies the declaration as a component (PascalCase name enforced). Omit `export` for a file-private component."
+            ),
+            (
+                label: "export hook (use…)",
+                insert: "export ${1:(int value, Action reset)} ${2:useName}(${3}) {\n\t$0\n}",
+                detail: "Declares an exported hook (plain declaration).",
+                doc: "Defines a hook as a plain typed declaration — a `use`-prefixed name classifies it:\n```\nexport (int count, Action increment) useCounter(int initial) {\n    var (count, setCount) = useState(initial);\n    Action increment = () => setCount(c => c + 1);\n    return (count, increment);\n}\n```"
+            ),
+            (
+                label: "export value",
+                insert: "export ${1:Style} ${2:name} = ${3:new Style { }};",
+                detail: "Declares an exported value (plain declaration).",
+                doc: "Defines a value export:\n```\nexport Style container = new Style { Padding = 10f };\nexport int MaxItems = 5;\nexport theme = new Style { … };   // type inferred from `new T`\n```"
+            ),
+            (
+                label: "export default",
+                insert: "export default ${1:Name};",
+                detail: "Marks a declaration as this file's default export.",
+                doc: "A file has at most one default export; importers bind it with `import Name from \"./file\"`.\n```\nVirtualNode ScorePanel(string title) { … }\nexport default ScorePanel;\n```"
+            ),
+            (
+                label: "export { … }",
+                insert: "export { ${1:a, b} };",
+                detail: "Deferred export list.",
+                doc: "Marks already-declared names as exported:\n```\nint MaxItems = 5;\nstring Label = \"hi\";\nexport { MaxItems, Label };\n```"
+            ),
+            (
+                label: "import * as",
+                insert: "import * as ${1:Name} from \"${2:./file}\"",
+                detail: "Namespace import of a peer .uitkx file.",
+                doc: "Binds the target file's whole export surface to one name:\n```\nimport * as Tokens from \"../shared/Tokens\"\n…  Tokens.Gap  …  <Tokens.Circle />\n```"
+            ),
+            (
                 label: "component",
                 insert: "component ${1:MyComponent} {\n\treturn (\n\t\t$0\n\t);\n}",
-                detail: "Declares a function-style UITKX component.",
-                doc: "Defines the component body. Use hooks (`useState`, `useEffect`, …) before the `return (…)` statement."
+                detail: "(deprecated) Declares a wrapper-keyword component.",
+                doc: "**Deprecated (UITKX2320)** — write a plain `export VirtualNode Name(...) { … }` declaration instead; the `UitkxMigrateImports --es-modules` codemod rewrites existing files. The wrapper keyword is removed in a later minor."
             ),
             (
                 label: "hook",
                 insert: "hook ${1:useName}(${2}) -> ${3:ReturnType} {\n\t$0\n}",
-                detail: "Declares a custom hook function.",
-                doc: "Defines a reusable hook that can be called from component setup code.\n\nHooks can use `useState`, `useEffect`, and other hooks internally.\n```\nhook useCounter(int initial) -> (int count, Action increment) {\n    var (count, setCount) = useState(initial);\n    Action increment = () => setCount(c => c + 1);\n    return (count, increment);\n}\n```"
+                detail: "(deprecated) Declares a wrapper-keyword hook.",
+                doc: "**Deprecated (UITKX2320)** — write a plain `export (ret) useName(...) { … }` declaration instead; the `UitkxMigrateImports --es-modules` codemod rewrites existing files. The wrapper keyword is removed in a later minor."
             ),
             (
                 label: "module",
                 insert: "module ${1:Name} {\n\t$0\n}",
-                detail: "Declares a module (partial class).",
-                doc: "Defines a partial class that can hold shared logic, extension methods, or utilities alongside component files.\n```\nmodule MathUtils {\n    public static int Clamp(int v, int lo, int hi)\n        => Math.Max(lo, Math.Min(hi, v));\n}\n```"
+                detail: "(deprecated) Declares a wrapper-keyword module.",
+                doc: "**Deprecated (UITKX2320)** — write plain `export` declarations at the top level instead (importers use `import * as Name`); the `UitkxMigrateImports --es-modules` codemod rewrites existing files. The wrapper keyword is removed in a later minor."
             ),
         };
 
@@ -1587,6 +1623,9 @@ public sealed class CompletionHandler : ICompletionHandler
             foreach (var h in ds.HookDeclarations) Add(h.Name, h.IsExported);
         if (!ds.ModuleDeclarations.IsDefaultOrEmpty)
             foreach (var m in ds.ModuleDeclarations) Add(m.Name, m.IsExported);
+        // Plain member declarations (ES-modules campaign, M5): values/utils/hooks on __Exports.
+        if (!ds.MemberDeclarations.IsDefaultOrEmpty)
+            foreach (var mem in ds.MemberDeclarations) Add(mem.Name, mem.IsExported);
         return names;
     }
 

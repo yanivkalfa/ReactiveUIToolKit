@@ -311,6 +311,35 @@ namespace ReactiveUITK.Language.Roslyn
                 : "Component";
             string escapedPath = EscapePathForLineDirective(uitkxFilePath);
 
+            // -- New-mode __Exports scaffold (ES-modules campaign, U-02/M5) ----
+            // Plain member declarations (values/utils/hooks) live on the per-file __Exports
+            // container in the real build; scaffold the same shape here — with mapped bodies so
+            // IntelliSense/diagnostics work inside them — plus stub bridges for aliased/default
+            // member imports. The component partial (below) sees them bare-name through the
+            // own-exports using scaffolded by AppendImportUsings' caller path (same namespace is
+            // NOT enough for static-class members).
+            bool hasMembers = !d.UsesLegacySyntax && !d.MemberDeclarations.IsDefaultOrEmpty;
+            var bridges = d.UsesLegacySyntax
+                ? (IReadOnlyList<(string Alias, string? ReturnType, string? ParamsText, bool IsValue)>)
+                    System.Array.Empty<(string, string?, string?, bool)>()
+                : ImportScopeFacts.ComputeImportedMemberBridges(d, uitkxFilePath);
+            if (hasMembers || bridges.Count > 0)
+            {
+                b.Scaffold($"using static {ns}.__Exports;\n\n");
+                b.Scaffold($"namespace {ns}\n{{\n");
+                EmitExportsScaffold(b, d, bridges, escapedPath);
+                if (string.IsNullOrEmpty(d.ComponentName))
+                {
+                    b.Scaffold("}\n");
+                    return b.Build(uitkxFilePath);
+                }
+                b.Scaffold($"    partial class {className}\n    {{\n");
+                b.Scaffold("#line hidden\n");
+                EmitFunctionStyleBody(b, parseResult, source, escapedPath, propsTypes);
+                b.Scaffold("    }\n}\n");
+                return b.Build(uitkxFilePath);
+            }
+
             b.Scaffold($"namespace {ns}\n{{\n");
             b.Scaffold($"    partial class {className}\n    {{\n");
             b.Scaffold("#line hidden\n");
@@ -347,6 +376,83 @@ namespace ReactiveUITK.Language.Roslyn
             if (!string.IsNullOrEmpty(effective))
                 return effective!;
             return !string.IsNullOrEmpty(d.Namespace) ? d.Namespace! : "ReactiveUITK.Generated";
+        }
+
+        /// <summary>
+        /// Scaffolds the per-file <c>__Exports</c> container for a NEW-MODE file (ES-modules
+        /// campaign, U-02/M5): hook stubs (static form), every member declaration with its body
+        /// MAPPED for IntelliSense (value initializers, util/hook bodies), and signature-only
+        /// stub bridges for aliased/default member imports (bodies are <c>default!</c> — the
+        /// bound NAME and signature are what setup-code resolution needs; the real forwarding
+        /// lives in the build's ExportsEmitter output).
+        /// </summary>
+        private static void EmitExportsScaffold(
+            VirtualDocBuilder b,
+            DirectiveSet d,
+            IReadOnlyList<(string Alias, string? ReturnType, string? ParamsText, bool IsValue)> bridges,
+            string escapedPath)
+        {
+            b.Scaffold("    static partial class __Exports\n    {\n");
+            b.Scaffold("#line hidden\n");
+            b.Scaffold(global::ReactiveUITK.Core.HookRegistry.GenerateVirtualDocStubs(staticForm: true));
+
+            if (!d.MemberDeclarations.IsDefaultOrEmpty)
+            {
+                foreach (var m in d.MemberDeclarations)
+                {
+                    string access = m.IsExported ? "public" : "internal";
+                    if (m.Kind == DeclKind.Value)
+                    {
+                        string type = m.ReturnTypeText
+                            ?? ImportScopeFacts.ExtractNewInitializerTypeName(m.BodyText) ?? "object";
+                        b.Scaffold($"        {access} static {type} {m.Name} = ");
+                        b.Scaffold($"\n#line {m.BodyStartLine} \"{escapedPath}\"\n");
+                        b.Mapped(m.BodyText, m.BodyStartOffset, SourceRegionKind.ModuleBody, m.BodyStartLine);
+                        b.Scaffold("\n#line hidden\n");
+                        b.Scaffold("        ;\n\n");
+                        continue;
+                    }
+
+                    string ret = string.Equals(m.ReturnTypeText?.Trim(), "void", StringComparison.Ordinal)
+                        || string.IsNullOrEmpty(m.ReturnTypeText)
+                        ? "void" : m.ReturnTypeText!;
+                    string paramsText = m.ParamsText ?? string.Empty;
+                    var kind = m.Kind == DeclKind.Hook ? SourceRegionKind.HookBody : SourceRegionKind.ModuleBody;
+                    if (m.IsExpressionBodied)
+                    {
+                        b.Scaffold($"        {access} static {ret} {m.Name}({paramsText}) => ");
+                        b.Scaffold($"\n#line {m.BodyStartLine} \"{escapedPath}\"\n");
+                        b.Mapped(m.BodyText, m.BodyStartOffset, kind, m.BodyStartLine);
+                        b.Scaffold("\n#line hidden\n");
+                        b.Scaffold("        ;\n\n");
+                    }
+                    else
+                    {
+                        b.Scaffold($"        {access} static {ret} {m.Name}({paramsText})\n");
+                        b.Scaffold("        {\n");
+                        b.Scaffold($"#line {m.BodyStartLine} \"{escapedPath}\"\n");
+                        b.Mapped(m.BodyText, m.BodyStartOffset, kind, m.BodyStartLine);
+                        b.Scaffold("\n#line hidden\n");
+                        b.Scaffold("        }\n\n");
+                    }
+                }
+            }
+
+            foreach (var (alias, retType, paramsText, isValue) in bridges)
+            {
+                if (isValue)
+                {
+                    b.Scaffold($"        internal static {retType ?? "object"} {alias} => default!;\n");
+                    continue;
+                }
+                string bridgeRet = string.IsNullOrEmpty(retType)
+                    || string.Equals(retType!.Trim(), "void", StringComparison.Ordinal)
+                    ? "void" : retType!;
+                string bridgeBody = bridgeRet == "void" ? "{ }" : "=> default!;";
+                b.Scaffold($"        internal static {bridgeRet} {alias}({paramsText ?? string.Empty}) {bridgeBody}\n");
+            }
+
+            b.Scaffold("    }\n\n");
         }
 
         // -- Hook document -----------------------------------------------------

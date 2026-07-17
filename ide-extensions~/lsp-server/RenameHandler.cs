@@ -487,6 +487,26 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
     /// the symbol is actually used. A file that imports the name but never uses it
     /// is already flagged UITKX2304 and is deliberately out of scope.
     /// </summary>
+    /// <summary>Whole-word occurrence of <paramref name="word"/> in <paramref name="text"/> at or
+    /// after <paramref name="startIndex"/>, or -1.</summary>
+    private static int FindWholeWord(string text, string word, int startIndex)
+    {
+        int from = Math.Max(0, Math.Min(startIndex, text.Length));
+        while (from < text.Length)
+        {
+            int idx = text.IndexOf(word, from, StringComparison.Ordinal);
+            if (idx < 0)
+                return -1;
+            bool leftOk = idx == 0 || (!char.IsLetterOrDigit(text[idx - 1]) && text[idx - 1] != '_');
+            int end = idx + word.Length;
+            bool rightOk = end >= text.Length || (!char.IsLetterOrDigit(text[end]) && text[end] != '_');
+            if (leftOk && rightOk)
+                return idx;
+            from = idx + 1;
+        }
+        return -1;
+    }
+
     private void CollectImportListRenameEdits(
         string oldName,
         string newName,
@@ -518,22 +538,66 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                 if (directives.Imports.IsDefaultOrEmpty)
                     continue;
 
+                string[] fileLines = fileText.Split('\n');
                 var importEdits = new List<TextEdit>();
                 foreach (var imp in directives.Imports)
                 {
+                    bool hasAliases = !imp.Aliases.IsDefaultOrEmpty;
                     for (int i = 0; i < imp.Names.Length; i++)
                     {
-                        if (imp.Names[i] != oldName)
-                            continue;
-                        int line0 = imp.Line - 1;
-                        int col0 = imp.NameColumns[i];
-                        importEdits.Add(new TextEdit
+                        string? alias = hasAliases && i < imp.Aliases.Length ? imp.Aliases[i] : null;
+
+                        if (imp.Names[i] == oldName && alias == null)
                         {
-                            Range = new LspRange(
-                                new Position(line0, col0),
-                                new Position(line0, col0 + oldName.Length)),
-                            NewText = newName,
-                        });
+                            // Un-aliased entry: the imported name IS the local binding — rename it.
+                            int line0 = imp.Line - 1;
+                            int col0 = imp.NameColumns[i];
+                            importEdits.Add(new TextEdit
+                            {
+                                Range = new LspRange(
+                                    new Position(line0, col0),
+                                    new Position(line0, col0 + oldName.Length)),
+                                NewText = newName,
+                            });
+                            continue;
+                        }
+
+                        // Aliased entry `a as b` (ES-modules campaign, G-05 rename semantics):
+                        // renaming the LOCAL binding `b` touches only the alias token; renaming
+                        // the EXPORT `a` touches only the `a` token (the local `b` binding — and
+                        // every `b` use — stays). The alias token's column is not in the model;
+                        // locate it textually after the name token on the import line.
+                        if (alias == oldName)
+                        {
+                            int line0 = imp.Line - 1;
+                            if (line0 < 0 || line0 >= fileLines.Length)
+                                continue;
+                            string lineText = fileLines[line0].TrimEnd('\r');
+                            int searchFrom = i < imp.NameColumns.Length
+                                ? imp.NameColumns[i] + imp.Names[i].Length : 0;
+                            int aliasCol = FindWholeWord(lineText, oldName, searchFrom);
+                            if (aliasCol < 0)
+                                continue;
+                            importEdits.Add(new TextEdit
+                            {
+                                Range = new LspRange(
+                                    new Position(line0, aliasCol),
+                                    new Position(line0, aliasCol + oldName.Length)),
+                                NewText = newName,
+                            });
+                        }
+                        else if (imp.Names[i] == oldName)
+                        {
+                            int line0 = imp.Line - 1;
+                            int col0 = imp.NameColumns[i];
+                            importEdits.Add(new TextEdit
+                            {
+                                Range = new LspRange(
+                                    new Position(line0, col0),
+                                    new Position(line0, col0 + oldName.Length)),
+                                NewText = newName,
+                            });
+                        }
                     }
                 }
 
@@ -542,6 +606,7 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
 
                 ServerLog.Log(
                     $"[Rename] import-list: {importEdits.Count} edit(s) in {Path.GetFileName(path)}");
+                // (FindWholeWord helper lives below with the other text utilities.)
                 changes[uri] = changes.TryGetValue(uri, out var existing)
                     ? existing.Concat(importEdits)
                     : importEdits;
@@ -962,9 +1027,11 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         Dictionary<DocumentUri, IEnumerable<TextEdit>> changes
     )
     {
-        // Match `component OldName` or `@component OldName` at line start
+        // Match the component declaration head at a line start, BOTH grammars (ES-modules
+        // campaign, M5): `component OldName` / `@component OldName` (legacy) and the plain
+        // form `[export] [global::][Ns.]VirtualNode OldName(`.
         var pattern = new Regex(
-            $@"(?:^|\n)\s*(?:@component|component)\s+({Regex.Escape(oldName)})\b",
+            $@"(?:^|\n)\s*(?:export\s+)?(?:@component\s+|component\s+|(?:global::)?(?:[\w.]+\.)?VirtualNode\s+)({Regex.Escape(oldName)})\b",
             RegexOptions.CultureInvariant
         );
         var match = pattern.Match(text);
@@ -1088,10 +1155,14 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
 
             var uri = DocumentUri.FromFileSystemPath(uitkxFile);
 
-            // Rename `hook oldName(` declaration (only in the declaring file)
+            // Rename the hook declaration head (only in the declaring file), BOTH grammars
+            // (ES-modules campaign, M5): `hook oldName(` (legacy wrapper) and the plain form
+            // `[export] <Type> oldName(` — the latter matched as name-followed-by-( at a line
+            // start with a preceding type token, so hook CALLS (`var x = oldName(...)`) in the
+            // same file stay owned by the general call-site collector.
             var hookDeclPattern = new Regex(
-                $@"(?<=\bhook\s+){Regex.Escape(oldName)}\b",
-                RegexOptions.CultureInvariant
+                $@"(?<=\bhook\s+){Regex.Escape(oldName)}\b|(?<=^(?:export\s+)?[\w<>\[\],\s\.\?\(\)]+?\s){Regex.Escape(oldName)}(?=\s*\()",
+                RegexOptions.CultureInvariant | RegexOptions.Multiline
             );
             foreach (Match m in hookDeclPattern.Matches(fileText))
             {

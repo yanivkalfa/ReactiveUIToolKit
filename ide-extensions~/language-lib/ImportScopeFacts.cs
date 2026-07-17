@@ -208,6 +208,116 @@ namespace ReactiveUITK.Language
         }
 
         /// <summary>
+        /// Imported-member bridge surface (ES-modules campaign, U-03): for every `as`-renamed or
+        /// default MEMBER import (values/utils/hooks — components alias via usings instead), the
+        /// bound name + signature the consumer's <c>__Exports</c> re-states. Consumed by the LSP
+        /// virtual doc (scaffold stubs so the bound name resolves in setup code); the SG computes
+        /// the equivalent from its pre-scan PeerExportsInfo table (no file IO in the incremental
+        /// pipeline) — shape parity is pinned by tests. Filesystem-parses each target like
+        /// <see cref="ComputeInjectedUsingPayloads"/>; degrades silently on unresolvable targets.
+        /// </summary>
+        public static IReadOnlyList<(string Alias, string? ReturnType, string? ParamsText, bool IsValue)>
+            ComputeImportedMemberBridges(DirectiveSet directives, string uitkxFilePath)
+        {
+            var result = new List<(string, string?, string?, bool)>();
+            if (directives.Imports.IsDefaultOrEmpty || string.IsNullOrEmpty(uitkxFilePath))
+                return result;
+
+            string importerDir = (Path.GetDirectoryName(uitkxFilePath) ?? string.Empty).Replace('\\', '/');
+            string rootDir = EffectiveNamespace.UiSourceRootDir(uitkxFilePath) ?? importerDir;
+
+            foreach (var imp in directives.Imports)
+            {
+                bool anyAlias = !imp.Aliases.IsDefaultOrEmpty && System.Linq.Enumerable.Any(imp.Aliases, a => a != null);
+                if (!anyAlias && !imp.IsDefault)
+                    continue;
+
+                string? target = ImportResolver.MapSpecifierToPath(importerDir, imp.Specifier, rootDir, out _);
+                if (target == null || !File.Exists(target))
+                    continue;
+
+                DirectiveSet tds;
+                try
+                {
+                    tds = DirectiveParser.Parse(File.ReadAllText(target), target, new List<ParseDiagnostic>());
+                }
+                catch { continue; }
+                if (tds.UsesLegacySyntax || tds.MemberDeclarations.IsDefaultOrEmpty)
+                    continue;
+
+                MemberDeclaration? Find(string name)
+                {
+                    foreach (var m in tds.MemberDeclarations)
+                        if (m.IsExported && m.Name == name)
+                            return m;
+                    return null;
+                }
+
+                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null)
+                {
+                    bool defaultIsComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
+                        && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == tds.DefaultExportName);
+                    if (!defaultIsComponent)
+                    {
+                        var dm = Find(tds.DefaultExportName);
+                        if (dm != null)
+                            result.Add((imp.DefaultAlias,
+                                dm.ReturnTypeText ?? ExtractNewInitializerTypeName(dm.BodyText),
+                                dm.ParamsText, dm.Kind == DeclKind.Value));
+                    }
+                    continue;
+                }
+
+                if (!anyAlias)
+                    continue;
+                for (int k = 0; k < imp.Names.Length && k < imp.Aliases.Length; k++)
+                {
+                    string? alias = imp.Aliases[k];
+                    if (alias == null) continue;
+                    var m = Find(imp.Names[k]);
+                    if (m != null)
+                        result.Add((alias,
+                            m.ReturnTypeText ?? ExtractNewInitializerTypeName(m.BodyText),
+                            m.ParamsText, m.Kind == DeclKind.Value));
+                }
+            }
+            return result;
+        }
+
+        /// <summary>Extracts <c>T</c> from a <c>new T {...}</c>/<c>new T(...)</c> initializer
+        /// (G-04 inference sugar) — the language-lib single source; the SG's ExportsEmitter keeps
+        /// a thin call-through, HMR keeps a reflective-world mirror pinned by contract test.</summary>
+        public static string? ExtractNewInitializerTypeName(string initText)
+        {
+            if (string.IsNullOrEmpty(initText))
+                return null;
+            string t = initText.TrimStart();
+            if (!t.StartsWith("new", StringComparison.Ordinal))
+                return null;
+            int p = 3;
+            while (p < t.Length && (t[p] == ' ' || t[p] == '\t')) p++;
+            int start = p;
+            int depth = 0;
+            while (p < t.Length)
+            {
+                char c = t[p];
+                if (c == '<') { depth++; p++; continue; }
+                if (c == '>') { depth--; p++; continue; }
+                if (depth == 0 && (c == '{' || c == '(' || c == ' ' || c == '\t' || c == '\r' || c == '\n'))
+                    break;
+                if (depth == 0 && c == '[')
+                {
+                    while (p < t.Length && t[p] != ']') p++;
+                    if (p < t.Length) p++;
+                    continue;
+                }
+                p++;
+            }
+            string name = t.Substring(start, p - start).Trim();
+            return name.Length > 0 ? name : null;
+        }
+
+        /// <summary>
         /// Mode-aware container name (ES-modules campaign, U-06): a NEW-mode target's members all
         /// live on the per-file <c>__Exports</c> container; a legacy target keeps the historical
         /// <c>{Stem}Hooks</c> naming. Additive overload (U-12) — the 1-arg form below stays for
