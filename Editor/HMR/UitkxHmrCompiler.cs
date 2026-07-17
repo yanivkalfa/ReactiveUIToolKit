@@ -468,6 +468,31 @@ namespace ReactiveUITK.EditorSupport.HMR
                     }
                 }
 
+                // New-mode component files (ES-modules campaign, U-02): the file's own members
+                // (values/utils/hooks) and any imported-member bridges live on {ns}.__Exports in
+                // the REAL assembly (the SG emitted it). Expose them bare-name to the hot unit —
+                // the exact mirror of the SG's own-exports using injection. Gated on the file
+                // actually HAVING an __Exports unit (members or aliased/default imports), because
+                // a using-static against a nonexistent type is CS0246.
+                {
+                    bool cUsesLegacy = !(GetProp(directives, "UsesLegacySyntax") is bool cul) || cul;
+                    if (!cUsesLegacy && !string.IsNullOrEmpty(ns))
+                    {
+                        bool hasMembers = GetItems(GetProp(directives, "MemberDeclarations")).Count > 0;
+                        bool hasAliasedImports = false;
+                        if (!hasMembers)
+                            foreach (var imp in GetItems(GetProp(directives, "Imports")))
+                            {
+                                if (GetProp(imp, "IsDefault") is bool idf && idf) { hasAliasedImports = true; break; }
+                                foreach (var a in GetItems(GetProp(imp, "Aliases")))
+                                    if (a != null) { hasAliasedImports = true; break; }
+                                if (hasAliasedImports) break;
+                            }
+                        if (hasMembers || hasAliasedImports)
+                            sources[0] = $"using static {ns}.__Exports;\n" + sources[0];
+                    }
+                }
+
                 if (companionCsFiles != null)
                 {
                     foreach (var csFile in companionCsFiles)
@@ -1090,6 +1115,51 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 result.IsHookModuleFile = true;
+
+                // New-mode member-only file (ES-modules campaign, U-02): every member lives on
+                // the per-file __Exports container — one emit covers values (static swap),
+                // utils (module-method delegate swap by name), and hooks (__{name}_body +
+                // SwapHooks against container "__Exports").
+                bool usesLegacy = !(GetProp(directives, "UsesLegacySyntax") is bool ul) || ul;
+                if (!usesLegacy)
+                {
+                    result.HookContainerClass = "__Exports";
+                    result.ComponentName = "__Exports";
+
+                    var exStepSw = Stopwatch.StartNew();
+                    string exportsCSharp = HmrHookEmitter.EmitExports(
+                        directives, uitkxPath,
+                        effectiveNs: ComputeEffectiveNs(directives, uitkxPath),
+                        hookKeyMap: BuildHookFamilyKeyMap(directives, uitkxPath));
+                    exStepSw.Stop();
+                    result.EmitMs = exStepSw.Elapsed.TotalMilliseconds;
+
+                    if (string.IsNullOrEmpty(exportsCSharp))
+                    {
+                        result.Error = "No member declarations found";
+                        return result;
+                    }
+                    bool anyHookMember = false;
+                    foreach (var m in GetItems(GetProp(directives, "MemberDeclarations")))
+                        if (string.Equals(GetProp(m, "Kind")?.ToString(), "Hook", StringComparison.Ordinal))
+                        { anyHookMember = true; break; }
+                    result.HasHooks = anyHookMember;
+
+                    exStepSw = Stopwatch.StartNew();
+                    var exAsm = CompileSources(
+                        new[] { exportsCSharp }, "__Exports", uitkxPath, out string exCompileError);
+                    exStepSw.Stop();
+                    result.CompileMs = exStepSw.Elapsed.TotalMilliseconds;
+                    if (exAsm == null)
+                    {
+                        result.Error = exCompileError;
+                        return result;
+                    }
+                    result.LoadedAssembly = exAsm;
+                    result.Success = true;
+                    return result;
+                }
+
                 string containerClass = HmrHookEmitter.DeriveContainerClassName(uitkxPath);
                 result.HookContainerClass = containerClass;
                 result.ComponentName = containerClass;
@@ -1292,7 +1362,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                         // false-warned on every hooks companion, e.g. StressTest.hooks.uitkx).
                         int moduleCount = GetItems(GetProp(companionDir, "ModuleDeclarations")).Count;
                         int hookCount = GetItems(GetProp(companionDir, "HookDeclarations")).Count;
-                        if (moduleCount == 0 && hookCount == 0)
+                        // New-mode companions (ES-modules campaign): plain member declarations
+                        // are NOT inlined — the parent resolves them via the real assembly's
+                        // {ns}.__Exports + injected using payloads, and their own edits compile
+                        // through the member-only path. Legitimately neither modules nor hooks.
+                        int memberCount = GetItems(GetProp(companionDir, "MemberDeclarations")).Count;
+                        if (moduleCount == 0 && hookCount == 0 && memberCount == 0)
                         {
                             Debug.LogWarning(
                                 $"[HMR] Companion {Path.GetFileName(file)} matched the "
