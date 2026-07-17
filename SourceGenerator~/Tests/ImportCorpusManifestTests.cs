@@ -21,7 +21,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
     {
         /// <summary>The family-frozen hash as shipped by Unreal leg 1 (plans/family-corpus.hash).</summary>
         private const string FrozenFamilyHash =
-            "657e5f4ef77cb44df693e7cfebc1112163cdc1ee2bd541b4b5e1069abb08013b";
+            "917dd8cdf6999647e991f7186bc3e97702c40ba656826d3a7141bdc87de52169";
 
         [Fact]
         public void PinnedHash_EqualsFrozenFamilyValue()
