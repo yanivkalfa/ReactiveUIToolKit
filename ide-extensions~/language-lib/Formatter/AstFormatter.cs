@@ -64,7 +64,27 @@ namespace ReactiveUITK.Language.Formatter
             if (!directives.Imports.IsDefaultOrEmpty)
                 foreach (var imp in directives.Imports)
                 {
-                    Ln($"import {{ {string.Join(", ", imp.Names)} }} from \"{imp.Specifier}\"");
+                    // Canonical spellings (U-10): named (with `as` renames preserved), `* as`,
+                    // and default imports — all semicolon-less (the parser tolerates `;` on read).
+                    if (imp.IsStar && imp.StarAlias != null)
+                    {
+                        Ln($"import * as {imp.StarAlias} from \"{imp.Specifier}\"");
+                    }
+                    else if (imp.IsDefault && imp.DefaultAlias != null)
+                    {
+                        Ln($"import {imp.DefaultAlias} from \"{imp.Specifier}\"");
+                    }
+                    else
+                    {
+                        bool hasAliases = !imp.Aliases.IsDefaultOrEmpty;
+                        var entries = new List<string>(imp.Names.Length);
+                        for (int ni = 0; ni < imp.Names.Length; ni++)
+                        {
+                            string? alias = hasAliases && ni < imp.Aliases.Length ? imp.Aliases[ni] : null;
+                            entries.Add(alias != null ? $"{imp.Names[ni]} as {alias}" : imp.Names[ni]);
+                        }
+                        Ln($"import {{ {string.Join(", ", entries)} }} from \"{imp.Specifier}\"");
+                    }
                     has = true;
                 }
 
@@ -145,10 +165,29 @@ namespace ReactiveUITK.Language.Formatter
             if (ContainsInlineJsxControlFlow(nodes))
                 return source;
 
+            // -- New-mode plain-declaration files (ES-modules campaign, U-10) --
+            // Must be checked FIRST: these files carry MemberDeclarations/DefaultExportName/
+            // ExportListNames that no other path re-emits — falling through would DELETE them
+            // (the A7f data-loss guard extended to the new record fields).
+            if (
+                !directives.UsesLegacySyntax
+                && (!directives.MemberDeclarations.IsDefaultOrEmpty
+                    || !directives.ComponentDeclarations.IsDefaultOrEmpty
+                    || directives.DefaultExportName != null
+                    || !directives.ExportListNames.IsDefaultOrEmpty)
+            )
+            {
+                // Losslessly re-formatting the 2nd+ component needs per-component markup
+                // re-parsing this formatter does not do — safe minimal guarantee: leave the
+                // whole file untouched (same precedent as ContainsInlineJsxControlFlow).
+                if (directives.ComponentDeclarations.Length > 1)
+                    return source;
+                FormatPlainDeclarationFile(directives, nodes);
+            }
             // -- Hook/module files: dedicated path -----------------------------
             // Must be checked BEFORE IsFunctionStyle because the parser sets that
             // flag for hook/module files too.
-            if (
+            else if (
                 !directives.HookDeclarations.IsDefaultOrEmpty
                 || !directives.ModuleDeclarations.IsDefaultOrEmpty
             )
@@ -247,6 +286,22 @@ namespace ReactiveUITK.Language.Formatter
             }
             _indent++;
 
+            EmitFunctionStyleComponentBodyAndClose(directives, nodes);
+        }
+
+        /// <summary>
+        /// Emits a component's BODY (setup split, <c>return (…)</c> markup, unreachable
+        /// after-return code) and the closing <c>}</c>. Extracted from
+        /// <see cref="FormatFunctionStyleComponent"/> so the plain-declaration path (ES-modules
+        /// campaign, U-10) shares it byte-for-byte — only the HEADER differs between the
+        /// grammars. Caller has already emitted the header + opening brace and bumped
+        /// <c>_indent</c>; this restores it.
+        /// </summary>
+        private void EmitFunctionStyleComponentBodyAndClose(
+            DirectiveSet directives,
+            ImmutableArray<AstNode> nodes
+        )
+        {
             var fullSetupCode = directives.FunctionSetupCode?.Trim();
             string? beforeReturnCode = fullSetupCode;
             string? afterReturnCode = null;
@@ -347,6 +402,118 @@ namespace ReactiveUITK.Language.Formatter
 
             _indent--;
             Ln("}");
+        }
+
+        // -----------------------------------------------------------------------
+        //  PLAIN-DECLARATION FILES (ES-modules campaign, U-10)
+        // -----------------------------------------------------------------------
+
+        /// <summary>
+        /// Formats a NEW-MODE file: preamble (full import surface), then every declaration in
+        /// SOURCE ORDER — values (<c>[export] [Type] name = init;</c>, the inference form kept
+        /// type-less), utils/hooks (<c>[export] Ret Name(params) { body }</c> / <c>=&gt; expr;</c>,
+        /// raw params text preserved for ref/out/params fidelity — R5), and the (single)
+        /// component with a plain <c>VirtualNode</c> header sharing the legacy body machinery —
+        /// then <c>export { … };</c> lists and <c>export default X;</c> at end of file (U-10).
+        /// Inline <c>export</c> prefixes are printed ONLY for names not exported via a list
+        /// (printing both would re-parse as UITKX2324).
+        /// </summary>
+        private void FormatPlainDeclarationFile(
+            DirectiveSet directives,
+            ImmutableArray<AstNode> nodes
+        )
+        {
+            bool hasLeadingTrivia = !directives.LeadingTrivia.IsDefaultOrEmpty;
+            foreach (var (text, _, _) in directives.LeadingTrivia)
+            {
+                _sb.Append(text);
+                _sb.Append('\n');
+            }
+
+            bool hasPreamble = EmitPreamble(directives, includeUss: true);
+            if (hasPreamble || hasLeadingTrivia)
+                _sb.Append('\n');
+
+            var listExported = new HashSet<string>(System.StringComparer.Ordinal);
+            if (!directives.ExportListNames.IsDefaultOrEmpty)
+                foreach (var n in directives.ExportListNames)
+                    listExported.Add(n);
+
+            string ExportPrefix(string name, bool isExported)
+                => isExported && !listExported.Contains(name) ? "export " : "";
+
+            // Merge members + the single component in source order.
+            var entries = new List<(int Line, int MemberIndex, bool IsComponent)>();
+            if (!directives.MemberDeclarations.IsDefaultOrEmpty)
+                for (int i = 0; i < directives.MemberDeclarations.Length; i++)
+                    entries.Add((directives.MemberDeclarations[i].DeclarationLine, i, false));
+            bool hasComponent = directives.ComponentDeclarations.Length == 1;
+            if (hasComponent)
+                entries.Add((directives.ComponentDeclarations[0].DeclarationLine, -1, true));
+            entries.Sort((a, b) => a.Line.CompareTo(b.Line));
+
+            string tabExp = new string(' ', _opts.IndentSize);
+            bool firstDecl = true;
+            foreach (var entry in entries)
+            {
+                if (!firstDecl)
+                    _sb.Append('\n');
+                firstDecl = false;
+
+                if (entry.IsComponent)
+                {
+                    var c = directives.ComponentDeclarations[0];
+                    string paramList = "";
+                    if (!c.FunctionParams.IsDefaultOrEmpty)
+                    {
+                        var parts = c.FunctionParams.Select(p =>
+                            p.DefaultValue != null
+                                ? $"{p.Type} {p.Name} = {p.DefaultValue}"
+                                : $"{p.Type} {p.Name}");
+                        paramList = string.Join(", ", parts);
+                    }
+                    Ln($"{ExportPrefix(c.Name, c.IsExported)}VirtualNode {c.Name}({paramList}) {{");
+                    _indent++;
+                    EmitFunctionStyleComponentBodyAndClose(directives, nodes);
+                    continue;
+                }
+
+                var m = directives.MemberDeclarations[entry.MemberIndex];
+                string prefix = ExportPrefix(m.Name, m.IsExported);
+                if (m.Kind == ReactiveUITK.Language.Parser.DeclKind.Value)
+                {
+                    string typePart = m.ReturnTypeText != null ? m.ReturnTypeText + " " : "";
+                    Ln($"{prefix}{typePart}{m.Name} = {m.BodyText};");
+                    continue;
+                }
+
+                string ret = m.ReturnTypeText ?? "void";
+                string paramsText = m.ParamsText ?? string.Empty;
+                if (m.IsExpressionBodied)
+                {
+                    Ln($"{prefix}{ret} {m.Name}({paramsText}) => {m.BodyText};");
+                }
+                else
+                {
+                    Ln($"{prefix}{ret} {m.Name}({paramsText}) {{");
+                    _indent++;
+                    EmitSetupCodeNormalized(m.BodyText.Trim(), tabExp);
+                    _indent--;
+                    Ln("}");
+                }
+            }
+
+            // U-10: deferred export lists + the default marker print at END, in source order.
+            if (!directives.ExportListNames.IsDefaultOrEmpty)
+            {
+                _sb.Append('\n');
+                Ln($"export {{ {string.Join(", ", directives.ExportListNames)} }};");
+            }
+            if (directives.DefaultExportName != null)
+            {
+                _sb.Append('\n');
+                Ln($"export default {directives.DefaultExportName};");
+            }
         }
 
         // -----------------------------------------------------------------------

@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "description": "UITKX element and directive schema for IDE tooling",
   "structuralAttributes": [
     {
@@ -322,7 +322,7 @@
     },
     {
       "name": "component",
-      "description": "Name of the component class (must match the .uitkx filename)."
+      "description": "(deprecated — ES-modules campaign) Name of the component class. Write a plain `export VirtualNode Name(...) { ... }` declaration instead; kept for the deprecation window."
     },
     {
       "name": "using",

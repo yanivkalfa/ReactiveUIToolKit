@@ -467,6 +467,14 @@ namespace ReactiveUITK.Language.Parser
         public string? DefaultExportName { get; init; } = null;
 
         /// <summary>
+        /// Names exported via deferred <c>export { a, b };</c> lists, in source order (G-05).
+        /// The matching declarations are ALSO marked <c>IsExported</c>; this list preserves the
+        /// author's chosen spelling so the formatter re-emits the list (at end of file, U-10)
+        /// instead of silently converting to inline <c>export</c> prefixes.
+        /// </summary>
+        public ImmutableArray<string> ExportListNames { get; init; } = ImmutableArray<string>.Empty;
+
+        /// <summary>
         /// True when the file's first declaration used a legacy wrapper keyword
         /// (<c>component</c>/<c>hook</c>/<c>module</c>) — U-08. Drives folder-keyed namespace
         /// derivation, legacy emission, and legacy import payloads for the WHOLE file (mixing

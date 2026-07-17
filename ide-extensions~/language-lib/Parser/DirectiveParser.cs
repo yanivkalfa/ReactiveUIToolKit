@@ -2288,6 +2288,32 @@ namespace ReactiveUITK.Language.Parser
                 }
             }
 
+            if (exportListNames.Count > 0)
+            {
+                // U-04: a list name whose declaration ALREADY carries an inline `export` is a
+                // duplicate export (2324) — inline + list, like twice-in-a-list/across-lists.
+                // (`export default` is exempt: ES legally combines it with a named export.)
+                foreach (var entry in exportListNames)
+                {
+                    bool inlineExported =
+                        components.Exists(c => c.Name == entry.Name && c.IsExported)
+                        || members.Exists(mm => mm.Name == entry.Name && mm.IsExported);
+                    if (inlineExported)
+                    {
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2324",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = entry.Line,
+                            SourceColumn = entry.Column,
+                            EndLine = entry.Line,
+                            EndColumn = entry.Column + entry.Name.Length,
+                            Message = $"'{entry.Name}' is already exported — remove the duplicate export",
+                        });
+                    }
+                }
+            }
+
             if (exportListNames.Count > 0 || defaultExportName != null)
             {
                 // `export { a, b };` marks the matching declarations exported — and so does
@@ -2350,6 +2376,7 @@ namespace ReactiveUITK.Language.Parser
                 ComponentDeclarations = components.ToImmutableArray(),
                 MemberDeclarations = members.ToImmutableArray(),
                 DefaultExportName = defaultExportName,
+                ExportListNames = exportListNames.ConvertAll(e => e.Name).ToImmutableArray(),
                 UsesLegacySyntax = false,
             };
             return true;
