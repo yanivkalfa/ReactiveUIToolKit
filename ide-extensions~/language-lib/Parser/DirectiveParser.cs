@@ -2302,21 +2302,40 @@ namespace ReactiveUITK.Language.Parser
                 : members.Count > 0 ? members[0].DeclarationLine
                 : line;
 
+            // Mirror the FIRST component's fields onto the singular back-compat DirectiveSet
+            // slots (M1 audit item, §1.5): DiagnosticsAnalyzer's UITKX0107 (unreachable-after-
+            // return) and UITKX0111 (unused parameter) checks read d.FunctionReturnEndLine/
+            // FunctionBodyEndLine/FunctionParams/FunctionSetupCode/FunctionSetupStartOffset
+            // directly off DirectiveSet, not off ComponentDeclarations — exactly parity with
+            // what the legacy first-component path already does (tail/2nd+ components in EITHER
+            // mode share that same pre-existing limitation; not a new gap introduced here).
+            var primary = components.Count > 0 ? components[0] : null;
+
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
-                ComponentName: components.Count > 0 ? components[0].Name : null,
-                PropsTypeName: null,
+                ComponentName: primary?.Name,
+                PropsTypeName: primary?.PropsTypeName,
                 DefaultKey: null,
                 Usings: usings.ToImmutableArray(),
                 UssFiles: ussFiles.ToImmutableArray(),
                 Injects: ImmutableArray<(string Type, string Name)>.Empty,
-                MarkupStartLine: firstLine,
-                MarkupStartIndex: source.Length,
-                MarkupEndIndex: source.Length,
+                MarkupStartLine: primary?.MarkupStartLine ?? firstLine,
+                MarkupStartIndex: primary?.MarkupStartIndex ?? source.Length,
+                MarkupEndIndex: primary?.MarkupEndIndex ?? source.Length,
                 IsFunctionStyle: true,
                 HasExplicitNamespace: inlineNamespace != null,
-                FunctionSetupCode: string.Empty,
-                FunctionSetupStartLine: firstLine
+                FunctionSetupCode: primary?.FunctionSetupCode ?? string.Empty,
+                FunctionSetupStartLine: primary?.FunctionSetupStartLine ?? firstLine,
+                FunctionSetupStartOffset: primary?.FunctionSetupStartOffset ?? -1,
+                FunctionParams: primary?.FunctionParams ?? ImmutableArray<FunctionParam>.Empty,
+                ComponentDeclarationLine: primary?.DeclarationLine ?? -1,
+                ComponentNameColumn: primary?.NameColumn ?? -1,
+                FunctionReturnEndLine: primary?.ReturnEndLine ?? -1,
+                FunctionBodyEndLine: primary?.BodyEndLine ?? -1,
+                SetupCodeMarkupRanges: primary?.SetupCodeMarkupRanges ?? ImmutableArray<(int Start, int End, int Line)>.Empty,
+                SetupCodeBareJsxRanges: primary?.SetupCodeBareJsxRanges ?? ImmutableArray<(int Start, int End, int Line)>.Empty,
+                FunctionSetupGapOffset: primary?.FunctionSetupGapOffset ?? -1,
+                FunctionSetupGapLength: primary?.FunctionSetupGapLength ?? 0
             )
             {
                 LeadingTrivia = leadingTrivia.ToImmutableArray(),
