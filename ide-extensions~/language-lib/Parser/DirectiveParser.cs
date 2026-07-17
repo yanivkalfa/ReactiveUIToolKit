@@ -209,6 +209,16 @@ namespace ReactiveUITK.Language.Parser
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
                     parsedPreambleLine = true;
                 }
+                if (TryReadFunctionStyleStarImport(source, ref i, ref line, imports))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
+                    parsedPreambleLine = true;
+                }
+                if (TryReadFunctionStyleDefaultImport(source, ref i, ref line, imports))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line, leadingTrivia);
+                    parsedPreambleLine = true;
+                }
             } while (parsedPreambleLine);
 
             // Import/export grammar (leg 3): a name imported twice anywhere in the file → UITKX2303
@@ -689,6 +699,36 @@ namespace ReactiveUITK.Language.Parser
                     functionPropsTypeName = componentName + "Props";
             }
 
+            return ParseComponentBodyAt(
+                source, diagnosticBag, componentName, isExported, functionParams, functionPropsTypeName,
+                componentLine, componentNameCol, ref i, ref line, useLastReturn, out hardStop);
+        }
+
+        /// <summary>
+        /// Parses a component BODY at the cursor (which must be positioned right after the
+        /// component's name/parameter-list header — at the <c>{</c>, or the whitespace before it).
+        /// Shared by <see cref="ParseSingleComponent"/> (legacy <c>component Name(...) {...}</c>
+        /// header) and the plain-declaration path (ES-modules campaign, U-04: <c>export VirtualNode
+        /// Name(...) {...}</c> header) — the body machinery (<see cref="TryFindTopLevelReturn"/>,
+        /// setup-code split, markup ranges) is IDENTICAL regardless of which header form produced
+        /// the name/params/declaration line/name column passed in here.
+        /// </summary>
+        private static ComponentDeclaration? ParseComponentBodyAt(
+            string source,
+            List<ParseDiagnostic> diagnosticBag,
+            string componentName,
+            bool isExported,
+            ImmutableArray<FunctionParam> functionParams,
+            string? functionPropsTypeName,
+            int componentLine,
+            int componentNameCol,
+            ref int i,
+            ref int line,
+            bool useLastReturn,
+            out bool hardStop)
+        {
+            hardStop = false;
+
             SkipWhitespaceAndNewlines(source, ref i, ref line);
             if (i >= source.Length || source[i] != '{')
             {
@@ -868,6 +908,7 @@ namespace ReactiveUITK.Language.Parser
 
             var names = new List<string>();
             var nameCols = new List<int>();
+            var aliases = new List<string?>();
             while (true)
             {
                 SkipSpaces(source, ref i);
@@ -880,6 +921,19 @@ namespace ReactiveUITK.Language.Parser
                 names.Add(name);
                 nameCols.Add(nameCol);
                 SkipSpaces(source, ref i);
+                // Rename-on-import (G-05): `import { a as b }`.
+                string? alias = null;
+                if (TryReadKeyword(source, ref i, "as"))
+                {
+                    SkipSpaces(source, ref i);
+                    if (!TryReadIdentifier(source, ref i, out string aliasName))
+                    {
+                        i = savedI; line = savedLine; return false;
+                    }
+                    alias = aliasName;
+                    SkipSpaces(source, ref i);
+                }
+                aliases.Add(alias);
                 if (i < source.Length && source[i] == ',') { i++; continue; }
                 if (i < source.Length && source[i] == '}') { i++; break; }
                 i = savedI; line = savedLine; return false;
@@ -924,7 +978,144 @@ namespace ReactiveUITK.Language.Parser
                 importLine,
                 importCol,
                 nameCols.ToImmutableArray(),
-                specQuoteCol));
+                specQuoteCol,
+                Aliases: aliases.ToImmutableArray()));
+            return true;
+        }
+
+        /// <summary>
+        /// Reads a namespace-import line <c>import * as X from "specifier"</c> (G-05) at the
+        /// cursor. Same cursor-restore + trailing-line-tolerance discipline as the sibling readers.
+        /// </summary>
+        private static bool TryReadFunctionStyleStarImport(
+            string source, ref int i, ref int line, List<ImportDeclaration> imports)
+        {
+            if (!TryReadKeywordAt(source, i, "import"))
+                return false;
+
+            int savedI = i, savedLine = line;
+            int importLine = line;
+            int importCol = ColAtPos(source, i);
+
+            i += "import".Length;
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] != '*')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            i++; // past '*'
+            SkipSpaces(source, ref i);
+            if (!TryReadKeyword(source, ref i, "as"))
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            SkipSpaces(source, ref i);
+            if (!TryReadIdentifier(source, ref i, out string starAlias))
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            SkipSpaces(source, ref i);
+            if (!TryReadKeyword(source, ref i, "from"))
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            int specQuoteCol = ColAtPos(source, i);
+            i++; // past opening quote
+            int specStart = i;
+            while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                i++;
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false; // unterminated specifier
+            }
+            string specifier = source.Substring(specStart, i - specStart);
+            i++; // past closing quote
+
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            imports.Add(new ImportDeclaration(
+                ImmutableArray<string>.Empty,
+                specifier,
+                importLine,
+                importCol,
+                ImmutableArray<int>.Empty,
+                specQuoteCol,
+                Aliases: ImmutableArray<string?>.Empty,
+                IsStar: true,
+                StarAlias: starAlias));
+            return true;
+        }
+
+        /// <summary>
+        /// Reads a default-import line <c>import X from "specifier"</c> (G-05) at the cursor. Must
+        /// be tried AFTER the named/namespace/star readers so its bare-identifier lookahead does
+        /// not shadow them (they lead with <c>{</c>, <c>"</c>, and <c>*</c> respectively).
+        /// </summary>
+        private static bool TryReadFunctionStyleDefaultImport(
+            string source, ref int i, ref int line, List<ImportDeclaration> imports)
+        {
+            if (!TryReadKeywordAt(source, i, "import"))
+                return false;
+
+            int savedI = i, savedLine = line;
+            int importLine = line;
+            int importCol = ColAtPos(source, i);
+
+            i += "import".Length;
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] == '{' || source[i] == '"' || source[i] == '*')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            if (!TryReadIdentifier(source, ref i, out string defaultAlias))
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            SkipSpaces(source, ref i);
+            if (!TryReadKeyword(source, ref i, "from"))
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            SkipSpaces(source, ref i);
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false;
+            }
+            int specQuoteCol = ColAtPos(source, i);
+            i++; // past opening quote
+            int specStart = i;
+            while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                i++;
+            if (i >= source.Length || source[i] != '"')
+            {
+                i = savedI; line = savedLine; return false; // unterminated specifier
+            }
+            string specifier = source.Substring(specStart, i - specStart);
+            i++; // past closing quote
+
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            imports.Add(new ImportDeclaration(
+                ImmutableArray<string>.Empty,
+                specifier,
+                importLine,
+                importCol,
+                ImmutableArray<int>.Empty,
+                specQuoteCol,
+                Aliases: ImmutableArray<string?>.Empty,
+                IsDefault: true,
+                DefaultAlias: defaultAlias));
             return true;
         }
 
@@ -1007,26 +1198,40 @@ namespace ReactiveUITK.Language.Parser
             {
                 for (int k = 0; k < imp.Names.Length; k++)
                 {
-                    string name = imp.Names[k];
-                    if (seen.TryGetValue(name, out string? firstSpec))
-                    {
-                        int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column;
-                        diagnosticBag.Add(new ParseDiagnostic
-                        {
-                            Code = "UITKX2303",
-                            Severity = ParseSeverity.Error,
-                            SourceLine = imp.Line,
-                            SourceColumn = nameCol,
-                            EndLine = imp.Line,
-                            EndColumn = nameCol + name.Length,
-                            Message = $"duplicate import of `{name}` (already imported from {firstSpec})",
-                        });
-                    }
-                    else
-                    {
-                        seen[name] = imp.Specifier;
-                    }
+                    // G-05: duplicate-import keying is on the BOUND name — `import { a as b }`
+                    // collides with another `b`, not with another `a`.
+                    string bound = (k < imp.Aliases.Length ? imp.Aliases[k] : null) ?? imp.Names[k];
+                    int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column;
+                    ReportIfDuplicateImportBinding(bound, imp, nameCol, diagnosticBag, seen);
                 }
+                if (imp.IsStar && imp.StarAlias != null)
+                    ReportIfDuplicateImportBinding(imp.StarAlias, imp, imp.Column, diagnosticBag, seen);
+                if (imp.IsDefault && imp.DefaultAlias != null)
+                    ReportIfDuplicateImportBinding(imp.DefaultAlias, imp, imp.Column, diagnosticBag, seen);
+            }
+        }
+
+        private static void ReportIfDuplicateImportBinding(
+            string bound, ImportDeclaration imp, int col,
+            List<ParseDiagnostic> diagnosticBag,
+            System.Collections.Generic.Dictionary<string, string> seen)
+        {
+            if (seen.TryGetValue(bound, out string? firstSpec))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2303",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = imp.Line,
+                    SourceColumn = col,
+                    EndLine = imp.Line,
+                    EndColumn = col + bound.Length,
+                    Message = $"duplicate import of `{bound}` (already imported from {firstSpec})",
+                });
+            }
+            else
+            {
+                seen[bound] = imp.Specifier;
             }
         }
 
