@@ -42,20 +42,20 @@ node automation~/apply-diff-to-schema.mjs automation~/diff-reports/6000.2-to-600
 This sets `sinceUnity` on added elements, `removedIn` on removed elements, and updates
 the `styleVersions` section for added/removed IStyle properties.
 
-### Use the AI prompt to add version support
+### Use the AI skill to add version support
 
-In VS Code Copilot Chat, type `/` and select **add-unity-version**, or:
+In Claude Code, invoke:
 
 ```
 /add-unity-version Unity 6.5 (6000.5) has been released
 ```
 
-The prompt will guide the AI through discovery, diff, classification, and implementation.
+The skill will guide the AI through discovery, diff, classification, and implementation.
 
 ## Related Files
 
 | File | Description |
 |------|-------------|
-| `.github/prompts/add-unity-version.prompt.md` | Copilot prompt — AI runbook for adding version support |
+| `.claude/skills/add-unity-version/SKILL.md` | Claude Code skill — AI runbook for adding version support |
 | `AUTOMATION.md` (project root) | Human-readable overview |
 | `Plans~/VERSIONING_PROCESS.md` | Full reference: discovery sources, checklists, version matrix |

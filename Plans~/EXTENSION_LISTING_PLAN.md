@@ -102,7 +102,7 @@ verbatim; the VS2022 template gets fleshed out to the SAME feature list (it is c
   owner wants matching names there.
 - The lsp-server, grammar, icons, categories.
 
-## §5 Doc upkeep (part of this campaign — this repo has no skills dir)
+## §5 Doc upkeep (part of this campaign; DONE — see also `.claude/skills/changelog/SKILL.md`, which now carries these rules)
 
 Add a **"Marketplace listing surfaces"** section to
 `ide-extensions~/docs/VS2022_PUBLISH_GUIDE.md` carrying the §0 table + the §1 naming scheme +
