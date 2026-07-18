@@ -736,15 +736,29 @@ namespace ReactiveUITK.SourceGenerator
                     if (imp.IsDefault && imp.DefaultAlias != null)
                     {
                         string? defName = pe.DefaultExportName;
-                        if (defName != null
-                            && pe.ExportedComponentNames.Contains(defName)
-                            && !ReservedTypeAliases.Contains(imp.DefaultAlias))
+                        bool defIsComponent = defName != null && pe.ExportedComponentNames.Contains(defName);
+                        if (defIsComponent && !ReservedTypeAliases.Contains(imp.DefaultAlias))
                         {
                             string line = $"{imp.DefaultAlias} = {pe.Namespace}.{defName}";
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        // member defaults bridge (ExportsEmitter), no using
+                        else if (defName != null && !defIsComponent && imp.DefaultAlias == defName)
+                        {
+                            // Same-name member default ≡ named import: container using — a
+                            // bridge would CS0121-collide with the container's public member
+                            // (LSP mirror identical). Renamed member defaults still bridge.
+                            bool defIsMember = false;
+                            if (!pe.Members.IsDefaultOrEmpty)
+                                foreach (var m in pe.Members)
+                                    if (m.Name == defName) { defIsMember = true; break; }
+                            if (defIsMember)
+                            {
+                                string line = $"static {pe.Namespace}.__Exports";
+                                if (seen.Add(line))
+                                    result.Add(line);
+                            }
+                        }
                     }
 
                     bool exportsContainerAdded = false;

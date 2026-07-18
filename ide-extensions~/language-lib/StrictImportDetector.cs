@@ -338,8 +338,11 @@ namespace ReactiveUITK.Language
         }
 
         /// <summary>
-        /// UITKX2304 (warning): an imported name never referenced in the file. <paramref name="scannableCode"/>
-        /// is the string/comment-scrubbed setup + markup text. Pure and unit-testable.
+        /// UITKX2304 (warning): an imported binding never referenced in the file — named
+        /// entries, star aliases, and default bindings alike. <paramref name="scannableCode"/>
+        /// is the string/comment-scrubbed FULL file text (line-aligned with the parse: the
+        /// scrub is offset-preserving), so import lines can be excluded from the reference
+        /// universe. Pure and unit-testable.
         /// </summary>
         public static List<Finding> DetectUnusedImports(DirectiveSet directives, string scannableCode)
         {
@@ -349,12 +352,25 @@ namespace ReactiveUITK.Language
 
             // Every identifier counts as a reference — new-mode VALUE imports are used as
             // BARE identifiers (`style={container}`), which the tag/hook-call/dotted scans
-            // used by Detect() never see (field find, 0.9.0 F5 battery: false 2304 on every
-            // used value import). Over-approximating "used" is the right direction for a
-            // warning-tier check.
+            // used by Detect() never see. Over-approximating "used" is the right direction
+            // for a warning-tier check — EXCEPT on the import lines themselves: a binding
+            // must not count ITSELF (field find: self-counting silenced 2304 entirely).
+            var importLines = new HashSet<int>();
+            foreach (var imp in directives.Imports)
+                importLines.Add(imp.Line);
+
             var referenced = new HashSet<string>(StringComparer.Ordinal);
+            int scanLine = 1, scanIdx = 0;
             foreach (System.Text.RegularExpressions.Match m in s_identRe.Matches(scannableCode))
-                referenced.Add(m.Value);
+            {
+                while (scanIdx < m.Index)
+                {
+                    if (scannableCode[scanIdx] == '\n') scanLine++;
+                    scanIdx++;
+                }
+                if (!importLines.Contains(scanLine))
+                    referenced.Add(m.Value);
+            }
 
             foreach (var imp in directives.Imports)
             {
@@ -373,6 +389,16 @@ namespace ReactiveUITK.Language
                     findings.Add(new Finding("UITKX2304", $"unused import `{name}`", imp.Line,
                         Column: nameCol, EndColumn: nameCol >= 0 ? nameCol + name.Length : -1));
                 }
+
+                // Star and default BINDINGS are imports too (field find: an unused `* as X`
+                // or default binding was never flagged — including the default part of a
+                // combined import whose named part is used).
+                if (imp.IsStar && imp.StarAlias != null && !referenced.Contains(imp.StarAlias))
+                    findings.Add(new Finding("UITKX2304", $"unused import `{imp.StarAlias}`",
+                        imp.Line, Column: imp.Column, EndColumn: -1));
+                if (imp.IsDefault && imp.DefaultAlias != null && !referenced.Contains(imp.DefaultAlias))
+                    findings.Add(new Finding("UITKX2304", $"unused import `{imp.DefaultAlias}`",
+                        imp.Line, Column: imp.Column, EndColumn: -1));
             }
 
             return findings;

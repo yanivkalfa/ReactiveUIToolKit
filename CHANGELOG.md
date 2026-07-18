@@ -18,6 +18,17 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 
 ### Fixed — 0.9.0 F5 field battery
 
+- **Same-name default imports no longer emit an ambiguous binding.** `import
+  isSomethingEven, { getSomething } from …` produced CS0121: the default lowered to a
+  bridge on the consumer's `__Exports` while the named part's container using ALSO exposed
+  the (default-exported, hence public) member — the same name visible twice. A member
+  default whose binding keeps the exported name now lowers to the container using, exactly
+  like a named import; only RENAMED defaults bridge.
+- **Unused star/default bindings are flagged.** `UITKX2304` only ever checked named
+  entries — an unused `* as X` or default binding (including the default part of a
+  combined import) was never reported. All binding forms are checked now, and the
+  reference scan excludes the import lines themselves so a binding can no longer count
+  itself as its own use.
 - **Import-brace completion works in the combined form.** Ctrl+Space inside the braces
   of `import Def, {} from "./file"` returned nothing (the context check required a bare
   `import` before `{`); it now recognizes the default-binding prefix and excludes both

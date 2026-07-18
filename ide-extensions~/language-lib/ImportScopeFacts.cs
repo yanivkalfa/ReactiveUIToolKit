@@ -137,14 +137,26 @@ namespace ReactiveUITK.Language
                     if (imp.IsDefault && imp.DefaultAlias != null)
                     {
                         // Default import: component default → alias to the component type;
-                        // member default → bridge (emitter-side, no using here).
+                        // RENAMED member default → bridge (emitter-side, no using here);
+                        // SAME-NAME member default → the container using, like a named import
+                        // (a bridge would CS0121-collide with the container's public member
+                        // whenever a named part or second import injects the container too —
+                        // field find).
                         string? defName = tds.DefaultExportName;
-                        if (defName != null
+                        bool defIsComponent = defName != null
                             && !tds.ComponentDeclarations.IsDefaultOrEmpty
-                            && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == defName)
-                            && !ReservedTypeAliases.Contains(imp.DefaultAlias))
+                            && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == defName);
+                        if (defIsComponent && !ReservedTypeAliases.Contains(imp.DefaultAlias))
                         {
                             string line = $"{imp.DefaultAlias} = {tns}.{defName}";
+                            if (seen.Add(line))
+                                result.Add(line);
+                        }
+                        else if (defName != null && !defIsComponent && imp.DefaultAlias == defName
+                            && !tds.MemberDeclarations.IsDefaultOrEmpty
+                            && System.Linq.Enumerable.Any(tds.MemberDeclarations, m => m.Name == defName))
+                        {
+                            string line = $"static {tns}.__Exports";
                             if (seen.Add(line))
                                 result.Add(line);
                         }
@@ -271,7 +283,10 @@ namespace ReactiveUITK.Language
                 }
 
                 // No exclusive branching — combined imports need default AND named bridges.
-                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null)
+                // Same-name member defaults lower to the container using, not a bridge
+                // (CS0121 field find) — only RENAMED defaults bridge.
+                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null
+                    && imp.DefaultAlias != tds.DefaultExportName)
                 {
                     bool defaultIsComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
                         && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == tds.DefaultExportName);
@@ -460,7 +475,10 @@ namespace ReactiveUITK.Language
                 }
 
                 // No exclusive branching — combined imports need default AND named bridges.
-                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null)
+                // Same-name member defaults lower to the container using, not a bridge
+                // (CS0121 field find) — only RENAMED defaults bridge.
+                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null
+                    && imp.DefaultAlias != tds.DefaultExportName)
                 {
                     bool defaultIsComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
                         && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == tds.DefaultExportName);
