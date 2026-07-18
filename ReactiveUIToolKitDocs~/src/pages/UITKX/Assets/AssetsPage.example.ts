@@ -1,6 +1,6 @@
 export const EXAMPLE_BASIC = `@using UnityEngine
 
-component Avatar(string imagePath) {
+VirtualNode Avatar(string imagePath) {
   return (
     <Image texture={Asset<Texture2D>(imagePath)} />
   );
@@ -8,7 +8,7 @@ component Avatar(string imagePath) {
 
 export const EXAMPLE_RELATIVE = `@using UnityEngine
 
-component Card {
+VirtualNode Card() {
   // Relative to this .uitkx file's location
   var bg = Asset<Texture2D>("./images/card-bg.png");
   var icon = Asset<Sprite>("./images/icon.png");
@@ -23,7 +23,7 @@ component Card {
 
 export const EXAMPLE_SHORTHAND = `@using UnityEngine
 
-component Badge {
+VirtualNode Badge() {
   // Ast<T> is a shorter alias for Asset<T>
   var star = Ast<Sprite>("./star.png");
 
@@ -34,7 +34,7 @@ component Badge {
 
 export const EXAMPLE_INLINE = `@using UnityEngine
 
-component Logo {
+VirtualNode Logo() {
   // Use Asset<T> directly in an attribute expression
   return (
     <Image texture={Asset<Texture2D>("./logo.png")} />
@@ -43,7 +43,7 @@ component Logo {
 
 export const EXAMPLE_USS = `@uss "./Card.uss"
 
-component StyledCard {
+VirtualNode StyledCard() {
   return (
     <VisualElement>
       <Label text="Styled via USS" />

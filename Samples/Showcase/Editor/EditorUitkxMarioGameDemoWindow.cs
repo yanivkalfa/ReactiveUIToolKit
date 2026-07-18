@@ -4,7 +4,9 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.MarioGame;
+using ReactiveUITK.Samples.Components.MarioGame.MarioGame;
 using ReactiveUITK.Samples.Components.MarioGame.components.Mario;
+using ReactiveUITK.Samples.Components.MarioGame.components.Mario.Mario;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

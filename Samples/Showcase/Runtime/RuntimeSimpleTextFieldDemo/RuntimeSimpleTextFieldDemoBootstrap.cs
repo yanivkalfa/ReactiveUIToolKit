@@ -2,6 +2,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Samples.Components.SimpleTextFieldFunc;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.SimpleTextFieldFunc.SimpleTextFieldFunc;
 
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {

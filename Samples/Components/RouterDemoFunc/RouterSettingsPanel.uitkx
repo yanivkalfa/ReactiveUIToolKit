@@ -1,6 +1,6 @@
 import { RouterNavLink } from "./RouterNavLink"
 
-export component RouterSettingsPanel {
+export VirtualNode RouterSettingsPanel() {
   var locationPath = RouterHooks.UseLocation();
 
   var settingsContent = locationPath.StartsWith("/settings/profile", StringComparison.OrdinalIgnoreCase)

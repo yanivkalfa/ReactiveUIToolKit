@@ -1,7 +1,7 @@
 import "@UnityEngine.UIElements"
 import "@ReactiveUITK.Samples.UITKXComponents"
 
-export component CustomDrawDemoFunc {
+export VirtualNode CustomDrawDemoFunc() {
   var (sides, setSides) = useState(3);
   var (useBlue, setUseBlue) = useState(true);
   var (redrawTick, setRedrawTick) = useState(0);

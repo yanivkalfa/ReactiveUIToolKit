@@ -1,4 +1,4 @@
-export component AnimationsDemoPage {
+export VirtualNode AnimationsDemoPage() {
   var (repeatClickCount, setRepeatClickCount) = useState(0);
   var (animNonce, setAnimNonce) = useState(0);
 

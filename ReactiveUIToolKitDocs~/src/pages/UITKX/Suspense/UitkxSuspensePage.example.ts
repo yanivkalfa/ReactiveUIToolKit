@@ -1,4 +1,4 @@
-export const SUSPENSE_CALLBACK = `component DataView {
+export const SUSPENSE_CALLBACK = `VirtualNode DataView() {
   var (data, setData) = useState<string[]>(null);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export const SUSPENSE_CALLBACK = `component DataView {
   );
 }`
 
-export const SUSPENSE_TASK = `component AsyncView {
+export const SUSPENSE_TASK = `VirtualNode AsyncView() {
   var loadTask = useMemo(() => MyService.LoadDataAsync());
 
   return (

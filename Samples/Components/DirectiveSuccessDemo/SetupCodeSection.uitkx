@@ -2,7 +2,7 @@ import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
 
-export component SetupCodeSection {
+export VirtualNode SetupCodeSection() {
   var (count, setCount) = useState(3);
   var animals = new[] { "Cat", "Dog", "Fox", "Owl", "Bee" };
 

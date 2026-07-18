@@ -3,9 +3,10 @@ import { HomePage } from "./Pages/HomePage/HomePage"
 import { MenuPage } from "./Pages/MenuPage/MenuPage"
 import { NewsPage } from "./Pages/NewsPage/NewsPage"
 import { SettingsPage } from "./Pages/SettingsPage/SettingsPage"
+import { Root } from "./AppRoot.style"
 import "@UnityEngine.UIElements"
 
-export component AppRoot {
+export VirtualNode AppRoot() {
   return (
     <VisualElement style={Root}>
       <Router initialPath="/home/welcome">

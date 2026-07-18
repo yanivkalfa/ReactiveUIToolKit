@@ -1,8 +1,7 @@
-import { MarioGame } from "../../MarioGame.style"
 import "@static Samples.MarioGame.MarioConstants"
 import "@Samples.MarioGame"
 
-export component Mario(PlayerState player, float cameraX = 0) {
+export VirtualNode Mario(PlayerState player, float cameraX = 0) {
   var idle = Asset<Texture2D>("../../sprites/mario-idle.png");
   var walk1 = Asset<Texture2D>("../../sprites/mario-walk-1.png");
   var walk2 = Asset<Texture2D>("../../sprites/mario-walk-2.png");

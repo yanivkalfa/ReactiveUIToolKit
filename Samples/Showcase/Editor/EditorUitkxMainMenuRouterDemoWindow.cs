@@ -5,6 +5,7 @@ using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.MainMenuRouterDemoFunc;
 using ReactiveUITK.Samples.Components.SnakeGame.components.Menu;
+using ReactiveUITK.Samples.Components.MainMenuRouterDemoFunc.MainMenuRouterDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

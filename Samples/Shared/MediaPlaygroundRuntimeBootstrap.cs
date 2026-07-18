@@ -4,6 +4,7 @@ using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Samples.Shared;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Shared.MediaPlaygroundDemoPage;
 
 namespace ReactiveUITK.Samples.UITKXShared
 {

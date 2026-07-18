@@ -2,6 +2,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Samples.Components.LatestFeaturesDemoFunc;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.LatestFeaturesDemoFunc.LatestFeaturesDemoFunc;
 
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {

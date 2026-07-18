@@ -2,6 +2,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Samples.Components.HelloWorldFunc;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.HelloWorldFunc.HelloWorldFunc;
 
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {

@@ -153,6 +153,24 @@ namespace ReactiveUITK.Language.Parser
             int start = _pos;
             while (!IsEof && (char.IsLetterOrDigit(Current) || Current == '_'))
                 Advance();
+
+            // U-05 (ES-modules campaign): exactly one interior '.' for a namespace-import-qualified
+            // tag, e.g. <X.Comp/> where X is a `* as X` (or default-import) binding — PropsResolver/
+            // the SG tag path/HMR/VDG resolve `X.Comp` against the import table. Only consumed when
+            // immediately followed by another identifier-start char, so a bare trailing '.' (or a
+            // second '.', e.g. a typo like `X.Y.Z`) is left where it is — plain tags must still
+            // tokenize byte-identically (the family scanner corpus's fileScan tier is the watchdog).
+            if (!IsEof && Current == '.')
+            {
+                int afterDot = _pos + 1;
+                if (afterDot < _source.Length && IsNameStart(_source[afterDot]))
+                {
+                    Advance(); // consume '.'
+                    while (!IsEof && (char.IsLetterOrDigit(Current) || Current == '_'))
+                        Advance();
+                }
+            }
+
             return _source.Substring(start, _pos - start);
         }
 

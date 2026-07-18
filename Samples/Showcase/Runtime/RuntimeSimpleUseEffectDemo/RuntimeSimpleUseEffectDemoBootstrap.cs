@@ -2,6 +2,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Samples.Components.SimpleUseEffectFunc;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.SimpleUseEffectFunc.SimpleUseEffectFunc;
 
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {

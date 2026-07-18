@@ -1,4 +1,4 @@
-export const PORTAL_BASIC = `component ModalDemo {
+export const PORTAL_BASIC = `VirtualNode ModalDemo() {
   var modalRoot = useContext<VisualElement>(PortalContextKeys.ModalRoot);
   var (showModal, setShowModal) = useState(false);
 

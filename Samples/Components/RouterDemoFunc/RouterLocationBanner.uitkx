@@ -1,4 +1,4 @@
-export component RouterLocationBanner {
+export VirtualNode RouterLocationBanner() {
   var location = RouterHooks.UseLocationInfo();
   var query = RouterHooks.UseQuery();
   var navState = RouterHooks.UseNavigationState();

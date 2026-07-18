@@ -1,4 +1,4 @@
-export component DeepNode(int remaining = 0, int maxDisplay = 0) {
+export VirtualNode DeepNode(int remaining = 0, int maxDisplay = 0) {
   int currentLevel = maxDisplay - remaining + 1;
 
   var nodeStyle = new Style {

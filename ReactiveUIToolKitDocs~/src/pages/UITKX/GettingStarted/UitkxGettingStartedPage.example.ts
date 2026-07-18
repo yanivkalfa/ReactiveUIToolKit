@@ -2,7 +2,7 @@ export const UITKX_INSTALL_URL = 'https://github.com/yanivkalfa/ReactiveUIToolKi
 
 export const UITKX_HELLO_WORLD_COMPONENT = `@namespace MyGame.UI
 
-component HelloWorld {
+VirtualNode HelloWorld() {
   var (count, setCount) = useState(0);
 
   return (

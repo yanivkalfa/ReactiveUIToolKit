@@ -1,4 +1,4 @@
-export component SectionNote(string label) {
+export VirtualNode SectionNote(string label) {
   return (
     <Label
       text={label}

@@ -1,6 +1,6 @@
 import "@UnityEngine.UIElements"
 
-export component PortalEventScopeDemoFunc {
+export VirtualNode PortalEventScopeDemoFunc() {
   // Retrieve the named portal slot seeded by the host into HostContext.Environment.
   // The host (EditorUitkxPortalDemoWindow) seeds it via:
   //   EditorRootRendererUtility.Render(..., env: ctx => ctx.Environment[PortalContextKeys.ModalRoot] = sidePanel)

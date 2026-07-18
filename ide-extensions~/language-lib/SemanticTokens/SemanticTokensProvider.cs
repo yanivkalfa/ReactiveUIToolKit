@@ -142,13 +142,23 @@ namespace ReactiveUITK.Language.SemanticTokens
 
         // ── Import / export tokens (import/export grammar §10) ───────────────
 
+        // Full ES import surface (ES-modules campaign, G-05/M5): braced named lists (with
+        // optional `as` renames), `* as X` namespace imports, and bare default imports.
         private static readonly Regex s_importTokenRe = new Regex(
-            @"^(?<lead>\s*)(?<import>import)\s*\{[^}]*\}\s*(?<from>from)\s*(?<spec>""[^""]*"")",
+            @"^(?<lead>\s*)(?<import>import)\s*(?:\{(?<names>[^}]*)\}|\*\s*(?<staras>as)\s+[A-Za-z_]\w*|[A-Za-z_]\w*)\s*(?<from>from)\s*(?<spec>""[^""]*"")",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
         );
 
+        // The `as` keyword inside a braced import list: `import { a as b, c as d }`.
+        private static readonly Regex s_importAsRe = new Regex(
+            @"\b(?<as>as)\b",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        // Export keyword — wrapper forms, plain declarations, `export default`, and
+        // `export { … }` lists (ES-modules campaign).
         private static readonly Regex s_exportTokenRe = new Regex(
-            @"^\s*(?<export>export)\s+(?:component|hook|module)\b",
+            @"^\s*(?<export>export)\s+(?:(?<default>default)\b|\{|(?:component|hook|module)\b|[A-Za-z_(])",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
         );
 
@@ -158,11 +168,22 @@ namespace ReactiveUITK.Language.SemanticTokens
             foreach (Match m in s_importTokenRe.Matches(source))
             {
                 EmitGroup(tokens, lineStarts, m.Groups["import"], SemanticTokenTypes.Keyword);
+                EmitGroup(tokens, lineStarts, m.Groups["staras"], SemanticTokenTypes.Keyword);
                 EmitGroup(tokens, lineStarts, m.Groups["from"], SemanticTokenTypes.Keyword);
                 EmitGroup(tokens, lineStarts, m.Groups["spec"], SemanticTokenTypes.String);
+                var namesGroup = m.Groups["names"];
+                if (namesGroup.Success && namesGroup.Length > 0)
+                    foreach (Match asMatch in s_importAsRe.Matches(namesGroup.Value))
+                        EmitToken(tokens,
+                            OffsetToLineCol0(lineStarts, namesGroup.Index + asMatch.Groups["as"].Index).Item1,
+                            OffsetToLineCol0(lineStarts, namesGroup.Index + asMatch.Groups["as"].Index).Item2,
+                            asMatch.Groups["as"].Length, SemanticTokenTypes.Keyword, s_noMods);
             }
             foreach (Match m in s_exportTokenRe.Matches(source))
+            {
                 EmitGroup(tokens, lineStarts, m.Groups["export"], SemanticTokenTypes.Keyword);
+                EmitGroup(tokens, lineStarts, m.Groups["default"], SemanticTokenTypes.Keyword);
+            }
         }
 
         private static void EmitGroup(
@@ -361,14 +382,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                 ? el.SourceColumn + 1
                 : FindOpenTagName(source, lineStarts, el.SourceLine, el.TagName);
             if (openNameCol >= 0)
-                EmitToken(
-                    tokens,
-                    el.SourceLine - 1,
-                    openNameCol,
-                    el.TagName.Length,
-                    SemanticTokenTypes.Element,
-                    mods
-                );
+                EmitTagNameTokens(tokens, el.SourceLine - 1, openNameCol, el.TagName, mods);
 
             // Attribute names (always emit — attributes on unknown elements are still valid)
             foreach (var attr in el.Attributes)
@@ -399,15 +413,26 @@ namespace ReactiveUITK.Language.SemanticTokens
                     el.TagName
                 );
                 if (closeNameCol >= 0)
-                    EmitToken(
-                        tokens,
-                        el.CloseTagLine - 1,
-                        closeNameCol,
-                        el.TagName.Length,
-                        SemanticTokenTypes.Element,
-                        mods
-                    );
+                    EmitTagNameTokens(tokens, el.CloseTagLine - 1, closeNameCol, el.TagName, mods);
             }
+        }
+
+        /// <summary>Tag-name token(s). Dotted tags (U-05, <c>&lt;X.Comp/&gt;</c>) split at the
+        /// dot: the namespace-import binding <c>X</c> colors as a variable, the component part
+        /// as an element — matching how the import line itself is colored.</summary>
+        private static void EmitTagNameTokens(
+            List<SemanticTokenData> tokens, int line0, int nameCol, string tagName, string[] mods)
+        {
+            int dot = tagName.IndexOf('.');
+            if (dot > 0 && dot < tagName.Length - 1)
+            {
+                EmitToken(tokens, line0, nameCol, dot, SemanticTokenTypes.Variable, mods);
+                EmitToken(
+                    tokens, line0, nameCol + dot + 1, tagName.Length - dot - 1,
+                    SemanticTokenTypes.Element, mods);
+                return;
+            }
+            EmitToken(tokens, line0, nameCol, tagName.Length, SemanticTokenTypes.Element, mods);
         }
 
         // ── @if / @else if / @else ────────────────────────────────────────────

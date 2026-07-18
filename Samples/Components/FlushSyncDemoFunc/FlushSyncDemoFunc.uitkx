@@ -1,4 +1,4 @@
-export component FlushSyncDemoFunc {
+export VirtualNode FlushSyncDemoFunc() {
   var (batchedCount, setBatchedCount) = useState(0);
   var (syncCount, setSyncCount) = useState(0);
 

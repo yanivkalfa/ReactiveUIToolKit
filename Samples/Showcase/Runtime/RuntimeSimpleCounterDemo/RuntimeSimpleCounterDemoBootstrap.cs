@@ -2,6 +2,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Samples.Components.SimpleCounterFunc;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.SimpleCounterFunc.SimpleCounterFunc;
 
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {

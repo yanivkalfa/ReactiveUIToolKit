@@ -1,6 +1,6 @@
 import "@UnityEngine.UIElements"
 
-export hook useTestHomeState() -> (
+export (
   bool gameStarted,
   string playerTurn,
   string[,] grid,
@@ -9,7 +9,7 @@ export hook useTestHomeState() -> (
   PointerEventHandler handleStartGame,
   PointerEventHandler handleRestartGame,
   System.Func<int, int, PointerEventHandler> handleColumnClick
-) {
+) useTestHomeState() {
   var (gameStarted, setGameStarted) = useState(false);
   var (playerTurn, setPlayerTurn) = useState<string>("X");
   var (grid, setGrid) = useState<string[,]>(new string[3, 3]

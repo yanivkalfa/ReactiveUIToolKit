@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.FlushSyncDemoFunc;
+using ReactiveUITK.Samples.Components.FlushSyncDemoFunc.FlushSyncDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

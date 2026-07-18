@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.GalagaGame;
+using ReactiveUITK.Samples.Components.GalagaGame.GalagaGame;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

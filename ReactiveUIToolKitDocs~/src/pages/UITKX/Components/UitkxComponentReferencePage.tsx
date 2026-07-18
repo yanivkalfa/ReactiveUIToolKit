@@ -127,7 +127,7 @@ const getNotes = (title: string): string[] => {
 const getExample = (title: string) => {
   switch (title) {
     case 'Button':
-      return `component ButtonExample {
+      return `VirtualNode ButtonExample() {
   var (count, setCount) = useState(0);
 
   return (
@@ -138,7 +138,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'RepeatButton':
-      return `component RepeatButtonExample {
+      return `VirtualNode RepeatButtonExample() {
   var (count, setCount) = useState(0);
 
   return (
@@ -149,7 +149,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Toggle':
-      return `component ToggleExample {
+      return `VirtualNode ToggleExample() {
   var (value, setValue) = useState(true);
 
   return (
@@ -161,7 +161,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'RadioButton':
-      return `component RadioButtonExample {
+      return `VirtualNode RadioButtonExample() {
   var (value, setValue) = useState(false);
 
   return (
@@ -173,7 +173,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'DropdownField':
-      return `component DropdownFieldExample {
+      return `VirtualNode DropdownFieldExample() {
   var choices = new[] { "Red", "Green", "Blue" };
   var (selectedIndex, setSelectedIndex) = useState(0);
 
@@ -186,7 +186,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'TextField':
-      return `component TextFieldExample {
+      return `VirtualNode TextFieldExample() {
   var (value, setValue) = useState("Hello");
 
   return (
@@ -197,7 +197,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'IntegerField':
-      return `component IntegerFieldExample {
+      return `VirtualNode IntegerFieldExample() {
   var (value, setValue) = useState(42);
 
   return (
@@ -208,7 +208,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'FloatField':
-      return `component FloatFieldExample {
+      return `VirtualNode FloatFieldExample() {
   var (value, setValue) = useState(1.23f);
 
   return (
@@ -219,7 +219,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'DoubleField':
-      return `component DoubleFieldExample {
+      return `VirtualNode DoubleFieldExample() {
   var (value, setValue) = useState(3.14159);
 
   return (
@@ -230,7 +230,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'LongField':
-      return `component LongFieldExample {
+      return `VirtualNode LongFieldExample() {
   var (value, setValue) = useState(123456789L);
 
   return (
@@ -241,7 +241,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'UnsignedIntegerField':
-      return `component UnsignedIntegerFieldExample {
+      return `VirtualNode UnsignedIntegerFieldExample() {
   var (value, setValue) = useState<uint>(0u);
 
   return (
@@ -252,7 +252,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'UnsignedLongField':
-      return `component UnsignedLongFieldExample {
+      return `VirtualNode UnsignedLongFieldExample() {
   var (value, setValue) = useState<ulong>(0ul);
 
   return (
@@ -263,7 +263,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Slider':
-      return `component SliderExample {
+      return `VirtualNode SliderExample() {
   var (value, setValue) = useState(0.5f);
 
   return (
@@ -276,7 +276,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'SliderInt':
-      return `component SliderIntExample {
+      return `VirtualNode SliderIntExample() {
   var (value, setValue) = useState(5);
 
   return (
@@ -289,7 +289,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Scroller':
-      return `component ScrollerExample {
+      return `VirtualNode ScrollerExample() {
   var (value, setValue) = useState(0f);
 
   return (
@@ -302,7 +302,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'MinMaxSlider':
-      return `component MinMaxSliderExample {
+      return `VirtualNode MinMaxSliderExample() {
   // lowLimit/highLimit are the slider's BOUNDS; minValue/maxValue are the two thumbs.
   return (
     <MinMaxSlider
@@ -314,7 +314,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'BoundsField':
-      return `component BoundsFieldExample {
+      return `VirtualNode BoundsFieldExample() {
   var (value, setValue) = useState(new Bounds(Vector3.zero, new Vector3(1f, 1f, 1f)));
 
   return (
@@ -325,7 +325,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'BoundsIntField':
-      return `component BoundsIntFieldExample {
+      return `VirtualNode BoundsIntFieldExample() {
   var (value, setValue) = useState(new BoundsInt(1, 2, 3, 4, 5, 6));
 
   return (
@@ -336,7 +336,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'ColorField':
-      return `component ColorFieldExample {
+      return `VirtualNode ColorFieldExample() {
   var (value, setValue) = useState(new Color(0.2f, 0.6f, 0.9f, 1f));
 
   return (
@@ -347,7 +347,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'EnumField':
-      return `component EnumFieldExample {
+      return `VirtualNode EnumFieldExample() {
   var (value, setValue) = useState(ExampleEnum.B);
 
   return (
@@ -358,7 +358,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'EnumFlagsField':
-      return `component EnumFlagsFieldExample {
+      return `VirtualNode EnumFlagsFieldExample() {
   var (value, setValue) = useState(ExampleFlags.A | ExampleFlags.C);
 
   return (
@@ -369,7 +369,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Hash128Field':
-      return `component Hash128FieldExample {
+      return `VirtualNode Hash128FieldExample() {
   var (value, setValue) = useState(new Hash128(1, 2, 3, 4));
 
   return (
@@ -380,7 +380,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'ObjectField':
-      return `component ObjectFieldExample {
+      return `VirtualNode ObjectFieldExample() {
   var (value, setValue) = useState<Object>(null);
 
   return (
@@ -392,7 +392,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'RectField':
-      return `component RectFieldExample {
+      return `VirtualNode RectFieldExample() {
   var (value, setValue) = useState(new Rect(0f, 0f, 128f, 64f));
 
   return (
@@ -403,7 +403,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'RectIntField':
-      return `component RectIntFieldExample {
+      return `VirtualNode RectIntFieldExample() {
   var (value, setValue) = useState(new RectInt(0, 0, 16, 16));
 
   return (
@@ -414,7 +414,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Vector2Field':
-      return `component Vector2FieldExample {
+      return `VirtualNode Vector2FieldExample() {
   var (value, setValue) = useState(new Vector2(1f, 2f));
 
   return (
@@ -425,7 +425,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Vector2IntField':
-      return `component Vector2IntFieldExample {
+      return `VirtualNode Vector2IntFieldExample() {
   var (value, setValue) = useState(new Vector2Int(1, 2));
 
   return (
@@ -436,7 +436,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Vector3Field':
-      return `component Vector3FieldExample {
+      return `VirtualNode Vector3FieldExample() {
   var (value, setValue) = useState(new Vector3(1f, 2f, 3f));
 
   return (
@@ -447,7 +447,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Vector3IntField':
-      return `component Vector3IntFieldExample {
+      return `VirtualNode Vector3IntFieldExample() {
   var (value, setValue) = useState(new Vector3Int(1, 2, 3));
 
   return (
@@ -458,7 +458,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Vector4Field':
-      return `component Vector4FieldExample {
+      return `VirtualNode Vector4FieldExample() {
   var (value, setValue) = useState(new Vector4(1f, 2f, 3f, 4f));
 
   return (
@@ -469,19 +469,19 @@ const getExample = (title: string) => {
   );
 }`
     case 'Label':
-      return `component LabelExample {
+      return `VirtualNode LabelExample() {
   return (
     <Label text="Hello from UITKX" />
   );
 }`
     case 'TextElement':
-      return `component TextElementExample {
+      return `VirtualNode TextElementExample() {
   return (
     <TextElement text="TextElement authored directly in UITKX" />
   );
 }`
     case 'HelpBox':
-      return `component HelpBoxExample {
+      return `VirtualNode HelpBoxExample() {
   return (
     <HelpBox
       text="Remember to save before entering play mode."
@@ -490,7 +490,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'ProgressBar':
-      return `component ProgressBarExample {
+      return `VirtualNode ProgressBarExample() {
   return (
     <ProgressBar
       value={65f}
@@ -499,13 +499,13 @@ const getExample = (title: string) => {
   );
 }`
     case 'Image':
-      return `component ImageExample(Texture2D texture) {
+      return `VirtualNode ImageExample(Texture2D texture) {
   return (
     <Image texture={texture} />
   );
 }`
     case 'VisualElement':
-      return `component VisualElementExample {
+      return `VirtualNode VisualElementExample() {
   return (
     <VisualElement>
       <Text text="Child content inside a VisualElement" />
@@ -513,7 +513,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'VisualElementSafe':
-      return `component VisualElementSafeExample {
+      return `VirtualNode VisualElementSafeExample() {
   return (
     <VisualElementSafe>
       <Text text="Safe-area aware content" />
@@ -521,7 +521,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Box':
-      return `component BoxExample {
+      return `VirtualNode BoxExample() {
   return (
     <Box>
       <Text text="Inside Box" />
@@ -529,7 +529,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'GroupBox':
-      return `component GroupBoxExample {
+      return `VirtualNode GroupBoxExample() {
   return (
     <GroupBox text="Example group">
       <Text text="Content item 1" />
@@ -538,7 +538,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'ScrollView':
-      return `component ScrollViewExample {
+      return `VirtualNode ScrollViewExample() {
   return (
     <ScrollView mode="vertical">
       <Text text="Row 1" />
@@ -548,7 +548,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'TwoPaneSplitView':
-      return `component TwoPaneSplitViewExample {
+      return `VirtualNode TwoPaneSplitViewExample() {
   return (
     <TwoPaneSplitView
       orientation="horizontal"
@@ -565,7 +565,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Toolbar':
-      return `component ToolbarExample {
+      return `VirtualNode ToolbarExample() {
   return (
     <Toolbar>
       <ToolbarButton text="Ping" onClick={_ => UnityEngine.Debug.Log("Ping")} />
@@ -575,7 +575,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Foldout':
-      return `component FoldoutExample {
+      return `VirtualNode FoldoutExample() {
   var (open, setOpen) = useState(true);
 
   return (
@@ -589,13 +589,13 @@ const getExample = (title: string) => {
   );
 }`
     case 'Tab':
-      return `component TabExample {
+      return `VirtualNode TabExample() {
   return (
     <Tab text="General" />
   );
 }`
     case 'TabView':
-      return `component TabViewExample {
+      return `VirtualNode TabViewExample() {
   return (
     <TabView>
       <Tab text="General">
@@ -608,7 +608,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'ListView':
-      return `component ListViewExample {
+      return `VirtualNode ListViewExample() {
   var items = new[] { "One", "Two", "Three" };
 
   return (
@@ -620,7 +620,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'TreeView':
-      return `component TreeViewExample {
+      return `VirtualNode TreeViewExample() {
   return (
     <TreeView
       items={treeItems}
@@ -629,7 +629,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'MultiColumnListView':
-      return `component MultiColumnListViewExample {
+      return `VirtualNode MultiColumnListViewExample() {
   return (
     <MultiColumnListView
       items={rows}
@@ -638,7 +638,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'MultiColumnTreeView':
-      return `component MultiColumnTreeViewExample {
+      return `VirtualNode MultiColumnTreeViewExample() {
   return (
     <MultiColumnTreeView
       items={treeItems}
@@ -647,7 +647,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'Animate':
-      return `component AnimateExample {
+      return `VirtualNode AnimateExample() {
   return (
     <Animate>
       <Box>
@@ -657,7 +657,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'ErrorBoundary':
-      return `component ErrorBoundaryExample {
+      return `VirtualNode ErrorBoundaryExample() {
   return (
     <ErrorBoundary fallback={<Text text="Something went wrong." />}>
       <UnstableChild />
@@ -665,7 +665,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'IMGUIContainer':
-      return `component IMGUIContainerExample {
+      return `VirtualNode IMGUIContainerExample() {
   void DrawGui()
   {
     GUILayout.Label("Hello from IMGUI");
@@ -676,7 +676,7 @@ const getExample = (title: string) => {
   );
 }`
     case 'PropertyInspector':
-      return `component PropertyInspectorExample {
+      return `VirtualNode PropertyInspectorExample() {
   var (target, setTarget) = useState<Object>(null);
 
   return (

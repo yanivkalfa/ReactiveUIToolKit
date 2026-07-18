@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.RefForwardingDemoFunc;
+using ReactiveUITK.Samples.Components.RefForwardingDemoFunc.RefForwardingDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

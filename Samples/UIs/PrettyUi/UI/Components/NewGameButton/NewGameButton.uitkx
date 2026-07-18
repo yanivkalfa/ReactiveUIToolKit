@@ -1,7 +1,8 @@
 import { AppButton } from "../AppButton/AppButton"
+import { ButtonStyle, Wrapper } from "./NewGameButton.style"
 import "@UnityEngine.UIElements"
 
-export component NewGameButton {
+export VirtualNode NewGameButton() {
   var navigate = RouterHooks.UseNavigate();
 
   return (
@@ -10,7 +11,7 @@ export component NewGameButton {
         text="New Game"
         active={true}
         onClick={() => navigate("/game", null)}
-        style={Button}
+        style={ButtonStyle}
       />
     </VisualElement>
   );

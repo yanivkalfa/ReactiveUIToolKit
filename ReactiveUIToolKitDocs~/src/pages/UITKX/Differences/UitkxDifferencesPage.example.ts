@@ -1,4 +1,4 @@
-export const UITKX_STATE_COUNTER_EXAMPLE = `component StateCounterExample {
+export const UITKX_STATE_COUNTER_EXAMPLE = `VirtualNode StateCounterExample() {
   var (count, setCount) = useState(0);
 
   return (

@@ -1,4 +1,4 @@
-export component EditorControlsDemoFunc {
+export VirtualNode EditorControlsDemoFunc() {
   return (
     <VisualElement
       style={new Style { (FlexGrow, 1f), (FlexDirection, "column"), (Padding, 8f) }}

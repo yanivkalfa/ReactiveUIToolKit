@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.RenderDepthGuardDemoFunc;
+using ReactiveUITK.Samples.Components.RenderDepthGuardDemoFunc.RenderDepthGuardDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

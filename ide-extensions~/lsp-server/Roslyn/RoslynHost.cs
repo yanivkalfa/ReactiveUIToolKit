@@ -1608,7 +1608,8 @@ namespace UitkxLanguageServer.Roslyn
                     // and points at a container that exists only in the (pre-fix) virtual
                     // doc, never in the real build.
                     string? peerNs = ReactiveUITK.Language.EffectiveNamespace.Resolve(
-                        peerDirectives.HasExplicitNamespace, peerDirectives.Namespace, peerPath);
+                        peerDirectives.HasExplicitNamespace, peerDirectives.Namespace, peerPath,
+                        fileKeyed: !peerDirectives.UsesLegacySyntax);
                     if (string.IsNullOrEmpty(peerNs))
                         peerNs = peerDirectives.Namespace;
                     if (string.IsNullOrEmpty(peerNs))
@@ -1619,7 +1620,9 @@ namespace UitkxLanguageServer.Roslyn
                             StringComparison.Ordinal))
                         continue;
 
-                    string containerClass = DerivePeerHookContainerClass(peerPath);
+                    string containerClass = peerDirectives.UsesLegacySyntax
+                        ? DerivePeerHookContainerClass(peerPath)
+                        : "__Exports";
                     string fqn = $"static {peerNs}.{containerClass}";
                     if (seen.Add(fqn))
                         extraUsings.Add(fqn);

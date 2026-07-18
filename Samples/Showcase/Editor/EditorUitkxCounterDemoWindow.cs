@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.UitkxCounterFunc;
+using ReactiveUITK.Samples.Components.UitkxCounterFunc.UitkxCounterFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

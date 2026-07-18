@@ -1,8 +1,9 @@
 import { AppButton } from "../../Components/AppButton/AppButton"
+import { Hud, HudLabel, Root } from "./GamePage.style"
 import "@PrettyUi"
 import "@UnityEngine.UIElements"
 
-export component GamePage {
+export VirtualNode GamePage() {
   var navigate = RouterHooks.UseNavigate();
 
   useEffect(() => {

@@ -3,7 +3,7 @@ import { DoomMainMenu } from "./DoomMainMenu"
 import "@UnityEngine.UIElements"
 import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 
-export component DoomGame {
+export VirtualNode DoomGame() {
   var (screen, setScreen) = useState(GameScreen.MainMenu);
   var (level, setLevel) = useState(1);
   var (difficulty, setDifficulty) = useState(Difficulty.Normal);

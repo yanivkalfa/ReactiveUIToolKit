@@ -2,7 +2,7 @@ import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
 
-export component DeepNestedSection {
+export VirtualNode DeepNestedSection() {
   var (depth, setDepth) = useState(2);
   var (showExtras, setShowExtras) = useState(true);
   var (activeTag, setActiveTag) = useState("x");

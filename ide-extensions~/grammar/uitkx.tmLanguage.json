@@ -13,6 +13,21 @@
       "include": "#import-declaration"
     },
     {
+      "include": "#star-import-declaration"
+    },
+    {
+      "include": "#default-import-declaration"
+    },
+    {
+      "include": "#export-default-declaration"
+    },
+    {
+      "include": "#export-list-declaration"
+    },
+    {
+      "include": "#plain-declaration"
+    },
+    {
       "include": "#function-style-declaration"
     },
     {
@@ -79,16 +94,77 @@
       }
     },
     "import-declaration": {
-      "comment": "Handles import lines: import { A, B } from \"./specifier\" (import/export grammar, leg 3)",
+      "comment": "Handles import lines: import { A, B, C as D } from \"./specifier\" (import/export grammar + ES-modules `as` renames)",
       "name": "meta.import.uitkx",
       "match": "^(\\s*)(import)\\s*(\\{)([^}]*)(\\})\\s*(from)\\s*(\"[^\"]*\")",
       "captures": {
         "2": { "name": "keyword.control.import.uitkx" },
         "3": { "name": "punctuation.definition.block.begin.uitkx" },
-        "4": { "patterns": [ { "include": "#expression-content" } ] },
+        "4": { "patterns": [
+          { "match": "\\bas\\b", "name": "keyword.control.import.uitkx" },
+          { "include": "#expression-content" }
+        ] },
         "5": { "name": "punctuation.definition.block.end.uitkx" },
         "6": { "name": "keyword.control.import.uitkx" },
         "7": { "name": "string.quoted.double.uitkx" }
+      }
+    },
+    "star-import-declaration": {
+      "comment": "Namespace import of a peer file (ES-modules campaign, G-05): import * as X from \"./specifier\"",
+      "name": "meta.import.star.uitkx",
+      "match": "^(\\s*)(import)\\s*(\\*)\\s*(as)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(from)\\s*(\"[^\"]*\")",
+      "captures": {
+        "2": { "name": "keyword.control.import.uitkx" },
+        "3": { "name": "keyword.operator.uitkx" },
+        "4": { "name": "keyword.control.import.uitkx" },
+        "5": { "name": "entity.name.namespace.uitkx" },
+        "6": { "name": "keyword.control.import.uitkx" },
+        "7": { "name": "string.quoted.double.uitkx" }
+      }
+    },
+    "default-import-declaration": {
+      "comment": "Default import (ES-modules campaign, G-05): import X from \"./specifier\"",
+      "name": "meta.import.default.uitkx",
+      "match": "^(\\s*)(import)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(from)\\s*(\"[^\"]*\")",
+      "captures": {
+        "2": { "name": "keyword.control.import.uitkx" },
+        "3": { "name": "entity.name.type.uitkx" },
+        "4": { "name": "keyword.control.import.uitkx" },
+        "5": { "name": "string.quoted.double.uitkx" }
+      }
+    },
+    "export-default-declaration": {
+      "comment": "Default-export marker (ES-modules campaign, G-05): export default Name;",
+      "name": "meta.export.default.uitkx",
+      "match": "^(\\s*)(export)\\s+(default)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(;)?\\s*$",
+      "captures": {
+        "2": { "name": "keyword.control.export.uitkx" },
+        "3": { "name": "keyword.control.export.uitkx" },
+        "4": { "name": "entity.name.type.uitkx" }
+      }
+    },
+    "export-list-declaration": {
+      "comment": "Deferred export list (ES-modules campaign, G-05): export { a, b };",
+      "name": "meta.export.list.uitkx",
+      "match": "^(\\s*)(export)\\s*(\\{)([^}]*)(\\})\\s*(;)?\\s*$",
+      "captures": {
+        "2": { "name": "keyword.control.export.uitkx" },
+        "3": { "name": "punctuation.definition.block.begin.uitkx" },
+        "4": { "patterns": [ { "include": "#expression-content" } ] },
+        "5": { "name": "punctuation.definition.block.end.uitkx" }
+      }
+    },
+    "plain-declaration": {
+      "comment": "Plain typed declaration head (ES-modules campaign, U-04/G-03): [export] VirtualNode Name( => component (entity.name.class); [export] <Type> useName( => hook (entity.name.function). Value/util heads fall through to #code-block-body (ordinary C# coloring). Must run BEFORE the wrapper-keyword patterns' fallback but AFTER the import patterns.",
+      "name": "meta.declaration.plain.uitkx",
+      "match": "^(\\s*)(export)?\\s*((?:global::)?(?:[A-Za-z_][\\w.]*\\.)?VirtualNode)\\s+([A-Z][A-Za-z0-9_]*)\\s*(?=\\()|^(\\s*)(export)?\\s*((?:[\\w.<>\\[\\],\\s\\?]|\\([^)]*\\))+?)\\s+(use[A-Z][A-Za-z0-9_]*)\\s*(?=\\()",
+      "captures": {
+        "2": { "name": "keyword.control.export.uitkx" },
+        "3": { "name": "entity.name.type.uitkx" },
+        "4": { "name": "entity.name.class.uitkx" },
+        "6": { "name": "keyword.control.export.uitkx" },
+        "7": { "patterns": [ { "include": "#expression-content" } ] },
+        "8": { "name": "entity.name.function.uitkx" }
       }
     },
     "comment": {

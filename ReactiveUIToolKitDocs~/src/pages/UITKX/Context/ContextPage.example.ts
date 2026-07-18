@@ -1,5 +1,5 @@
 export const CONTEXT_BASIC_EXAMPLE = `// Provider — makes a value available to all descendants
-component AppRoot {
+VirtualNode AppRoot() {
   provideContext("userName", "Alice");
   provideContext("theme", "dark");
 
@@ -12,7 +12,7 @@ component AppRoot {
 }
 
 // Consumer — reads the value anywhere in the subtree
-component Sidebar {
+VirtualNode Sidebar() {
   var userName = useContext<string>("userName");
   var theme = useContext<string>("theme");
 
@@ -25,7 +25,7 @@ component Sidebar {
   );
 }`
 
-export const CONTEXT_SHADOWING_EXAMPLE = `component OuterProvider {
+export const CONTEXT_SHADOWING_EXAMPLE = `VirtualNode OuterProvider() {
   provideContext("theme", "light");
 
   return (
@@ -36,7 +36,7 @@ export const CONTEXT_SHADOWING_EXAMPLE = `component OuterProvider {
   );
 }
 
-component InnerProvider {
+VirtualNode InnerProvider() {
   provideContext("theme", "dark");  // shadows outer
 
   return (
@@ -46,7 +46,7 @@ component InnerProvider {
   );
 }`
 
-export const CONTEXT_DYNAMIC_EXAMPLE = `component ThemeToggle {
+export const CONTEXT_DYNAMIC_EXAMPLE = `VirtualNode ThemeToggle() {
   var (isDark, setIsDark) = useState(true);
   provideContext("theme", isDark ? "dark" : "light");
 
@@ -59,7 +59,7 @@ export const CONTEXT_DYNAMIC_EXAMPLE = `component ThemeToggle {
   );
 }
 
-component ThemedPanel {
+VirtualNode ThemedPanel() {
   var theme = useContext<string>("theme");
   // Automatically re-renders when the provided value changes
 
@@ -92,7 +92,7 @@ static class AppContextKeys
 }
 
 // Provider
-component AppShell {
+VirtualNode AppShell() {
   provideContext(AppContextKeys.Theme, currentTheme);
   provideContext(AppContextKeys.Locale, "en-US");
   provideContext(AppContextKeys.Auth, authState);
@@ -100,7 +100,7 @@ component AppShell {
 }
 
 // Consumer
-component LocalizedLabel {
+VirtualNode LocalizedLabel() {
   var locale = useContext<string>(AppContextKeys.Locale);
   // ...
 }`

@@ -252,6 +252,28 @@ namespace ReactiveUITK.Language.Roslyn
             }
         }
 
+        /// <summary>Same payloads as <see cref="AppendImportUsings"/> but emitted INSIDE the
+        /// namespace block (ES-modules campaign, M7): file-keyed namespaces make sibling file
+        /// stems enclosing-namespace members, which shadow FILE-level using-aliases — the editor
+        /// must resolve exactly like the build (whose emitters made the same move).</summary>
+        private static void AppendImportUsingsInsideNamespace(
+            VirtualDocBuilder b, DirectiveSet d, string uitkxFilePath, HashSet<string> seen)
+        {
+            foreach (string payload in ReactiveUITK.Language.ImportScopeFacts
+                         .ComputeInjectedUsingPayloads(d, uitkxFilePath))
+            {
+                if (seen.Add(payload))
+                    b.Scaffold($"    using {ImportScopeFacts.GlobalizeUsingPayload(payload)};\n");
+            }
+            // The file's own @using / namespace-import lines move inside too (same relative-
+            // resolution + shadowing rules apply to them once the namespace is file-keyed).
+            foreach (var u in d.Usings)
+            {
+                if (seen.Add(u))
+                    b.Scaffold($"    using {ImportScopeFacts.GlobalizeUsingPayload(u)};\n");
+            }
+        }
+
         public VirtualDocument Generate(
             ParseResult parseResult,
             string source,
@@ -282,17 +304,26 @@ namespace ReactiveUITK.Language.Roslyn
                 if (seen.Add(u))
                     b.Scaffold($"using {u};\n");
             }
-            foreach (var u in d.Usings)
-            {
-                string trimmed = u.Trim();
-                if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
-                    b.Scaffold($"using {trimmed};\n");
-            }
+            // New-mode files get their own usings INSIDE the namespace block (globalized) via
+            // AppendImportUsingsInsideNamespace — emitting them here too would both diverge from
+            // the build's resolution AND poison `seen` so the inside-namespace pass skips them.
+            if (d.UsesLegacySyntax)
+                foreach (var u in d.Usings)
+                {
+                    string trimmed = u.Trim();
+                    if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
+                        b.Scaffold($"using {trimmed};\n");
+                }
             // Import/export grammar (leg 3, §10): lower imports to the same using-static (hook
             // containers) / alias (modules) lines the real emit produces, so C# IntelliSense inside
             // setup code resolves imported hooks/modules. Scaffold-only (hidden preamble) → the
             // length-preserving source map is unaffected.
-            AppendImportUsings(b, d, uitkxFilePath, seen);
+            // NEW-MODE files (ES-modules campaign): these payloads are emitted INSIDE the
+            // namespace block instead (mirror of the real emitters) — file-keyed namespaces make
+            // sibling file stems enclosing-namespace members, which shadow FILE-level
+            // using-aliases; the editor must resolve exactly like the build.
+            if (d.UsesLegacySyntax)
+                AppendImportUsings(b, d, uitkxFilePath, seen);
             // Static / alias usings that cannot go through the simple "using X;" path
             foreach (var line in s_extraUsingLines)
                 b.Scaffold(line + "\n");
@@ -311,7 +342,39 @@ namespace ReactiveUITK.Language.Roslyn
                 : "Component";
             string escapedPath = EscapePathForLineDirective(uitkxFilePath);
 
+            // -- New-mode __Exports scaffold (ES-modules campaign, U-02/M5) ----
+            // Plain member declarations (values/utils/hooks) live on the per-file __Exports
+            // container in the real build; scaffold the same shape here — with mapped bodies so
+            // IntelliSense/diagnostics work inside them — plus stub bridges for aliased/default
+            // member imports. The component partial (below) sees them bare-name through the
+            // own-exports using scaffolded by AppendImportUsings' caller path (same namespace is
+            // NOT enough for static-class members).
+            bool hasMembers = !d.UsesLegacySyntax && !d.MemberDeclarations.IsDefaultOrEmpty;
+            var bridges = d.UsesLegacySyntax
+                ? (IReadOnlyList<(string Alias, string? ReturnType, string? ParamsText, bool IsValue)>)
+                    System.Array.Empty<(string, string?, string?, bool)>()
+                : ImportScopeFacts.ComputeImportedMemberBridges(d, uitkxFilePath);
+            if (hasMembers || bridges.Count > 0)
+            {
+                b.Scaffold($"namespace {ns}\n{{\n");
+                AppendImportUsingsInsideNamespace(b, d, uitkxFilePath, seen);
+                b.Scaffold($"    using static global::{ns}.__Exports;\n\n");
+                EmitExportsScaffold(b, d, bridges, escapedPath);
+                if (string.IsNullOrEmpty(d.ComponentName))
+                {
+                    b.Scaffold("}\n");
+                    return b.Build(uitkxFilePath);
+                }
+                b.Scaffold($"    partial class {className}\n    {{\n");
+                b.Scaffold("#line hidden\n");
+                EmitFunctionStyleBody(b, parseResult, source, escapedPath, propsTypes);
+                b.Scaffold("    }\n}\n");
+                return b.Build(uitkxFilePath);
+            }
+
             b.Scaffold($"namespace {ns}\n{{\n");
+            if (!d.UsesLegacySyntax)
+                AppendImportUsingsInsideNamespace(b, d, uitkxFilePath, seen);
             b.Scaffold($"    partial class {className}\n    {{\n");
             b.Scaffold("#line hidden\n");
 
@@ -342,10 +405,88 @@ namespace ReactiveUITK.Language.Roslyn
         private static string DocumentNamespace(DirectiveSet d, string uitkxFilePath)
         {
             string? effective = EffectiveNamespace.Resolve(
-                d.HasExplicitNamespace, d.Namespace, uitkxFilePath);
+                d.HasExplicitNamespace, d.Namespace, uitkxFilePath,
+                fileKeyed: !d.UsesLegacySyntax);
             if (!string.IsNullOrEmpty(effective))
                 return effective!;
             return !string.IsNullOrEmpty(d.Namespace) ? d.Namespace! : "ReactiveUITK.Generated";
+        }
+
+        /// <summary>
+        /// Scaffolds the per-file <c>__Exports</c> container for a NEW-MODE file (ES-modules
+        /// campaign, U-02/M5): hook stubs (static form), every member declaration with its body
+        /// MAPPED for IntelliSense (value initializers, util/hook bodies), and signature-only
+        /// stub bridges for aliased/default member imports (bodies are <c>default!</c> — the
+        /// bound NAME and signature are what setup-code resolution needs; the real forwarding
+        /// lives in the build's ExportsEmitter output).
+        /// </summary>
+        private static void EmitExportsScaffold(
+            VirtualDocBuilder b,
+            DirectiveSet d,
+            IReadOnlyList<(string Alias, string? ReturnType, string? ParamsText, bool IsValue)> bridges,
+            string escapedPath)
+        {
+            b.Scaffold("    static partial class __Exports\n    {\n");
+            b.Scaffold("#line hidden\n");
+            b.Scaffold(global::ReactiveUITK.Core.HookRegistry.GenerateVirtualDocStubs(staticForm: true));
+
+            if (!d.MemberDeclarations.IsDefaultOrEmpty)
+            {
+                foreach (var m in d.MemberDeclarations)
+                {
+                    string access = m.IsExported ? "public" : "internal";
+                    if (m.Kind == DeclKind.Value)
+                    {
+                        string type = m.ReturnTypeText
+                            ?? ImportScopeFacts.ExtractNewInitializerTypeName(m.BodyText) ?? "object";
+                        b.Scaffold($"        {access} static {type} {m.Name} = ");
+                        b.Scaffold($"\n#line {m.BodyStartLine} \"{escapedPath}\"\n");
+                        b.Mapped(m.BodyText, m.BodyStartOffset, SourceRegionKind.ModuleBody, m.BodyStartLine);
+                        b.Scaffold("\n#line hidden\n");
+                        b.Scaffold("        ;\n\n");
+                        continue;
+                    }
+
+                    string ret = string.Equals(m.ReturnTypeText?.Trim(), "void", StringComparison.Ordinal)
+                        || string.IsNullOrEmpty(m.ReturnTypeText)
+                        ? "void" : m.ReturnTypeText!;
+                    string paramsText = m.ParamsText ?? string.Empty;
+                    var kind = m.Kind == DeclKind.Hook ? SourceRegionKind.HookBody : SourceRegionKind.ModuleBody;
+                    if (m.IsExpressionBodied)
+                    {
+                        b.Scaffold($"        {access} static {ret} {m.Name}({paramsText}) => ");
+                        b.Scaffold($"\n#line {m.BodyStartLine} \"{escapedPath}\"\n");
+                        b.Mapped(m.BodyText, m.BodyStartOffset, kind, m.BodyStartLine);
+                        b.Scaffold("\n#line hidden\n");
+                        b.Scaffold("        ;\n\n");
+                    }
+                    else
+                    {
+                        b.Scaffold($"        {access} static {ret} {m.Name}({paramsText})\n");
+                        b.Scaffold("        {\n");
+                        b.Scaffold($"#line {m.BodyStartLine} \"{escapedPath}\"\n");
+                        b.Mapped(m.BodyText, m.BodyStartOffset, kind, m.BodyStartLine);
+                        b.Scaffold("\n#line hidden\n");
+                        b.Scaffold("        }\n\n");
+                    }
+                }
+            }
+
+            foreach (var (alias, retType, paramsText, isValue) in bridges)
+            {
+                if (isValue)
+                {
+                    b.Scaffold($"        internal static {retType ?? "object"} {alias} => default!;\n");
+                    continue;
+                }
+                string bridgeRet = string.IsNullOrEmpty(retType)
+                    || string.Equals(retType!.Trim(), "void", StringComparison.Ordinal)
+                    ? "void" : retType!;
+                string bridgeBody = bridgeRet == "void" ? "{ }" : "=> default!;";
+                b.Scaffold($"        internal static {bridgeRet} {alias}({paramsText ?? string.Empty}) {bridgeBody}\n");
+            }
+
+            b.Scaffold("    }\n\n");
         }
 
         // -- Hook document -----------------------------------------------------

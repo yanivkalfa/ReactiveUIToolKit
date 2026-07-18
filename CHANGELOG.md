@@ -6,6 +6,128 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.9.0] - 2026-07-18
+
+### Changed — License: MIT → PolyForm Shield 1.0.0
+
+From 0.9.0 the package (and the IDE extensions) are licensed under the
+**PolyForm Shield License 1.0.0**: you may use, modify, and ship it inside your
+own projects and commercial games exactly as before, royalty-free — but you may
+not redistribute or sell it as a product that competes with ReactiveUIToolKit
+(e.g. reselling the library on an asset store). Versions released up to 0.8.3
+remain under their original MIT terms. Full text: `LICENSE.md`
+(<https://polyformproject.org/licenses/shield/1.0.0>).
+
+### Changed — ES-modules redesign (family campaign; owner-approved plan `Plans~/ES_MODULES_GENERAL_PLAN.md`)
+
+- **A `.uitkx` file IS a module.** Plain typed `export` declarations replace the
+  `component` / `hook` / `module` wrapper keywords. Classification is read from the
+  signature alone (G-03): a `VirtualNode` return type is a **component** (PascalCase
+  enforced), a `use`-prefixed name is a **hook**, `= initializer` after the name is a
+  **value** (`export Style container = new Style {…}`, with `export theme = new T {…}`
+  inference sugar), anything else is a **util**. Non-exported declarations are
+  file-private (`internal` on the per-file `__Exports` container / `internal` component
+  partials).
+- **Full ES import surface** (G-05): rename-on-import `import { a as b }`, namespace
+  imports `import * as X` (markup access via dotted tags `<X.Comp/>`), default imports
+  `import X from "./file"` + `export default Name;`, and deferred `export { a, b };`
+  lists. Renamed/default member imports lower to typed bridges on the consumer's
+  `__Exports`.
+- **File-keyed namespaces** (G-01/U-01): a new-syntax file's namespace is its folder path
+  PLUS its file stem — every file is its own module; two files in one folder no longer
+  share a namespace. The explicit `@namespace` stamp still wins (escape hatch). Legacy
+  files keep folder-keyed derivation for the deprecation window.
+- **Companion partial-class merging is deprecated** (U-07): new-syntax files never merge
+  partials across files — a companion's members are imported like any other module's.
+  The legacy merge still works for legacy files and now warns (`UITKX2107`).
+- **Deprecation window** (G-10): wrapper keywords keep parsing this minor with
+  `UITKX2320` warnings; removal comes in a later minor. The
+  `UitkxMigrateImports --es-modules` codemod migrates whole trees — tidy, export-
+  normalize, wrapper rewrite (modules are exploded member-by-member via Roslyn), importer
+  rewrite (`import { Module }` becomes `import * as Module`, call sites untouched),
+  companion sets atomically, formatter last; idempotent, with a `--check` gate. Sets the
+  plain dialect cannot express (generic hooks; modules with nested types/properties) stay
+  legacy with a report.
+- **New diagnostics.** Family band `UITKX2320-2327` (wrapper deprecation, hook-returns-
+  markup, value-inference failure, undeclared/duplicate exports, alias collisions,
+  default-import mismatches) + Unity-local `UITKX2107-2110` (companion-merge deprecation,
+  mixed-declaration-styles error, import-form-needs-migrated-target, hook-rename-drops-
+  use-prefix).
+- **Hot reload parity** (U-06/G-09): new-mode members hot-swap through the same machinery
+  (values re-initialize via `[UitkxHmrSwap]`, utils re-bind by name, hooks re-register
+  under `{ns}.__Exports::{hook}` family keys). **Migrating a file resets its hot-reload
+  state once** (family keys change with the namespace); steady-state behavior is
+  unchanged. In-editor smoke run: **pending** (owner-run milestone M8).
+- **Editor surface** across VS Code / VS2022 / Rider: grammar, schema 1.2, completions
+  (plain-declaration snippets; wrapper snippets marked deprecated), definition / rename
+  (alias-aware) / references, semantic tokens, and Roslyn virtual documents mirroring the
+  `__Exports` emission — including the C# name-resolution subtlety file-keyed namespaces
+  introduce (usings emitted inside the namespace block, `global::`-qualified, in ALL four
+  emit layers so editor and build resolve identically).
+- **Samples fully migrated.** First pass converted 130 files; the pre-release audit wave
+  finished the flip — the remaining 21 companion sets (modules hosting structs/enums/
+  properties, which have no plain-dialect form) moved those members into ambient C# files
+  beside the components (the documented pattern) and migrated the rest. Zero legacy
+  wrapper syntax remains outside the byte-frozen
+  `Samples/Components/UitkxTestFileDoNotTouch/` fixture.
+- Family corpus hash re-pin deferred pending the family's shared ES-modules corpus cases
+  (G-13/R2; recorded).
+
+### Fixed — four-agent audit wave (pre-release; findings ledger `Plans~/ES_MODULES_AUDIT_FINDINGS.md`)
+
+- **Parser**: line counter resyncs after component bodies (every later declaration carried
+  a wrong line — wrong diagnostic anchors, wrong codemod edit targets); empty/imports-only
+  files keep their baseline diagnostics instead of becoming empty new-mode sets the
+  formatter then "reconstructed" into a fabricated `component Component {}`; dotted tags
+  with children (`<X.Comp>…</X.Comp>`) no longer false-error on the closing tag; generic
+  declarations get a precise error instead of a whole-file line-1 failure; multi-line
+  typed heads keep line tracking; `ref`/`out`/`in`/`params` parameter modifiers parse into
+  the typed view and forward correctly through import bridges; `hook 123 {}` no longer
+  crashes the parser; UITKX2108 (mixed styles) now fires in BOTH directions; alias-vs-
+  import collisions carry family UITKX2325 ("another import" arm) instead of 2303.
+- **Strict imports**: a file's own new-mode hooks/members no longer false-flag 2305/2307;
+  references are satisfied by the BOUND name (`import { Widget as W }` satisfies `<W/>`,
+  flags `<Widget/>`); renamed-but-used imports no longer report 2304; `as`-renames against
+  a legacy target now hit UITKX2109 (previously: silence, then raw CS0103) and emit no
+  original-name payloads; 2326 no longer stacks on 2109; 2325/2326/2109/2110 messages are
+  family-verbatim.
+- **Build/editor parity**: legacy hook/module files importing new-mode members now get
+  their payloads (was: clean editor, CS0103 build); the SG no longer injects whole-
+  container/original-name payloads for new-mode targets the editor deliberately withholds;
+  UITKX2306 value-cycle detection covers new-mode values/utils and star/default edges;
+  `import * as X` of a component-only file no longer emits an alias to a never-emitted
+  `__Exports` (file-breaking CS0246); UITKX2316 seeding covers member-only files' namespaces;
+  the virtual doc moves a new-mode file's own usings inside the namespace (globalized) and
+  `global::`-qualifies the own-exports using — editor and build resolve identically.
+- **Hot reload**: a new-mode component's hot unit now carries its own `__Exports` (fresh
+  member bodies + internal members resolve — previously every hot edit of the mainline
+  component-plus-private-value pattern failed CS0122, and same-save member edits silently
+  stayed stale); the member-only route injects import payloads; aliased/default member
+  imports get real forwarding bridges in hot units (shared renderer, SG-shape parity);
+  dotted and renamed component tags hot-compile via shared tag maps with an FQN-aware
+  props-type scan; the hook family-key map gates on exported hooks and binds renamed
+  imports to original-name keys (Fast-Refresh reset survives renames); body text like
+  `module.Init();` can no longer misclassify a member file as legacy and misroute its
+  save; every `Editor/HMR` source is parse-gated by tests.
+- **LSP**: go-to-definition requires a declaration shape (was: jumped to a call site above
+  the declaration); rename respects comments/strings and applies exactly one
+  interpretation of an aliased name from the rename origin (`import { a as b, c as a }`
+  no longer corrupts the unrelated binding); alias-aware brace completion; comment-
+  scrubbed workspace indexing; UITKX2107 (deprecated companion merge) now surfaces live in
+  the editor; default-import snippet.
+- **Codemod**: a close brace sharing the last statement's line no longer silently deletes
+  the NEXT declaration (spans derive from parse-record offsets); same-line adjacent
+  declarations fail loudly instead of corrupting; member comments/XML docs are preserved,
+  attributed members reject the set loudly, `const` migrates with a named warning;
+  modifier-less module members stay private (C# default) instead of gaining `export`; all
+  three companion-set import directions resolve; importers in failed sets get their star-
+  import rewrite (previously left broken); `~/` specifiers resolve against the real root;
+  files with parse errors are never half-rewritten.
+- **Semantic tokens**: dotted tags color as binding + element (U-05).
+
+SG suite 1730/1730, LSP suite 151/151, family corpus hash green; committed generator DLLs
+rebuilt. Unity package **0.9.0**; VS Code + VS2022 extensions **1.5.0**; Rider **1.2.0**.
+
 ## [0.8.3] - 2026-07-16
 
 ### Fixed

@@ -1583,6 +1583,20 @@ namespace ReactiveUITK.Language.Parser
                 && (char.IsLetterOrDigit(_source[i]) || _source[i] == '_' || _source[i] == '-')
             )
                 i++;
+            // U-05: mirror MarkupTokenizer.ReadTagName's one-interior-dot rule so a dotted tag
+            // with children (`<X.Comp> … </X.Comp>`) peeks as "X.Comp", not "X" (which would
+            // false-flag a mismatched tag on valid input).
+            if (i < _source.Length && _source[i] == '.'
+                && i + 1 < _source.Length
+                && (char.IsLetter(_source[i + 1]) || _source[i + 1] == '_'))
+            {
+                i++;
+                while (
+                    i < _source.Length
+                    && (char.IsLetterOrDigit(_source[i]) || _source[i] == '_' || _source[i] == '-')
+                )
+                    i++;
+            }
             return _source.Substring(start, i - start);
         }
 

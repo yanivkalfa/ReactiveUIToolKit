@@ -1,6 +1,6 @@
-import { Halibanius } from "./SomeOtherName.style"
+import * as Halibanius from "./SomeOtherName.style"
 
-export component HmrTests {
+export VirtualNode HmrTests() {
   var (count, setCount) = useState(0);
 
   return (

@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using ReactiveUITK.Samples.Components.MarioGame;
+using ReactiveUITK.Samples.Components.MarioGame.components.Block.Block;
+using ReactiveUITK.Samples.Components.MarioGame.components.Mushroom.Mushroom;
+using ReactiveUITK.Samples.Components.SnakeGame.components.Menu;
 
 namespace Samples.MarioGame
 {

@@ -2,7 +2,7 @@ import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
 
-export component ForSection {
+export VirtualNode ForSection() {
   var (rows, setRows) = useState(4);
 
   return (

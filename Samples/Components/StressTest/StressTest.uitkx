@@ -1,7 +1,8 @@
 import { useStressTestLoop } from "./StressTest.hooks"
+import { BoxesField, DurationField, FieldLabel, HeaderBar, Root, StartButton, StatusLabel, StressArea } from "./StressTest.style"
 import "@UnityEngine.UIElements"
 
-export component StressTest {
+export VirtualNode StressTest() {
   var areaRef = useRef<VisualElement?>(null);
   var (areaSize, setAreaSize) = useState(Vector2.zero);
   var measured = useRef(false);

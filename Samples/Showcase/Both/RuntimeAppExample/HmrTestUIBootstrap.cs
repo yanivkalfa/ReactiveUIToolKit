@@ -4,6 +4,7 @@ using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Samples.Components.HmrTests;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.HmrTests.HmrTests;
 
 namespace ReactiveUITK.Samples.FunctionalComponents
 {

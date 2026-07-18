@@ -1,4 +1,4 @@
-export component RouterHistoryPanel {
+export VirtualNode RouterHistoryPanel() {
   var go = RouterHooks.UseGo();
   var canBack = RouterHooks.UseCanGo(-1);
   var canForward = RouterHooks.UseCanGo(1);

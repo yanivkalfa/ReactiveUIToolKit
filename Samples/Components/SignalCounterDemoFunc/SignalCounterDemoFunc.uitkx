@@ -1,6 +1,6 @@
 import "@ReactiveUITK.Signals"
 
-export component SignalCounterDemoFunc {
+export VirtualNode SignalCounterDemoFunc() {
   var counterSignal = useMemo(() => SignalFactory.Get<int>("demo.counter", 0), Array.Empty<object>());
   var count = useSignal(counterSignal);
 

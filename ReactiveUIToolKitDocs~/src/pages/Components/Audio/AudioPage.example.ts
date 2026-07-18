@@ -2,7 +2,7 @@ export const AUDIO_BASIC = `@namespace MyApp.Pages
 @using UnityEngine
 @using ReactiveUITK.Core.Media
 
-component MusicDemo {
+VirtualNode MusicDemo() {
   var music = Asset<AudioClip>("Assets/Resources/theme.mp3");
   var ctrl = useRef<AudioController>(null);
   var (playing, setPlaying) = useState(true);
@@ -55,7 +55,7 @@ export const AUDIO_3D = `// Spatial 3D audio: blend = 1, position in world space
 export const USE_SFX_BASIC = `@namespace MyApp.Pages
 @using UnityEngine
 
-component ClickyButton {
+VirtualNode ClickyButton() {
   var click = Asset<AudioClip>("Assets/Resources/click.wav");
   var playSfx = useSfx();
 

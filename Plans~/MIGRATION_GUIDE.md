@@ -389,3 +389,77 @@ The original hand-written equivalent is
 For a more complete example that covers all directives and typed props, see
 [PlayerHUD.uitkx](../Samples/Components/PlayerHUD.uitkx) and
 [PlayerHUDProps.cs](../Samples/Components/PlayerHUDProps.cs).
+
+---
+
+## 0.9.0 ES modules — wrapper keywords to plain declarations
+
+### Why
+
+A `.uitkx` file IS a module (like an ES module): its exports are its entire public
+surface, its namespace derives from its file path, and everything cross-file goes
+through an import. The `component` / `hook` / `module` wrapper keywords are deprecated
+(UITKX2320) in favor of plain typed declarations classified from the signature alone.
+
+### Before / after
+
+```
+// BEFORE (legacy wrappers)                 // AFTER (plain declarations)
+export component ScoreRow(string label) {   export VirtualNode ScoreRow(string label) {
+  return ( <Label text={label} /> );          return ( <Label text={label} /> );
+}                                           }
+
+export hook useCountdown(int start)         export (int value, Action reset) useCountdown(int start) {
+    -> (int value, Action reset) {            ...
+  ...                                       }
+}
+
+export module Tokens {                      export int Gap = 8;
+  public static readonly int Gap = 8;       export string Fmt(int s) { return $"{s}"; }
+  public static string Fmt(int s) {...}
+}
+```
+
+### The five mechanical rules
+
+1. **Wrapper → plain**: `component N` → `VirtualNode N(...)` (parameterless gains `()`);
+   `hook useN(p) -> (r)` → `(r) useN(p)` (single-type returns lose the parens); modules
+   dissolve — each member becomes a top-level declaration.
+2. **Module importers → `* as`**: `import { Tokens } from "./Tokens"` becomes
+   `import * as Tokens from "./Tokens"`; every `Tokens.Gap` call site is unchanged.
+3. **Companions become modules**: `X.style.uitkx` no longer merges into component `X`.
+   The component imports what it uses: `import { container } from "./X.style"`.
+4. **File-keyed namespaces move C# `using` lines**: hand-written consumers append the
+   declaring FILE's stem — `using My.Ns.Folder;` → `using My.Ns.Folder.FileStem;`.
+5. **Hot-reload state resets once** per migrated file (family keys change with the
+   namespace); steady-state hot reload is unchanged.
+
+### Codemod
+
+```bash
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- <dir> --es-modules
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- <dir> --es-modules --check   # idempotence gate
+```
+
+Companion sets (`X.uitkx` + `X.*.uitkx`) migrate atomically — all or none. Shapes the
+plain dialect cannot express stay legacy with a reported reason (generic hooks; modules
+containing nested types, properties, events, or constructors) and keep compiling under
+the deprecation window.
+
+### Timeline & escape hatches
+
+0.9.0 warns (`UITKX2320` wrappers, `UITKX2107` companion merges); removal comes in a
+later minor, owner-triggered. Escape hatches are unchanged: an explicit `@namespace`
+stamp pins a file's namespace; components still emit `partial class`, so hand-written
+`.cs` can extend them.
+
+### Troubleshooting
+
+| Symptom | Meaning → fix |
+|---|---|
+| `UITKX2108` mixed styles | One file mixes wrappers and plain declarations — the first declaration sets the file's style; migrate the whole file |
+| `UITKX2109` on `* as`/default/renamed import | The target file is still legacy — migrate it first (named imports of legacy targets stay fine) |
+| `CS0103 'container' does not exist` post-migration | A former companion member is no longer merged — add `import { container } from "./X.style"` |
+| `CS0246/CS0234` in a consumer `.cs` | The namespace moved (file-keyed) — append the declaring file's stem to the `using` |
+| `CS0229 ambiguity with __Exports.X` | A value export shares a name with a type in scope (e.g. `Button`) — rename the export |
+| `UITKX2110` on a hook rename | `import { useX as y }` drops the `use` prefix — hook bindings must stay `use`-prefixed |

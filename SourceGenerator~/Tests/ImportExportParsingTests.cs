@@ -166,7 +166,9 @@ namespace ReactiveUITK.SourceGenerator.Tests
             // import "@UnityEngine.Audio"
             // `import ` 0-6, `"` col 7, `@` col 8, payload `U` col 9
             var (ds, diags) = Parse("import \"@UnityEngine.Audio\"\ncomponent Foo {\n  return ( <Spacer /> );\n}\n");
-            Assert.Empty(diags);
+            // Legacy `component` wrapper keyword deprecation warning (ES-modules campaign, G-10)
+            // is expected here — this test is about namespace-import desugaring, not that.
+            Assert.DoesNotContain(diags, d => d.Code != "UITKX2320");
             Assert.Contains("UnityEngine.Audio", ds.Usings);            // feeds the emitters unchanged
             Assert.Empty(ds.Imports);                                   // NOT a file import
             var u = Assert.Single(ds.UsingDirectives);

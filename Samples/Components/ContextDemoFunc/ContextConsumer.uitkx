@@ -1,4 +1,4 @@
-export component ContextConsumer(string label = "Primary Panel") {
+export VirtualNode ContextConsumer(string label = "Primary Panel") {
   var theme = useContext<Color>("context-demo-theme");
 
   var panelStyle = new Style {

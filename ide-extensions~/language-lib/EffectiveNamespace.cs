@@ -19,15 +19,35 @@ namespace ReactiveUITK.Language
         /// <summary>
         /// The effective namespace for <paramref name="filePath"/> given its parsed
         /// <paramref name="rawNamespace"/> and whether that came from an explicit <c>@namespace</c>.
+        /// Legacy (folder-keyed) form — delegates to the 4-arg overload with
+        /// <c>fileKeyed: false</c>. KEPT with this exact 3-arg shape for source compatibility;
+        /// note the HMR reflection seam binds the 4-arg overload BY PARAMETER TYPES
+        /// (U-01 signature rule — a bare name-only GetMethod would now be ambiguous).
         /// </summary>
         public static string? Resolve(bool hasExplicitNamespace, string? rawNamespace, string filePath)
+            => Resolve(hasExplicitNamespace, rawNamespace, filePath, fileKeyed: false);
+
+        /// <summary>
+        /// The effective namespace for <paramref name="filePath"/>, mode-aware (ES-modules
+        /// campaign, U-01). <paramref name="fileKeyed"/> selects the derivation formula for
+        /// stamp-less files: <c>false</c> → legacy folder-keyed (<see cref="NamespaceDerivation.Derive"/>,
+        /// files in one folder share a namespace); <c>true</c> → file-keyed
+        /// (<see cref="NamespaceDerivation.DeriveFileModule"/>, folder segments + sanitized file
+        /// stem — every new-syntax file is its own module, G-01). Callers derive the flag from the
+        /// parse's syntax mode (<c>!DirectiveSet.UsesLegacySyntax</c>). An explicit
+        /// <c>@namespace</c> stamp wins in BOTH modes (unchanged escape hatch).
+        /// </summary>
+        public static string? Resolve(bool hasExplicitNamespace, string? rawNamespace, string filePath, bool fileKeyed)
         {
             if (!UitkxFeatureFlags.StrictImports)
                 return rawNamespace;
             if (hasExplicitNamespace)
                 return rawNamespace;
-            string? derived = NamespaceDerivation.Derive(
-                filePath, ResolveDerivationAnchor(filePath), ResolveNamespacePrefix(filePath));
+            string? anchor = ResolveDerivationAnchor(filePath);
+            string prefix = ResolveNamespacePrefix(filePath);
+            string? derived = fileKeyed
+                ? NamespaceDerivation.DeriveFileModule(filePath, anchor, prefix)
+                : NamespaceDerivation.Derive(filePath, anchor, prefix);
             return derived ?? rawNamespace;
         }
 

@@ -1,4 +1,4 @@
-export component EventBatchingDemoFunc {
+export VirtualNode EventBatchingDemoFunc() {
   var (batchedValue, setBatchedValue) = useState(0);
   var (renderCount, setRenderCount) = useState(0);
   var (status, setStatus) = useState("Click a button to enqueue updates.");

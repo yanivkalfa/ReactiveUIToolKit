@@ -256,9 +256,16 @@ public sealed class DiagnosticsPublisher
             bool IsExportedByFile(string name, string targetPath) =>
                 exportedSet.Contains((targetPath.Replace('\\', '/'), name));
 
+            DirectiveSet? ParseTargetFile(string path)
+            {
+                if (!File.Exists(path)) return null;
+                try { return DirectiveParser.Parse(File.ReadAllText(path), path, new List<ParseDiagnostic>()); }
+                catch { return null; }
+            }
+
             foreach (var f in StrictImportDetector.ValidateImports(
                          directives, importerDir, rootDir, importerAsmdef,
-                         File.Exists, FindAsmdefName, IsExportedByFile))
+                         File.Exists, FindAsmdefName, IsExportedByFile, ParseTargetFile))
                 diags.Add(ToDiag(f));
         }
 
@@ -514,6 +521,12 @@ public sealed class DiagnosticsPublisher
         // workspace export table. Only when StrictImports is on and the file is on disk.
         var strictDiags = ComputeStrictImportDiagnostics(directives, localPath, text);
 
+        // ── UITKX2107 — deprecated companion partial-class merge ─────────────
+        // SG parity: the source generator warns when a legacy `module X` silently merges
+        // into a component declared in ANOTHER file via shared folder namespaces; surface
+        // the same deprecation live so editors see it before a build.
+        var companionDiags = ComputeCompanionMergeDiagnostics(directives, localPath);
+
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Suppress T1 parser diagnostics that fall inside unreachable regions
@@ -542,7 +555,7 @@ public sealed class DiagnosticsPublisher
             });
         }
 
-        var t1t2 = filteredT1.Concat(t2Diags).Concat(versionDiags).Concat(duplicateDiags).Concat(strictDiags).ToList();
+        var t1t2 = filteredT1.Concat(t2Diags).Concat(versionDiags).Concat(duplicateDiags).Concat(strictDiags).Concat(companionDiags).ToList();
         if (!string.IsNullOrEmpty(localPath))
             _lastT1T2[localPath] = t1t2;
 
@@ -920,6 +933,122 @@ public sealed class DiagnosticsPublisher
         });
 
         return diags;
+    }
+
+    // ── UITKX2107 — deprecated companion partial-class merge ────────────────
+
+    /// <summary>
+    /// LSP mirror of the source generator's UITKX2107 branch (ModuleEmitter): a legacy
+    /// <c>module X</c> with NO same-file <c>component X</c>, where a component named
+    /// <c>X</c> declared in ANOTHER <c>.uitkx</c> file resolves to the SAME effective
+    /// namespace, silently becomes part of that component's partial type. Warning per
+    /// merging module, anchored at its declaration line. Emission conditions match the
+    /// SG exactly — same namespace seam (<see cref="EffectiveNamespace.Resolve"/>),
+    /// same message. Candidate peers come from the workspace index keyed by the module
+    /// name, so at most the same-named declarant files are parsed per publish.
+    /// </summary>
+    internal List<ParseDiagnostic> ComputeCompanionMergeDiagnostics(
+        DirectiveSet directives, string localPath)
+    {
+        var diags = new List<ParseDiagnostic>();
+        if (directives.ModuleDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(localPath))
+            return diags;
+        if (!_index.HasCompletedInitialScan)
+            return diags;
+
+        string? resolvedNs = EffectiveNamespace.Resolve(
+            directives.HasExplicitNamespace, directives.Namespace, localPath,
+            fileKeyed: !directives.UsesLegacySyntax);
+        string ns = string.IsNullOrEmpty(resolvedNs) ? "ReactiveUITK.Generated" : resolvedNs!;
+
+        foreach (var module in directives.ModuleDeclarations)
+        {
+            bool mergesSameFile = false;
+            if (!directives.ComponentDeclarations.IsDefaultOrEmpty)
+                foreach (var comp in directives.ComponentDeclarations)
+                    if (comp.Name == module.Name)
+                    {
+                        mergesSameFile = true;
+                        break;
+                    }
+            if (mergesSameFile)
+                continue;
+
+            foreach (var info in _index.GetAllElementInfo(module.Name))
+            {
+                if (!info.FilePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (string.Equals(
+                        Path.GetFullPath(info.FilePath), Path.GetFullPath(localPath),
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                DirectiveSet? peerDs = TryParsePeerDirectives(info.FilePath);
+                if (peerDs == null)
+                    continue;
+
+                bool declaresComponent = false;
+                if (!peerDs.ComponentDeclarations.IsDefaultOrEmpty)
+                {
+                    foreach (var pc in peerDs.ComponentDeclarations)
+                        if (pc.Name == module.Name)
+                        {
+                            declaresComponent = true;
+                            break;
+                        }
+                }
+                else if (string.Equals(peerDs.ComponentName, module.Name, StringComparison.Ordinal))
+                {
+                    declaresComponent = true;
+                }
+                if (!declaresComponent)
+                    continue;
+
+                string? peerNs = EffectiveNamespace.Resolve(
+                    peerDs.HasExplicitNamespace, peerDs.Namespace, info.FilePath,
+                    fileKeyed: !peerDs.UsesLegacySyntax);
+                if (string.IsNullOrEmpty(peerNs)
+                    || !string.Equals(peerNs, ns, StringComparison.Ordinal))
+                    continue;
+
+                int line = module.DeclarationLine > 0 ? module.DeclarationLine : 1;
+                diags.Add(new ParseDiagnostic
+                {
+                    Code = DiagnosticCodes.DeprecatedCompanionMerge,
+                    Severity = ParseSeverity.Warning,
+                    SourceLine = line,
+                    SourceColumn = 0,
+                    EndLine = line,
+                    EndColumn = 9999,
+                    Message =
+                        $"companion partial-class merging is deprecated — '{Path.GetFileName(localPath)}' "
+                        + $"merges into '{Path.GetFileName(info.FilePath)}' via legacy folder namespaces; "
+                        + "migrate the companion set to plain declarations and file imports",
+                });
+                break;
+            }
+        }
+        return diags;
+    }
+
+    /// <summary>Parses a peer file's directives, preferring an open editor buffer over disk.
+    /// Null on any read/parse failure (best-effort — no diagnostic then).</summary>
+    private DirectiveSet? TryParsePeerDirectives(string filePath)
+    {
+        try
+        {
+            if (!_documentStore.TryGetByPath(filePath, out var text))
+            {
+                if (!File.Exists(filePath))
+                    return null;
+                text = File.ReadAllText(filePath);
+            }
+            return DirectiveParser.Parse(text, filePath, new List<ParseDiagnostic>());
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     // ── Version-compatibility diagnostics ──────────────────────────────────

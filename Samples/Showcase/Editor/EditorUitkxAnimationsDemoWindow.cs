@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Shared;
+using ReactiveUITK.Samples.Shared.AnimationsDemoPage;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

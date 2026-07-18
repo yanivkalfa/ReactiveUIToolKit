@@ -1,19 +1,12 @@
 import "@UnityEngine.UIElements"
 
-export hook useStressTestLoop(
-  Ref<VisualElement?> areaRef,
-  Vector2 areaSize,
-  int boxCount,
-  float duration,
-  bool running,
-  int version
-) -> (
+export (
   List<(string id, float x, float y, float size, float vx, float vy, Color color)> boxes,
   float avgFps,
   float elapsed,
   int totalFrames,
   bool finished
-) {
+) useStressTestLoop(Ref<VisualElement?> areaRef, Vector2 areaSize, int boxCount, float duration, bool running, int version) {
   var emptyBoxes = new List<(string id, float x, float y, float size, float vx, float vy, Color color)>();
   var (boxes, setBoxes) = useState(emptyBoxes);
 

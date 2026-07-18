@@ -1,7 +1,7 @@
 import { UnstableChild } from "./UnstableChild"
 import "@System.Threading.Tasks"
 
-export component ExceptionFlowDemoFunc {
+export VirtualNode ExceptionFlowDemoFunc() {
   var (shouldThrow, setShouldThrow) = useState(false);
   var (pendingTask, setPendingTask) = useState<Task?>(null);
 

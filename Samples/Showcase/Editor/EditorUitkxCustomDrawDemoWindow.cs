@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.CustomDrawDemoFunc;
+using ReactiveUITK.Samples.Components.CustomDrawDemoFunc.CustomDrawDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

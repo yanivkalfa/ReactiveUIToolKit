@@ -1,7 +1,7 @@
 import { useSnakeGame } from "./GameScreen.hooks"
 import "@UnityEngine.UIElements"
 
-export component GameScreen(int restartVersion = 0) {
+export VirtualNode GameScreen(int restartVersion = 0) {
   var boardRef = useRef<VisualElement?>(null);
   var areaRef = useRef<VisualElement?>(null);
   var (cellSize, setCellSize) = useState(0f);

@@ -170,6 +170,7 @@ namespace ReactiveUITK.SourceGenerator
                     var peerComponentsBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                     var peerHookContainersBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                     var peerModulesBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                    var peerExportsBuilder = ImmutableArray.CreateBuilder<PeerExportsInfo>();
                     var importsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                     foreach (var txt in uitkxFiles)
                     {
@@ -185,6 +186,8 @@ namespace ReactiveUITK.SourceGenerator
                         if (TryBuildPeerHookContainerInfo(src, txt.Path, out var hookInfo))
                             peerHookContainersBuilder.Add(hookInfo);
                         CollectPeerModuleInfos(src, txt.Path, peerModulesBuilder);
+                        if (TryBuildPeerExportsInfo(src, txt.Path, out var exportsInfo))
+                            peerExportsBuilder.Add(exportsInfo);
                         importsByFile.Add((txt.Path, ExtractImportsForCycle(src)));
                     }
                     ImmutableArray<PeerComponentInfo> peerComponents =
@@ -193,8 +196,10 @@ namespace ReactiveUITK.SourceGenerator
                         peerHookContainersBuilder.ToImmutable();
                     ImmutableArray<PeerModuleInfo> peerModules =
                         peerModulesBuilder.ToImmutable();
+                    ImmutableArray<PeerExportsInfo> peerExports =
+                        peerExportsBuilder.ToImmutable();
                     var valueCycles = UitkxFeatureFlags.StrictImports
-                        ? BuildValueCycleMap(importsByFile, peerHookContainers, peerModules)
+                        ? BuildValueCycleMap(importsByFile, peerHookContainers, peerModules, peerExports)
                         : null;
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
@@ -210,7 +215,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = ReadUitkxSource(txt, ct);
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules, valueCycles));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers, peerModules, valueCycles, peerExports));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -228,6 +233,7 @@ namespace ReactiveUITK.SourceGenerator
                             var diskPeerBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                             var diskHookBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                             var diskModuleBuilder = ImmutableArray.CreateBuilder<PeerModuleInfo>();
+                            var diskExportsBuilder = ImmutableArray.CreateBuilder<PeerExportsInfo>();
                             var diskImportsByFile = new List<(string File, List<(string[] Names, string Specifier)> Imports)>();
                             foreach (string fp in diskFiles)
                             {
@@ -239,6 +245,8 @@ namespace ReactiveUITK.SourceGenerator
                                 if (TryBuildPeerHookContainerInfo(raw, fp, out var hookInfo))
                                     diskHookBuilder.Add(hookInfo);
                                 CollectPeerModuleInfos(raw, fp, diskModuleBuilder);
+                                if (TryBuildPeerExportsInfo(raw, fp, out var exportsInfo))
+                                    diskExportsBuilder.Add(exportsInfo);
                                 diskImportsByFile.Add((fp, ExtractImportsForCycle(raw)));
                             }
                             ImmutableArray<PeerComponentInfo> diskPeerComponents =
@@ -247,8 +255,10 @@ namespace ReactiveUITK.SourceGenerator
                                 diskHookBuilder.ToImmutable();
                             ImmutableArray<PeerModuleInfo> diskPeerModules =
                                 diskModuleBuilder.ToImmutable();
+                            ImmutableArray<PeerExportsInfo> diskPeerExports =
+                                diskExportsBuilder.ToImmutable();
                             var diskValueCycles = UitkxFeatureFlags.StrictImports
-                                ? BuildValueCycleMap(diskImportsByFile, diskPeerHookContainers, diskPeerModules)
+                                ? BuildValueCycleMap(diskImportsByFile, diskPeerHookContainers, diskPeerModules, diskPeerExports)
                                 : null;
 
                             foreach (string filePath in diskFiles)
@@ -257,7 +267,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules, diskValueCycles));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers, diskPeerModules, diskValueCycles, diskPeerExports));
                             }
                         }
                     }
@@ -444,7 +454,36 @@ namespace ReactiveUITK.SourceGenerator
             var throwawayDiags = new List<ParseDiagnostic>();
             var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
             string? hookNs = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
-            if (ds.HookDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(hookNs))
+            if (string.IsNullOrEmpty(hookNs))
+            {
+                hookInfo = default!;
+                return false;
+            }
+
+            // New-mode file (ES-modules campaign, U-06): hooks are plain declarations on the
+            // per-file __Exports container; the container-name convention changes, the peer
+            // table shape does not.
+            if (!ds.UsesLegacySyntax)
+            {
+                var newModeHooks = ImmutableArray.CreateBuilder<string>();
+                if (!ds.MemberDeclarations.IsDefaultOrEmpty)
+                    foreach (var m in ds.MemberDeclarations)
+                        if (m.Kind == DeclKind.Hook && m.IsExported)
+                            newModeHooks.Add(m.Name);
+                if (newModeHooks.Count == 0)
+                {
+                    hookInfo = default!;
+                    return false;
+                }
+                hookInfo = new PeerHookContainerInfo(hookNs!, "__Exports")
+                {
+                    SourceFilePath = filePath,
+                    ExportedHookNames = newModeHooks.ToImmutable(),
+                };
+                return true;
+            }
+
+            if (ds.HookDeclarations.IsDefaultOrEmpty)
             {
                 hookInfo = default!;
                 return false;
@@ -466,6 +505,43 @@ namespace ReactiveUITK.SourceGenerator
         }
 
         /// <summary>
+        /// Builds the per-file export surface for a NEW-MODE (plain-declaration) peer (ES-modules
+        /// campaign, U-03). Legacy files never get an entry.
+        /// </summary>
+        private static bool TryBuildPeerExportsInfo(
+            string source,
+            string filePath,
+            out PeerExportsInfo exportsInfo
+        )
+        {
+            var throwawayDiags = new List<ParseDiagnostic>();
+            var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
+            string? ns = UitkxPipeline.ResolveEffectiveNamespace(ds, filePath);
+            if (ds.UsesLegacySyntax || string.IsNullOrEmpty(ns)
+                || (ds.MemberDeclarations.IsDefaultOrEmpty && ds.ComponentDeclarations.IsDefaultOrEmpty))
+            {
+                exportsInfo = default!;
+                return false;
+            }
+
+            var exportedComponents = ImmutableArray.CreateBuilder<string>();
+            if (!ds.ComponentDeclarations.IsDefaultOrEmpty)
+                foreach (var c in ds.ComponentDeclarations)
+                    if (c.IsExported)
+                        exportedComponents.Add(c.Name);
+
+            exportsInfo = new PeerExportsInfo(
+                filePath,
+                ns!,
+                ds.MemberDeclarations.IsDefaultOrEmpty
+                    ? ImmutableArray<MemberDeclaration>.Empty
+                    : ds.MemberDeclarations,
+                exportedComponents.ToImmutable(),
+                ds.DefaultExportName);
+            return true;
+        }
+
+        /// <summary>
         /// Appends a <see cref="PeerModuleInfo"/> for every <c>module</c> declared in the file
         /// (import/export grammar, leg 3, M6b/strict). Module edges had no peer table before.
         /// </summary>
@@ -475,6 +551,21 @@ namespace ReactiveUITK.SourceGenerator
             @"^\s*import\s*\{([^}]*)\}\s*from\s*""([^""]+)""",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
         );
+
+        // Star / default import forms also create value-cycle edges (audit M5): a `* as X`
+        // binding eager-references the whole target container; a default import can bind a
+        // member. Sentinel names "*" / "\0default" mark them for BuildValueCycleMap.
+        private static readonly Regex s_importScanStarRe = new Regex(
+            @"^\s*import\s*\*\s*as\s+\w+\s+from\s*""([^""]+)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+        private static readonly Regex s_importScanDefaultRe = new Regex(
+            @"^\s*import\s+\w+\s+from\s*""([^""]+)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        internal const string CycleStarSentinel = "*";
+        internal const string CycleDefaultSentinel = "\0default";
 
         private static List<(string[] Names, string Specifier)> ExtractImportsForCycle(string source)
         {
@@ -488,9 +579,19 @@ namespace ReactiveUITK.SourceGenerator
             {
                 string[] names = m.Groups[1].Value.Split(',');
                 for (int i = 0; i < names.Length; i++)
+                {
                     names[i] = names[i].Trim();
+                    // `a as b` edges key on the ORIGINAL (exported) name.
+                    int asIdx = names[i].IndexOf(" as ", StringComparison.Ordinal);
+                    if (asIdx > 0)
+                        names[i] = names[i].Substring(0, asIdx).Trim();
+                }
                 result.Add((names, m.Groups[2].Value));
             }
+            foreach (Match m in s_importScanStarRe.Matches(source))
+                result.Add((new[] { CycleStarSentinel }, m.Groups[1].Value));
+            foreach (Match m in s_importScanDefaultRe.Matches(source))
+                result.Add((new[] { CycleDefaultSentinel }, m.Groups[1].Value));
             return result;
         }
 
@@ -543,7 +644,8 @@ namespace ReactiveUITK.SourceGenerator
         private static Dictionary<string, string> BuildValueCycleMap(
             List<(string File, List<(string[] Names, string Specifier)> Imports)> importsByFile,
             ImmutableArray<PeerHookContainerInfo> peerHooks,
-            ImmutableArray<PeerModuleInfo> peerModules)
+            ImmutableArray<PeerModuleInfo> peerModules,
+            ImmutableArray<PeerExportsInfo> peerExports = default)
         {
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -556,6 +658,29 @@ namespace ReactiveUITK.SourceGenerator
             foreach (var pm in peerModules)
                 if (pm.IsExported && !string.IsNullOrEmpty(pm.SourceFilePath))
                     valueExports.Add(NormPath(pm.SourceFilePath) + "\0" + pm.Name);
+
+            // New-mode files (audit M5): every exported MEMBER is a value symbol — values
+            // eager-init via static field initializers; hooks/utils match the legacy graph's
+            // over-approximation. Components stay exempt (lazy). Star imports edge on the
+            // whole container; default imports edge only when the default is a member.
+            var starValueTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var defaultValueTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!peerExports.IsDefaultOrEmpty)
+                foreach (var pe in peerExports)
+                {
+                    if (string.IsNullOrEmpty(pe.SourceFilePath))
+                        continue;
+                    string peN = NormPath(pe.SourceFilePath);
+                    if (!pe.Members.IsDefaultOrEmpty)
+                        foreach (var m in pe.Members)
+                            if (m.IsExported)
+                            {
+                                valueExports.Add(peN + "\0" + m.Name);
+                                starValueTargets.Add(peN);
+                                if (pe.DefaultExportName != null && m.Name == pe.DefaultExportName)
+                                    defaultValueTargets.Add(peN);
+                            }
+                }
 
             if (valueExports.Count == 0)
                 return result;
@@ -586,7 +711,12 @@ namespace ReactiveUITK.SourceGenerator
                         continue;
                     bool isValue = false;
                     foreach (var n in names)
-                        if (valueExports.Contains(tgtN + "\0" + n)) { isValue = true; break; }
+                    {
+                        bool hit = n == CycleStarSentinel ? starValueTargets.Contains(tgtN)
+                            : n == CycleDefaultSentinel ? defaultValueTargets.Contains(tgtN)
+                            : valueExports.Contains(tgtN + "\0" + n);
+                        if (hit) { isValue = true; break; }
+                    }
                     if (!isValue)
                         continue;
                     if (!edges.TryGetValue(key, out var list))

@@ -178,7 +178,7 @@ export const HmrPage: FC = () => (
         static auto-properties is on the roadmap.
       </Typography>
       <Typography variant="body1" paragraph>
-        Generic hooks (e.g. <code>{'hook useLocalStorage<T>(...)'}</code>) use a cached delegate
+        Generic hooks (e.g. <code>{'useLocalStorage<T>(...)'}</code> (legacy generic hooks)) use a cached delegate
         strategy — first call per type parameter after HMR pays ~1-2µs, subsequent calls are direct
         invocations.
       </Typography>
