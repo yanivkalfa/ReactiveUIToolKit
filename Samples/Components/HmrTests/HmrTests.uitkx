@@ -1,12 +1,12 @@
 import { container } from "./SomeOtherName.style"
-import * as something from "./SomeOtherName.utils"
+import isSomethingEven, { getSomething } from "./SomeOtherName.utils"
 
 export VirtualNode HmrTests() {
   var (count, setCount) = useState(0);
 
   return (
     <VisualElement style={container}>
-      <Text text={$"Count: {count}"} onClick={_ => something.default()} />
+      <Text text={$"Count: {count}"} onClick={_ => getSomething()} />
       <Button text="+" onClick={_ => setCount(count + 1)} />
     </VisualElement>
   );

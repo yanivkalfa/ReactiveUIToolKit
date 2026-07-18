@@ -571,6 +571,49 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.Equal(formatted, N(s_fmt.Format(formatted)));
         }
 
+        // ── Field find: imported bindings color by export KIND ──────────────
+
+        [Fact]
+        public void Field3_ImportBindings_ColorByExportKind()
+        {
+            using var tmp = new TempUitkxDir();
+            tmp.Write("SomeOtherName.style.uitkx",
+                "export Style container = new Style {\n  Padding = 10f,\n};\n");
+            tmp.Write("SomeOtherName.utils.uitkx",
+                "export int getSomething() {\n  return 42;\n}\n" +
+                "bool isSomethingEven() {\n  return true;\n}\n" +
+                "export default isSomethingEven;\n");
+            tmp.Write("Card.uitkx",
+                "export VirtualNode Card() {\n  return (<Box/>);\n}\n");
+            string importerPath = tmp.Write("Screen.uitkx",
+                "import { container } from \"./SomeOtherName.style\"\n" +
+                "import isSomethingEven, { getSomething } from \"./SomeOtherName.utils\"\n" +
+                "import { Card } from \"./Card\"\n" +
+                "export VirtualNode Screen() {\n  return (<Card/>);\n}\n");
+
+            string src = File.ReadAllText(importerPath);
+            var diags = new List<ParseDiagnostic>();
+            var ds = DirectiveParser.Parse(src, importerPath, diags);
+            var nodes = UitkxParser.Parse(src, importerPath, ds, diags);
+            var pr = new ParseResult(ds, nodes, ImmutableArray.CreateRange(diags));
+
+            var tokens = new ReactiveUITK.Language.SemanticTokens.SemanticTokensProvider()
+                .GetTokens(pr, src, null, importerPath);
+
+            Assert.Contains(tokens, t => t.Line == 0
+                && t.TokenType == ReactiveUITK.Language.SemanticTokens.SemanticTokenTypes.Variable
+                && t.Length == "container".Length);
+            Assert.Contains(tokens, t => t.Line == 1
+                && t.TokenType == ReactiveUITK.Language.SemanticTokens.SemanticTokenTypes.Function
+                && t.Length == "getSomething".Length);
+            Assert.Contains(tokens, t => t.Line == 1
+                && t.TokenType == ReactiveUITK.Language.SemanticTokens.SemanticTokenTypes.Function
+                && t.Length == "isSomethingEven".Length);
+            Assert.Contains(tokens, t => t.Line == 2
+                && t.TokenType == ReactiveUITK.Language.SemanticTokens.SemanticTokenTypes.Element
+                && t.Length == "Card".Length);
+        }
+
         // ── F2/F3/F8/P2: formatter guarantees ───────────────────────────────
 
         [Fact]

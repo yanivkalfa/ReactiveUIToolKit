@@ -18,6 +18,15 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 
 ### Fixed — 0.9.0 F5 field battery
 
+- **Import-brace completion works in the combined form.** Ctrl+Space inside the braces
+  of `import Def, {} from "./file"` returned nothing (the context check required a bare
+  `import` before `{`); it now recognizes the default-binding prefix and excludes both
+  the default alias and the target's default export from the suggestions.
+- **Imported bindings color by what they bind.** Import-list names all rendered with the
+  grammar's uniform type tint; the semantic-token layer now resolves each import's target
+  and colors every binding by its export kind — components as elements, hooks/utils as
+  functions, values as variables (star aliases as variables; a default binding takes the
+  kind of the default-exported declaration).
 - **Named VALUE imports resolve in the editor.** The LSP's Roslyn workspace only loaded
   peer `.uitkx` files with legacy hooks/modules — a new-mode member file
   (`export Style container = …`) never entered the compilation, so its `__Exports` didn't
