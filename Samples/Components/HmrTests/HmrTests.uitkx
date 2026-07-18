@@ -1,4 +1,5 @@
-import { container } from "./blabla.style"
+import { container } from "./SaaomeBla.style"
+import { getSomething } from "./someThingElse.util"
 
 export VirtualNode HmrTests() {
   var (count, setCount) = useState(0);
@@ -6,7 +7,7 @@ export VirtualNode HmrTests() {
   return (
     <VisualElement style={container}>
       <Text text={$"Csount: {count}"} />
-      <Button text="+" onClick={_ => setCount(count + 1)} />
+      <Button text="+" onClick={_ => setCount(getSomething())} />
     </VisualElement>
   );
 }

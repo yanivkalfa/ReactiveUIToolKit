@@ -1,5 +1,5 @@
 export Style container = new Style {
-  BackgroundColor = ColorGray,
+  BackgroundColor = ColorRed,
   BorderColor = ColorBlack,
   BorderWidth = 2f,
   Padding = 10f,

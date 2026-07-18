@@ -359,9 +359,10 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             if (!_active)
             {
-                Debug.Log(
-                    $"[HMR] Save ignored (HMR inactive): {Path.GetFileName(uitkxPath)}"
-                );
+                if (VerboseWatcherTrace)
+                    Debug.Log(
+                        $"[HMR] Save ignored (HMR inactive): {Path.GetFileName(uitkxPath)}"
+                    );
                 return;
             }
 
@@ -397,7 +398,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                         : 0;
                 bool redirected = !string.Equals(
                     uitkxPath, changedPath, StringComparison.OrdinalIgnoreCase);
-                Debug.Log(
+                // Routine save-trail line — verbose-gated (field-debugging tier; the
+                // anomaly lines — recovered save, watcher error, evictions — stay on).
+                if (VerboseWatcherTrace)
+                    Debug.Log(
                     $"[HMR] Save: {Path.GetFileName(changedPath)} → "
                         + (redirected
                             ? $"companion parent {Path.GetFileName(uitkxPath)}"
@@ -460,7 +464,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
             }
 
-            if (recompiled != null)
+            if (recompiled != null && VerboseWatcherTrace)
                 Debug.Log(
                     $"[HMR] Fan-out: {Path.GetFileName(changedFile)} → "
                         + $"{recompiled.Count} importer(s): {string.Join(", ", recompiled)}"
@@ -794,7 +798,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // successful compile of such a file is byte-for-byte silent —
                 // indistinguishable from the save never arriving. Consumers pick the
                 // new values up via the importer fan-out recompile logged separately.
-                if (swapped == 0)
+                if (swapped == 0 && VerboseWatcherTrace)
                     Debug.Log(
                         $"[HMR] {result.ComponentName} compiled ({result.TotalMs:F0}ms) — "
                             + "no live swap target here; member/module changes reach "
@@ -1025,10 +1029,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             int dependentCount = 0;
             if (_ussDependents.TryGetValue(ussPath, out var dependents))
                 dependentCount = dependents.Count;
-            Debug.Log(
-                $"[HMR] Save: {Path.GetFileName(ussPath)} → "
-                    + $"{dependentCount} dependent .uitkx file(s)"
-            );
+            if (VerboseWatcherTrace)
+                Debug.Log(
+                    $"[HMR] Save: {Path.GetFileName(ussPath)} → "
+                        + $"{dependentCount} dependent .uitkx file(s)"
+                );
             if (dependents != null)
             {
                 foreach (string uitkxPath in dependents)
