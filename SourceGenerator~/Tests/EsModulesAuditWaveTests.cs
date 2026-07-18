@@ -473,8 +473,11 @@ namespace ReactiveUITK.SourceGenerator.Tests
                 ds,
                 "import isSomethingEven, { getSomething } from \"./SomeOtherName.utils\"\n" +
                 "<Text text={getSomething()} />");
-            Assert.Single(findings, f => f.Code == "UITKX2304"
+            var f2304 = Assert.Single(findings, f => f.Code == "UITKX2304"
                 && f.Message.Contains("isSomethingEven"));
+            // The squiggle spans the WHOLE alias token ("import " is 7 chars wide).
+            Assert.Equal(7, f2304.Column);
+            Assert.Equal(7 + "isSomethingEven".Length, f2304.EndColumn);
         }
 
         [Fact]
@@ -506,6 +509,22 @@ namespace ReactiveUITK.SourceGenerator.Tests
             var findings = StrictImportDetector.DetectUnusedImports(
                 ds, "import * as T from \"./tokens\"\n<Box />");
             Assert.Single(findings, f => f.Code == "UITKX2304" && f.Message.Contains("T"));
+        }
+
+        [Fact]
+        public void Field4_ValueUsedOnlyInInterpolationHole_IsNotUnused()
+        {
+            // With 2304 at error tier, the scrub must preserve interpolation-hole contents:
+            // `text={$"{Gap}"}` is a real reference.
+            var ds = DetectorDs() with
+            {
+                Imports = ImmutableArray.Create(new ImportDeclaration(
+                    ImmutableArray.Create("Gap"), "./tokens", 1, 0, ImmutableArray<int>.Empty)),
+            };
+            string scannable = StrictImportDetector.ScrubNonCode(
+                "import { Gap } from \"./tokens\"\n<Label text={$\"gap is {Gap}px\"} />");
+            var findings = StrictImportDetector.DetectUnusedImports(ds, scannable);
+            Assert.Empty(findings);
         }
 
         [Fact]

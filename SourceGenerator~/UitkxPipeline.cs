@@ -1297,9 +1297,11 @@ namespace ReactiveUITK.SourceGenerator
                     // Heuristic findings (bare hook calls / module member access scanned out of
                     // C# expression text) are warnings — ambient C# legitimately produces those
                     // shapes, and a real missing import still fails the emitted C# (CS0103).
-                    Severity = f.Code == "UITKX2304" || f.IsHeuristic
-                        ? ParseSeverity.Warning
-                        : ParseSeverity.Error,
+                    // 2304 is ERROR-tier since 0.9.1 (owner decision, consistent with the other
+                    // import diagnostics): the reference universe over-approximates "used", so
+                    // a 2304 only fires when the binding truly appears nowhere — no
+                    // false-positive risk at error tier.
+                    Severity = f.IsHeuristic ? ParseSeverity.Warning : ParseSeverity.Error,
                     SourceLine = f.Line,
                     SourceColumn = Math.Max(0, f.Column),
                     EndLine = f.EndColumn > 0 ? f.Line : 0,

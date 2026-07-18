@@ -16,6 +16,15 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   line), lowered (default alias/bridge + named payloads + star alias from the one
   declaration), colored, and duplicate-checked across all parts.
 
+### Changed — UITKX2304 (unused import) is now an ERROR
+
+Severity bump (BREAKING for builds that carried unused imports as warnings): an unused
+imported binding — named, `* as`, or default — now fails the build like the other import
+diagnostics, in the editor and the generator alike. The promotion is safe from false
+positives: the reference scan over-approximates "used" (every identifier outside the
+import lines counts), so a firing 2304 means the binding truly appears nowhere. The
+squiggle now also spans the whole binding token instead of one character.
+
 ### Fixed — 0.9.0 F5 field battery
 
 - **Same-name default imports no longer emit an ambiguous binding.** `import
