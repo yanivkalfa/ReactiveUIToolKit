@@ -1,4 +1,4 @@
-export component MainMenu(Action onStartGame) {
+export VirtualNode MainMenu(Action onStartGame) {
   return (
     <VisualElement style={MainMenuStyles.Container}>
       <VisualElement style={MainMenuStyles.MenuBox}>

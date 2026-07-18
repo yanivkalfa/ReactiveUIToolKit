@@ -564,7 +564,7 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX2322" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Value export cannot infer its type</TableCell>
-            <TableCell>The type-less form is legal only when the initializer names the type: <code>export theme = new Style {'{'} … {'}'}</code>. Otherwise declare it: <code>export Style theme = …</code>.</TableCell>
+            <TableCell>The type-less form is legal only when the initializer names the type: <code>export theme = new Style {'{'} … {'}'}</code>. Otherwise declare it: <code>export Style theme = …</code>. Family divergence: Unity is the only engine that EMITS this code — the C# typed dialect has real inference sugar; Godot and Unreal register the number but never fire it.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2323" size="small" color="error" variant="outlined" /></TableCell>

@@ -28,7 +28,9 @@ A `VirtualNode` return = component (PascalCase enforced). A `use`-prefixed name 
 
 **Migration is one command:** `UitkxMigrateImports --es-modules` rewrites whole trees - wrappers to plain declarations, modules exploded member-by-member, `import { Module }` becomes `import * as Module` with call sites untouched, companion sets atomically, idempotent. Old syntax still parses this minor with `UITKX2320` warnings; removal comes later. Migrating a file resets its hot-reload state once.
 
-New diagnostics `UITKX2320-2327` + `2107-2110`. Full editor support in all three IDEs (grammar, completions, rename/go-to-def across both syntaxes). Samples migrated (130 files).
+New diagnostics `UITKX2320-2327` + `2107-2110`. Full editor support in all three IDEs (grammar, completions, rename/go-to-def across both syntaxes). Samples fully migrated.
+
+Pre-release audit: four review agents swept the new surface; 50+ findings fixed (parser, hot reload, rename, codemod).
 
 Unity package **0.9.0** + IDE extensions **1.5.0** (VS Code/VS2022), **1.2.0** (Rider).
 

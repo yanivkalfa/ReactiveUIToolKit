@@ -2,7 +2,7 @@ import { GameScreen } from "./components/GameScreen/GameScreen"
 import { MainMenu } from "./components/MainMenu/MainMenu"
 import "@Samples.MarioGame"
 
-export component MarioGame {
+export VirtualNode MarioGame() {
   var (route, setRoute) = useState(GameRoute.Menu);
   var (restartVersion, setRestartVersion) = useState(0);
 

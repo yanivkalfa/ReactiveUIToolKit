@@ -1,4 +1,3 @@
-import { MarioGame } from "../../MarioGame.style"
 import "@static Samples.MarioGame.MarioConstants"
 import "@Samples.MarioGame"
 

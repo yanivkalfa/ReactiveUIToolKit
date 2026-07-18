@@ -78,7 +78,7 @@ audit report) / **DUP** (same defect as another entry).
 |---|---|---|---|
 | PC-1 | MAJOR | 2109 rename-vs-legacy hole. | DUP F7 |
 | PC-2 | MAJOR | StrictImportDetector messages not family-verbatim: backticks instead of the plan §3's single quotes for 2325/2326/2109/2110 (and 2305/2307/2301/2304/2300 use backticks — pre-band style). | FIXED for the §3-frozen new codes (2325/2326/2109/2110 wording aligned verbatim); pre-existing 23xx/2304 backtick style left as-is (predates the band freeze) |
-| PC-3 | MAJOR | M7 samples flip is partial: 21 companion sets (35 files) remain legacy (unmigratable shapes) with no `REMAINING_WORK.md` entry; plan gate says flip + adjudicate. | OWNER + REMAINING_WORK entry added |
+| PC-3 | MAJOR | M7 samples flip is partial: 21 companion sets (35 files) remain legacy (unmigratable shapes) with no `REMAINING_WORK.md` entry; plan gate says flip + adjudicate. | FIXED (owner directed the full flip: blocking members extracted to ambient C# — 21 .cs created, 18 .uitkx retired — then the fixed codemod migrated the rest; VERIFY-UNITY all green; only the byte-frozen UitkxTestFileDoNotTouch fixture stays legacy, deliberately, as legacy-mode coverage) |
 | PC-4 | MAJOR | U-05 dotted-tag semantic-token split coloring (`X` alias vs `Comp` type) not implemented. | FIXED |
 | PC-5 | MINOR | 2325's "another import" arm is reported as parser 2303 (bound-name key), not 2325. | FIXED (alias-involved collisions re-keyed to family 2325 arm 2, verbatim message; plain name-vs-name duplicates stay 2303) |
 | PC-6 | MINOR | 2108 direction asymmetry (wrapper-after-plain vs plain-after-wrapper anchor/coverage). | FIXED (plain-head look-ahead upgrades the legacy paths' trailing-content 2105 to 2108; bare statements keep 2105) |

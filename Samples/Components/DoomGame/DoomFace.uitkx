@@ -1,4 +1,3 @@
-import { DoomTextures } from "./DoomTextures"
 import "@UnityEngine.UIElements"
 import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 

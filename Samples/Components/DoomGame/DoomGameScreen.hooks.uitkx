@@ -1,4 +1,4 @@
-import { GameLogic } from "./GameLogic"
+import * as GameLogic from "./GameLogic"
 import "@UnityEngine.InputSystem"
 import "@UnityEngine.UIElements"
 import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"

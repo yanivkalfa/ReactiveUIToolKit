@@ -1,5 +1,5 @@
 import { Sidebar } from "../../Components/Sidebar/Sidebar"
-import { SidebarItem } from "../../Components/Sidebar/SidebarItem.types"
+import "@SidebarItem = ReactiveUITK.Samples.UIs.PrettyUi.UI.Components.Sidebar.SidebarItem"
 
 export VirtualNode HomePageSidebar() {
   var navigate = RouterHooks.UseNavigate();

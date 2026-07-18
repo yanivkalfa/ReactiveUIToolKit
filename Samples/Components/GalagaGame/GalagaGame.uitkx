@@ -1,22 +1,22 @@
 import { GameScreen } from "./components/GameScreen/GameScreen"
 import { MainMenu } from "./components/MainMenu/MainMenu"
 
-export component GalagaGame {
-  var (screen, setScreen) = useState(Screen.MainMenu);
+export VirtualNode GalagaGame() {
+  var (screen, setScreen) = useState(GalagaScreen.MainMenu);
   var (restartVersion, setRestartVersion) = useState(0);
 
   Action handleNewGame = () => {
     setRestartVersion(v => v + 1);
-    setScreen(Screen.Game);
+    setScreen(GalagaScreen.Game);
   };
 
   Action handleReturnToMenu = () => {
-    setScreen(Screen.MainMenu);
+    setScreen(GalagaScreen.MainMenu);
   };
 
   return (
     <VisualElement style={Styles.Root}>
-      @if (screen == Screen.MainMenu) {
+      @if (screen == GalagaScreen.MainMenu) {
         return (
           <MainMenu onNewGame={handleNewGame} />
         );
