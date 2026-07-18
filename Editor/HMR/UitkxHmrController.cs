@@ -132,7 +132,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         public bool VerboseWatcherTrace
         {
             get => EditorPrefs.GetBool("UITKX_HMR_VerboseWatcher", false);
-            set => EditorPrefs.SetBool("UITKX_HMR_VerboseWatcher", value);
+            set
+            {
+                EditorPrefs.SetBool("UITKX_HMR_VerboseWatcher", value);
+                _watcher.TraceEnabled = value;
+            }
         }
 
         // ── Memory tracking ─────────────────────────────────────────────────
@@ -233,6 +237,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             _watcher.OnUitkxChanged += OnUitkxFileChanged;
             _watcher.OnUssChanged += OnUssFileChanged;
             _watcher.OnUitkxDeleted += OnUitkxFileDeleted;
+            _watcher.TraceEnabled = VerboseWatcherTrace;
             _watcher.Start(assetsPath);
 
             // Seed the workspace-wide hook-container registry so HMR recompiles
@@ -251,15 +256,15 @@ namespace ReactiveUITK.EditorSupport.HMR
             global::ReactiveUITK.Refresh.RefreshRuntime.RegisterRootRendererProvider(
                 EnumerateRootFibers);
 
-            // Build initial USS dependency map (only on first start;
-            // subsequent starts reuse the map since .uitkx files haven't changed)
-            if (_ussDependents.Count == 0)
-                BuildUssDependencyMap(assetsPath);
-
-            // Build the import reverse-dependency map (import/export grammar §8) so a change to an
-            // imported module/hook file fans out to its importers.
-            if (_importDependents.Count == 0)
-                BuildImportDependencyMap(assetsPath);
+            // Rebuild BOTH reverse-dependency maps on EVERY Start (field find: the old
+            // only-if-empty guard ran a session on the previous session's graph — an
+            // import or @uss edge edited while HMR was stopped, with no domain reload
+            // in between, stayed invisible, so a member-file save fanned out to NOBODY:
+            // zero logs, zero screen change; a domain reload "fixed" it by forcing a
+            // fresh map. Both builders clear their map first; the cost is one read of
+            // each .uitkx at Start, same order as HookContainerRegistry's seed scan.
+            BuildUssDependencyMap(assetsPath);
+            BuildImportDependencyMap(assetsPath);
 
             // Hook lifecycle events
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
@@ -353,7 +358,12 @@ namespace ReactiveUITK.EditorSupport.HMR
         private void OnUitkxFileChanged(string uitkxPath, bool fanOutToImporters)
         {
             if (!_active)
+            {
+                Debug.Log(
+                    $"[HMR] Save ignored (HMR inactive): {Path.GetFileName(uitkxPath)}"
+                );
                 return;
+            }
 
             // The originally-changed file drives the import reverse-edge fan-out below (importers
             // reference it by its own path, before any companion redirect).
@@ -373,7 +383,30 @@ namespace ReactiveUITK.EditorSupport.HMR
             // the [ModuleInitializer] in the freshly compiled assembly — reaches every
             // hook CONSUMER regardless of whether their IL was recompiled in this round.
             // See Plans~/HMR_FAST_REFRESH_PLAN.md.
-            EnqueueCompile(uitkxPath);
+            bool queued = EnqueueCompile(uitkxPath);
+
+            // Always-on routing trail: one line per user save (fan-out cascades log
+            // through the Fan-out line instead). Proves the event reached the
+            // controller and names the routing decision — the two facts that were
+            // undiagnosable when a member-file save vanished silently.
+            if (fanOutToImporters)
+            {
+                int importerCount =
+                    _importDependents.TryGetValue(NormalizeImportPath(changedPath), out var deps)
+                        ? deps.Count
+                        : 0;
+                bool redirected = !string.Equals(
+                    uitkxPath, changedPath, StringComparison.OrdinalIgnoreCase);
+                Debug.Log(
+                    $"[HMR] Save: {Path.GetFileName(changedPath)} → "
+                        + (redirected
+                            ? $"companion parent {Path.GetFileName(uitkxPath)}"
+                            : "self compile")
+                        + $"; importers: {importerCount}"
+                        + (queued ? string.Empty : " (already queued)")
+                );
+            }
+
             DrainCompileQueueIfIdle();
 
             // Keep this file's outgoing import edges fresh (its imports may have changed).
@@ -402,6 +435,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { start };
             var queue = new Queue<string>();
             queue.Enqueue(start);
+            List<string> recompiled = null;
 
             while (queue.Count > 0)
             {
@@ -415,6 +449,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     if (visited.Add(importer))
                     {
                         queue.Enqueue(importer);
+                        (recompiled ??= new List<string>()).Add(Path.GetFileName(importer));
                         // Force this importer to recompile FRESH so it rebinds the changed
                         // dependency's new DLL. Without this, the incremental path reuses the
                         // importer's cached compilation (which holds the dependency's stale
@@ -424,6 +459,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                     }
                 }
             }
+
+            if (recompiled != null)
+                Debug.Log(
+                    $"[HMR] Fan-out: {Path.GetFileName(changedFile)} → "
+                        + $"{recompiled.Count} importer(s): {string.Join(", ", recompiled)}"
+                );
         }
 
         // ── Compile queue plumbing ────────────────────────────────────────────
@@ -452,12 +493,16 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
         }
 
-        private void EnqueueCompile(string uitkxPath)
+        // Returns true when the path was newly queued, false when it was already
+        // pending (deduped) — surfaced in the Save routing log line.
+        private bool EnqueueCompile(string uitkxPath)
         {
             if (string.IsNullOrEmpty(uitkxPath))
-                return;
-            if (_enqueued.Add(uitkxPath))
-                _compileQueue.Enqueue(uitkxPath);
+                return false;
+            if (!_enqueued.Add(uitkxPath))
+                return false;
+            _compileQueue.Enqueue(uitkxPath);
+            return true;
         }
 
         private void DrainCompileQueueIfIdle()
@@ -710,14 +755,14 @@ namespace ReactiveUITK.EditorSupport.HMR
                     )
                     : 0;
 
-                // Module-method edits: SwapModuleMethods (above) rebound the
-                // static trampoline delegates, but loaded consumers still hold
-                // render output produced by the OLD method bodies. SwapHooks
-                // fires the global re-render on its own success; a module-only
-                // file never runs it, so fire it here. Without this, a module
-                // method edit only becomes visible after an unrelated re-render
-                // (a consumer state change, or the next game-loop frame).
-                if (reInitedMethods > 0 && hookSwaps == 0)
+                // Module-method AND module/member-static edits: the swappers above
+                // rebound delegates / copied field values onto the project types, but
+                // loaded consumers still hold render output produced with the OLD
+                // values. SwapHooks fires the global re-render on its own success; a
+                // module-only or value-only file never runs it, so fire it here.
+                // Field copies were previously excluded, which left a project-resident
+                // member file's value edit invisible until an unrelated re-render.
+                if ((reInitedMethods > 0 || reInitedFields > 0) && hookSwaps == 0)
                     UitkxHmrDelegateSwapper.TriggerGlobalReRender();
 
                 swapped = hookSwaps;
@@ -737,11 +782,24 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (refreshed > swapped)
                     swapped = refreshed;
 
-                // Surface a module-only swap in the [HMR] notification even when
-                // no hook delegates or component families reported live
+                // Surface a module-only or value-only swap in the [HMR] notification
+                // even when no hook delegates or component families reported live
                 // instances (the change was applied via the global re-render).
-                if (reInitedMethods > 0 && swapped == 0)
-                    swapped = reInitedMethods;
+                if (swapped == 0 && reInitedMethods + reInitedFields > 0)
+                    swapped = reInitedMethods + reInitedFields;
+
+                // Always-on outcome line for the member/hook/module route when
+                // NOTHING here had a live swap target (mid-session member files: no
+                // project type to copy onto, no hooks, no methods). Without it a
+                // successful compile of such a file is byte-for-byte silent —
+                // indistinguishable from the save never arriving. Consumers pick the
+                // new values up via the importer fan-out recompile logged separately.
+                if (swapped == 0)
+                    Debug.Log(
+                        $"[HMR] {result.ComponentName} compiled ({result.TotalMs:F0}ms) — "
+                            + "no live swap target here; member/module changes reach "
+                            + "consumers via the importer fan-out recompile."
+                    );
             }
             else
             {
@@ -919,13 +977,13 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             if (!_active)
                 return;
-            if (_pendingRetryPaths.Remove(uitkxPath))
-            {
-                Debug.Log(
-                    $"[HMR] {Path.GetFileName(uitkxPath)} no longer exists — "
-                        + "removed from retry queue."
-                );
-            }
+            bool removedFromRetry = _pendingRetryPaths.Remove(uitkxPath);
+            Debug.Log(
+                $"[HMR] Deleted: {Path.GetFileName(uitkxPath)} — evicting per-file "
+                    + "registrations"
+                    + (removedFromRetry ? " (removed from retry queue)" : string.Empty)
+                    + "."
+            );
 
             // Rename/delete cleanup (rename-flow field find): drop every registration keyed
             // by the dead path so a renamed member file's OLD identity cannot linger — its
@@ -964,7 +1022,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             // Find all .uitkx files that reference this .uss and re-trigger HMR
+            int dependentCount = 0;
             if (_ussDependents.TryGetValue(ussPath, out var dependents))
+                dependentCount = dependents.Count;
+            Debug.Log(
+                $"[HMR] Save: {Path.GetFileName(ussPath)} → "
+                    + $"{dependentCount} dependent .uitkx file(s)"
+            );
+            if (dependents != null)
             {
                 foreach (string uitkxPath in dependents)
                     OnUitkxFileChanged(uitkxPath);

@@ -160,7 +160,8 @@ public class HmrAuditWaveContractTests
         Assert.Contains("_compiler?.EvictFileRegistration(uitkxPath);", controller);
         Assert.Contains("HookContainerRegistry.Invalidate(uitkxPath);", controller);
         var watcher = Src("UitkxHmrFileWatcher.cs");
-        Assert.Contains("_watcher.Deleted += (s, e) => EnqueueDeletion(e.FullPath);", watcher);
+        Assert.Contains("_watcher.Deleted += (s, e) =>", watcher);
+        Assert.Contains("EnqueueDeletion(e.FullPath);", watcher);
         Assert.Contains("EnqueueDeletion(e.OldFullPath);", watcher);
         Assert.Contains("if (!File.Exists(path))", watcher);
     }
@@ -185,5 +186,93 @@ public class HmrAuditWaveContractTests
         var src = Src("UitkxHmrCompiler.cs");
         Assert.Contains("!targetHookNames.Contains(nm)", src);
         Assert.Contains("map[bound] = targetNs + \".\" + targetContainer + \"::\" + nm;", src);
+    }
+
+    [Fact]
+    public void SilenceWave_DependencyMaps_RebuiltOnEveryStart()
+    {
+        // Field find (mid-session member-file silence): the only-if-empty guards let an
+        // HMR session run on the PREVIOUS session's reverse-dependency graph whenever the
+        // controller survived without a domain reload — an import/@uss edge edited while
+        // HMR was stopped stayed invisible, so a member-file save fanned out to nobody
+        // with zero logs. A domain reload (the owner's full-cycle restart) rebuilt the
+        // map fresh, which is why the same edit "worked after restart". Both maps are
+        // now rebuilt unconditionally at Start.
+        var src = Src("UitkxHmrController.cs");
+        Assert.DoesNotContain("if (_ussDependents.Count == 0)", src);
+        Assert.DoesNotContain("if (_importDependents.Count == 0)\n                BuildImportDependencyMap", src.Replace("\r\n", "\n"));
+        Assert.Contains("BuildUssDependencyMap(assetsPath);\n            BuildImportDependencyMap(assetsPath);", src.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public void SilenceWave_Watcher_ExistsAgainDeletion_ReroutesAsChange()
+    {
+        // 4dc52472's Deleted wiring cancels any pending change for the path
+        // (EnqueueDeletion) and then the pump's exists-again guard DISCARDED the
+        // matured deletion — a delete-and-replace save whose Deleted landed after the
+        // Changed in one debounce window netted zero events. An exists-again deletion
+        // is a save and must be delivered as a change (unless one is already pending
+        // or matured in the same pump).
+        var src = Src("UitkxHmrFileWatcher.cs");
+        Assert.Contains("delete-and-replace save detected", src);
+        Assert.Contains("changePending = _pendingChanges.ContainsKey(path);", src);
+        Assert.Contains("if (!changePending && !changeMatured)", src);
+    }
+
+    [Fact]
+    public void SilenceWave_Watcher_ErrorSubscribed_AndTraceWired()
+    {
+        // FSW buffer overflow drops events silently (documented 0.5.14 field failure);
+        // the Error handler makes that loud. The VerboseWatcherTrace toggle shipped in
+        // 0.5.14 but its wire-up was deferred in 0.5.16 — it is now live: raw FSW
+        // events log as [HMR][trace] when the EditorPref is on, pushed into the
+        // watcher via a volatile field (FSW callbacks run on a threadpool thread).
+        var watcher = Src("UitkxHmrFileWatcher.cs");
+        Assert.Contains("_watcher.Error +=", watcher);
+        Assert.Contains("[HMR][trace] FSW", watcher);
+        Assert.Contains("internal volatile bool TraceEnabled;", watcher);
+        var controller = Src("UitkxHmrController.cs");
+        Assert.Contains("_watcher.TraceEnabled = VerboseWatcherTrace;", controller);
+        Assert.Contains("_watcher.TraceEnabled = value;", controller);
+    }
+
+    [Fact]
+    public void SilenceWave_Controller_AlwaysOnRoutingTrail()
+    {
+        // Owner-mandated permanent trail: every user save logs one routing line
+        // (event arrival + companion-redirect decision + importer count + queue
+        // dedupe), every fan-out logs its enqueued importers, and USS saves log
+        // their dependent count. No line is emitted while idle.
+        var src = Src("UitkxHmrController.cs");
+        Assert.Contains("[HMR] Save: {Path.GetFileName(changedPath)}", src);
+        Assert.Contains("importers: {importerCount}", src);
+        Assert.Contains("(already queued)", src);
+        Assert.Contains("[HMR] Fan-out: {Path.GetFileName(changedFile)}", src);
+        Assert.Contains("dependent .uitkx file(s)", src);
+    }
+
+    [Fact]
+    public void SilenceWave_MemberRoute_ZeroSwapCompile_IsNeverSilent()
+    {
+        // The member/hook/module route logged ONLY when swapped > 0 — a mid-session
+        // member-only file (no project type, no hooks, no methods) compiled
+        // successfully with swapped == 0 and produced zero console output,
+        // indistinguishable from the save never arriving. The route now always
+        // explains a zero-swap success.
+        var src = Src("UitkxHmrController.cs");
+        Assert.Contains("no live swap target here; member/module changes reach", src);
+    }
+
+    [Fact]
+    public void SilenceWave_MemberStaticCopies_TriggerReRenderAndNotification()
+    {
+        // Project-resident member files propagate value edits via SwapModuleStatics
+        // field copies — which previously neither triggered a re-render (only method
+        // re-inits did) nor counted toward the swap notification. A value-only edit
+        // was applied but invisible until an unrelated re-render.
+        var src = Src("UitkxHmrController.cs");
+        Assert.Contains("if ((reInitedMethods > 0 || reInitedFields > 0) && hookSwaps == 0)", src);
+        Assert.Contains("if (swapped == 0 && reInitedMethods + reInitedFields > 0)", src);
+        Assert.Contains("swapped = reInitedMethods + reInitedFields;", src);
     }
 }

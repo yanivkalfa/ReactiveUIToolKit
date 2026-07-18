@@ -35,6 +35,7 @@
 | D-HMR-B10 | `AssemblyReloadSuppressor` deferred refresh can fire after re-lock | not addressed | V1 D-HMR-B10 |
 | D-OPT-1 | HMR dependency index over-links copy-rename near-clones (deferred pending telemetry) | deferred | V1 D-OPT-1 |
 | HMR-MC | Multi-component files hot-swap only their FIRST component (HMR reads the singular `ComponentName`; `ComponentDeclarations` is never read in `Editor/HMR/`) — documented as a Known Issue; full support = per-declaration compile/swap | `Editor/HMR/UitkxHmrCompiler.cs` `Compile()` singular read | triage 2026-07-15 |
+| HMR-FSW | If the member-file silence recurs WITH the 2026-07-18 trail in place (save produces neither an `[HMR] Save:` line nor, with Verbose watcher trace on, an `[HMR][trace] FSW` line), the drop is OS-level FSW non-delivery (Mono 8 KB buffer / AV hook) — next step is a bounded mtime-sweep fallback over the known `.uitkx` set in the watcher pump (the AssetPostprocessor net cannot help mid-session: `DisallowAutoRefresh` starves it). Trigger to revisit: one field report with the trail present | `Editor/HMR/UitkxHmrFileWatcher.cs` pump; fix wave `fix/hmr-field-wave` | field triage 2026-07-18 |
 
 ## 3. Performance
 
