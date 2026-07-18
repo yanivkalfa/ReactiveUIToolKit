@@ -222,5 +222,230 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.Empty(errors);
             Assert.False(changed.ContainsKey(file.AbsPath));
         }
+
+        // ── Close-brace on the last body line (A1) ───────────────────────────
+
+        [Fact]
+        public void Hook_CloseBraceOnLastStatementLine_DoesNotSwallowNextDeclaration()
+        {
+            var input = new List<MigratorFile>
+            {
+                F("Pair.hooks.uitkx",
+                    "export hook useA() -> int {\n    return 1; }\nexport hook useB() -> int {\n    return 2;\n}\n"),
+            };
+            var changed = Run(out var errors, input.ToArray());
+
+            Assert.Empty(errors);
+            string outText = changed[input[0].AbsPath];
+            Assert.Contains("export int useA()", outText);
+            Assert.Contains("export int useB()", outText);
+            Assert.Contains("return 2;", outText);
+            Assert.DoesNotContain("hook useA", outText);
+
+            var second = EsModulesMigrator.Migrate(Apply(input, changed), out var errs2);
+            Assert.Empty(errs2);
+            Assert.Empty(second);
+        }
+
+        [Fact]
+        public void Module_CloseBraceOnLastMemberLine_DoesNotSwallowNextDeclaration()
+        {
+            var file = F("Packed.uitkx",
+                "export module Packed {\n    public static readonly int A = 1; }\nexport hook useAfter() -> int {\n    return 2;\n}\n");
+            var changed = Run(out var errors, file);
+
+            Assert.Empty(errors);
+            string outText = changed[file.AbsPath];
+            Assert.Contains("export int A = 1;", outText);
+            Assert.Contains("export int useAfter()", outText);
+        }
+
+        // ── Same-line adjacent declarations (A2) ─────────────────────────────
+
+        [Fact]
+        public void SameLineAdjacentDeclarations_WholeFileStaysLegacy_WithError()
+        {
+            var file = F("Adjacent.hooks.uitkx",
+                "export hook useA() -> int {\n    return 1; } export hook useB() -> int {\n    return 2;\n}\n");
+            var changed = Run(out var errors, file);
+
+            Assert.Contains(errors, e => e.Message.Contains("own line"));
+            string outText = changed.TryGetValue(file.AbsPath, out var t) ? t : file.Text;
+            Assert.Contains("hook useA", outText);
+            Assert.Contains("hook useB", outText);
+        }
+
+        // ── Module explosion fidelity (A3/A4) ────────────────────────────────
+
+        [Fact]
+        public void Module_MemberCommentsAndDocs_ArePreserved()
+        {
+            var input = new List<MigratorFile>
+            {
+                F("Docs.uitkx",
+                    "export module Docs {\n" +
+                    "    // banner comment\n" +
+                    "    /// <summary>Doc.</summary>\n" +
+                    "    public static readonly int A = 1;\n" +
+                    "\n" +
+                    "    // tail note\n" +
+                    "}\n"),
+            };
+            var changed = Run(out var errors, input.ToArray());
+
+            Assert.Empty(errors);
+            string outText = changed[input[0].AbsPath];
+            Assert.Contains("// banner comment", outText);
+            Assert.Contains("/// <summary>Doc.</summary>", outText);
+            Assert.Contains("// tail note", outText);
+            Assert.Contains("export int A = 1;", outText);
+            Assert.DoesNotContain("module Docs", outText);
+
+            var second = EsModulesMigrator.Migrate(Apply(input, changed), out var errs2);
+            Assert.Empty(errs2);
+            Assert.Empty(second);
+        }
+
+        [Fact]
+        public void Module_AttributedMember_WholeSetStaysLegacy_WithError()
+        {
+            var file = F("Attr.uitkx",
+                "export module Attr {\n    [System.Obsolete]\n    public static readonly int Old = 1;\n}\n");
+            var changed = Run(out var errors, file);
+
+            Assert.Contains(errors, e => e.Message.Contains("Old") && e.Message.Contains("attribute"));
+            string outText = changed.TryGetValue(file.AbsPath, out var t) ? t : file.Text;
+            Assert.Contains("module Attr", outText);
+            Assert.Contains("[System.Obsolete]", outText);
+        }
+
+        [Fact]
+        public void Module_ConstMember_MigratesToPlainValue_WithWarning()
+        {
+            var file = F("Consts.uitkx",
+                "export module Consts {\n    public const int Max = 3;\n}\n");
+            var changed = Run(out var errors, file);
+
+            string outText = changed[file.AbsPath];
+            Assert.Contains("export int Max = 3;", outText);
+            Assert.DoesNotContain("const", outText);
+            Assert.Contains(errors, e => e.Message.Contains("Max") && e.Message.Contains("const"));
+        }
+
+        [Fact]
+        public void Module_ModifierlessMember_IsNotExported()
+        {
+            // C# class members default to PRIVATE — a modifier-less module member must not
+            // gain `export` (that would widen visibility on migration).
+            var file = F("Mix.uitkx",
+                "export module Mix {\n    static readonly int quiet = 1;\n    public static readonly int Loud = 2;\n}\n");
+            var changed = Run(out var errors, file);
+
+            Assert.Empty(errors);
+            string outText = changed[file.AbsPath];
+            Assert.Contains("export int Loud = 2;", outText);
+            Assert.Contains("int quiet = 1;", outText);
+            Assert.DoesNotContain("export int quiet", outText);
+        }
+
+        // ── Companion member imports in every direction (A5) ─────────────────
+
+        [Fact]
+        public void CompanionSet_CompanionReferencingBaseMember_GetsImport()
+        {
+            var baseFile = F("Foo.uitkx",
+                "export module Foo {\n    public static readonly int baseVal = 1;\n}\n");
+            var style = F("Foo.style.uitkx",
+                "export module FooStyle {\n    public static readonly int pad = baseVal;\n}\n");
+            var changed = Run(out var errors, baseFile, style);
+
+            Assert.Empty(errors);
+            Assert.Contains("import { baseVal } from \"./Foo\"", changed[style.AbsPath]);
+        }
+
+        [Fact]
+        public void CompanionSet_SiblingCompanionReference_GetsImport()
+        {
+            var input = new List<MigratorFile>
+            {
+                F("Foo.uitkx", "component Foo {\n    return (\n        <Box />\n    );\n}\n"),
+                F("Foo.style.uitkx", "export module FooStyle {\n    public static readonly int gapBase = 4;\n}\n"),
+                F("Foo.anim.uitkx", "export module FooAnim {\n    public static readonly int dur = gapBase * 2;\n}\n"),
+            };
+            var changed = Run(out var errors, input.ToArray());
+
+            Assert.Empty(errors);
+            Assert.Contains("import { gapBase } from \"./Foo.style\"", changed[input[2].AbsPath]);
+
+            var second = EsModulesMigrator.Migrate(Apply(input, changed), out var errs2);
+            Assert.Empty(errs2);
+            Assert.Empty(second);
+        }
+
+        // ── Importer rewrite reaches unmigrated importers too (A6) ───────────
+
+        [Fact]
+        public void FailedSetImporter_OfMigratedModule_GetsStarImport_WithNote()
+        {
+            var tokens = F("Tokens.uitkx",
+                "export module Tokens {\n    public static readonly int Gap = 8;\n}\n");
+            var broken = F("Broken.hooks.uitkx",
+                "import { Tokens } from \"./Tokens\"\nexport hook useGen<T>(T seed) -> T {\n    var g = Tokens.Gap;\n    return seed;\n}\n");
+            var changed = Run(out var errors, tokens, broken);
+
+            Assert.Contains(errors, e => e.Message.Contains("generic hook"));
+            string outText = changed[broken.AbsPath];
+            Assert.Contains("import * as Tokens from \"./Tokens\"", outText);
+            Assert.Contains("hook useGen", outText);
+            Assert.DoesNotContain("import { Tokens }", outText);
+            Assert.Contains(errors, e => e.Message.Contains("import * as"));
+        }
+
+        [Fact]
+        public void NewModeImporterInFailedSet_OfMigratedModule_GetsStarImport()
+        {
+            var tokens = F("Tokens.uitkx",
+                "export module Tokens {\n    public static readonly int Gap = 8;\n}\n");
+            var panel = F("Panel.uitkx",
+                "import { Tokens } from \"./Tokens\"\nexport VirtualNode Panel() {\n    return (\n        <Box />\n    );\n}\n");
+            var panelStyle = F("Panel.style.uitkx",
+                "export module PanelStyle {\n    public enum Kind { A, B }\n}\n");
+            var changed = Run(out var errors, tokens, panel, panelStyle);
+
+            Assert.Contains(errors, e => e.Message.Contains("left legacy"));
+            string outText = changed[panel.AbsPath];
+            Assert.Contains("import * as Tokens from \"./Tokens\"", outText);
+            Assert.Contains("export VirtualNode Panel()", outText);
+        }
+
+        // ── `~/`-rooted importer rewrite (A7) ────────────────────────────────
+
+        [Fact]
+        public void TildeRootedModuleImport_GetsStarImport()
+        {
+            var tokens = new MigratorFile("C:/proj/Assets/Shared/Tokens.uitkx", "Game",
+                "export module Tokens {\n    public static readonly int Gap = 8;\n}\n");
+            var screen = F("Screen.uitkx",
+                "import { Tokens } from \"~/Shared/Tokens\"\ncomponent Screen {\n    return (\n        <Box />\n    );\n}\n");
+            var changed = Run(out var errors, tokens, screen);
+
+            Assert.Empty(errors);
+            Assert.Contains("import * as Tokens from \"~/Shared/Tokens\"", changed[screen.AbsPath]);
+        }
+
+        // ── Parse-error gate (A8) ────────────────────────────────────────────
+
+        [Fact]
+        public void FileWithParseErrors_IsSkippedWholeSet_WithReportedDiagnostics()
+        {
+            var file = F("Bad.uitkx",
+                "export module Bad {\n    public static readonly int A = 1;\n}\nexport hook useBad()\n");
+            var changed = Run(out var errors, file);
+
+            Assert.Contains(errors, e => e.Message.Contains("parse error"));
+            string outText = changed.TryGetValue(file.AbsPath, out var t) ? t : file.Text;
+            Assert.Contains("module Bad", outText);
+            Assert.Contains("export hook useBad()", outText);
+        }
     }
 }

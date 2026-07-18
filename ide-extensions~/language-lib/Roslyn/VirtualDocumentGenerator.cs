@@ -304,12 +304,16 @@ namespace ReactiveUITK.Language.Roslyn
                 if (seen.Add(u))
                     b.Scaffold($"using {u};\n");
             }
-            foreach (var u in d.Usings)
-            {
-                string trimmed = u.Trim();
-                if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
-                    b.Scaffold($"using {trimmed};\n");
-            }
+            // New-mode files get their own usings INSIDE the namespace block (globalized) via
+            // AppendImportUsingsInsideNamespace — emitting them here too would both diverge from
+            // the build's resolution AND poison `seen` so the inside-namespace pass skips them.
+            if (d.UsesLegacySyntax)
+                foreach (var u in d.Usings)
+                {
+                    string trimmed = u.Trim();
+                    if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
+                        b.Scaffold($"using {trimmed};\n");
+                }
             // Import/export grammar (leg 3, §10): lower imports to the same using-static (hook
             // containers) / alias (modules) lines the real emit produces, so C# IntelliSense inside
             // setup code resolves imported hooks/modules. Scaffold-only (hidden preamble) → the
@@ -354,7 +358,7 @@ namespace ReactiveUITK.Language.Roslyn
             {
                 b.Scaffold($"namespace {ns}\n{{\n");
                 AppendImportUsingsInsideNamespace(b, d, uitkxFilePath, seen);
-                b.Scaffold($"    using static {ns}.__Exports;\n\n");
+                b.Scaffold($"    using static global::{ns}.__Exports;\n\n");
                 EmitExportsScaffold(b, d, bridges, escapedPath);
                 if (string.IsNullOrEmpty(d.ComponentName))
                 {

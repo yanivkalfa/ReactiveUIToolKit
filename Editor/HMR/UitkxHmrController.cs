@@ -555,8 +555,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         // A legacy wrapper-keyword declaration head at a line start ([export] component/hook/
         // module) — the file-mode discriminator ResolveParentComponentFile keys on (mirror of
         // the parser's first-declaration mode rule, cheap enough for a per-save file event).
+        // The keyword must be followed by an identifier start (`component Foo`) so body text in
+        // a new-mode file (`module.Init();`, `component = Make();`) can never false-classify
+        // the file as legacy and misroute the save to the base file (audit L3).
         private static readonly Regex s_legacyWrapperKeywordRegex = new Regex(
-            @"^\s*(?:export\s+)?(?:component|hook|module)\b",
+            @"^\s*(?:export\s+)?(?:component|hook|module)\s+[A-Za-z_]",
             RegexOptions.Multiline | RegexOptions.CultureInvariant
         );
 

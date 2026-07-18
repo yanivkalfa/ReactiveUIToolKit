@@ -382,14 +382,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                 ? el.SourceColumn + 1
                 : FindOpenTagName(source, lineStarts, el.SourceLine, el.TagName);
             if (openNameCol >= 0)
-                EmitToken(
-                    tokens,
-                    el.SourceLine - 1,
-                    openNameCol,
-                    el.TagName.Length,
-                    SemanticTokenTypes.Element,
-                    mods
-                );
+                EmitTagNameTokens(tokens, el.SourceLine - 1, openNameCol, el.TagName, mods);
 
             // Attribute names (always emit — attributes on unknown elements are still valid)
             foreach (var attr in el.Attributes)
@@ -420,15 +413,26 @@ namespace ReactiveUITK.Language.SemanticTokens
                     el.TagName
                 );
                 if (closeNameCol >= 0)
-                    EmitToken(
-                        tokens,
-                        el.CloseTagLine - 1,
-                        closeNameCol,
-                        el.TagName.Length,
-                        SemanticTokenTypes.Element,
-                        mods
-                    );
+                    EmitTagNameTokens(tokens, el.CloseTagLine - 1, closeNameCol, el.TagName, mods);
             }
+        }
+
+        /// <summary>Tag-name token(s). Dotted tags (U-05, <c>&lt;X.Comp/&gt;</c>) split at the
+        /// dot: the namespace-import binding <c>X</c> colors as a variable, the component part
+        /// as an element — matching how the import line itself is colored.</summary>
+        private static void EmitTagNameTokens(
+            List<SemanticTokenData> tokens, int line0, int nameCol, string tagName, string[] mods)
+        {
+            int dot = tagName.IndexOf('.');
+            if (dot > 0 && dot < tagName.Length - 1)
+            {
+                EmitToken(tokens, line0, nameCol, dot, SemanticTokenTypes.Variable, mods);
+                EmitToken(
+                    tokens, line0, nameCol + dot + 1, tagName.Length - dot - 1,
+                    SemanticTokenTypes.Element, mods);
+                return;
+            }
+            EmitToken(tokens, line0, nameCol, tagName.Length, SemanticTokenTypes.Element, mods);
         }
 
         // ── @if / @else if / @else ────────────────────────────────────────────

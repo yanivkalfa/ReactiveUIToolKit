@@ -335,6 +335,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             for (int i = 0; i < ps.Length; i++)
             {
                 if (i > 0) sb.Append(", ");
+                // ref/out modifiers live in the parsed Type text (audit F12) and must be
+                // re-stated at the forwarding call site (CS1620 otherwise).
+                if (ps[i].Type.StartsWith("ref ", StringComparison.Ordinal)) sb.Append("ref ");
+                else if (ps[i].Type.StartsWith("out ", StringComparison.Ordinal)) sb.Append("out ");
                 sb.Append(ps[i].Name);
             }
             return sb.ToString();

@@ -118,6 +118,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         // the using lines a file's imports imply (cross-folder hook containers + module/component
         // type aliases with EFFECTIVE namespaces). Optional (older Language.dll → skip).
         private MethodInfo _importScopePayloads;
+        // U-03 bridges — ImportScopeFacts.ComputeImportedMemberBridgeLines(DirectiveSet, string):
+        // rendered `internal static …` forwarding lines for aliased/default member imports,
+        // byte-identical to the SG's ExportsEmitter shapes. Optional (older Language.dll → skip).
+        private MethodInfo _importedMemberBridgeLines;
+        // U-05/U-03 tag maps (audit H3) — ImportScopeFacts.ComputeStarImportNamespaces /
+        // ComputeImportAliasTypeMap: dotted-tag + renamed/default component tag resolution for
+        // the hot emitter, disk-parse twin of the SG's BuildImportAliasTagMaps. Optional.
+        private MethodInfo _starImportNamespacesFn;
+        private MethodInfo _importAliasTypeMapFn;
         private Type _parseDiagnosticType;
 
         // ── Reference cache (built once per session) ──────────────────────────
@@ -403,7 +412,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                     findBareJsxRanges,
                     findLhsStartForLogicalAnd,
                     effectiveNs,
-                    BuildHookFamilyKeyMap(directives, uitkxPath)
+                    BuildHookFamilyKeyMap(directives, uitkxPath),
+                    InvokeTagMap(_starImportNamespacesFn, directives, uitkxPath),
+                    InvokeTagMap(_importAliasTypeMapFn, directives, uitkxPath)
                 );
                 stepSw.Stop();
                 result.EmitMs = stepSw.Elapsed.TotalMilliseconds;
@@ -470,11 +481,14 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 // New-mode component files (ES-modules campaign, U-02): the file's own members
-                // (values/utils/hooks) and any imported-member bridges live on {ns}.__Exports in
-                // the REAL assembly (the SG emitted it). Expose them bare-name to the hot unit —
-                // the exact mirror of the SG's own-exports using injection. Gated on the file
-                // actually HAVING an __Exports unit (members or aliased/default imports), because
-                // a using-static against a nonexistent type is CS0246.
+                // (values/utils/hooks) and any imported-member bridges live on {ns}.__Exports.
+                // Referencing the PROJECT assembly's container is not enough (audit H1/M2):
+                // non-exported members are `internal` there (cross-assembly CS0122 on every hot
+                // edit of the mainline component+private-value pattern), and a member edited in
+                // the same save would stay STALE. So emit a HOT copy of the file's __Exports
+                // into this compilation — the same-assembly precedent legacy companion inlining
+                // set — and bind the component to it bare-name (the source-defined type shadows
+                // the project one; CS0436 is warning-tier).
                 {
                     bool cUsesLegacy = !(GetProp(directives, "UsesLegacySyntax") is bool cul) || cul;
                     if (!cUsesLegacy && !string.IsNullOrEmpty(ns))
@@ -490,10 +504,40 @@ namespace ReactiveUITK.EditorSupport.HMR
                                 if (hasAliasedImports) break;
                             }
                         if (hasMembers || hasAliasedImports)
+                        {
+                            string ownExports = HmrHookEmitter.EmitExports(
+                                directives, uitkxPath,
+                                effectiveNs: ns,
+                                hookKeyMap: BuildHookFamilyKeyMap(directives, uitkxPath),
+                                bridgeLines: ComputeBridgeLines(directives, uitkxPath));
+                            if (!string.IsNullOrEmpty(ownExports))
+                            {
+                                if (_importScopePayloads != null)
+                                {
+                                    try
+                                    {
+                                        var ownPayloads = _importScopePayloads.Invoke(
+                                            null, new object[] { directives, uitkxPath }) as System.Collections.IEnumerable;
+                                        if (ownPayloads != null)
+                                        {
+                                            var ownLines = new List<string>();
+                                            foreach (object p in ownPayloads)
+                                                if (p is string payload && payload.Length > 0)
+                                                    ownLines.Add(payload);
+                                            if (ownLines.Count > 0)
+                                                ownExports = InjectUsings(
+                                                    ownExports, ns, ownLines, usesLegacySyntax: false);
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                sources.Add(ownExports);
+                            }
                             sources[0] = InjectUsings(
                                 sources[0], ns,
                                 new List<string> { $"static {ns}.__Exports" },
                                 usesLegacySyntax: false);
+                        }
                     }
                 }
 
@@ -1130,11 +1174,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                     result.HookContainerClass = "__Exports";
                     result.ComponentName = "__Exports";
 
+                    string exNs = ComputeEffectiveNs(directives, uitkxPath);
                     var exStepSw = Stopwatch.StartNew();
                     string exportsCSharp = HmrHookEmitter.EmitExports(
                         directives, uitkxPath,
-                        effectiveNs: ComputeEffectiveNs(directives, uitkxPath),
-                        hookKeyMap: BuildHookFamilyKeyMap(directives, uitkxPath));
+                        effectiveNs: exNs,
+                        hookKeyMap: BuildHookFamilyKeyMap(directives, uitkxPath),
+                        bridgeLines: ComputeBridgeLines(directives, uitkxPath));
                     exStepSw.Stop();
                     result.EmitMs = exStepSw.Elapsed.TotalMilliseconds;
 
@@ -1142,6 +1188,35 @@ namespace ReactiveUITK.EditorSupport.HMR
                     {
                         result.Error = "No member declarations found";
                         return result;
+                    }
+
+                    // Import payloads (audit H4): the SG rewrites the unit's usings through
+                    // ResolveInjectedUsings before ExportsEmitter runs — without the same
+                    // payloads here, a member body referencing an imported member/module
+                    // (`padding = spacing`) compiles in the full build but CS0103s on every
+                    // hot edit of the file. Same shared-ImportScopeFacts route as the
+                    // component path above.
+                    if (_importScopePayloads != null)
+                    {
+                        try
+                        {
+                            var exPayloads = _importScopePayloads.Invoke(
+                                null, new object[] { directives, uitkxPath }) as System.Collections.IEnumerable;
+                            if (exPayloads != null)
+                            {
+                                var exLines = new List<string>();
+                                foreach (object p in exPayloads)
+                                    if (p is string payload && payload.Length > 0)
+                                        exLines.Add(payload);
+                                if (exLines.Count > 0)
+                                    exportsCSharp = InjectUsings(
+                                        exportsCSharp, exNs, exLines, usesLegacySyntax: false);
+                            }
+                        }
+                        catch
+                        {
+                            // Graceful: no injected import scope — matches the component path.
+                        }
                     }
                     bool anyHookMember = false;
                     foreach (var m in GetItems(GetProp(directives, "MemberDeclarations")))
@@ -1669,6 +1744,15 @@ namespace ReactiveUITK.EditorSupport.HMR
             _importScopePayloads = _languageAsm
                 .GetType("ReactiveUITK.Language.ImportScopeFacts")
                 ?.GetMethod("ComputeInjectedUsingPayloads", BindingFlags.Public | BindingFlags.Static);
+            _importedMemberBridgeLines = _languageAsm
+                .GetType("ReactiveUITK.Language.ImportScopeFacts")
+                ?.GetMethod("ComputeImportedMemberBridgeLines", BindingFlags.Public | BindingFlags.Static);
+            _starImportNamespacesFn = _languageAsm
+                .GetType("ReactiveUITK.Language.ImportScopeFacts")
+                ?.GetMethod("ComputeStarImportNamespaces", BindingFlags.Public | BindingFlags.Static);
+            _importAliasTypeMapFn = _languageAsm
+                .GetType("ReactiveUITK.Language.ImportScopeFacts")
+                ?.GetMethod("ComputeImportAliasTypeMap", BindingFlags.Public | BindingFlags.Static);
 
             // ParseDiagnostic type (for creating List<ParseDiagnostic>)
             _parseDiagnosticType = _languageAsm.GetType("ReactiveUITK.Language.ParseDiagnostic");
@@ -3315,16 +3399,76 @@ namespace ReactiveUITK.EditorSupport.HMR
                         string targetContainer = targetLegacy
                             ? HmrHookEmitter.DeriveContainerClassName(targetFile)
                             : "__Exports";
-                        foreach (var nObj in names)
+                        // M1 parity with UitkxPipeline.BuildHookFamilyKeyMap: only names that are
+                        // actually EXPORTED HOOKS of the target get keys (values/components must
+                        // not pollute the map), and a rename-on-import binds the BOUND name to a
+                        // key carrying the target's ORIGINAL hook name — that is what the
+                        // producer registered, and the runtime matches by ordinal equality.
+                        var targetHookNames = new HashSet<string>(StringComparer.Ordinal);
+                        if (targetDs != null)
                         {
-                            string nm = nObj as string;
-                            if (!string.IsNullOrEmpty(nm))
-                                map[nm] = targetNs + "." + targetContainer + "::" + nm;
+                            foreach (var h in GetItems(GetProp(targetDs, "HookDeclarations")))
+                                if (GetProp(h, "IsExported") is bool he && he
+                                    && GetProp(h, "Name") is string hn && !string.IsNullOrEmpty(hn))
+                                    targetHookNames.Add(hn);
+                            foreach (var m in GetItems(GetProp(targetDs, "MemberDeclarations")))
+                                if (string.Equals(GetProp(m, "Kind")?.ToString(), "Hook", StringComparison.Ordinal)
+                                    && GetProp(m, "IsExported") is bool me && me
+                                    && GetProp(m, "Name") is string mn && !string.IsNullOrEmpty(mn))
+                                    targetHookNames.Add(mn);
+                        }
+                        var aliases = GetItems(GetProp(imp, "Aliases"));
+                        for (int k = 0; k < names.Count; k++)
+                        {
+                            string nm = names[k] as string;
+                            if (string.IsNullOrEmpty(nm) || !targetHookNames.Contains(nm))
+                                continue;
+                            string bound = k < aliases.Count ? (aliases[k] as string) ?? nm : nm;
+                            map[bound] = targetNs + "." + targetContainer + "::" + nm;
                         }
                     }
                 }
             }
             return map;
+        }
+
+        /// <summary>Bridge lines for aliased/default member imports via the shared
+        /// ImportScopeFacts.ComputeImportedMemberBridgeLines (reflection seam; older
+        /// Language.dll or any failure → null, EmitExports skips bridges gracefully).</summary>
+        internal IReadOnlyList<string> ComputeBridgeLines(object directives, string filePath)
+        {
+            if (_importedMemberBridgeLines == null || directives == null)
+                return null;
+            try
+            {
+                var raw = _importedMemberBridgeLines.Invoke(
+                    null, new object[] { directives, filePath }) as System.Collections.IEnumerable;
+                if (raw == null)
+                    return null;
+                var lines = new List<string>();
+                foreach (object o in raw)
+                    if (o is string s && s.Length > 0)
+                        lines.Add(s);
+                return lines.Count > 0 ? lines : null;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Invokes one of the shared ImportScopeFacts tag-map helpers (audit H3).
+        /// Dictionary&lt;string,string&gt; is a BCL type, so the reflected result casts
+        /// directly; null on older Language.dll or any failure.</summary>
+        private IReadOnlyDictionary<string, string> InvokeTagMap(
+            MethodInfo fn, object directives, string filePath)
+        {
+            if (fn == null || directives == null)
+                return null;
+            try
+            {
+                var map = fn.Invoke(null, new object[] { directives, filePath })
+                    as IReadOnlyDictionary<string, string>;
+                return map != null && map.Count > 0 ? map : null;
+            }
+            catch { return null; }
         }
 
         /// <summary>Parses a target hook file just to compute its effective namespace.</summary>

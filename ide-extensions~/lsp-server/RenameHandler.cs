@@ -474,28 +474,133 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
     // ── Import-list rename ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Renames <paramref name="oldName"/> inside `import { … }` name lists. Import
-    /// names are uitkx-only preamble syntax: they never appear in the C# virtual
-    /// document (imports lower to `using` lines), so Roslyn's renamer cannot see
-    /// them, and the text-based collectors match call/tag shapes (`name(`, `&lt;Name`)
-    /// that an import list doesn't have. Without this pass an F2 rename updates the
-    /// declaration and every call site but leaves the import binding the OLD name —
-    /// instantly breaking the file with UITKX2300/2304.
-    ///
-    /// Candidate files are the ones already participating in the rename (keys of
-    /// <paramref name="changes"/>) plus the invoking file — i.e. every file where
-    /// the symbol is actually used. A file that imports the name but never uses it
-    /// is already flagged UITKX2304 and is deliberately out of scope.
+    /// The single interpretation of the renamed identifier inside `import` lists,
+    /// decided from the rename ORIGIN (audit B3): renaming an EXPORT touches the
+    /// identifier where it appears as an imported NAME, never alias tokens (an alias
+    /// that happens to equal the export name is a LOCAL binding of a different
+    /// export); renaming a LOCAL binding touches only the binding token — named
+    /// alias, star alias, or default alias — in the invoking file.
     /// </summary>
+    internal enum ImportRenameOrigin
+    {
+        ExportName,
+        LocalBinding,
+    }
+
+    /// <summary>Classifies a rename of <paramref name="oldName"/> triggered in the file whose
+    /// <paramref name="directives"/> these are. A file can never both alias-bind and
+    /// declare/import-by-name the same identifier (duplicate binding), so an alias/star/default
+    /// binding of <paramref name="oldName"/> means the rename targets that LOCAL binding.</summary>
+    internal static ImportRenameOrigin ClassifyImportRenameOrigin(DirectiveSet directives, string oldName)
+    {
+        if (directives.Imports.IsDefaultOrEmpty)
+            return ImportRenameOrigin.ExportName;
+        foreach (var imp in directives.Imports)
+        {
+            if (imp.IsStar && imp.StarAlias == oldName)
+                return ImportRenameOrigin.LocalBinding;
+            if (imp.IsDefault && imp.DefaultAlias == oldName)
+                return ImportRenameOrigin.LocalBinding;
+            if (!imp.Aliases.IsDefaultOrEmpty)
+                foreach (var alias in imp.Aliases)
+                    if (alias == oldName)
+                        return ImportRenameOrigin.LocalBinding;
+        }
+        return ImportRenameOrigin.ExportName;
+    }
+
+    /// <summary>The import-line edits for one file under a single, already-decided
+    /// <paramref name="origin"/> (pure — directly unit-testable).</summary>
+    internal static List<TextEdit> ComputeImportListEdits(
+        DirectiveSet directives,
+        string[] fileLines,
+        string oldName,
+        string newName,
+        ImportRenameOrigin origin)
+    {
+        var edits = new List<TextEdit>();
+        if (directives.Imports.IsDefaultOrEmpty)
+            return edits;
+
+        static TextEdit EditAt(int line0, int col, string oldName, string newName) => new TextEdit
+        {
+            Range = new LspRange(
+                new Position(line0, col),
+                new Position(line0, col + oldName.Length)),
+            NewText = newName,
+        };
+
+        foreach (var imp in directives.Imports)
+        {
+            int line0 = imp.Line - 1;
+            if (line0 < 0 || line0 >= fileLines.Length)
+                continue;
+            string lineText = fileLines[line0].TrimEnd('\r');
+
+            if (origin == ImportRenameOrigin.LocalBinding)
+            {
+                // Binding tokens live before the `from` keyword; capping the search there
+                // keeps a matching path segment inside the specifier string untouched.
+                var fromMatch = Regex.Match(lineText, @"\bfrom\b");
+                int bindingEnd = fromMatch.Success ? fromMatch.Index : lineText.Length;
+
+                if (imp.IsStar && imp.StarAlias == oldName)
+                {
+                    int star = lineText.IndexOf('*');
+                    int col = FindWholeWord(lineText, oldName, star < 0 ? 0 : star + 1, bindingEnd);
+                    if (col >= 0)
+                        edits.Add(EditAt(line0, col, oldName, newName));
+                    continue;
+                }
+                if (imp.IsDefault && imp.DefaultAlias == oldName)
+                {
+                    int col = FindWholeWord(lineText, oldName, Math.Max(0, imp.Column), bindingEnd);
+                    if (col >= 0)
+                        edits.Add(EditAt(line0, col, oldName, newName));
+                    continue;
+                }
+                if (imp.Aliases.IsDefaultOrEmpty)
+                    continue;
+                for (int i = 0; i < imp.Names.Length && i < imp.Aliases.Length; i++)
+                {
+                    if (imp.Aliases[i] != oldName)
+                        continue;
+                    // The alias token's column is not in the model; locate it textually
+                    // after the name token on the import line.
+                    int searchFrom = i < imp.NameColumns.Length
+                        ? imp.NameColumns[i] + imp.Names[i].Length : 0;
+                    int col = FindWholeWord(lineText, oldName, searchFrom, bindingEnd);
+                    if (col >= 0)
+                        edits.Add(EditAt(line0, col, oldName, newName));
+                }
+                continue;
+            }
+
+            // ExportName origin: only imported-NAME tokens. Alias tokens equal to oldName
+            // are local bindings of OTHER exports and must stay (audit B3).
+            for (int i = 0; i < imp.Names.Length; i++)
+            {
+                if (imp.Names[i] != oldName)
+                    continue;
+                if (i >= imp.NameColumns.Length || imp.NameColumns[i] < 0)
+                    continue;
+                edits.Add(EditAt(line0, imp.NameColumns[i], oldName, newName));
+            }
+        }
+        return edits;
+    }
+
     /// <summary>Whole-word occurrence of <paramref name="word"/> in <paramref name="text"/> at or
-    /// after <paramref name="startIndex"/>, or -1.</summary>
-    private static int FindWholeWord(string text, string word, int startIndex)
+    /// after <paramref name="startIndex"/> and (when <paramref name="endExclusive"/> is non-negative) starting
+    /// before it, or -1.</summary>
+    private static int FindWholeWord(string text, string word, int startIndex, int endExclusive = -1)
     {
         int from = Math.Max(0, Math.Min(startIndex, text.Length));
-        while (from < text.Length)
+        int limit = endExclusive < 0 ? text.Length : Math.Min(endExclusive, text.Length);
+        while (from < limit)
         {
             int idx = text.IndexOf(word, from, StringComparison.Ordinal);
-            if (idx < 0)
+            if (idx < 0 || idx >= limit)
                 return -1;
             bool leftOk = idx == 0 || (!char.IsLetterOrDigit(text[idx - 1]) && text[idx - 1] != '_');
             int end = idx + word.Length;
@@ -507,18 +612,58 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         return -1;
     }
 
-    private void CollectImportListRenameEdits(
+    /// <summary>
+    /// Renames <paramref name="oldName"/> inside `import { … }` name lists. Import
+    /// names are uitkx-only preamble syntax: they never appear in the C# virtual
+    /// document (imports lower to `using` lines), so Roslyn's renamer cannot see
+    /// them, and the text-based collectors match call/tag shapes (`name(`, `&lt;Name`)
+    /// that an import list doesn't have. Without this pass an F2 rename updates the
+    /// declaration and every call site but leaves the import binding the OLD name —
+    /// instantly breaking the file with UITKX2300/2304.
+    ///
+    /// The interpretation of <paramref name="oldName"/> is decided ONCE from the
+    /// invoking file (audit B3) and applied uniformly: a LocalBinding rename edits
+    /// only the invoking file's binding token; an ExportName rename edits imported
+    /// NAME tokens in the candidate files. Candidate files are the ones already
+    /// participating in the rename (keys of <paramref name="changes"/>) plus the
+    /// invoking file — i.e. every file where the symbol is actually used. A file
+    /// that imports the name but never uses it is already flagged UITKX2304 and is
+    /// deliberately out of scope.
+    /// </summary>
+    internal void CollectImportListRenameEdits(
         string oldName,
         string newName,
         Dictionary<DocumentUri, IEnumerable<TextEdit>> changes,
         string invokingFilePath)
     {
-        var candidatePaths = new Dictionary<string, DocumentUri>(StringComparer.OrdinalIgnoreCase);
-        foreach (var uri in changes.Keys.ToList())
+        var origin = ImportRenameOrigin.ExportName;
+        if (invokingFilePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
         {
-            var p = UriToPath(uri);
-            if (p != null && p.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
-                candidatePaths[p] = uri;
+            try
+            {
+                var invokerUri = DocumentUri.FromFileSystemPath(invokingFilePath);
+                if (TryGetText(invokerUri, invokingFilePath, out var invokerText))
+                {
+                    var invokerDirectives = DirectiveParser.Parse(
+                        invokerText, invokingFilePath, new List<ReactiveUITK.Language.ParseDiagnostic>());
+                    origin = ClassifyImportRenameOrigin(invokerDirectives, oldName);
+                }
+            }
+            catch (Exception ex)
+            {
+                ServerLog.Log($"[Rename] import-list origin classification failed: {ex.Message}");
+            }
+        }
+
+        var candidatePaths = new Dictionary<string, DocumentUri>(StringComparer.OrdinalIgnoreCase);
+        if (origin == ImportRenameOrigin.ExportName)
+        {
+            foreach (var uri in changes.Keys.ToList())
+            {
+                var p = UriToPath(uri);
+                if (p != null && p.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                    candidatePaths[p] = uri;
+            }
         }
         if (invokingFilePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase)
             && !candidatePaths.ContainsKey(invokingFilePath))
@@ -538,78 +683,17 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                 if (directives.Imports.IsDefaultOrEmpty)
                     continue;
 
-                string[] fileLines = fileText.Split('\n');
-                var importEdits = new List<TextEdit>();
-                foreach (var imp in directives.Imports)
-                {
-                    bool hasAliases = !imp.Aliases.IsDefaultOrEmpty;
-                    for (int i = 0; i < imp.Names.Length; i++)
-                    {
-                        string? alias = hasAliases && i < imp.Aliases.Length ? imp.Aliases[i] : null;
-
-                        if (imp.Names[i] == oldName && alias == null)
-                        {
-                            // Un-aliased entry: the imported name IS the local binding — rename it.
-                            int line0 = imp.Line - 1;
-                            int col0 = imp.NameColumns[i];
-                            importEdits.Add(new TextEdit
-                            {
-                                Range = new LspRange(
-                                    new Position(line0, col0),
-                                    new Position(line0, col0 + oldName.Length)),
-                                NewText = newName,
-                            });
-                            continue;
-                        }
-
-                        // Aliased entry `a as b` (ES-modules campaign, G-05 rename semantics):
-                        // renaming the LOCAL binding `b` touches only the alias token; renaming
-                        // the EXPORT `a` touches only the `a` token (the local `b` binding — and
-                        // every `b` use — stays). The alias token's column is not in the model;
-                        // locate it textually after the name token on the import line.
-                        if (alias == oldName)
-                        {
-                            int line0 = imp.Line - 1;
-                            if (line0 < 0 || line0 >= fileLines.Length)
-                                continue;
-                            string lineText = fileLines[line0].TrimEnd('\r');
-                            int searchFrom = i < imp.NameColumns.Length
-                                ? imp.NameColumns[i] + imp.Names[i].Length : 0;
-                            int aliasCol = FindWholeWord(lineText, oldName, searchFrom);
-                            if (aliasCol < 0)
-                                continue;
-                            importEdits.Add(new TextEdit
-                            {
-                                Range = new LspRange(
-                                    new Position(line0, aliasCol),
-                                    new Position(line0, aliasCol + oldName.Length)),
-                                NewText = newName,
-                            });
-                        }
-                        else if (imp.Names[i] == oldName)
-                        {
-                            int line0 = imp.Line - 1;
-                            int col0 = imp.NameColumns[i];
-                            importEdits.Add(new TextEdit
-                            {
-                                Range = new LspRange(
-                                    new Position(line0, col0),
-                                    new Position(line0, col0 + oldName.Length)),
-                                NewText = newName,
-                            });
-                        }
-                    }
-                }
-
+                var importEdits = ComputeImportListEdits(
+                    directives, fileText.Split('\n'), oldName, newName, origin);
                 if (importEdits.Count == 0)
                     continue;
 
                 ServerLog.Log(
-                    $"[Rename] import-list: {importEdits.Count} edit(s) in {Path.GetFileName(path)}");
-                // (FindWholeWord helper lives below with the other text utilities.)
-                changes[uri] = changes.TryGetValue(uri, out var existing)
-                    ? existing.Concat(importEdits)
-                    : importEdits;
+                    $"[Rename] import-list ({origin}): {importEdits.Count} edit(s) in {Path.GetFileName(path)}");
+                // AddEdit keeps the "changes values are List<TextEdit>" invariant (audit B4)
+                // and dedups against edits other collectors already produced.
+                foreach (var edit in importEdits)
+                    AddEdit(changes, uri, edit);
             }
             catch (Exception ex)
             {
@@ -1019,7 +1103,7 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         }
     }
 
-    private static void RenameComponentDeclarationInFile(
+    internal static void RenameComponentDeclarationInFile(
         string filePath,
         string text,
         string oldName,
@@ -1027,18 +1111,22 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         Dictionary<DocumentUri, IEnumerable<TextEdit>> changes
     )
     {
-        // Match the component declaration head at a line start, BOTH grammars (ES-modules
-        // campaign, M5): `component OldName` / `@component OldName` (legacy) and the plain
-        // form `[export] [global::][Ns.]VirtualNode OldName(`.
+        // Match the component declaration head, BOTH grammars (ES-modules campaign, M5):
+        // `component OldName` / `@component OldName` (legacy) and the plain form
+        // `[export] [global::][Ns.]VirtualNode OldName(`. Both grammars prohibit leading
+        // whitespace before a top-level declaration head, and the plain form requires the
+        // parameter list `(` — otherwise an indented `VirtualNode Foo = …` local in a
+        // NON-declaring file could take the per-file declaration edit (audit B6).
         var pattern = new Regex(
-            $@"(?:^|\n)\s*(?:export\s+)?(?:@component\s+|component\s+|(?:global::)?(?:[\w.]+\.)?VirtualNode\s+)({Regex.Escape(oldName)})\b",
+            $@"(?:^|\n)(?:export\s+)?(?:(?:@component|component)\s+(?<name>{Regex.Escape(oldName)})\b"
+            + $@"|(?:global::)?(?:[\w.]+\.)?VirtualNode\s+(?<name>{Regex.Escape(oldName)})\s*\()",
             RegexOptions.CultureInvariant
         );
         var match = pattern.Match(text);
         if (!match.Success)
             return;
 
-        var group = match.Groups[1];
+        var group = match.Groups["name"];
         AddEdit(
             changes,
             DocumentUri.FromFileSystemPath(filePath),
@@ -1154,51 +1242,70 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
             }
 
             var uri = DocumentUri.FromFileSystemPath(uitkxFile);
+            CollectHookRenameEditsInText(fileText, uri, oldName, newName, changes);
+        }
+    }
 
-            // Rename the hook declaration head (only in the declaring file), BOTH grammars
-            // (ES-modules campaign, M5): `hook oldName(` (legacy wrapper) and the plain form
-            // `[export] <Type> oldName(` — the latter matched as name-followed-by-( at a line
-            // start with a preceding type token, so hook CALLS (`var x = oldName(...)`) in the
-            // same file stay owned by the general call-site collector.
-            var hookDeclPattern = new Regex(
-                $@"(?<=\bhook\s+){Regex.Escape(oldName)}\b|(?<=^(?:export\s+)?[\w<>\[\],\s\.\?\(\)]+?\s){Regex.Escape(oldName)}(?=\s*\()",
-                RegexOptions.CultureInvariant | RegexOptions.Multiline
-            );
-            foreach (Match m in hookDeclPattern.Matches(fileText))
+    /// <summary>Per-file text scan of <see cref="CollectHookRenameEdits"/> (pure — directly
+    /// unit-testable): the hook declaration head plus `oldName(` call sites.</summary>
+    internal static void CollectHookRenameEditsInText(
+        string fileText,
+        DocumentUri uri,
+        string oldName,
+        string newName,
+        Dictionary<DocumentUri, IEnumerable<TextEdit>> changes
+    )
+    {
+        // Rename the hook declaration head (only in the declaring file), BOTH grammars
+        // (ES-modules campaign, M5): `hook oldName(` (legacy wrapper) and the plain form
+        // `[export] <Type> oldName(`. The plain form requires a REAL type token before the
+        // name (audit B2 — the previous whitespace-tolerant lookbehind let indented
+        // statement-shaped `oldName(…)` lines match), and declaration matches get the same
+        // comment/string guard the call pattern has, so occurrences inside block comments
+        // and multi-line verbatim strings stay untouched.
+        var hookDeclPattern = new Regex(
+            $@"^(?:export\s+)?(?:hook\s+(?<name>{Regex.Escape(oldName)})\b"
+            + $@"|{LspHelpers.DeclTypePattern}\s+(?<name>{Regex.Escape(oldName)})(?=\s*\())",
+            RegexOptions.CultureInvariant | RegexOptions.Multiline
+        );
+        foreach (Match m in hookDeclPattern.Matches(fileText))
+        {
+            var g = m.Groups["name"];
+            if (IsInsideCommentOrString(fileText, g.Index))
+                continue;
+
+            AddEdit(changes, uri, new TextEdit
             {
-                AddEdit(changes, uri, new TextEdit
-                {
-                    Range = OffsetRangeToLspRange(fileText, m.Index, m.Index + m.Length),
-                    NewText = newName,
-                });
-            }
+                Range = OffsetRangeToLspRange(fileText, g.Index, g.Index + g.Length),
+                NewText = newName,
+            });
+        }
 
-            // Rename `oldName(` call sites — whole-word followed by `(`
-            // (avoids renaming substrings of other identifiers)
-            var callPattern = new Regex(
-                $@"\b{Regex.Escape(oldName)}(?=\s*\()",
-                RegexOptions.CultureInvariant
-            );
-            foreach (Match m in callPattern.Matches(fileText))
+        // Rename `oldName(` call sites — whole-word followed by `(`
+        // (avoids renaming substrings of other identifiers)
+        var callPattern = new Regex(
+            $@"\b{Regex.Escape(oldName)}(?=\s*\()",
+            RegexOptions.CultureInvariant
+        );
+        foreach (Match m in callPattern.Matches(fileText))
+        {
+            // Skip if this is the hook declaration itself (already handled above)
+            int lineStart = fileText.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
+            var linePrefix = fileText.Substring(lineStart, m.Index - lineStart).TrimStart();
+            if (linePrefix.StartsWith("hook ", StringComparison.Ordinal))
+                continue;
+
+            // U-38: a plain regex scan renamed `oldName(` occurrences inside comments
+            // and strings too (e.g. `// call useCounter() to see`) — token-boundary +
+            // comment/string awareness matches the U-10 fix's semantics.
+            if (IsInsideCommentOrString(fileText, m.Index))
+                continue;
+
+            AddEdit(changes, uri, new TextEdit
             {
-                // Skip if this is the hook declaration itself (already handled above)
-                int lineStart = fileText.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
-                var linePrefix = fileText.Substring(lineStart, m.Index - lineStart).TrimStart();
-                if (linePrefix.StartsWith("hook ", StringComparison.Ordinal))
-                    continue;
-
-                // U-38: a plain regex scan renamed `oldName(` occurrences inside comments
-                // and strings too (e.g. `// call useCounter() to see`) — token-boundary +
-                // comment/string awareness matches the U-10 fix's semantics.
-                if (IsInsideCommentOrString(fileText, m.Index))
-                    continue;
-
-                AddEdit(changes, uri, new TextEdit
-                {
-                    Range = OffsetRangeToLspRange(fileText, m.Index, m.Index + m.Length),
-                    NewText = newName,
-                });
-            }
+                Range = OffsetRangeToLspRange(fileText, m.Index, m.Index + m.Length),
+                NewText = newName,
+            });
         }
     }
 

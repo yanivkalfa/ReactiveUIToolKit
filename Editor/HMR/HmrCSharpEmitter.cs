@@ -86,7 +86,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             FindJsxRangesFunc findBareJsxRanges = null,
             FindLhsStartFunc findLhsStartForLogicalAnd = null,
             string effectiveNs = null,
-            System.Collections.Generic.IReadOnlyDictionary<string, string> hookKeyMap = null
+            System.Collections.Generic.IReadOnlyDictionary<string, string> hookKeyMap = null,
+            System.Collections.Generic.IReadOnlyDictionary<string, string> starImportNamespaces = null,
+            System.Collections.Generic.IReadOnlyDictionary<string, string> importAliasTypeMap = null
         )
         {
             var ctx = new EmitCtx(
@@ -99,6 +101,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 effectiveNs,
                 hookKeyMap
             );
+            ctx.StarImportNamespaces = starImportNamespaces;
+            ctx.ImportAliasTypeMap = importAliasTypeMap;
             ctx.EmitFile(rootNodes);
             var emitted = ctx.ToString();
             return emitted;
@@ -111,6 +115,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             private readonly StringBuilder _sb = new StringBuilder(4096);
             private StringBuilder _rentBuffer = new StringBuilder();
             private int _poolVarId;
+
+            // U-05/U-03 tag maps (audit H3) — mirror of PropsResolver's
+            // _starImportNamespaces/_importAliasTypeMap, computed by the compiler via the
+            // shared ImportScopeFacts helpers. Null on legacy files / older Language.dll.
+            internal System.Collections.Generic.IReadOnlyDictionary<string, string> StarImportNamespaces;
+            internal System.Collections.Generic.IReadOnlyDictionary<string, string> ImportAliasTypeMap;
 
             // OPT-V2-2 Phase A: hoisted static-style fields collected during the
             // render-body walk. Flushed into the partial class body just before its
@@ -1378,6 +1388,21 @@ namespace ReactiveUITK.EditorSupport.HMR
                     string lookupName = s_componentAliases.TryGetValue(tagName, out var aliased)
                         ? aliased
                         : tagName;
+                    // U-05/U-03 (audit H3) — mirror of PropsResolver's import-alias resolution:
+                    // <X.Comp/> via `* as X` → {targetNs}.Comp; a renamed/default component tag
+                    // → its metadata FQN. Unresolvable heads fall through unchanged.
+                    int tagDot = lookupName.IndexOf('.');
+                    if (tagDot > 0 && tagDot < lookupName.Length - 1
+                        && StarImportNamespaces != null
+                        && StarImportNamespaces.TryGetValue(lookupName.Substring(0, tagDot), out string starNs))
+                    {
+                        lookupName = starNs + "." + lookupName.Substring(tagDot + 1);
+                    }
+                    else if (tagDot < 0 && ImportAliasTypeMap != null
+                        && ImportAliasTypeMap.TryGetValue(lookupName, out string boundFqn))
+                    {
+                        lookupName = boundFqn;
+                    }
                     EmitFuncComponent(lookupName, attrs, keyExpr, children);
                     return;
                 }
@@ -1755,6 +1780,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string resolvedName = null;
                 Type resolvedPropsType = null;
 
+                // Tag-map-resolved heads arrive FULLY QUALIFIED (audit H3): match by simple
+                // name + namespace so the bound-name/dotted-tag path finds its real props
+                // type instead of falling back to a nonexistent {Alias}Props.
+                string simpleName = typeName;
+                string requiredNs = null;
+                int lastDot = typeName.LastIndexOf('.');
+                if (lastDot > 0 && lastDot < typeName.Length - 1)
+                {
+                    simpleName = typeName.Substring(lastDot + 1);
+                    requiredNs = typeName.Substring(0, lastDot);
+                    if (requiredNs.StartsWith("global::", StringComparison.Ordinal))
+                        requiredNs = requiredNs.Substring("global::".Length);
+                }
+
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     if (asm.IsDynamic)
@@ -1771,13 +1810,16 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     foreach (var type in types)
                     {
-                        if (type.Name != typeName)
+                        if (type.Name != simpleName)
+                            continue;
+                        if (requiredNs != null
+                            && !string.Equals(type.Namespace, requiredNs, StringComparison.Ordinal))
                             continue;
 
                         // Step 1 - sibling top-level {typeName}Props in the same namespace
                         // (the modern UITKX function-component pattern, e.g. RouterFunc /
                         // RouterFuncProps both declared at namespace scope).
-                        string siblingName = typeName + "Props";
+                        string siblingName = simpleName + "Props";
                         string siblingFullName = string.IsNullOrEmpty(type.Namespace)
                             ? siblingName
                             : type.Namespace + "." + siblingName;
@@ -1824,7 +1866,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     // Last-resort fallback: assume the {Type}.{Type}Props convention so
                     // emitted code at least produces a clear CS error pointing at a
                     // recognizable name if the type is genuinely missing.
-                    return ($"{typeName}.{typeName}Props", null);
+                    return ($"{typeName}.{simpleName}Props", null);
                 }
 
                 string refSlot =

@@ -261,13 +261,23 @@ namespace ReactiveUITK.SourceGenerator.Tests
         // ── Empty file (U-08: no declarations at all ⇒ new mode, no error) ──
 
         [Fact]
-        public void EmptyFile_IsNewModeWithNoDeclarations()
+        public void EmptyFile_KeepsBaselineDiagnostics_NotAnEmptyNewModeModule()
         {
+            // Audit F3: committing an empty/imports-only file as a zero-declaration new-mode
+            // set let the formatter fabricate `component Component { … }` out of nothing.
+            // An empty file falls back to the legacy dispatch and its baseline 2105.
             var (ds, diags) = Parse("");
-            Assert.Empty(diags);
-            Assert.False(ds.UsesLegacySyntax);
-            Assert.Empty(ds.ComponentDeclarations);
-            Assert.Empty(ds.MemberDeclarations);
+            Assert.Contains(diags, d => d.Code == "UITKX2105");
+            Assert.Empty(ds.MemberDeclarations.IsDefault
+                ? System.Collections.Immutable.ImmutableArray<ReactiveUITK.Language.Parser.MemberDeclaration>.Empty
+                : ds.MemberDeclarations);
+        }
+
+        [Fact]
+        public void ImportsOnlyFile_KeepsBaselineDiagnostics()
+        {
+            var (ds, diags) = Parse("import { a } from \"./x\"\n");
+            Assert.Contains(diags, d => d.Code == "UITKX2105");
         }
 
         // ── Full ES import surface (G-05) ───────────────────────────────────
@@ -303,11 +313,24 @@ namespace ReactiveUITK.SourceGenerator.Tests
         }
 
         [Fact]
-        public void Import_DuplicateBoundAlias_Emits2303()
+        public void Import_DuplicateBoundAlias_Emits2325()
         {
+            // Family §3.1 (audit PC-5): an alias colliding with another import binding is
+            // UITKX2325's "another import" arm; plain name-vs-name duplicates stay 2303.
             var (ds, diags) = Parse(
                 "import { a as b } from \"./x\"\n" +
                 "import { c as b } from \"./y\"\n" +
+                "export int Y = 1;\n");
+            Assert.Contains(diags, d => d.Code == "UITKX2325"
+                && d.Message.Contains("collides with another import"));
+        }
+
+        [Fact]
+        public void Import_DuplicatePlainName_StillEmits2303()
+        {
+            var (ds, diags) = Parse(
+                "import { a } from \"./x\"\n" +
+                "import { a } from \"./y\"\n" +
                 "export int Y = 1;\n");
             Assert.Contains(diags, d => d.Code == "UITKX2303");
         }

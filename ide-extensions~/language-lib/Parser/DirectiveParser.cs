@@ -262,12 +262,17 @@ namespace ReactiveUITK.Language.Parser
                     ref i, ref line,
                     usings, usingDirectives, ussFiles, inlineNamespace
                 );
-                directiveSet = directiveSet with
+                // A failed hook/module parse (e.g. `hook 123 {}`) can return false without
+                // assigning the set — the enrichment below must not dereference null.
+                if (directiveSet != null)
                 {
-                    LeadingTrivia = leadingTrivia.ToImmutableArray(),
-                    Imports = imports.ToImmutableArray(),
-                    UsesLegacySyntax = true,
-                };
+                    directiveSet = directiveSet with
+                    {
+                        LeadingTrivia = leadingTrivia.ToImmutableArray(),
+                        Imports = imports.ToImmutableArray(),
+                        UsesLegacySyntax = true,
+                    };
+                }
                 return hookModuleOk;
             }
 
@@ -659,6 +664,18 @@ namespace ReactiveUITK.Language.Parser
                             Message = "Function-style form cannot be mixed with directive header form.",
                         });
                     }
+                    else if (LooksLikePlainDeclarationHeadAt(source, i))
+                    {
+                        // U-08 mirror direction: a PLAIN declaration after legacy wrapper
+                        // declarations is the same mixed-mode error as a wrapper after plain.
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2108",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            Message = "legacy wrapper declarations and plain declarations cannot be mixed in one file — the file's first declaration sets its style",
+                        });
+                    }
                     else
                     {
                         diagnosticBag.Add(new ParseDiagnostic
@@ -849,6 +866,7 @@ namespace ReactiveUITK.Language.Parser
                 ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag, setupMarkupRanges1, bareJsxRanges1);
                 CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
                 i = bodyCloseExclusive;
+                line = LineAtPos(source, i);
                 return new ComponentDeclaration(
                     Name: componentName,
                     IsExported: isExported,
@@ -911,6 +929,7 @@ namespace ReactiveUITK.Language.Parser
             CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
 
             i = bodyCloseExclusive;
+            line = LineAtPos(source, i);
             return new ComponentDeclaration(
                 Name: componentName,
                 IsExported: isExported,
@@ -1250,45 +1269,51 @@ namespace ReactiveUITK.Language.Parser
             List<ImportDeclaration> imports, List<ParseDiagnostic> diagnosticBag)
         {
             if (imports.Count == 0) return;
-            var seen = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal);
+            var seen = new System.Collections.Generic.Dictionary<string, (string Spec, bool WasAlias)>(System.StringComparer.Ordinal);
             foreach (var imp in imports)
             {
                 for (int k = 0; k < imp.Names.Length; k++)
                 {
                     // G-05: duplicate-import keying is on the BOUND name — `import { a as b }`
                     // collides with another `b`, not with another `a`.
-                    string bound = (k < imp.Aliases.Length ? imp.Aliases[k] : null) ?? imp.Names[k];
+                    string? alias = k < imp.Aliases.Length ? imp.Aliases[k] : null;
+                    string bound = alias ?? imp.Names[k];
                     int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column;
-                    ReportIfDuplicateImportBinding(bound, imp, nameCol, diagnosticBag, seen);
+                    ReportIfDuplicateImportBinding(bound, alias != null, imp, nameCol, diagnosticBag, seen);
                 }
                 if (imp.IsStar && imp.StarAlias != null)
-                    ReportIfDuplicateImportBinding(imp.StarAlias, imp, imp.Column, diagnosticBag, seen);
+                    ReportIfDuplicateImportBinding(imp.StarAlias, true, imp, imp.Column, diagnosticBag, seen);
                 if (imp.IsDefault && imp.DefaultAlias != null)
-                    ReportIfDuplicateImportBinding(imp.DefaultAlias, imp, imp.Column, diagnosticBag, seen);
+                    ReportIfDuplicateImportBinding(imp.DefaultAlias, true, imp, imp.Column, diagnosticBag, seen);
             }
         }
 
         private static void ReportIfDuplicateImportBinding(
-            string bound, ImportDeclaration imp, int col,
+            string bound, bool isAlias, ImportDeclaration imp, int col,
             List<ParseDiagnostic> diagnosticBag,
-            System.Collections.Generic.Dictionary<string, string> seen)
+            System.Collections.Generic.Dictionary<string, (string Spec, bool WasAlias)> seen)
         {
-            if (seen.TryGetValue(bound, out string? firstSpec))
+            if (seen.TryGetValue(bound, out var first))
             {
+                // Family §3.1: a collision with an ALIAS binding on either side is UITKX2325's
+                // "another import" arm; a plain name imported twice stays classic 2303.
+                bool aliasInvolved = isAlias || first.WasAlias;
                 diagnosticBag.Add(new ParseDiagnostic
                 {
-                    Code = "UITKX2303",
+                    Code = aliasInvolved ? "UITKX2325" : "UITKX2303",
                     Severity = ParseSeverity.Error,
                     SourceLine = imp.Line,
                     SourceColumn = col,
                     EndLine = imp.Line,
                     EndColumn = col + bound.Length,
-                    Message = $"duplicate import of `{bound}` (already imported from {firstSpec})",
+                    Message = aliasInvolved
+                        ? $"import alias '{bound}' collides with another import — rename the import"
+                        : $"duplicate import of `{bound}` (already imported from {first.Spec})",
                 });
             }
             else
             {
-                seen[bound] = imp.Specifier;
+                seen[bound] = (imp.Specifier, isAlias);
             }
         }
 
@@ -1381,12 +1406,15 @@ namespace ReactiveUITK.Language.Parser
             // Check for trailing content after declarations
             if (TryFindNextNonWhitespace(source, i, out int trailingPos))
             {
+                bool plainHead = LooksLikePlainDeclarationHeadAt(source, trailingPos);
                 diagnosticBag.Add(new ParseDiagnostic
                 {
-                    Code = "UITKX2105",
+                    Code = plainHead ? "UITKX2108" : "UITKX2105",
                     Severity = ParseSeverity.Error,
                     SourceLine = LineAtPos(source, trailingPos),
-                    Message = "Invalid top-level statement after hook/module declarations.",
+                    Message = plainHead
+                        ? "legacy wrapper declarations and plain declarations cannot be mixed in one file — the file's first declaration sets its style"
+                        : "Invalid top-level statement after hook/module declarations.",
                 });
             }
 
@@ -1703,13 +1731,15 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         private static bool TryReadDeclarationHead(
             string source, ref int i, ref int line,
-            out string? typeText, out string name, out int nameLine, out int nameColumn, out char delimiter)
+            out string? typeText, out string name, out int nameLine, out int nameColumn, out char delimiter,
+            out bool genericHead)
         {
             typeText = null;
             name = string.Empty;
             nameLine = line;
             nameColumn = -1;
             delimiter = '\0';
+            genericHead = false;
 
             int savedI = i, savedLine = line;
 
@@ -1729,6 +1759,10 @@ namespace ReactiveUITK.Language.Parser
                 if (!TryReadTypeName(source, ref i, ref line, out token1))
                 { i = savedI; line = savedLine; return false; }
             }
+
+            // Tuple/generic type scans can cross newlines without tracking `line` — resync so
+            // nameLine (and every diagnostic anchored to it) lands on the name's REAL line.
+            line = LineAtPos(source, i);
 
             SkipSpaces(source, ref i);
 
@@ -1756,7 +1790,10 @@ namespace ReactiveUITK.Language.Parser
             }
 
             if (i >= source.Length || (source[i] != '(' && source[i] != '='))
-            { i = savedI; line = savedLine; return false; }
+            {
+                genericHead = i < source.Length && source[i] == '<' && name.Length > 0;
+                i = savedI; line = savedLine; return false;
+            }
             // Reject `==` — an equality expression starting right after the head is not a
             // declaration (defensive; well-formed input never reaches this in practice).
             if (source[i] == '=' && i + 1 < source.Length && source[i + 1] == '=')
@@ -1764,6 +1801,32 @@ namespace ReactiveUITK.Language.Parser
 
             delimiter = source[i];
             return true;
+        }
+
+        /// <summary>
+        /// Pure look-ahead used for the U-08 mixed-mode diagnostic's LEGACY direction: does the
+        /// text at <paramref name="pos"/> read as a plain declaration (optionally exported), an
+        /// <c>export default</c>, or an <c>export { … }</c> list? Requires either an explicit
+        /// <c>export</c> or a two-token (typed) head so bare statements (<c>DoThing();</c>,
+        /// <c>x = 1;</c>) keep their generic invalid-statement diagnostic.
+        /// </summary>
+        private static bool LooksLikePlainDeclarationHeadAt(string source, int pos)
+        {
+            int p = pos;
+            int l = 1;
+            bool sawExport = TryReadKeyword(source, ref p, "export");
+            if (sawExport)
+            {
+                SkipSpaces(source, ref p);
+                if (TryReadKeywordAt(source, p, "default"))
+                    return true;
+                if (p < source.Length && source[p] == '{')
+                    return true;
+            }
+            if (!TryReadDeclarationHead(source, ref p, ref l,
+                    out string? probeType, out _, out _, out _, out _, out _))
+                return false;
+            return sawExport || probeType != null;
         }
 
         /// <summary>
@@ -2051,8 +2114,26 @@ namespace ReactiveUITK.Language.Parser
                 }
 
                 if (!TryReadDeclarationHead(source, ref i, ref line,
-                        out string? typeText, out string declName, out int declLine, out int declNameCol, out char delimiter))
+                        out string? typeText, out string declName, out int declLine, out int declNameCol, out char delimiter,
+                        out bool genericHead))
                 {
+                    if (genericHead)
+                    {
+                        // `export T Identity<T>(…)` / `hook useX<T>` shapes: the plain dialect has
+                        // no generic-declaration form (family grammar, G-03). A precise error beats
+                        // the misleading whole-file line-1 fallback; generic hooks stay legacy
+                        // through the deprecation window (the codemod reports them).
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX2105",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = line,
+                            Message = "generic declarations are not supported in plain-declaration syntax — keep the generic in a legacy 'hook' file or in ambient C#",
+                        });
+                        parsedAnyDeclaration = true;
+                        break;
+                    }
+
                     if (!parsedAnyDeclaration)
                     {
                         i = declStart; line = declStartLine;
@@ -2257,6 +2338,16 @@ namespace ReactiveUITK.Language.Parser
                 line = LineAtPos(source, i);
             }
 
+            // A file that declared NOTHING (empty, or imports-only) is not a plain-declarations
+            // module — fall back to the legacy dispatch so its baseline diagnostics (2105) own
+            // the file instead of committing an empty new-mode set the formatter would then
+            // "reconstruct" into a fabricated component.
+            if (!parsedAnyDeclaration)
+            {
+                directiveSet = default!;
+                return false;
+            }
+
             var declaredNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (var c in components) declaredNames.Add(c.Name);
             foreach (var m in members) declaredNames.Add(m.Name);
@@ -2319,15 +2410,18 @@ namespace ReactiveUITK.Language.Parser
                 // `export { a, b };` marks the matching declarations exported — and so does
                 // `export default X;` (ES semantics: a default export IS an export; the
                 // default-marked declaration is part of the file's public surface).
+                // IsExportImplied marks declarations whose export came ONLY from the list/default
+                // marking (no inline `export` written in source) — the formatter must not add an
+                // inline prefix the author never wrote.
                 var boundNames = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var entry in exportListNames) boundNames.Add(entry.Name);
                 if (defaultExportName != null) boundNames.Add(defaultExportName);
                 for (int ci = 0; ci < components.Count; ci++)
-                    if (boundNames.Contains(components[ci].Name))
-                        components[ci] = components[ci] with { IsExported = true };
+                    if (boundNames.Contains(components[ci].Name) && !components[ci].IsExported)
+                        components[ci] = components[ci] with { IsExported = true, IsExportImplied = true };
                 for (int mi = 0; mi < members.Count; mi++)
-                    if (boundNames.Contains(members[mi].Name))
-                        members[mi] = members[mi] with { IsExported = true };
+                    if (boundNames.Contains(members[mi].Name) && !members[mi].IsExported)
+                        members[mi] = members[mi] with { IsExported = true, IsExportImplied = true };
             }
 
             int firstLine = components.Count > 0 ? components[0].DeclarationLine
@@ -2489,6 +2583,25 @@ namespace ReactiveUITK.Language.Parser
                     break;
                 }
 
+                // Parameter modifiers (audit F12): ref/out/in/params/readonly prefix the TYPE
+                // text so every consumer of the parsed view (bridges, trampolines, header
+                // re-emission) re-states and forwards them faithfully — `params object[] xs`
+                // must never parse as type "params", name "object".
+                string paramModifiers = string.Empty;
+                while (true)
+                {
+                    int modStart = i;
+                    if (TryReadKeyword(source, ref i, "ref") || TryReadKeyword(source, ref i, "out")
+                        || TryReadKeyword(source, ref i, "in") || TryReadKeyword(source, ref i, "params")
+                        || TryReadKeyword(source, ref i, "readonly"))
+                    {
+                        paramModifiers += source.Substring(modStart, i - modStart).Trim() + " ";
+                        SkipSpaces(source, ref i);
+                        continue;
+                    }
+                    break;
+                }
+
                 // Parse type name (may include generics: List<int>, Dictionary<string,int>)
                 if (!TryReadTypeName(source, ref i, ref line, out string typeName))
                 {
@@ -2499,6 +2612,7 @@ namespace ReactiveUITK.Language.Parser
                         i++;
                     continue;
                 }
+                typeName = paramModifiers + typeName;
 
                 SkipSpaces(source, ref i);
 

@@ -161,6 +161,46 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.Equal(formatted, Format(formatted));
         }
 
+        // ── Trivia preservation (audit finding: comments must not hoist) ────
+
+        [Fact]
+        public void CommentBetweenDecls_StaysBetweenDecls()
+        {
+            string src = "export int A = 1;\n\n// belongs to B\nexport int B = 2;\n";
+            string formatted = Format(src);
+            int a = formatted.IndexOf("export int A", System.StringComparison.Ordinal);
+            int c = formatted.IndexOf("// belongs to B", System.StringComparison.Ordinal);
+            int b = formatted.IndexOf("export int B", System.StringComparison.Ordinal);
+            Assert.True(a >= 0 && c >= 0 && b >= 0);
+            Assert.True(a < c && c < b, "the comment must stay attached to B, not hoist to the top");
+            Assert.Equal(formatted, Format(formatted));
+        }
+
+        [Fact]
+        public void LeadingLicenseHeader_StaysOnTop()
+        {
+            string src = "// (c) 2026 Owner\nexport int A = 1;\n";
+            string formatted = Format(src);
+            Assert.StartsWith("// (c) 2026 Owner", formatted);
+            Assert.Equal(formatted, Format(formatted));
+        }
+
+        [Fact]
+        public void CommentInsideValueInitializer_Survives()
+        {
+            string src = "export Style s = new Style {\n  Padding = 1f, // px\n};\n";
+            Assert.Contains("// px", Format(src));
+        }
+
+        [Fact]
+        public void StringWithBraceAndSemicolonInValue_Parses()
+        {
+            string src = "export string s = \"a;b}c\";\nexport int t = 2;\n";
+            string formatted = Format(src);
+            Assert.Contains("\"a;b}c\"", formatted);
+            Assert.Contains("export int t = 2;", formatted);
+        }
+
         // ── Legacy formatting is byte-untouched by this campaign ────────────
 
         [Fact]

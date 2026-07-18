@@ -199,7 +199,7 @@ namespace ReactiveUITK.SourceGenerator
                     ImmutableArray<PeerExportsInfo> peerExports =
                         peerExportsBuilder.ToImmutable();
                     var valueCycles = UitkxFeatureFlags.StrictImports
-                        ? BuildValueCycleMap(importsByFile, peerHookContainers, peerModules)
+                        ? BuildValueCycleMap(importsByFile, peerHookContainers, peerModules, peerExports)
                         : null;
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
@@ -258,7 +258,7 @@ namespace ReactiveUITK.SourceGenerator
                             ImmutableArray<PeerExportsInfo> diskPeerExports =
                                 diskExportsBuilder.ToImmutable();
                             var diskValueCycles = UitkxFeatureFlags.StrictImports
-                                ? BuildValueCycleMap(diskImportsByFile, diskPeerHookContainers, diskPeerModules)
+                                ? BuildValueCycleMap(diskImportsByFile, diskPeerHookContainers, diskPeerModules, diskPeerExports)
                                 : null;
 
                             foreach (string filePath in diskFiles)
@@ -552,6 +552,21 @@ namespace ReactiveUITK.SourceGenerator
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
         );
 
+        // Star / default import forms also create value-cycle edges (audit M5): a `* as X`
+        // binding eager-references the whole target container; a default import can bind a
+        // member. Sentinel names "*" / "\0default" mark them for BuildValueCycleMap.
+        private static readonly Regex s_importScanStarRe = new Regex(
+            @"^\s*import\s*\*\s*as\s+\w+\s+from\s*""([^""]+)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+        private static readonly Regex s_importScanDefaultRe = new Regex(
+            @"^\s*import\s+\w+\s+from\s*""([^""]+)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        internal const string CycleStarSentinel = "*";
+        internal const string CycleDefaultSentinel = "\0default";
+
         private static List<(string[] Names, string Specifier)> ExtractImportsForCycle(string source)
         {
             // Blank comments BEFORE the regex so a commented-out `import { … } from "…"`
@@ -564,9 +579,19 @@ namespace ReactiveUITK.SourceGenerator
             {
                 string[] names = m.Groups[1].Value.Split(',');
                 for (int i = 0; i < names.Length; i++)
+                {
                     names[i] = names[i].Trim();
+                    // `a as b` edges key on the ORIGINAL (exported) name.
+                    int asIdx = names[i].IndexOf(" as ", StringComparison.Ordinal);
+                    if (asIdx > 0)
+                        names[i] = names[i].Substring(0, asIdx).Trim();
+                }
                 result.Add((names, m.Groups[2].Value));
             }
+            foreach (Match m in s_importScanStarRe.Matches(source))
+                result.Add((new[] { CycleStarSentinel }, m.Groups[1].Value));
+            foreach (Match m in s_importScanDefaultRe.Matches(source))
+                result.Add((new[] { CycleDefaultSentinel }, m.Groups[1].Value));
             return result;
         }
 
@@ -619,7 +644,8 @@ namespace ReactiveUITK.SourceGenerator
         private static Dictionary<string, string> BuildValueCycleMap(
             List<(string File, List<(string[] Names, string Specifier)> Imports)> importsByFile,
             ImmutableArray<PeerHookContainerInfo> peerHooks,
-            ImmutableArray<PeerModuleInfo> peerModules)
+            ImmutableArray<PeerModuleInfo> peerModules,
+            ImmutableArray<PeerExportsInfo> peerExports = default)
         {
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -632,6 +658,29 @@ namespace ReactiveUITK.SourceGenerator
             foreach (var pm in peerModules)
                 if (pm.IsExported && !string.IsNullOrEmpty(pm.SourceFilePath))
                     valueExports.Add(NormPath(pm.SourceFilePath) + "\0" + pm.Name);
+
+            // New-mode files (audit M5): every exported MEMBER is a value symbol — values
+            // eager-init via static field initializers; hooks/utils match the legacy graph's
+            // over-approximation. Components stay exempt (lazy). Star imports edge on the
+            // whole container; default imports edge only when the default is a member.
+            var starValueTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var defaultValueTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!peerExports.IsDefaultOrEmpty)
+                foreach (var pe in peerExports)
+                {
+                    if (string.IsNullOrEmpty(pe.SourceFilePath))
+                        continue;
+                    string peN = NormPath(pe.SourceFilePath);
+                    if (!pe.Members.IsDefaultOrEmpty)
+                        foreach (var m in pe.Members)
+                            if (m.IsExported)
+                            {
+                                valueExports.Add(peN + "\0" + m.Name);
+                                starValueTargets.Add(peN);
+                                if (pe.DefaultExportName != null && m.Name == pe.DefaultExportName)
+                                    defaultValueTargets.Add(peN);
+                            }
+                }
 
             if (valueExports.Count == 0)
                 return result;
@@ -662,7 +711,12 @@ namespace ReactiveUITK.SourceGenerator
                         continue;
                     bool isValue = false;
                     foreach (var n in names)
-                        if (valueExports.Contains(tgtN + "\0" + n)) { isValue = true; break; }
+                    {
+                        bool hit = n == CycleStarSentinel ? starValueTargets.Contains(tgtN)
+                            : n == CycleDefaultSentinel ? defaultValueTargets.Contains(tgtN)
+                            : valueExports.Contains(tgtN + "\0" + n);
+                        if (hit) { isValue = true; break; }
+                    }
                     if (!isValue)
                         continue;
                     if (!edges.TryGetValue(key, out var list))

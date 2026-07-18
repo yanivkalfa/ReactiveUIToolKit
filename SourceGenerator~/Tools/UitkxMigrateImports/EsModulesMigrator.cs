@@ -32,8 +32,9 @@ namespace ReactiveUITK.SourceGenerator.Tools
     /// </list>
     /// The zero-diagnostics gate (§7.1 step 7) is the caller's job (SamplesCorpusGateTests +
     /// VERIFY-UNITY in M7). Files whose shapes the plain dialect cannot express (generic hooks,
-    /// modules with properties/nested types/initializer-less fields) are SKIPPED whole-set with a
-    /// reported error — they stay legacy and keep compiling under the deprecation window.
+    /// modules with properties/nested types/attributed members/initializer-less fields), files
+    /// with parse errors, and files with declarations sharing a source line are SKIPPED whole-set
+    /// with a reported error — they stay legacy and keep compiling under the deprecation window.
     /// </summary>
     public static class EsModulesMigrator
     {
@@ -55,22 +56,37 @@ namespace ReactiveUITK.SourceGenerator.Tools
             // LEGACY files only: the legacy migrator's @namespace stamping (identity freezing)
             // and using-tidy are wrong for already-migrated (file-keyed) files — those pass
             // through byte-untouched, which is also what makes the whole pipeline idempotent.
+            // Legacy files whose parse produced ERROR diagnostics are frozen before ANY rewrite:
+            // surgically rewriting a half-parsed file leaves mixed-grammar garbage (the parser
+            // only recorded the declarations it could read, so the invalid tail survives next to
+            // exploded output). They fail loudly and drag their companion set with them.
             var newMode = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var parseErrors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var f in files)
             {
-                var dsProbe = DirectiveParser.Parse(f.Text, f.AbsPath, new List<ParseDiagnostic>());
+                var probeDiags = new List<ParseDiagnostic>();
+                var dsProbe = DirectiveParser.Parse(f.Text, f.AbsPath, probeDiags);
                 if (!dsProbe.UsesLegacySyntax)
+                {
                     newMode.Add(f.AbsPath);
+                    continue;
+                }
+                var errDiags = probeDiags.Where(d => d.Severity == ParseSeverity.Error).ToList();
+                if (errDiags.Count > 0)
+                    parseErrors[f.AbsPath] = string.Join("; ",
+                        errDiags.Select(d => $"{d.Code} (line {d.SourceLine}) {d.Message}"));
             }
 
             var tidied = new List<MigratorFile>(files.Count);
             foreach (var f in files)
-                tidied.Add(newMode.Contains(f.AbsPath) ? f : f with { Text = UitkxMigrator.TidyUsings(f.Text) });
+                tidied.Add(newMode.Contains(f.AbsPath) || parseErrors.ContainsKey(f.AbsPath)
+                    ? f : f with { Text = UitkxMigrator.TidyUsings(f.Text) });
             var step2 = UitkxMigrator.Migrate(tidied, out var step2Errors, tidyUsings: false, stampNamespace: false);
             errors.AddRange(step2Errors);
             var current = new List<MigratorFile>(tidied.Count);
             foreach (var f in tidied)
-                current.Add(!newMode.Contains(f.AbsPath) && step2.TryGetValue(f.AbsPath, out var t)
+                current.Add(!newMode.Contains(f.AbsPath) && !parseErrors.ContainsKey(f.AbsPath)
+                    && step2.TryGetValue(f.AbsPath, out var t)
                     ? f with { Text = t } : f);
 
             // ── Step 3: per-file wrapper rewrite (attempt) ──────────────────────
@@ -80,6 +96,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             var failed = new Dictionary<string, string>(StringComparer.Ordinal); // path → reason
             var moduleNamesByFile = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             var memberNamesByFile = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var warningsByFile = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
             foreach (var f in current)
             {
@@ -89,13 +106,20 @@ namespace ReactiveUITK.SourceGenerator.Tools
                     rewritten[f.AbsPath] = f.Text; // already migrated — pass through (idempotence)
                     continue;
                 }
-                string? reason = TryRewriteFile(f, ds, out string newText, out var modNames, out var memNames);
+                if (parseErrors.TryGetValue(f.AbsPath, out var parseErr))
+                {
+                    failed[f.AbsPath] = $"parse errors — file left unmigrated: {parseErr}";
+                    continue;
+                }
+                string? reason = TryRewriteFile(f, ds, out string newText, out var modNames, out var memNames,
+                    out var fileWarnings);
                 if (reason != null)
                 {
                     failed[f.AbsPath] = reason;
                     continue;
                 }
                 rewritten[f.AbsPath] = newText;
+                if (fileWarnings.Count > 0) warningsByFile[f.AbsPath] = fileWarnings;
                 // Keyed by NORMALIZED path: ImportResolver.MapSpecifierToPath returns
                 // forward-slash paths, while the CLI hands in Windows backslash AbsPaths —
                 // an un-normalized key made every cross-file module lookup a silent miss
@@ -122,6 +146,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
                         rewritten[m.AbsPath] = m.Text; // revert to step-2 (still-legacy) text
                         moduleNamesByFile.Remove(Norm(m.AbsPath));
                         memberNamesByFile.Remove(Norm(m.AbsPath));
+                        warningsByFile.Remove(m.AbsPath);
                     }
                     foreach (var m in failures)
                         errors.Add(new UitkxMigrator.MigrationError(m.AbsPath,
@@ -130,19 +155,29 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 else
                 {
                     foreach (var m in members)
+                    {
                         migratedFiles.Add(Norm(m.AbsPath));
+                        if (warningsByFile.TryGetValue(m.AbsPath, out var ws))
+                            foreach (var w in ws)
+                                errors.Add(new UitkxMigrator.MigrationError(m.AbsPath, w));
+                    }
                 }
             }
 
-            // ── Step 4: importer rewrite against MIGRATED targets only ──────────
-            // `import { M }` where target exploded module M → `import * as M` (a star import of a
-            // still-legacy target would be UITKX2109); companion member imports for bare refs.
+            // ── Step 4: importer rewrite against MIGRATED targets ───────────────
+            // `import { M }` where the TARGET exploded module M → `import * as M` (call sites
+            // `M.x` keep working; a star import is legal even from a legacy or failed-set
+            // importer — 2109 only fires when the TARGET is legacy). This pass runs over EVERY
+            // file: an importer whose own set stayed legacy would otherwise keep a named import
+            // of a name that no longer exists on the migrated target (UITKX2301). Companion
+            // member imports are migrated-importers-only.
             var output = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var f in current)
             {
-                string text = rewritten[f.AbsPath];
-                if (migratedFiles.Contains(Norm(f.AbsPath)))
-                    text = RewriteImports(f.AbsPath, text, moduleNamesByFile, memberNamesByFile, migratedFiles);
+                bool isMigrated = migratedFiles.Contains(Norm(f.AbsPath));
+                bool remainsLegacy = !isMigrated && !newMode.Contains(f.AbsPath);
+                string text = RewriteImports(f.AbsPath, rewritten[f.AbsPath], moduleNamesByFile,
+                    memberNamesByFile, migratedFiles, isMigrated, remainsLegacy, errors);
 
                 // ── Step 6: format last ─────────────────────────────────────────
                 if (!string.Equals(text, f.Text, StringComparison.Ordinal)
@@ -164,11 +199,13 @@ namespace ReactiveUITK.SourceGenerator.Tools
         /// <summary>Null on success (out newText valid); else the skip reason.</summary>
         private static string? TryRewriteFile(
             MigratorFile f, DirectiveSet ds, out string newText,
-            out List<string> explodedModuleNames, out List<string> hoistedMemberNames)
+            out List<string> explodedModuleNames, out List<string> exportedMemberNames,
+            out List<string> warnings)
         {
             newText = f.Text;
             explodedModuleNames = new List<string>();
-            hoistedMemberNames = new List<string>();
+            exportedMemberNames = new List<string>();
+            warnings = new List<string>();
 
             string src = f.Text.Replace("\r\n", "\n");
             var lines = src.Split('\n').ToList();
@@ -182,8 +219,11 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 {
                     if (!string.IsNullOrEmpty(h.GenericParams))
                         return $"generic hook '{h.Name}' — the plain dialect has no generic declaration heads";
-                    int bodyEndLine = LineAt(src, h.BodyEndOffset);
-                    int closeLine = FindCloseBraceLine(lines, bodyEndLine);
+                    // BodyEndOffset is the exact index of the closing `}` (parser contract), so
+                    // its line IS the last line of the declaration — never scan the text for a
+                    // `}`-first line: when the brace shares a line with the last statement, a
+                    // scan latches onto the NEXT declaration's brace and deletes it wholesale.
+                    int closeLine = LineAt(src, h.BodyEndOffset);
                     string ret = string.IsNullOrEmpty(h.ReturnType) ? "void" : h.ReturnType!;
                     string paramList = string.Join(", ", h.Params.IsDefaultOrEmpty
                         ? Enumerable.Empty<string>()
@@ -204,14 +244,13 @@ namespace ReactiveUITK.SourceGenerator.Tools
             if (!ds.ModuleDeclarations.IsDefaultOrEmpty)
                 foreach (var m in ds.ModuleDeclarations)
                 {
-                    string? reason = ExplodeModule(m, out var hoisted, out var memberNames);
+                    string? reason = ExplodeModule(m, out var hoisted, out var memberNames, warnings);
                     if (reason != null)
                         return $"module '{m.Name}': {reason}";
-                    int bodyEndLine = LineAt(src, m.BodyEndOffset);
-                    int closeLine = FindCloseBraceLine(lines, bodyEndLine);
+                    int closeLine = LineAt(src, m.BodyEndOffset);
                     replacements.Add((m.DeclarationLine, closeLine, hoisted));
                     explodedModuleNames.Add(m.Name);
-                    hoistedMemberNames.AddRange(memberNames);
+                    exportedMemberNames.AddRange(memberNames);
                 }
 
             // Components — keyword surgery on the declaration line (params may wrap; only the
@@ -238,9 +277,19 @@ namespace ReactiveUITK.SourceGenerator.Tools
                     replacements.Add((c.DeclarationLine, c.DeclarationLine, new List<string> { rewrittenLine }));
                 }
 
+            // Overlap gate: two replacements sharing a line (`} export hook useB(...) -> (int) {`)
+            // cannot both be applied — half-rewriting would corrupt the file silently. Fail the
+            // whole file (and, via set atomicity, its companions) loudly instead.
+            var ordered = replacements.OrderBy(r => r.StartLine).ToList();
+            for (int ri = 1; ri < ordered.Count; ri++)
+                if (ordered[ri].StartLine <= ordered[ri - 1].EndLine)
+                    return $"two declarations share source line {ordered[ri].StartLine} — "
+                        + "put each declaration on its own line and re-run";
+
             // Apply bottom-up so earlier line numbers stay valid.
-            foreach (var (start, end, newLines) in replacements.OrderByDescending(r => r.StartLine))
+            for (int ri = ordered.Count - 1; ri >= 0; ri--)
             {
+                var (start, end, newLines) = ordered[ri];
                 lines.RemoveRange(start - 1, end - start + 1);
                 lines.InsertRange(start - 1, newLines);
             }
@@ -253,13 +302,18 @@ namespace ReactiveUITK.SourceGenerator.Tools
 
         /// <summary>
         /// Hoists a legacy module body's members to plain declarations. Null on success;
-        /// else the reason the shape cannot be expressed in the plain dialect.
+        /// else the reason the shape cannot be expressed in the plain dialect. Comment/doc
+        /// trivia is preserved verbatim; only explicitly <c>public</c> members export (C#
+        /// class members default to private); <c>const</c> migrates with a per-member warning.
+        /// <paramref name="exportedNames"/> carries the exported member names only (the
+        /// companion member-import pass must never import a file-private name).
         /// </summary>
         private static string? ExplodeModule(
-            ModuleDeclaration m, out List<string> hoisted, out List<string> memberNames)
+            ModuleDeclaration m, out List<string> hoisted, out List<string> exportedNames,
+            List<string> warnings)
         {
             hoisted = new List<string>();
-            memberNames = new List<string>();
+            exportedNames = new List<string>();
 
             var tree = CSharpSyntaxTree.ParseText("class __W {\n" + m.Body + "\n}");
             var errorsInBody = tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
@@ -271,14 +325,18 @@ namespace ReactiveUITK.SourceGenerator.Tools
 
             foreach (var member in cls.Members)
             {
+                foreach (var commentLine in TriviaCommentLines(member.GetLeadingTrivia()))
+                    hoisted.Add(commentLine);
                 switch (member)
                 {
                     case FieldDeclarationSyntax field:
                     {
-                        bool isPublic = field.Modifiers.Any(SyntaxKind.PublicKeyword)
-                            || !field.Modifiers.Any(mod =>
-                                mod.IsKind(SyntaxKind.PrivateKeyword) || mod.IsKind(SyntaxKind.InternalKeyword)
-                                || mod.IsKind(SyntaxKind.ProtectedKeyword));
+                        string firstName = field.Declaration.Variables.Count > 0
+                            ? field.Declaration.Variables[0].Identifier.Text : "<field>";
+                        if (field.AttributeLists.Count > 0)
+                            return $"member '{firstName}' has attributes — the plain dialect has no attribute form";
+                        bool isPublic = field.Modifiers.Any(SyntaxKind.PublicKeyword);
+                        bool isConst = field.Modifiers.Any(SyntaxKind.ConstKeyword);
                         string type = field.Declaration.Type.ToString();
                         foreach (var v in field.Declaration.Variables)
                         {
@@ -286,18 +344,21 @@ namespace ReactiveUITK.SourceGenerator.Tools
                                 return $"field '{v.Identifier.Text}' has no initializer — plain values require '= …'";
                             string prefix = isPublic ? "export " : "";
                             hoisted.Add($"{prefix}{type} {v.Identifier.Text} = {v.Initializer.Value};");
-                            memberNames.Add(v.Identifier.Text);
+                            if (isConst)
+                                warnings.Add($"module '{m.Name}': const member '{v.Identifier.Text}' migrated to a "
+                                    + "plain value — const-ness is lost (const-required contexts will fail at C# compile)");
+                            if (isPublic)
+                                exportedNames.Add(v.Identifier.Text);
                         }
                         break;
                     }
                     case MethodDeclarationSyntax method:
                     {
+                        if (method.AttributeLists.Count > 0)
+                            return $"member '{method.Identifier.Text}' has attributes — the plain dialect has no attribute form";
                         if (method.TypeParameterList != null)
                             return $"generic method '{method.Identifier.Text}' — the plain dialect has no generic declaration heads";
-                        bool isPublic = method.Modifiers.Any(SyntaxKind.PublicKeyword)
-                            || !method.Modifiers.Any(mod =>
-                                mod.IsKind(SyntaxKind.PrivateKeyword) || mod.IsKind(SyntaxKind.InternalKeyword)
-                                || mod.IsKind(SyntaxKind.ProtectedKeyword));
+                        bool isPublic = method.Modifiers.Any(SyntaxKind.PublicKeyword);
                         string prefix = isPublic ? "export " : "";
                         string ret = method.ReturnType.ToString();
                         string plist = method.ParameterList.Parameters.ToFullString().Trim();
@@ -316,7 +377,8 @@ namespace ReactiveUITK.SourceGenerator.Tools
                         {
                             return $"method '{method.Identifier.Text}' has no body";
                         }
-                        memberNames.Add(method.Identifier.Text);
+                        if (isPublic)
+                            exportedNames.Add(method.Identifier.Text);
                         break;
                     }
                     default:
@@ -325,9 +387,50 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 }
                 hoisted.Add(string.Empty);
             }
+            foreach (var commentLine in TriviaCommentLines(cls.CloseBraceToken.LeadingTrivia))
+                hoisted.Add(commentLine);
             if (hoisted.Count > 0 && hoisted[^1].Length == 0)
                 hoisted.RemoveAt(hoisted.Count - 1);
             return null;
+        }
+
+        /// <summary>
+        /// Comment and doc-comment trivia as emit-ready lines: floating/banner comments and
+        /// member docs survive the module explosion verbatim (the plain grammar and the
+        /// formatter both tolerate comment lines between declarations). Continuation lines
+        /// are dedented by the comment's own leading indentation so relative alignment
+        /// (<c>*</c>-columns, doc continuations) is kept.
+        /// </summary>
+        private static IEnumerable<string> TriviaCommentLines(SyntaxTriviaList trivia)
+        {
+            string indent = string.Empty;
+            foreach (var t in trivia)
+            {
+                if (t.IsKind(SyntaxKind.WhitespaceTrivia))
+                {
+                    indent = t.ToString();
+                    continue;
+                }
+                if (t.IsKind(SyntaxKind.EndOfLineTrivia))
+                {
+                    indent = string.Empty;
+                    continue;
+                }
+                if (!t.IsKind(SyntaxKind.SingleLineCommentTrivia)
+                    && !t.IsKind(SyntaxKind.MultiLineCommentTrivia)
+                    && !t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)
+                    && !t.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+                    continue;
+                string[] commentLines = t.ToFullString().Replace("\r\n", "\n").TrimEnd('\n').Split('\n');
+                yield return commentLines[0].TrimEnd();
+                for (int i = 1; i < commentLines.Length; i++)
+                {
+                    string line = commentLines[i];
+                    if (indent.Length > 0 && line.StartsWith(indent, StringComparison.Ordinal))
+                        line = line.Substring(indent.Length);
+                    yield return line.TrimEnd();
+                }
+            }
         }
 
         private static IEnumerable<string> DedentBlock(BlockSyntax body)
@@ -344,23 +447,33 @@ namespace ReactiveUITK.SourceGenerator.Tools
             string text,
             Dictionary<string, List<string>> moduleNamesByFile,
             Dictionary<string, List<string>> memberNamesByFile,
-            HashSet<string> migratedFiles)
+            HashSet<string> migratedFiles,
+            bool importerMigrated,
+            bool importerRemainsLegacy,
+            List<UitkxMigrator.MigrationError> notes)
         {
             var ds = DirectiveParser.Parse(text, absPath, new List<ParseDiagnostic>());
             if (ds.Imports.IsDefaultOrEmpty && memberNamesByFile.Count == 0)
                 return text;
 
             string importerDir = Norm(System.IO.Path.GetDirectoryName(absPath) ?? string.Empty);
+            // `~/` specifiers resolve against the UI source ROOT, not the importer's folder —
+            // the same root the SG pipeline and HMR use (§7 parity). Passing importerDir here
+            // made every `~/`-rooted import of an exploded module miss the rewrite silently.
+            string rootDir = EffectiveNamespace.UiSourceRootDir(absPath) ?? importerDir;
             var lines = text.Replace("\r\n", "\n").Split('\n').ToList();
+            bool changed = false;
 
             // `import { M, x } from spec` → star import when M is an exploded module of the
-            // (migrated) target; the other names keep a named import line.
+            // (migrated) target; the other names keep a named import line. Applies to EVERY
+            // importer — a failed-set or already-new-mode importer keeping `import { M }` of an
+            // exploded target would break on the next build (UITKX2301).
             if (!ds.Imports.IsDefaultOrEmpty)
                 foreach (var imp in ds.Imports.OrderByDescending(i => i.Line))
                 {
                     if (imp.IsStar || imp.IsDefault)
                         continue;
-                    string? target = ImportResolver.MapSpecifierToPath(importerDir, imp.Specifier, importerDir, out _);
+                    string? target = ImportResolver.MapSpecifierToPath(importerDir, imp.Specifier, rootDir, out _);
                     if (target == null || !migratedFiles.Contains(Norm(target))
                         || !moduleNamesByFile.TryGetValue(Norm(target), out var modNames))
                         continue;
@@ -377,54 +490,68 @@ namespace ReactiveUITK.SourceGenerator.Tools
                         repl.Add($"import {{ {string.Join(", ", namedNames)} }} from \"{imp.Specifier}\"");
                     lines.RemoveAt(imp.Line - 1);
                     lines.InsertRange(imp.Line - 1, repl);
+                    changed = true;
+                    if (importerRemainsLegacy)
+                        notes.Add(new UitkxMigrator.MigrationError(absPath,
+                            $"note: still-legacy file's import of {string.Join(", ", starNames)} from "
+                            + $"\"{imp.Specifier}\" rewritten to `import * as` — the target's module "
+                            + "form migrated to plain declarations"));
                 }
 
             // Companion member imports: bare references that used to resolve via companion
-            // partial-merging (same folder, `{Stem}.*.uitkx` name-prefix — the exact merge
-            // candidates). Only for migrated companions (member imports of a legacy module
-            // target would be UITKX2301).
-            string stem = StemOf(absPath);
-            var neededBySpec = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
-            string scrub = ScrubForScan(string.Join("\n", lines));
-            foreach (var kv in memberNamesByFile)
+            // partial-merging. Within a set EVERY other member is a potential exporter —
+            // base←companion, companion←base, and companion←sibling all merged legacy-side.
+            // Only for migrated importers (member imports into a still-legacy file would be
+            // UITKX2301) and only for EXPORTED names (importing a file-private name is 2302).
+            if (importerMigrated)
             {
-                if (!migratedFiles.Contains(kv.Key)) continue;
-                if (string.Equals(kv.Key, Norm(absPath), StringComparison.OrdinalIgnoreCase)) continue;
-                if (!string.Equals(Norm(System.IO.Path.GetDirectoryName(kv.Key) ?? ""), importerDir, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                if (!StemOf(kv.Key).StartsWith(stem + ".", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(StemOf(kv.Key), stem, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var already = new HashSet<string>(StringComparer.Ordinal);
-                var dsNow = DirectiveParser.Parse(string.Join("\n", lines), absPath, new List<ParseDiagnostic>());
-                if (!dsNow.Imports.IsDefaultOrEmpty)
-                    foreach (var imp in dsNow.Imports)
-                        foreach (var n in imp.Names)
-                            already.Add(n);
-
-                foreach (var name in kv.Value)
+                string setKey = SetKey(absPath);
+                var selfNames = new HashSet<string>(StringComparer.Ordinal);
+                var dsSelf = DirectiveParser.Parse(string.Join("\n", lines), absPath, new List<ParseDiagnostic>());
+                foreach (var c in dsSelf.ComponentDeclarations) selfNames.Add(c.Name);
+                foreach (var md in dsSelf.MemberDeclarations) selfNames.Add(md.Name);
+                var neededBySpec = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+                string scrub = ScrubForScan(string.Join("\n", lines));
+                foreach (var kv in memberNamesByFile)
                 {
-                    if (already.Contains(name)) continue;
-                    if (!Regex.IsMatch(scrub, $@"\b{Regex.Escape(name)}\b")) continue;
-                    string spec = UitkxMigrator.RelativeSpecifier(absPath, kv.Key);
-                    if (!neededBySpec.TryGetValue(spec, out var set))
-                        neededBySpec[spec] = set = new SortedSet<string>(StringComparer.Ordinal);
-                    set.Add(name);
+                    if (!migratedFiles.Contains(kv.Key)) continue;
+                    if (string.Equals(kv.Key, Norm(absPath), StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!string.Equals(SetKey(kv.Key), setKey, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var already = new HashSet<string>(StringComparer.Ordinal);
+                    var dsNow = DirectiveParser.Parse(string.Join("\n", lines), absPath, new List<ParseDiagnostic>());
+                    if (!dsNow.Imports.IsDefaultOrEmpty)
+                        foreach (var imp in dsNow.Imports)
+                            foreach (var n in imp.Names)
+                                already.Add(n);
+
+                    foreach (var name in kv.Value)
+                    {
+                        if (already.Contains(name) || selfNames.Contains(name)) continue;
+                        if (!Regex.IsMatch(scrub, $@"\b{Regex.Escape(name)}\b")) continue;
+                        string spec = UitkxMigrator.RelativeSpecifier(absPath, kv.Key);
+                        if (!neededBySpec.TryGetValue(spec, out var set))
+                            neededBySpec[spec] = set = new SortedSet<string>(StringComparer.Ordinal);
+                        set.Add(name);
+                    }
+                }
+                if (neededBySpec.Count > 0)
+                {
+                    int insertAt = 0;
+                    var dsNow = DirectiveParser.Parse(string.Join("\n", lines), absPath, new List<ParseDiagnostic>());
+                    if (!dsNow.Imports.IsDefaultOrEmpty)
+                        insertAt = dsNow.Imports.Max(i => i.Line); // after the last import line (1-based → insert index)
+                    var newLines = neededBySpec
+                        .Select(kv2 => $"import {{ {string.Join(", ", kv2.Value)} }} from \"{kv2.Key}\"")
+                        .ToList();
+                    lines.InsertRange(insertAt, newLines);
+                    changed = true;
                 }
             }
-            if (neededBySpec.Count > 0)
-            {
-                int insertAt = 0;
-                var dsNow = DirectiveParser.Parse(string.Join("\n", lines), absPath, new List<ParseDiagnostic>());
-                if (!dsNow.Imports.IsDefaultOrEmpty)
-                    insertAt = dsNow.Imports.Max(i => i.Line); // after the last import line (1-based → insert index)
-                var newLines = neededBySpec
-                    .Select(kv2 => $"import {{ {string.Join(", ", kv2.Value)} }} from \"{kv2.Key}\"")
-                    .ToList();
-                lines.InsertRange(insertAt, newLines);
-            }
 
+            if (!changed)
+                return text;
             string result = string.Join("\n", lines);
             if (!result.EndsWith("\n", StringComparison.Ordinal))
                 result += "\n";
@@ -454,17 +581,6 @@ namespace ReactiveUITK.SourceGenerator.Tools
             for (int i = 0; i < end; i++)
                 if (src[i] == '\n') line++;
             return line;
-        }
-
-        /// <summary>The line of the declaration's closing <c>}</c>: the first line at or after
-        /// <paramref name="bodyEndLine"/> whose first non-space char is <c>}</c> (the parser's
-        /// BodyEndOffset points just before it, possibly on the same line).</summary>
-        private static int FindCloseBraceLine(List<string> lines, int bodyEndLine)
-        {
-            for (int i = bodyEndLine - 1; i < lines.Count; i++)
-                if (lines[i].TrimStart().StartsWith("}", StringComparison.Ordinal))
-                    return i + 1;
-            return bodyEndLine;
         }
 
         private static List<string> SliceLines(string src, int startOffset, int endOffset)

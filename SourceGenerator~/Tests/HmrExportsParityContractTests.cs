@@ -84,8 +84,10 @@ public class HmrExportsParityContractTests
     {
         var src = HmrControllerSource();
         Assert.Contains("s_legacyWrapperKeywordRegex.IsMatch(content)", src);
-        // The mode discriminator mirrors the parser's wrapper-keyword rule.
-        Assert.Contains(@"(?:export\s+)?(?:component|hook|module)\b", src);
+        // The mode discriminator mirrors the parser's wrapper-keyword rule; the keyword must
+        // be followed by an identifier start so new-mode body text (`module.Init();`) can't
+        // false-classify the file as legacy (audit L3).
+        Assert.Contains(@"(?:export\s+)?(?:component|hook|module)\s+[A-Za-z_]", src);
     }
 
     [Fact]

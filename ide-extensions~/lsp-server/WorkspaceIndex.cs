@@ -696,7 +696,13 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             string content = File.ReadAllText(filePath);
 
-            bool hasModuleOrHook = s_uitkxModuleOrHookPattern.IsMatch(content);
+            // Blank comments + string/char literals (offset-preserving) before the regex
+            // passes so a declaration-shaped line inside a /* */ block comment can't index
+            // a phantom element. The col-0 anchors stay; the parser below still reads the
+            // ORIGINAL content.
+            string scannable = StrictImportDetector.ScrubNonCode(content);
+
+            bool hasModuleOrHook = s_uitkxModuleOrHookPattern.IsMatch(scannable);
 
             // Exported declarations (import/export grammar): parse with the real directive parser so
             // the `export` flag + hook/module names (which the regex index doesn't capture) are known.
@@ -744,7 +750,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             }
             finally { _lock.ExitWriteLock(); }
 
-            foreach (Match m in s_uitkxDeclPattern.Matches(content))
+            foreach (Match m in s_uitkxDeclPattern.Matches(scannable))
             {
                 string componentName = m.Groups["name"].Value;
                 if (string.IsNullOrEmpty(componentName))
@@ -752,8 +758,8 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
                 // Find the 1-based line number of the match
                 int lineNumber = 1;
-                for (int i = 0; i < m.Index && i < content.Length; i++)
-                    if (content[i] == '\n')
+                for (int i = 0; i < m.Index && i < scannable.Length; i++)
+                    if (scannable[i] == '\n')
                         lineNumber++;
 
                 // Parse function-style params if present.

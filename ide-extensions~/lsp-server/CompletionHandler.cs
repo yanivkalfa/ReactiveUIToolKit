@@ -375,6 +375,12 @@ public sealed class CompletionHandler : ICompletionHandler
                 doc: "Binds the target file's whole export surface to one name:\n```\nimport * as Tokens from \"../shared/Tokens\"\n…  Tokens.Gap  …  <Tokens.Circle />\n```"
             ),
             (
+                label: "import default",
+                insert: "import ${1:Name} from \"${2:./file}\"",
+                detail: "Default import of a peer .uitkx file.",
+                doc: "Binds the target file's default export to a local name:\n```\nimport ScorePanel from \"./ScorePanel\"\n…  <ScorePanel />\n```\nThe target marks its default with `export default Name;`."
+            ),
+            (
                 label: "component",
                 insert: "component ${1:MyComponent} {\n\treturn (\n\t\t$0\n\t);\n}",
                 detail: "(deprecated) Declares a wrapper-keyword component.",
@@ -1611,9 +1617,22 @@ public sealed class CompletionHandler : ICompletionHandler
         var diags = new List<ReactiveUITK.Language.ParseDiagnostic>();
         var ds = DirectiveParser.Parse(File.ReadAllText(target), target, diags);
 
-        var already = new HashSet<string>(
-            lineText.Substring(braceOpen + 1, regionEnd - braceOpen - 1).Split(',').Select(s => s.Trim()),
-            StringComparer.Ordinal);
+        // Each listed entry may be aliased (`a as b`): the imported NAME is what must not be
+        // re-suggested, and the bound ALIAS would collide with a same-named export — track both.
+        var already = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in lineText.Substring(braceOpen + 1, regionEnd - braceOpen - 1).Split(','))
+        {
+            var tokens = entry.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length >= 3 && tokens[1] == "as")
+            {
+                already.Add(tokens[0]);
+                already.Add(tokens[2]);
+            }
+            else if (tokens.Length > 0)
+            {
+                already.Add(tokens[0]);
+            }
+        }
 
         var names = new List<string>();
         void Add(string n, bool exported) { if (exported && !already.Contains(n) && !names.Contains(n)) names.Add(n); }

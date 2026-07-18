@@ -81,7 +81,7 @@ namespace ReactiveUITK.SourceGenerator
                     peerComponents, peerHookContainers, peerModules, parseDiags, peerExports);
                 AppendUsingValidationDiags(
                     directives, compilation,
-                    peerComponents, peerHookContainers, peerModules, parseDiags);
+                    peerComponents, peerHookContainers, peerModules, parseDiags, peerExports);
                 AppendStrictReferenceDiags(
                     directives, source, filePath,
                     peerComponents, peerHookContainers, peerModules, parseDiags);
@@ -208,7 +208,8 @@ namespace ReactiveUITK.SourceGenerator
                     directives = directives with
                     {
                         Usings = ResolveInjectedUsings(
-                            directives, peerHookContainers, filePath, strict: true, peerModules, peerComponents)
+                            directives, peerHookContainers, filePath, strict: true, peerModules,
+                            peerComponents, peerExports)
                     };
 
                 // Emit hooks and modules as SEPARATE compilation units (each merges as a
@@ -685,11 +686,20 @@ namespace ReactiveUITK.SourceGenerator
 
             // ── New-mode targets (ES-modules campaign, U-03) — SG-side mirror of
             //    ImportScopeFacts.ComputeInjectedUsingPayloads' new-mode table ──
+            // newModeFiles ALSO gates the legacy loops below: a new-mode target's payloads are
+            // decided here alone (alias-aware, per-name); the legacy loops' whole-container /
+            // original-name shapes would inject usings the LSP mirror deliberately withholds
+            // (editor/build divergence + accidental-capture hazard — audit M4).
+            var newModeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (peerExports != null && !peerExports.Value.IsDefaultOrEmpty)
             {
                 var exportsByPath = new Dictionary<string, PeerExportsInfo>(StringComparer.OrdinalIgnoreCase);
                 foreach (var pe in peerExports.Value)
-                    exportsByPath[NormalizeAbs(pe.SourceFilePath)] = pe;
+                {
+                    string peKey = NormalizeAbs(pe.SourceFilePath);
+                    exportsByPath[peKey] = pe;
+                    newModeFiles.Add(peKey);
+                }
 
                 foreach (var imp in directives.Imports)
                 {
@@ -704,7 +714,15 @@ namespace ReactiveUITK.SourceGenerator
 
                     if (imp.IsStar && imp.StarAlias != null)
                     {
-                        if (!ReservedTypeAliases.Contains(imp.StarAlias))
+                        // A component-only target emits NO __Exports unit — an alias to it would
+                        // be a file-breaking CS0246 in the importer. Dotted tags resolve through
+                        // the tag maps regardless; C#-body refs through a star alias of a
+                        // component-only file are per-plan unsupported (U-03 note).
+                        bool targetHasExportedMembers = false;
+                        if (!pe.Members.IsDefaultOrEmpty)
+                            foreach (var m in pe.Members)
+                                if (m.IsExported) { targetHasExportedMembers = true; break; }
+                        if (targetHasExportedMembers && !ReservedTypeAliases.Contains(imp.StarAlias))
                         {
                             string line = $"{imp.StarAlias} = {pe.Namespace}.__Exports";
                             if (seen.Add(line))
@@ -765,6 +783,8 @@ namespace ReactiveUITK.SourceGenerator
                 {
                     if (phc.SourceFilePath == null)
                         continue;
+                    if (newModeFiles.Contains(NormalizeAbs(phc.SourceFilePath)))
+                        continue; // new-mode block above owns these payloads
                     if (!importedFiles.Contains(NormalizeAbs(phc.SourceFilePath)))
                         continue;
                     string fqn = $"static {phc.Namespace}.{phc.ClassName}";
@@ -813,6 +833,8 @@ namespace ReactiveUITK.SourceGenerator
                 {
                     if (pc.SourceFilePath == null || !pc.IsExported)
                         continue;
+                    if (newModeFiles.Contains(NormalizeAbs(pc.SourceFilePath)))
+                        continue; // new-mode block above owns these payloads (alias-aware)
                     if (!importedFileNames.Contains(NormalizeAbs(pc.SourceFilePath) + "\0" + pc.Name))
                         continue;
                     if (string.Equals(pc.Namespace, directives.Namespace, StringComparison.Ordinal))
@@ -1138,7 +1160,8 @@ namespace ReactiveUITK.SourceGenerator
             ImmutableArray<PeerComponentInfo>? peerComponents,
             ImmutableArray<PeerHookContainerInfo>? peerHookContainers,
             ImmutableArray<PeerModuleInfo>? peerModules,
-            List<ParseDiagnostic> parseDiags)
+            List<ParseDiagnostic> parseDiags,
+            ImmutableArray<PeerExportsInfo>? peerExports = null)
         {
             if (directives.UsingDirectives.IsDefaultOrEmpty)
                 return;
@@ -1160,6 +1183,10 @@ namespace ReactiveUITK.SourceGenerator
                 foreach (var ph in peerHookContainers.Value) AddWithAncestors(ph.Namespace);
             if (peerModules != null)
                 foreach (var pm in peerModules.Value) AddWithAncestors(pm.Namespace);
+            // New-mode member-only files live ONLY on the peerExports table — without this
+            // seeding, `import "@<their file-keyed ns>"` warns falsely (audit note).
+            if (peerExports != null)
+                foreach (var pe in peerExports.Value) AddWithAncestors(pe.Namespace);
 
             foreach (var u in directives.UsingDirectives)
             {

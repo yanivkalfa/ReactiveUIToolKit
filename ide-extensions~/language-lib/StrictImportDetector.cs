@@ -76,12 +76,22 @@ namespace ReactiveUITK.Language
             if (peerExports.Count == 0)
                 return findings;
 
-            // Names this file already imports (any specifier) — those are satisfied.
+            // Names this file already imports (any specifier) — those are satisfied. The
+            // satisfied name is the BOUND one: for `import { Widget as W }` only `W` resolves
+            // in this file (a bare `Widget` reference still needs its own import); star and
+            // default imports bind their alias.
             var imported = new HashSet<string>(StringComparer.Ordinal);
             if (!directives.Imports.IsDefaultOrEmpty)
                 foreach (var imp in directives.Imports)
-                    foreach (var n in imp.Names)
-                        imported.Add(n);
+                {
+                    var boundAliases = imp.Aliases.IsDefaultOrEmpty
+                        ? ImmutableArray<string?>.Empty : imp.Aliases;
+                    for (int k = 0; k < imp.Names.Length; k++)
+                        imported.Add(k < boundAliases.Length && boundAliases[k] != null
+                            ? boundAliases[k]! : imp.Names[k]);
+                    if (imp.IsStar && imp.StarAlias != null) imported.Add(imp.StarAlias);
+                    if (imp.IsDefault && imp.DefaultAlias != null) imported.Add(imp.DefaultAlias);
+                }
 
             // Names declared locally in THIS file — never need importing.
             var selfNames = new HashSet<string>(StringComparer.Ordinal);
@@ -92,6 +102,8 @@ namespace ReactiveUITK.Language
                 foreach (var h in directives.HookDeclarations) selfNames.Add(h.Name);
             if (!directives.ModuleDeclarations.IsDefaultOrEmpty)
                 foreach (var m in directives.ModuleDeclarations) selfNames.Add(m.Name);
+            if (!directives.MemberDeclarations.IsDefaultOrEmpty)
+                foreach (var m in directives.MemberDeclarations) selfNames.Add(m.Name);
 
             // Index peer exports by (kind, name).
             var byKind = new Dictionary<ExportKind, Dictionary<string, PeerExport>>
@@ -200,7 +212,7 @@ namespace ReactiveUITK.Language
             {
                 if (localNames.Contains(alias))
                     findings.Add(new Finding("UITKX2325",
-                        $"import alias `{alias}` collides with a declaration in this file — rename the import",
+                        $"import alias '{alias}' collides with a declaration in this file — rename the import",
                         line, Column: col, EndColumn: col >= 0 ? col + alias.Length : -1));
             }
 
@@ -271,31 +283,32 @@ namespace ReactiveUITK.Language
                             var target = parseTargetFile(res.ProjectRelativePath!);
                             if (target != null)
                             {
-                                if (target.UsesLegacySyntax && (imp.IsStar || imp.IsDefault))
+                                // Matrix §6 row 5: star, default, AND rename forms all require a
+                                // migrated target — a renamed binding has no legacy payload shape
+                                // (ImportScopeFacts withholds it), so without this gate the alias
+                                // silently never materializes and the build dies with CS0103.
+                                bool legacyTargetGate = target.UsesLegacySyntax
+                                    && (imp.IsStar || imp.IsDefault || aliases.Any(a => a != null));
+                                if (legacyTargetGate)
                                 {
                                     findings.Add(new Finding("UITKX2109",
-                                        $"namespace/default/renamed import of `{ShortName(res.ProjectRelativePath!)}` requires the target file to use plain-declaration syntax — migrate `{ShortName(res.ProjectRelativePath!)}` first",
+                                        $"namespace/default/renamed import of '{ShortName(res.ProjectRelativePath!)}' requires the target file to use plain-declaration syntax — migrate '{ShortName(res.ProjectRelativePath!)}' first",
                                         imp.Line, Column: specCol, EndColumn: specEnd));
                                 }
 
-                                if (imp.IsDefault && target.DefaultExportName == null)
+                                // A legacy target never has a default export — 2109 already says
+                                // "migrate first"; stacking 2326 on the same line is noise.
+                                if (imp.IsDefault && target.DefaultExportName == null && !legacyTargetGate)
                                 {
                                     string suggested = target.ComponentDeclarations.Length > 0
                                         ? target.ComponentDeclarations[0].Name
                                         : (target.MemberDeclarations.Length > 0 ? target.MemberDeclarations[0].Name : "Name");
                                     findings.Add(new Finding("UITKX2326",
-                                        $"`{ShortName(res.ProjectRelativePath!)}` has no default export — use a named import: import {{ {suggested} }} from \"{imp.Specifier}\"",
+                                        $"'{ShortName(res.ProjectRelativePath!)}' has no default export — use a named import: import {{ {suggested} }} from \"{imp.Specifier}\"",
                                         imp.Line, Column: specCol, EndColumn: specEnd));
                                 }
 
-                                if (target.UsesLegacySyntax)
-                                {
-                                    // Rename-prefix guard needs the target's declared kind — only
-                                    // meaningful against a parsed (non-legacy) target's hook
-                                    // members; legacy targets already hit 2109 above for rename
-                                    // forms, so there is nothing further to check here.
-                                }
-                                else
+                                if (!target.UsesLegacySyntax)
                                 {
                                     for (int k = 0; k < imp.Names.Length && k < aliases.Length; k++)
                                     {
@@ -308,7 +321,7 @@ namespace ReactiveUITK.Language
                                         {
                                             int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : imp.Column;
                                             findings.Add(new Finding("UITKX2110",
-                                                $"renaming hook `{original}` to `{alias}` drops the 'use' prefix — hook bindings must stay 'use'-prefixed",
+                                                $"renaming hook '{original}' to '{alias}' drops the 'use' prefix — hook bindings must stay 'use'-prefixed",
                                                 imp.Line, Column: nameCol, EndColumn: nameCol >= 0 ? nameCol + alias.Length : -1));
                                         }
                                     }
@@ -340,15 +353,23 @@ namespace ReactiveUITK.Language
                 referenced.Add(m.Groups[1].Value);
 
             foreach (var imp in directives.Imports)
+            {
+                var boundAliases = imp.Aliases.IsDefaultOrEmpty
+                    ? ImmutableArray<string?>.Empty : imp.Aliases;
                 for (int k = 0; k < imp.Names.Length; k++)
                 {
                     string name = imp.Names[k];
-                    if (referenced.Contains(name))
+                    // The file references the BOUND name — for `import { Widget as W }` usage
+                    // of `W` marks the import used; the original `Widget` never appears.
+                    string bound = k < boundAliases.Length && boundAliases[k] != null
+                        ? boundAliases[k]! : name;
+                    if (referenced.Contains(bound))
                         continue;
                     int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : -1;
                     findings.Add(new Finding("UITKX2304", $"unused import `{name}`", imp.Line,
                         Column: nameCol, EndColumn: nameCol >= 0 ? nameCol + name.Length : -1));
                 }
+            }
 
             return findings;
         }

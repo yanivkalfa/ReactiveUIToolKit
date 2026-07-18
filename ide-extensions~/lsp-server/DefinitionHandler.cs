@@ -430,9 +430,15 @@ public sealed class DefinitionHandler : IDefinitionHandler
     {
         try
         {
+            // A plain DECLARATION head requires a type token before the name (audit B1):
+            // the previous optional-prefix shape let a statement-shaped `name(…)` call line
+            // above the real declaration win the top-down scan. Untyped value declarations
+            // (`export theme = …`) are the only type-less form and always carry `export`.
             string n = Regex.Escape(name);
             var re = new Regex(
-                $@"^\s*(?:export\s+)?(?:(?:component|hook|module)\s+{n}\b|(?:[\w<>\[\],\s\.\?\(\)]+?\s)?{n}\s*[=\(])");
+                $@"^(?:(?:export\s+)?(?:component|hook|module)\s+{n}\b"
+                + $@"|(?:export\s+)?{LspHelpers.DeclTypePattern}\s+{n}\s*[=\(]"
+                + $@"|export\s+{n}\s*=(?!=))");
             string[] lines = File.ReadAllLines(filePath);
             for (int i = 0; i < lines.Length; i++)
                 if (re.IsMatch(lines[i]))
@@ -630,7 +636,7 @@ public sealed class DefinitionHandler : IDefinitionHandler
     /// whose name matches <paramref name="symbolName"/>.  Returns the 1-based
     /// line and 0-based column of the name, or (0, 0) if not found.
     /// </summary>
-    private static (int Line, int Col) FindDeclarationInUitkx(string source, string symbolName)
+    internal static (int Line, int Col) FindDeclarationInUitkx(string source, string symbolName)
     {
         int lineNum = 0;
         foreach (var rawLine in source.Split('\n'))
@@ -668,9 +674,11 @@ public sealed class DefinitionHandler : IDefinitionHandler
             }
 
             // Plain-declaration head (ES-modules campaign, M5): `[export] <Type> Name(` /
-            // `[export] [<Type>] Name =`. The name is the LAST identifier before the first
-            // top-level '(' or '='; checked on the trimmed line so directives/markup never match.
-            if (s_plainDeclHeadRe.Match(trimmed) is { Success: true } pm
+            // `[export] [<Type>] Name =`. A declaration head requires a type token before
+            // the name (audit B1 — statement-shaped `name(…)` lines must never match), and
+            // is checked on the RAW line: top-level declarations start at column 0, so
+            // indented body statements never match.
+            if (s_plainDeclHeadRe.Match(line) is { Success: true } pm
                 && string.Equals(pm.Groups["name"].Value, symbolName, StringComparison.Ordinal))
             {
                 int col = line.IndexOf(symbolName, StringComparison.Ordinal);
@@ -681,6 +689,7 @@ public sealed class DefinitionHandler : IDefinitionHandler
     }
 
     private static readonly Regex s_plainDeclHeadRe = new(
-        @"^(?:export\s+)?(?:[\w<>\[\],\s\.\?\(\)]+?\s)?(?<name>[A-Za-z_]\w*)\s*[=\(]",
+        @"^(?:export\s+)?" + LspHelpers.DeclTypePattern + @"\s+(?<name>[A-Za-z_]\w*)\s*[=\(]"
+        + @"|^export\s+(?<name>[A-Za-z_]\w*)\s*=(?!=)",
         RegexOptions.CultureInvariant);
 }

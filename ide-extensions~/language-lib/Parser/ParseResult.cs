@@ -198,6 +198,10 @@ namespace ReactiveUITK.Language.Parser
         public int FunctionSetupGapOffset { get; init; } = -1;
         /// <summary>Length of the removed <c>return (…);</c> statement.</summary>
         public int FunctionSetupGapLength { get; init; } = 0;
+        /// <summary>True when <see cref="IsExported"/> was set only by an <c>export { … }</c> list
+        /// or <c>export default</c> marking — no inline <c>export</c> prefix exists in source, so
+        /// the formatter must not synthesize one.</summary>
+        public bool IsExportImplied { get; init; }
     };
 
     // ── Plain declaration (ES-modules, U-04) ─────────────────────────────────
@@ -264,6 +268,10 @@ namespace ReactiveUITK.Language.Parser
         /// lists, delegate types, bridges) exactly like <see cref="HookDeclaration.Params"/>.
         /// </summary>
         public ImmutableArray<FunctionParam> Params { get; init; } = ImmutableArray<FunctionParam>.Empty;
+        /// <summary>True when <see cref="IsExported"/> was set only by an <c>export { … }</c> list
+        /// or <c>export default</c> marking — no inline <c>export</c> prefix exists in source, so
+        /// the formatter must not synthesize one.</summary>
+        public bool IsExportImplied { get; init; }
     };
 
     // ── Directive data ────────────────────────────────────────────────────────

@@ -61,8 +61,12 @@ namespace ReactiveUITK.Language.Formatter
                 has = true;
             }
 
+            // U-10 canonical file-import grouping: named → `* as` → default, each group stable
+            // by first appearance. The imports-then-usings relative order is the pre-existing
+            // pinned canonical order (legacy output stays byte-identical — campaign guardrail).
             if (!directives.Imports.IsDefaultOrEmpty)
-                foreach (var imp in directives.Imports)
+            {
+                void EmitImport(ImportDeclaration imp)
                 {
                     // Canonical spellings (U-10): named (with `as` renames preserved), `* as`,
                     // and default imports — all semicolon-less (the parser tolerates `;` on read).
@@ -87,6 +91,17 @@ namespace ReactiveUITK.Language.Formatter
                     }
                     has = true;
                 }
+
+                foreach (var imp in directives.Imports)
+                    if (!(imp.IsStar && imp.StarAlias != null) && !(imp.IsDefault && imp.DefaultAlias != null))
+                        EmitImport(imp);
+                foreach (var imp in directives.Imports)
+                    if (imp.IsStar && imp.StarAlias != null)
+                        EmitImport(imp);
+                foreach (var imp in directives.Imports)
+                    if (imp.IsDefault && imp.DefaultAlias != null)
+                        EmitImport(imp);
+            }
 
             foreach (string usingLine in FormatUsings(directives))
             {
@@ -192,10 +207,21 @@ namespace ReactiveUITK.Language.Formatter
                 || !directives.ModuleDeclarations.IsDefaultOrEmpty
             )
             {
+                // A legacy MIXED file (component + hook/module) has no lossless path here —
+                // FormatHookModuleFile never re-emits components. Untouched beats data loss
+                // (same precedent as ContainsInlineJsxControlFlow; audit P2).
+                if (directives.ComponentDeclarations.Length > 0
+                    || !string.IsNullOrEmpty(directives.ComponentName))
+                    return source;
                 FormatHookModuleFile(source, directives);
             }
             else if (directives.IsFunctionStyle)
             {
+                // No component name means there is nothing this path can faithfully re-emit
+                // (an empty or preamble-only file must NOT become a fabricated
+                // `component Component { … }` — found by the audit's empty-file probe).
+                if (string.IsNullOrEmpty(directives.ComponentName))
+                    return source;
                 FormatFunctionStyleComponent(directives, nodes);
             }
             else
@@ -423,11 +449,31 @@ namespace ReactiveUITK.Language.Formatter
             ImmutableArray<AstNode> nodes
         )
         {
-            bool hasLeadingTrivia = !directives.LeadingTrivia.IsDefaultOrEmpty;
-            foreach (var (text, _, _) in directives.LeadingTrivia)
+            // LeadingTrivia holds EVERY comment the declaration loop skipped — including ones
+            // BETWEEN declarations (each entry carries its source line). Emitting them all at the
+            // top would hoist an author's "// belongs to B" comment away from B (found by probe
+            // test). Interleave positionally instead: entries before the first declaration print
+            // here; the declaration loop prints the rest just before the declaration they precede.
+            var trivia = directives.LeadingTrivia.IsDefaultOrEmpty
+                ? System.Array.Empty<(string Text, bool IsBlock, int Line)>()
+                : System.Linq.Enumerable.ToArray(
+                    System.Linq.Enumerable.OrderBy(directives.LeadingTrivia, t => t.Line));
+            int triviaIdx = 0;
+            int firstDeclLine = int.MaxValue;
+            if (!directives.MemberDeclarations.IsDefaultOrEmpty)
+                foreach (var m0 in directives.MemberDeclarations)
+                    if (m0.DeclarationLine < firstDeclLine) firstDeclLine = m0.DeclarationLine;
+            if (directives.ComponentDeclarations.Length == 1
+                && directives.ComponentDeclarations[0].DeclarationLine < firstDeclLine)
+                firstDeclLine = directives.ComponentDeclarations[0].DeclarationLine;
+
+            bool hasLeadingTrivia = false;
+            while (triviaIdx < trivia.Length && trivia[triviaIdx].Line < firstDeclLine)
             {
-                _sb.Append(text);
+                _sb.Append(trivia[triviaIdx].Text);
                 _sb.Append('\n');
+                hasLeadingTrivia = true;
+                triviaIdx++;
             }
 
             bool hasPreamble = EmitPreamble(directives, includeUss: true);
@@ -439,10 +485,13 @@ namespace ReactiveUITK.Language.Formatter
                 foreach (var n in directives.ExportListNames)
                     listExported.Add(n);
 
-            string ExportPrefix(string name, bool isExported)
-                => isExported && !listExported.Contains(name) ? "export " : "";
+            // IsExportImplied: the export came from a list/default marking only — re-emitting an
+            // inline prefix would rewrite the author's export surface (audit F8).
+            string ExportPrefix(string name, bool isExported, bool exportImplied)
+                => isExported && !exportImplied && !listExported.Contains(name) ? "export " : "";
 
-            // Merge members + the single component in source order.
+            // Merge members + the single component in source order. OrderBy (stable) — a
+            // same-line tie must never reorder declarations (audit F2).
             var entries = new List<(int Line, int MemberIndex, bool IsComponent)>();
             if (!directives.MemberDeclarations.IsDefaultOrEmpty)
                 for (int i = 0; i < directives.MemberDeclarations.Length; i++)
@@ -450,7 +499,8 @@ namespace ReactiveUITK.Language.Formatter
             bool hasComponent = directives.ComponentDeclarations.Length == 1;
             if (hasComponent)
                 entries.Add((directives.ComponentDeclarations[0].DeclarationLine, -1, true));
-            entries.Sort((a, b) => a.Line.CompareTo(b.Line));
+            entries = System.Linq.Enumerable.ToList(
+                System.Linq.Enumerable.OrderBy(entries, e => e.Line));
 
             string tabExp = new string(' ', _opts.IndentSize);
             bool firstDecl = true;
@@ -459,6 +509,14 @@ namespace ReactiveUITK.Language.Formatter
                 if (!firstDecl)
                     _sb.Append('\n');
                 firstDecl = false;
+
+                // Interleaved trivia: comments the parser skipped just before THIS declaration.
+                while (triviaIdx < trivia.Length && trivia[triviaIdx].Line < entry.Line)
+                {
+                    _sb.Append(trivia[triviaIdx].Text);
+                    _sb.Append('\n');
+                    triviaIdx++;
+                }
 
                 if (entry.IsComponent)
                 {
@@ -472,14 +530,14 @@ namespace ReactiveUITK.Language.Formatter
                                 : $"{p.Type} {p.Name}");
                         paramList = string.Join(", ", parts);
                     }
-                    Ln($"{ExportPrefix(c.Name, c.IsExported)}VirtualNode {c.Name}({paramList}) {{");
+                    Ln($"{ExportPrefix(c.Name, c.IsExported, c.IsExportImplied)}VirtualNode {c.Name}({paramList}) {{");
                     _indent++;
                     EmitFunctionStyleComponentBodyAndClose(directives, nodes);
                     continue;
                 }
 
                 var m = directives.MemberDeclarations[entry.MemberIndex];
-                string prefix = ExportPrefix(m.Name, m.IsExported);
+                string prefix = ExportPrefix(m.Name, m.IsExported, m.IsExportImplied);
                 if (m.Kind == ReactiveUITK.Language.Parser.DeclKind.Value)
                 {
                     string typePart = m.ReturnTypeText != null ? m.ReturnTypeText + " " : "";
@@ -500,6 +558,18 @@ namespace ReactiveUITK.Language.Formatter
                     EmitSetupCodeNormalized(m.BodyText.Trim(), tabExp);
                     _indent--;
                     Ln("}");
+                }
+            }
+
+            // Trailing trivia: comments after the last declaration.
+            if (triviaIdx < trivia.Length)
+            {
+                _sb.Append('\n');
+                while (triviaIdx < trivia.Length)
+                {
+                    _sb.Append(trivia[triviaIdx].Text);
+                    _sb.Append('\n');
+                    triviaIdx++;
                 }
             }
 

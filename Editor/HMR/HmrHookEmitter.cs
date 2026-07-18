@@ -335,7 +335,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         public static string EmitExports(object directives, string filePath,
             string effectiveNs = null,
-            IReadOnlyDictionary<string, string> hookKeyMap = null)
+            IReadOnlyDictionary<string, string> hookKeyMap = null,
+            IReadOnlyList<string> bridgeLines = null)
         {
             string ns = effectiveNs ?? (string)GetProp(directives, "Namespace") ?? "ReactiveUITK.Generated";
             var memberDecls = GetProp(directives, "MemberDeclarations");
@@ -344,7 +345,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (memberDecls is IEnumerable enumerable)
                 foreach (var item in enumerable)
                     memberList.Add(item);
-            if (memberList.Count == 0)
+            // A file with only aliased/default member IMPORTS still needs its __Exports (the
+            // bridges live there — audit H1/H4 parity with ExportsEmitter.CollectBridges).
+            if (memberList.Count == 0 && (bridgeLines == null || bridgeLines.Count == 0))
                 return string.Empty;
 
             string linePath = NormalizePath(filePath);
@@ -463,6 +466,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                     sb.AppendLine("#line hidden");
                     sb.AppendLine("        }");
                 }
+            }
+
+            // Bridges (U-03): the same internal static forwarding lines the SG's ExportsEmitter
+            // emits — rendered by the shared ImportScopeFacts.ComputeImportedMemberBridgeLines
+            // and passed in by the compiler (reflection seam).
+            if (bridgeLines != null && bridgeLines.Count > 0)
+            {
+                sb.AppendLine();
+                foreach (var bl in bridgeLines)
+                    sb.AppendLine(bl);
             }
 
             sb.AppendLine("    }");
