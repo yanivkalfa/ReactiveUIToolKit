@@ -1,4 +1,6 @@
-﻿## [0.9.1] - Unreleased
+﻿## [0.10.0] - 2026-07-18
+
+**License:** from 0.10.0 ReactiveUIToolKit ships under the **ReactiveUI Community License 1.0** (previously PolyForm Shield) — free to use and ship commercially for any team earning under **$250k/year**; above that, shipping takes a commercial license ($2,000/title or $2,500/studio/year — same mechanic on Godot, Unity, and Unreal). Development/evaluation stays free at any size; everything already downloaded keeps the license it shipped with. Ask of everyone: a "Made with ReactiveUI" credits line. Details: `LICENSE.md` + `LICENSE-COMMERCIAL.md` in the repo — full announcement posted separately.
 
 ### Patch - field-testing wave on the ES-modules surface
 
@@ -15,7 +17,7 @@ One line, every part binds: the default plus named/namespace imports. Parses, fo
 - Ctrl+Space inside `import Def, {} from` completes the target's remaining exports.
 - Import names **color by what they bind**: components like elements, hooks/utils like functions, values like variables - no more uniform type tint.
 
-Unity package **0.9.1** + extensions **1.5.1** (VS Code/VS2022), **1.2.1** (Rider).
+Unity package **0.10.0** + extensions **1.6.0** (VS Code/VS2022), **1.3.0** (Rider).
 
 ## [0.9.0] - 2026-07-18
 

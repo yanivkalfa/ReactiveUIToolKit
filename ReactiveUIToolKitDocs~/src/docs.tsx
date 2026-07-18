@@ -25,6 +25,7 @@ import { UitkxPortalPage } from './pages/UITKX/Portal/UitkxPortalPage'
 import { UitkxSuspensePage } from './pages/UITKX/Suspense/UitkxSuspensePage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 import { FAQPage } from './pages/FAQ/FAQPage'
+import { LicensingPage } from './pages/Licensing/LicensingPage'
 import { StylingPage } from './pages/UITKX/Styling/StylingPage'
 import { AssetsPage } from './pages/UITKX/Assets/AssetsPage'
 import { EventsPage } from './pages/UITKX/Events/EventsPage'
@@ -418,6 +419,22 @@ export const sections: DocSection[] = [
         keywords: ['faq', 'frequently asked questions', 'help'],
         searchContent: 'frequently asked questions migrate migration codemod UitkxMigrateImports --es-modules import export 0.9.0 upgrade existing project what is uitkx markup language authoring unity ui toolkit components react-like model .uitkx jsx-style hooks control flow roslyn source generator which unity versions supported unity 6.2 does uitkx work with existing ui toolkit code visualelement runtime overhead reconciliation scheduler per-frame cost aot-compatible production builds plain c# which editors supported vs code visual studio 2022 jetbrains rider .net version language server .net 8 dotnet directive-header form function-style components hmr hot module replacement hooks top level unconditional burst assembly-csharp-editor completions hover stopped working debugging guide',
         element: () => <FAQPage />,
+      },
+    ],
+  },
+  {
+    id: 'licensing',
+    title: 'Licensing',
+    pages: [
+      {
+        id: 'licensing-page',
+        canonicalId: 'licensing-page',
+        title: 'Licensing',
+        path: '/licensing',
+        keywords: ['license', 'licensing', 'pricing', 'commercial', 'free tier'],
+        searchContent:
+          'licensing license free tier 250k threshold reactiveui community license 1.0 commercial license per-title 2000 studio 2500 per year revenue funding trailing 12 months ship commercially credits made with reactiveui noncompete competing product reselling old versions keep their terms grandfather contractor client revenue 60-day cure window nonprofit edge case certificate pdf publisher platform paperwork LICENSE.md LICENSE-COMMERCIAL.md CLA contributor license agreement',
+        element: () => <LicensingPage />,
       },
     ],
   },

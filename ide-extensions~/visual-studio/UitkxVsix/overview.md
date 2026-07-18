@@ -18,8 +18,8 @@ Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolK
 
 ## Changelog
 
-### [1.5.1] - 2026-07-18
-- Field-testing wave on the 0.9.0 ES-modules surface (pairs with Unity package 0.9.1).
+### [1.6.0] - 2026-07-18
+- Field-testing wave on the 0.9.0 ES-modules surface (pairs with Unity package 0.10.0).
 
 New: the ES COMBINED import forms are supported end to end -- `import Def, { a, b as c } from "./file"` and `import Def, * as X from "./file"` parse, format (one canonical line), lower, and color as a single declaration whose every part binds.
 
@@ -32,6 +32,7 @@ Fix: Ctrl+Space inside the braces of the combined form (`import Def, {} from`) n
 New: imported binding names color by the KIND of the export they bind -- components as elements, hooks/utils as functions, values as variables (star aliases as variables; a default binding takes its export's kind) -- instead of the grammar's uniform type tint.
 
 SG suite 1705/1705, LSP suite 152/152.
+- License: from this release the extensions ship under the ReactiveUI Community License 1.0 (previously PolyForm Shield 1.0.0) — free to use and to ship commercially for any company under US $250,000 trailing-12-month revenue; above that, shipping a product needs a commercial license ($2,000 per title or $2,500 per studio per year — LICENSE-COMMERCIAL.md in the repo). No functional changes: the bundled LICENSE files (VS Code, VS2022 VSIX) carry the new text. Every previously published extension version keeps the license it shipped with.
 
 ### [1.5.0] - 2026-07-18
 - ES-modules redesign (family campaign): a .uitkx file IS a module. Plain typed `export` declarations replace the `component`/`hook`/`module` wrapper keywords (classification from the signature alone: a VirtualNode return is a component, a use-prefixed name is a hook, `= initializer` is a value, anything else a util); full ES import surface (`import { a as b }`, `import * as X`, default imports + `export default`, deferred `export { ... }` lists); per-file (file-keyed) namespaces with real file-privacy; companion partial-class merging deprecated. Wrapper keywords keep parsing for this minor with UITKX2320/2107 deprecation warnings; the `UitkxMigrateImports --es-modules` codemod migrates whole trees (companion sets atomically). New family diagnostics UITKX2320-2327 + Unity-local 2107-2110. Editor surface updated across the board: grammar (star/default/rename imports, export lists, plain declaration heads), completions (plain-declaration snippets; wrapper snippets marked deprecated), go-to-definition/rename/references across both grammars (rename is alias-aware), semantic tokens, schema 1.2, and the Roslyn virtual documents mirror the new `__Exports` emission so editor diagnostics match the build byte-for-byte.

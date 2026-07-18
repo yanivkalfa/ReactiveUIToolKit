@@ -216,3 +216,23 @@ cd ReactiveUIToolKitDocs~ && npm run dev
 dotnet test SourceGenerator~/Tests
 ```
 
+## License
+
+**Free for almost everyone.** ReactiveUIToolKit ships under the
+[ReactiveUI Community License 1.0](LICENSE.md): use it, modify it, and ship commercial
+games with it at no cost if your company (plus parents/subsidiaries) earned under
+**US $250,000** in the last 12 months. Development, evaluation, and education are free
+at any company size — the threshold only applies when you *ship*.
+
+Above the threshold, shipping a product takes a commercial license — **$2,000 per
+title** (one-time, perpetual) or **$2,500 per studio per year**, your pick; see
+[LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md). The same terms and prices exist for
+each library in the ReactiveUI family (Godot, Unity, Unreal).
+
+Two asks of everyone: put **"Made with ReactiveUI"** in your credits alongside your
+other middleware, and don't resell the library itself as a competing product (your
+game is never a competing product). Every previously released version keeps the
+license it shipped with. Contributions require the one-time [CLA](CLA.md).
+Weird case (nonprofit, just-over-the-line, contractor)? Email
+<yanivkalfa@gmail.com> — we'd rather you ship with ReactiveUI than not.
+

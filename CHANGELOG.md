@@ -6,7 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
-## [0.9.1] - Unreleased
+## [0.10.0] - 2026-07-18
+
+### Changed — License: PolyForm Shield 1.0.0 → ReactiveUI Community License 1.0
+
+From this release, ReactiveUIToolKit ships under the **ReactiveUI Community
+License 1.0** (`LICENSE.md`): free to use, modify, and ship commercially for any company
+under **US $250,000** gross revenue plus funding in the trailing 12 months; above that,
+shipping a product requires a commercial license — **$2,000 per title** (perpetual) or
+**$2,500 per studio per year** — see `LICENSE-COMMERCIAL.md` (new). Development,
+evaluation, and education stay free at any company size; the obligation attaches only
+to shipping. The license asks every shipped product for a "Made with ReactiveUI"
+credits line, and carries the noncompete forward (reselling the library as a competing
+product remains prohibited — a game built with it is never a competing product). Every
+previously released version keeps the license it shipped with (v0.8.2 and earlier: MIT
+in the IDE-extension files; v0.9.0: PolyForm Shield). Also new: `CLA.md` (contributor
+license agreement, required for outside contributions), and the two remaining MIT SPDX
+headers in source were aligned. No code or feature changes in this entry — same
+library, all features, for everyone.
 
 ### Added
 
@@ -57,8 +74,8 @@ squiggle now also spans the whole binding token instead of one character.
   value reference (`style={container}`) was invisible. The scan now counts every
   identifier.
 
-SG suite 1705/1705, LSP suite 152/152. Unity package **0.9.1**; VS Code + VS2022
-extensions **1.5.1**; Rider **1.2.1**.
+SG suite 1705/1705, LSP suite 152/152. Unity package **0.10.0**; VS Code + VS2022
+extensions **1.6.0**; Rider **1.3.0**.
 
 ## [0.9.0] - 2026-07-18
 
