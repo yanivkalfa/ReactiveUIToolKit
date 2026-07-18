@@ -510,6 +510,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                                 effectiveNs: ns,
                                 hookKeyMap: BuildHookFamilyKeyMap(directives, uitkxPath),
                                 bridgeLines: ComputeBridgeLines(directives, uitkxPath));
+                            // The using is only valid when the hot unit actually CARRIES a
+                            // __Exports (members or real bridges) — a same-name default import
+                            // produces neither, and a dangling using is CS0234 (field find;
+                            // mirrors the SG's emitsOwnExports gate).
                             if (!string.IsNullOrEmpty(ownExports))
                             {
                                 if (_importScopePayloads != null)
@@ -532,11 +536,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                                     catch { }
                                 }
                                 sources.Add(ownExports);
+                                sources[0] = InjectUsings(
+                                    sources[0], ns,
+                                    new List<string> { $"static {ns}.__Exports" },
+                                    usesLegacySyntax: false);
                             }
-                            sources[0] = InjectUsings(
-                                sources[0], ns,
-                                new List<string> { $"static {ns}.__Exports" },
-                                usesLegacySyntax: false);
                         }
                     }
                 }

@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using ReactiveUITK.Language;
 using ReactiveUITK.Language.Formatter;
 using ReactiveUITK.Language.Parser;
+using ReactiveUITK.SourceGenerator.Tests.Helpers;
 using Xunit;
 
 namespace ReactiveUITK.SourceGenerator.Tests
@@ -735,6 +737,37 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.Contains(tokens, t => t.Line == 2
                 && t.TokenType == ReactiveUITK.Language.SemanticTokens.SemanticTokenTypes.Element
                 && t.Length == "Card".Length);
+        }
+
+        // ── Field find: no dangling own-__Exports using without a unit ──────
+
+        [Fact]
+        public void Field5_SameNameDefaultImporter_NoDanglingOwnExportsUsing()
+        {
+            // The HmrTests field trio: component-only importer whose only bridge-shaped
+            // import is a SAME-NAME default (which lowers to the container using, no
+            // bridge). The importer must NOT get `using static {ownNs}.__Exports` — no
+            // unit is emitted for it, and the dangling using is a file-breaking CS0234.
+            var result = GeneratorTestHelper.RunMultiple(
+                new[]
+                {
+                    ("SomeOtherName.utils.uitkx",
+                        "@namespace Uts.Ns\n" +
+                        "export int getSomething() {\n  return 42;\n}\n" +
+                        "bool isSomethingEven() {\n  return true;\n}\n" +
+                        "export default isSomethingEven;\n"),
+                    ("HmrTests.uitkx",
+                        "import isSomethingEven, { getSomething } from \"./SomeOtherName.utils\"\n" +
+                        "export VirtualNode HmrTests() {\n" +
+                        "  return (<Label text={$\"{getSomething()} {isSomethingEven()}\"} />);\n" +
+                        "}\n"),
+                },
+                "HmrTests.uitkx");
+
+            var home = result.AllSources.First(s => s.Text.Contains("partial class HmrTests"));
+            Assert.DoesNotContain(".HmrTests.__Exports", home.Text);
+            Assert.Contains("using static global::Uts.Ns.__Exports;", home.Text);
+            Assert.Empty(result.SyntaxErrors());
         }
 
         // ── F2/F3/F8/P2: formatter guarantees ───────────────────────────────

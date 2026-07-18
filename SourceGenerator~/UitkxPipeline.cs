@@ -408,9 +408,15 @@ namespace ReactiveUITK.SourceGenerator
             // members (values/utils/hooks) AND any imported-member bridges bare-name — both live on
             // this file's __Exports container. This replaces what companion partial-merging used to
             // provide. Injected whenever the file emits an __Exports unit (members or bridges).
+            // Gate on what the __Exports unit will ACTUALLY contain — members or REAL
+            // bridges — not on the import's shape. A same-name default import produces NO
+            // bridge (it lowers to the container using), so a shape-based gate injected
+            // `using static {ns}.__Exports` against a unit that was never emitted → CS0234
+            // (field find).
             bool emitsOwnExports = !directives.UsesLegacySyntax
                 && (!directives.MemberDeclarations.IsDefaultOrEmpty
-                    || FileHasAliasedOrDefaultMemberImports(directives));
+                    || (FileHasAliasedOrDefaultMemberImports(directives)
+                        && ExportsEmitter.CollectBridges(directives, filePath, peerExports).Count > 0));
             if (emitsOwnExports)
             {
                 string ownExports = $"static {directives.Namespace}.__Exports";

@@ -226,7 +226,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         // ── Bridges (U-03: rename-on-import / default member imports) ────────
 
-        private static List<string> CollectBridges(
+        internal static List<string> CollectBridges(
             DirectiveSet directives,
             string filePath,
             ImmutableArray<PeerExportsInfo>? peerExports)
