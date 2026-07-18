@@ -37,7 +37,8 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   value reference (`style={container}`) was invisible. The scan now counts every
   identifier.
 
-SG suite 1704/1704, LSP suite 151/151.
+SG suite 1705/1705, LSP suite 152/152. Unity package **0.9.1**; VS Code + VS2022
+extensions **1.5.1**; Rider **1.2.1**.
 
 ## [0.9.0] - 2026-07-18
 

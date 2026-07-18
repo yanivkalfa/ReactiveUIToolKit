@@ -271,7 +271,10 @@ export const UitkxImportsPage: FC = () => (
         <ListItemText primary="Go-to-definition on an import — jump from a specifier to the target file, and from an imported name to its declaration." />
       </ListItem>
       <ListItem disablePadding>
-        <ListItemText primary="Completion inside import { … } — suggests the target file's exported names; completion inside the specifier string suggests peer file paths." />
+        <ListItemText primary="Completion inside import { … } — suggests the target file's exported names (also in the combined form: import Def, { … } from, where the default binding and the default export are excluded); completion inside the specifier string suggests peer file paths." />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary="Kind-accurate coloring of imported names — components color like elements, hooks and utils like functions, values like variables, so an import line reads the same as the code that uses it." />
       </ListItem>
       <ListItem disablePadding>
         <ListItemText

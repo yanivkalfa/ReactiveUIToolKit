@@ -1,4 +1,23 @@
-﻿## [0.9.0] - 2026-07-18
+﻿## [0.9.1] - Unreleased
+
+### Patch - field-testing wave on the ES-modules surface
+
+**Combined imports** - the last missing ES form:
+```
+import isSomethingEven, { getSomething } from "./SomeOtherName.utils"
+import Fallback, * as Deck from "./Deck"
+```
+One line, every part binds: the default plus named/namespace imports. Parses, formats, lowers, and colors as a single declaration.
+
+**Editor fixes** (found live, F5-testing the 0.9.0 release):
+- Named **value** imports resolve in the editor now - `import { container }` + bare `container` squiggled a false CS0103 (the build was always clean) because member-only files never entered the editor's semantic workspace.
+- No more false "unused import" on used value imports - bare references like `style={container}` now count.
+- Ctrl+Space inside `import Def, {} from` completes the target's remaining exports.
+- Import names **color by what they bind**: components like elements, hooks/utils like functions, values like variables - no more uniform type tint.
+
+Unity package **0.9.1** + extensions **1.5.1** (VS Code/VS2022), **1.2.1** (Rider).
+
+## [0.9.0] - 2026-07-18
 
 ### Minor - ES modules: a file IS a module
 

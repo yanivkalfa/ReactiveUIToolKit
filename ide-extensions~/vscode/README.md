@@ -19,6 +19,21 @@ Syntax highlighting + language intelligence for `.uitkx` markup (ReactiveUIToolK
 
 ## Changelog
 
+### [1.5.1] - 2026-07-18
+- Field-testing wave on the 0.9.0 ES-modules surface (pairs with Unity package 0.9.1).
+
+New: the ES COMBINED import forms are supported end to end -- `import Def, { a, b as c } from "./file"` and `import Def, * as X from "./file"` parse, format (one canonical line), lower, and color as a single declaration whose every part binds.
+
+Fix: named VALUE imports now resolve in the editor. The semantic workspace only loaded peer files with legacy hooks/modules, so a new-mode member file's `__Exports` never existed in the analysis -- `import { container }` plus a bare `container` reference squiggled CS0103 while the build was clean.
+
+Fix: no more false "unused import" (UITKX2304) on used value imports -- bare identifier references (`style={container}`) now count; previously only tag/hook-call/dotted shapes did.
+
+Fix: Ctrl+Space inside the braces of the combined form (`import Def, {} from`) now completes the target's remaining exports; the default binding and the default-exported name are excluded from the list.
+
+New: imported binding names color by the KIND of the export they bind -- components as elements, hooks/utils as functions, values as variables (star aliases as variables; a default binding takes its export's kind) -- instead of the grammar's uniform type tint.
+
+SG suite 1705/1705, LSP suite 152/152.
+
 ### [1.5.0] - 2026-07-18
 - ES-modules redesign (family campaign): a .uitkx file IS a module. Plain typed `export` declarations replace the `component`/`hook`/`module` wrapper keywords (classification from the signature alone: a VirtualNode return is a component, a use-prefixed name is a hook, `= initializer` is a value, anything else a util); full ES import surface (`import { a as b }`, `import * as X`, default imports + `export default`, deferred `export { ... }` lists); per-file (file-keyed) namespaces with real file-privacy; companion partial-class merging deprecated. Wrapper keywords keep parsing for this minor with UITKX2320/2107 deprecation warnings; the `UitkxMigrateImports --es-modules` codemod migrates whole trees (companion sets atomically). New family diagnostics UITKX2320-2327 + Unity-local 2107-2110. Editor surface updated across the board: grammar (star/default/rename imports, export lists, plain declaration heads), completions (plain-declaration snippets; wrapper snippets marked deprecated), go-to-definition/rename/references across both grammars (rename is alias-aware), semantic tokens, schema 1.2, and the Roslyn virtual documents mirror the new `__Exports` emission so editor diagnostics match the build byte-for-byte.
 - Pre-release audit hardening (four-agent deep review of the ES-modules surface; ships in the same 1.5.0/1.2.0 release).

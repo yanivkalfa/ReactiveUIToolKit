@@ -3,6 +3,17 @@
     {
       "date": "2026-07-18",
       "versions": {
+        "vscode": "1.5.1",
+        "vs2022": "1.5.1",
+        "rider": "1.2.1"
+      },
+      "shared": [
+        "Field-testing wave on the 0.9.0 ES-modules surface (pairs with Unity package 0.9.1).\n\nNew: the ES COMBINED import forms are supported end to end -- `import Def, { a, b as c } from \"./file\"` and `import Def, * as X from \"./file\"` parse, format (one canonical line), lower, and color as a single declaration whose every part binds.\n\nFix: named VALUE imports now resolve in the editor. The semantic workspace only loaded peer files with legacy hooks/modules, so a new-mode member file's `__Exports` never existed in the analysis -- `import { container }` plus a bare `container` reference squiggled CS0103 while the build was clean.\n\nFix: no more false \"unused import\" (UITKX2304) on used value imports -- bare identifier references (`style={container}`) now count; previously only tag/hook-call/dotted shapes did.\n\nFix: Ctrl+Space inside the braces of the combined form (`import Def, {} from`) now completes the target's remaining exports; the default binding and the default-exported name are excluded from the list.\n\nNew: imported binding names color by the KIND of the export they bind -- components as elements, hooks/utils as functions, values as variables (star aliases as variables; a default binding takes its export's kind) -- instead of the grammar's uniform type tint.\n\nSG suite 1705/1705, LSP suite 152/152."
+      ]
+    },
+    {
+      "date": "2026-07-18",
+      "versions": {
         "vscode": "1.5.0",
         "vs2022": "1.5.0",
         "rider": "1.2.0"
