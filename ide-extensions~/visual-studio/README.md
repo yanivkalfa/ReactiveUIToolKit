@@ -112,4 +112,9 @@ Manual route (if needed): upload the built VSIX using marketplace publishing tok
 
 ## License
 
-MIT
+ReactiveUI Community License 1.0 — free to use and to ship inside your own
+projects and commercial games if your company earned under US $250k in the last
+12 months; above that, shipping needs a commercial license ($2,000/title or
+$2,500/studio/year — see the repository's `LICENSE-COMMERCIAL.md`). Credit
+"Made with ReactiveUI"; not to be redistributed or sold as a competing product.
+Full text in the repository's `LICENSE.md`.

@@ -26,26 +26,52 @@ namespace ReactiveUITK.EditorSupport.HMR
         public event Action<string> OnUssChanged;
 
         /// <summary>
-        /// Fires on the main thread (synchronously, no debounce) when a .uitkx
-        /// file is deleted or renamed away. Parameter is the absolute path of
-        /// the file that no longer exists. Used by the controller to evict
-        /// stale entries from <c>_pendingRetryPaths</c> so retries don't loop
-        /// on a missing file.
+        /// Fires on the main thread after debounce when a .uitkx file is
+        /// deleted or renamed away (FSW Deleted/Renamed old path, or the
+        /// AssetPostprocessor's deleted/moved-from lists). Parameter is the
+        /// absolute path of the file that no longer exists. Used by the
+        /// controller to evict stale per-file state (retry queue, compiler
+        /// registry, import edges). Suppressed when the file exists again by
+        /// pump time — editors that save via delete-and-replace must not tear
+        /// down live registrations on every save.
         /// </summary>
         public event Action<string> OnUitkxDeleted;
 
         private FileSystemWatcher _watcher;
         private readonly Dictionary<string, int> _pendingChanges = new();
         private readonly Dictionary<string, int> _pendingUssChanges = new();
+        private readonly Dictionary<string, int> _pendingDeletions = new();
+        // Last-seen write time per .uitkx path (ticks). Field find: Unity's Mono FSW can
+        // silently drop the FILE-level Changed for a save while still delivering the
+        // DIRECTORY-level Changed (the folder's LastWrite bump) — observed live for a
+        // mid-session-created file whose every save produced only directory events. The
+        // directory event triggers a single-folder mtime scan against this map, recovering
+        // the dropped save. Guarded by _lock (FSW threadpool + main thread).
+        private readonly Dictionary<string, long> _lastSeenWriteTicks = new(
+            StringComparer.OrdinalIgnoreCase);
         private readonly object _lock = new object();
         private bool _disposed;
 
+        // Raw-event trace (EditorPrefs UITKX_HMR_VerboseWatcher, set through the
+        // controller). Volatile field, not a property: read on the FSW threadpool
+        // thread, written on the main thread.
+        internal volatile bool TraceEnabled;
+
         private const int DebounceMs = 50; // 50ms debounce
+        // Slow safety poll: catches a save even when BOTH the file-level and the
+        // directory-level FSW events are dropped. Editor-only, session-only cost.
+        private const int FullSweepMs = 2000;
+        private int _lastFullSweepTick;
+        private int _sweepRunning; // Interlocked reentrancy guard (threadpool sweep)
+        private string _watchRoot;
 
         public void Start(string watchRoot)
         {
             if (_watcher != null)
                 Stop();
+
+            _watchRoot = watchRoot;
+            _lastFullSweepTick = Environment.TickCount;
 
             _watcher = new FileSystemWatcher
             {
@@ -57,7 +83,20 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             _watcher.Changed += OnFileSystemEvent;
             _watcher.Created += OnFileSystemEvent;
+            _watcher.Deleted += (s, e) =>
+            {
+                if (TraceEnabled)
+                    Debug.Log($"[HMR][trace] FSW Deleted {e.FullPath}");
+                EnqueueDeletion(e.FullPath);
+            };
             _watcher.Renamed += (s, e) =>
+            {
+                if (TraceEnabled)
+                    Debug.Log($"[HMR][trace] FSW Renamed {e.OldFullPath} -> {e.FullPath}");
+                // A rename is a change of the NEW path plus a deletion of the OLD
+                // path — without the second half, a renamed member file's previous
+                // identity (registry entries, import edges) is never evicted.
+                EnqueueDeletion(e.OldFullPath);
                 OnFileSystemEvent(
                     s,
                     new FileSystemEventArgs(
@@ -66,6 +105,45 @@ namespace ReactiveUITK.EditorSupport.HMR
                         Path.GetFileName(e.FullPath)
                     )
                 );
+            };
+            // Overflow visibility: Mono's FSW drops events silently when its 8 KB
+            // buffer overflows (see the AssetPostprocessor comment below). Without
+            // this handler a dropped save is indistinguishable from a save that
+            // never happened. Subscribing an event does not touch the fragile FSW
+            // configuration (Path/filters/EnableRaisingEvents stay exactly as-is).
+            _watcher.Error += (s, e) =>
+            {
+                Debug.LogWarning(
+                    "[HMR] File watcher error — OS file events may have been lost. "
+                        + "If a save produced no '[HMR] Save:' line, re-save the file. "
+                        + $"({e.GetException()?.Message ?? "unknown"})"
+                );
+            };
+
+            // Seed the mtime map so the first directory-scan recovery pass has a baseline
+            // (otherwise every pre-existing file would look "changed" on the first folder
+            // event). One-time recursive enumeration at session start.
+            try
+            {
+                lock (_lock)
+                {
+                    _lastSeenWriteTicks.Clear();
+                    foreach (var f in Directory.EnumerateFiles(
+                                 watchRoot, "*.uitkx", SearchOption.AllDirectories))
+                    {
+                        try
+                        {
+                            _lastSeenWriteTicks[Path.GetFullPath(f)] =
+                                File.GetLastWriteTimeUtc(f).Ticks;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HMR] Watch: mtime baseline scan failed ({ex.Message}) — dropped-event recovery degraded.");
+            }
 
             // Pump pending changes on every editor update
             EditorApplication.update += PumpPendingChanges;
@@ -99,6 +177,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 _pendingChanges.Clear();
                 _pendingUssChanges.Clear();
+                _pendingDeletions.Clear();
             }
         }
 
@@ -114,9 +193,18 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         private void OnFileSystemEvent(object sender, FileSystemEventArgs e)
         {
+            if (TraceEnabled)
+                Debug.Log($"[HMR][trace] FSW {e.ChangeType} {e.FullPath}");
+
             string ext = Path.GetExtension(e.FullPath);
             if (string.IsNullOrEmpty(ext))
+            {
+                // Directory-level Changed (the folder's LastWrite bump). Unity's Mono FSW
+                // can drop the FILE event for the very save that caused this — scan the
+                // folder's .uitkx mtimes and recover anything the OS never delivered.
+                RecoverDroppedSavesInDirectory(e.FullPath);
                 return;
+            }
 
             // .uss file change
             if (ext.Equals(".uss", StringComparison.OrdinalIgnoreCase))
@@ -148,7 +236,61 @@ namespace ReactiveUITK.EditorSupport.HMR
             lock (_lock)
             {
                 _pendingChanges[uitkxPath] = Environment.TickCount;
+                RecordWriteTimeLocked(uitkxPath);
             }
+        }
+
+        // Caller holds _lock. Records the path's current on-disk write time so the
+        // directory-scan recovery pass doesn't re-enqueue a save that arrived normally.
+        private void RecordWriteTimeLocked(string uitkxPath)
+        {
+            try
+            {
+                _lastSeenWriteTicks[Path.GetFullPath(uitkxPath)] =
+                    File.GetLastWriteTimeUtc(uitkxPath).Ticks;
+            }
+            catch { }
+        }
+
+        /// <summary>Single-folder (non-recursive) mtime sweep triggered by a directory-level
+        /// FSW event: any .uitkx whose write time moved past the recorded baseline without a
+        /// corresponding file-level event is a save the OS dropped — enqueue it and say so.</summary>
+        private void RecoverDroppedSavesInDirectory(string directoryPath)
+        {
+            try
+            {
+                if (!Directory.Exists(directoryPath))
+                    return;
+                foreach (var f in Directory.GetFiles(directoryPath, "*.uitkx"))
+                    CheckFileForMissedWrite(f);
+            }
+            catch { /* recovery is best-effort; the normal event path is unaffected */ }
+        }
+
+        // Shared by the directory-event recovery scan and the slow full sweep.
+        private void CheckFileForMissedWrite(string filePath)
+        {
+            string full;
+            long ticks;
+            try
+            {
+                full = Path.GetFullPath(filePath);
+                ticks = File.GetLastWriteTimeUtc(filePath).Ticks;
+            }
+            catch { return; }
+
+            bool missed;
+            lock (_lock)
+            {
+                missed = (!_lastSeenWriteTicks.TryGetValue(full, out long seen) || ticks > seen)
+                    && !_pendingChanges.ContainsKey(full);
+                _lastSeenWriteTicks[full] = ticks;
+                if (missed)
+                    _pendingChanges[full] = Environment.TickCount;
+            }
+            if (missed)
+                Debug.Log(
+                    $"[HMR] Watch: recovered a save the OS never delivered — {Path.GetFileName(filePath)}");
         }
 
         // Push a synthetic change event from the AssetPostprocessor.
@@ -169,15 +311,24 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
         }
 
-        // Push a deletion notification from the AssetPostprocessor. Fires the
-        // OnUitkxDeleted event synchronously on the main thread (deletions
-        // are cleanup, not work — no need to debounce). Companion .cs
-        // deletions are intentionally ignored: there's no retry-state keyed
-        // by .cs path. Also evicts any pending change entry for the path so
-        // a stale debounced compile doesn't fire after the file is gone.
+        // Push a deletion notification from the AssetPostprocessor. Routes
+        // through the same debounced pending-deletion queue as the FSW
+        // Deleted/Renamed events so the pump's exists-again guard applies
+        // uniformly. Companion .cs deletions are intentionally ignored:
+        // there's no per-.cs-path state to evict.
         internal void EnqueueAssetDeletion(string absolutePath)
         {
-            if (_disposed || string.IsNullOrEmpty(absolutePath))
+            if (_disposed)
+                return;
+            EnqueueDeletion(absolutePath);
+        }
+
+        // Shared deletion intake (FSW threadpool thread or main thread). Also
+        // evicts any pending change entry for the path so a stale debounced
+        // compile doesn't fire after the file is gone.
+        private void EnqueueDeletion(string absolutePath)
+        {
+            if (string.IsNullOrEmpty(absolutePath))
                 return;
             string ext = Path.GetExtension(absolutePath);
             if (string.IsNullOrEmpty(ext))
@@ -188,9 +339,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             lock (_lock)
             {
                 _pendingChanges.Remove(absolutePath);
+                _pendingDeletions[absolutePath] = Environment.TickCount;
+                try { _lastSeenWriteTicks.Remove(Path.GetFullPath(absolutePath)); } catch { }
             }
-
-            OnUitkxDeleted?.Invoke(absolutePath);
         }
 
         // ── Main thread pump ──────────────────────────────────────────────────
@@ -200,14 +351,61 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (_disposed)
                 return;
 
+            int sweepNow = Environment.TickCount;
+            if (sweepNow - _lastFullSweepTick >= FullSweepMs && _watchRoot != null
+                && System.Threading.Interlocked.CompareExchange(ref _sweepRunning, 1, 0) == 0)
+            {
+                _lastFullSweepTick = sweepNow;
+                string root = _watchRoot;
+                // Threadpool: a full Assets-tree stat walk must never hitch the editor
+                // frame. CheckFileForMissedWrite is lock-guarded and Debug.Log is
+                // thread-safe; recovered paths surface via the normal debounced pump.
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        foreach (var f in Directory.EnumerateFiles(
+                                     root, "*.uitkx", SearchOption.AllDirectories))
+                        {
+                            if (_disposed)
+                                break;
+                            CheckFileForMissedWrite(f);
+                        }
+                    }
+                    catch { /* best-effort safety net */ }
+                    finally
+                    {
+                        System.Threading.Interlocked.Exchange(ref _sweepRunning, 0);
+                    }
+                });
+            }
+
             List<string> ready = null;
             List<string> readyUss = null;
+            List<string> readyDeleted = null;
             int now = Environment.TickCount;
 
             lock (_lock)
             {
-                if (_pendingChanges.Count == 0 && _pendingUssChanges.Count == 0)
+                if (
+                    _pendingChanges.Count == 0
+                    && _pendingUssChanges.Count == 0
+                    && _pendingDeletions.Count == 0
+                )
                     return;
+
+                foreach (var kvp in _pendingDeletions)
+                {
+                    if (now - kvp.Value >= DebounceMs)
+                    {
+                        readyDeleted ??= new List<string>();
+                        readyDeleted.Add(kvp.Key);
+                    }
+                }
+
+                if (readyDeleted != null)
+                    foreach (var path in readyDeleted)
+                        _pendingDeletions.Remove(path);
 
                 foreach (var kvp in _pendingChanges)
                 {
@@ -234,6 +432,48 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (readyUss != null)
                     foreach (var path in readyUss)
                         _pendingUssChanges.Remove(path);
+            }
+
+            // Deletions first: a rename delivers deletion(old) + change(new) in the
+            // same burst, and the old identity must be evicted before the new path's
+            // compile re-registers its dependents. Exists-again guard: editors that
+            // save via delete-and-replace surface a transient Deleted for a file
+            // that is back on disk by pump time — that is a save, not a deletion.
+            // A save it is: EnqueueDeletion cancelled any pending change for the
+            // path, so discarding here would eat the whole save with zero events
+            // (the mid-session member-file silence class). Re-route it as a change
+            // unless one is already pending or matured in this pump.
+            if (readyDeleted != null)
+            {
+                foreach (var path in readyDeleted)
+                {
+                    if (!File.Exists(path))
+                    {
+                        OnUitkxDeleted?.Invoke(path);
+                        continue;
+                    }
+                    bool changePending;
+                    lock (_lock)
+                    {
+                        changePending = _pendingChanges.ContainsKey(path);
+                    }
+                    bool changeMatured = false;
+                    if (!changePending && ready != null)
+                        foreach (var r in ready)
+                            if (string.Equals(r, path, StringComparison.OrdinalIgnoreCase))
+                            {
+                                changeMatured = true;
+                                break;
+                            }
+                    if (!changePending && !changeMatured)
+                    {
+                        Debug.Log(
+                            $"[HMR] Watch: delete-and-replace save detected for "
+                                + $"{Path.GetFileName(path)} — treating as change."
+                        );
+                        OnUitkxChanged?.Invoke(path);
+                    }
+                }
             }
 
             if (ready != null)

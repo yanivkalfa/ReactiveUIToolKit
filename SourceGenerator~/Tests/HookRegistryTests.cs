@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LicenseRef-ReactiveUI-Community-1.0
 // ReactiveUIToolKit — see THIRDPARTY.md
 //
 //  HookRegistryTests

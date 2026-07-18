@@ -226,7 +226,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         // ── Bridges (U-03: rename-on-import / default member imports) ────────
 
-        private static List<string> CollectBridges(
+        internal static List<string> CollectBridges(
             DirectiveSet directives,
             string filePath,
             ImmutableArray<PeerExportsInfo>? peerExports)
@@ -254,16 +254,21 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (target == null || !byPath.TryGetValue(Norm(target), out var pe))
                     continue;
 
+                // No exclusive branching — combined imports (`import Def, { a as b } from`)
+                // need BOTH the default bridge and the named-alias bridges.
                 if (imp.IsDefault && imp.DefaultAlias != null && pe.DefaultExportName != null)
                 {
-                    // Component defaults lower to a using-alias (ImportScopeFacts), not a bridge.
-                    if (!pe.ExportedComponentNames.Contains(pe.DefaultExportName))
+                    // Component defaults lower to a using-alias (ImportScopeFacts), not a
+                    // bridge; SAME-NAME member defaults lower to the container using — only
+                    // RENAMED member defaults bridge (a same-name bridge CS0121-collides with
+                    // the container's public member; field find).
+                    if (!pe.ExportedComponentNames.Contains(pe.DefaultExportName)
+                        && imp.DefaultAlias != pe.DefaultExportName)
                     {
                         var target_ = FindMember(pe, pe.DefaultExportName);
                         if (target_ != null)
                             AppendBridge(result, imp.DefaultAlias, target_, pe.Namespace);
                     }
-                    continue;
                 }
 
                 if (!anyAlias)

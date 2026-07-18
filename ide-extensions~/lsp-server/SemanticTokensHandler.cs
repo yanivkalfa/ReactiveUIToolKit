@@ -89,7 +89,11 @@ public sealed class SemanticTokensHandler : SemanticTokensHandlerBase
             ImmutableArray.CreateRange(parseDiags));
 
         // ── UITKX structural tokens ───────────────────────────────────────────
-        var uitkxTokens = _provider.GetTokens(parseResult, text);
+        // localPath enables kind-accurate coloring of imported binding names
+        // (components/functions/values resolved from each import's target file).
+        var uitkxTokens = _provider.GetTokens(
+            parseResult, text,
+            filePath: string.IsNullOrEmpty(localPath) ? null : localPath);
 
         // Build a lookup of positions already covered by UITKX tokens so that
         // Roslyn tokens at the same location are suppressed (overlap policy).

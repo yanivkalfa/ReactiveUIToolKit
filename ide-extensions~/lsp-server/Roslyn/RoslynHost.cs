@@ -1683,11 +1683,17 @@ namespace UitkxLanguageServer.Roslyn
                     var peerDiags = new List<ParseDiagnostic>();
                     var peerDirectives = DirectiveParser.Parse(peerSource, peerPath, peerDiags);
 
-                    // Only include files that have hooks or modules — regular components
-                    // are handled by their own workspace.
+                    // Only include files that contribute importable symbols — legacy
+                    // hooks/modules AND new-mode member files (their __Exports container
+                    // must exist in the compilation or the importer's injected
+                    // `using static {ns}.__Exports` dangles → CS0103 on every bare
+                    // member reference; found live in the 0.9.0 F5 battery). Regular
+                    // component-only files are handled by their own workspace.
                     if (
                         peerDirectives.HookDeclarations.IsDefaultOrEmpty
                         && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty
+                        && (peerDirectives.UsesLegacySyntax
+                            || peerDirectives.MemberDeclarations.IsDefaultOrEmpty)
                     )
                         continue;
 
@@ -1751,9 +1757,14 @@ namespace UitkxLanguageServer.Roslyn
                     var peerDiags = new List<ParseDiagnostic>();
                     var peerDirectives = DirectiveParser.Parse(peerSource, peerPath, peerDiags);
 
+                    // Same inclusion rule as AddPeerUitkxDocuments: legacy hooks/modules
+                    // AND new-mode member files (their __Exports must exist in the
+                    // compilation for member imports to resolve).
                     if (
                         peerDirectives.HookDeclarations.IsDefaultOrEmpty
                         && peerDirectives.ModuleDeclarations.IsDefaultOrEmpty
+                        && (peerDirectives.UsesLegacySyntax
+                            || peerDirectives.MemberDeclarations.IsDefaultOrEmpty)
                     )
                         continue;
 

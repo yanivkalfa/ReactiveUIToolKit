@@ -1,175 +1,159 @@
-Copyright (c) 2024-2026 Yaniv Kalfa (ReactiveUIToolKit)
+Copyright (c) 2026 Yaniv Kalfa (ReactiveUIToolKit (Unity))
 
-Licensed under the PolyForm Shield License 1.0.0 - the full text follows.
+Licensed under the ReactiveUI Community License 1.0 - the full text follows.
 Free to use, modify, and ship inside your own projects and commercial
-products; not to be redistributed or sold as a product that competes with
-this software. <https://polyformproject.org/licenses/shield/1.0.0>
+products if your company earned less than US $250,000 in the last 12 months;
+above that, shipping a product requires a commercial license (see
+LICENSE-COMMERCIAL.md). Not to be redistributed or sold as a product that
+competes with this software.
 
-Required Notice: Copyright (c) 2024-2026 Yaniv Kalfa (ReactiveUIToolKit)
+Required Notice: Copyright (c) 2026 Yaniv Kalfa (ReactiveUIToolKit (Unity))
 
 ---
 
-# PolyForm Shield License 1.0.0
+# ReactiveUI Community License 1.0
 
-<https://polyformproject.org/licenses/shield/1.0.0>
+**In plain words (courtesy summary, not the license):** free to use, modify,
+and ship in your projects and commercial products if your company earned less
+than **US $250,000** in the last 12 months. Above that, shipping a product
+requires a commercial license for ReactiveUIToolKit (Unity) — see
+`LICENSE-COMMERCIAL.md`, distributed alongside this license. The same terms
+and prices are offered for each library in the ReactiveUI family (Godot,
+Unity, Unreal), each licensed per product. Either way: include "Made with
+ReactiveUI" in your product credits, and don't resell this software as a
+product that competes with it.
 
 ## Acceptance
 
-In order to get any license under these terms, you must agree
-to them as both strict obligations and conditions to all
-your licenses.
+In order to get any license under these terms, you must agree to them as both
+strict obligations and conditions to all your licenses.
 
 ## Copyright License
 
-The licensor grants you a copyright license for the
-software to do everything you might do with the software
-that would otherwise infringe the licensor's copyright
-in it for any permitted purpose.  However, you may
-only distribute the software according to [Distribution
-License](#distribution-license) and make changes or new works
-based on the software according to [Changes and New Works
-License](#changes-and-new-works-license).
+The licensor grants you a copyright license for the software to do everything
+you might do with the software that would otherwise infringe the licensor's
+copyright in it for any permitted purpose. However, you may only distribute
+the software according to [Distribution License](#distribution-license) and
+make changes or new works based on the software according to [Changes and New
+Works License](#changes-and-new-works-license).
 
 ## Distribution License
 
-The licensor grants you an additional copyright license
-to distribute copies of the software.  Your license
-to distribute covers distributing the software with
-changes and new works permitted by [Changes and New Works
+The licensor grants you an additional copyright license to distribute copies
+of the software. Your license to distribute covers distributing the software
+with changes and new works permitted by [Changes and New Works
 License](#changes-and-new-works-license).
 
 ## Notices
 
-You must ensure that anyone who gets a copy of any part of
-the software from you also gets a copy of these terms or the
-URL for them above, as well as copies of any plain-text lines
-beginning with `Required Notice:` that the licensor provided
-with the software.  For example:
-
-> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+You must ensure that anyone who gets a copy of any part of the software from
+you also gets a copy of these terms, as well as copies of any plain-text
+lines beginning with "Required Notice:" that the licensor provided with the
+software.
 
 ## Changes and New Works License
 
-The licensor grants you an additional copyright license to
-make changes and new works based on the software for any
-permitted purpose.
+The licensor grants you an additional copyright license to make changes and
+new works based on the software for any permitted purpose.
 
 ## Patent License
 
-The licensor grants you a patent license for the software that
-covers patent claims the licensor can license, or becomes able
-to license, that you would infringe by using the software.
+The licensor grants you a patent license for the software that covers patent
+claims the licensor can license, or becomes able to license, that you would
+infringe by using the software.
 
 ## Noncompete
 
-Any purpose is a permitted purpose, except for providing any
-product that competes with the software or any product the
-licensor or any of its affiliates provides using the software.
+Any purpose is a permitted purpose, except for providing any product that
+competes with the software or any product the licensor or any of its
+affiliates provides using the software.
 
-## Competition
+A product competes with the software when it offers functionality similar to
+a declarative, component-based UI framework for game engines, in whole or in
+part, to users or developers, as this software does. Goods and services
+compete even when they are provided free of charge, when provided as
+libraries, plugins, tools, or services, and regardless of the game engine
+targeted. Competing is prohibited whether the competing product incorporates
+the software, is derived from it, or merely reimplements its distinctive
+interfaces. A game or application built with the software is never, by
+itself, a competing product.
 
-Goods and services compete even when they provide functionality
-through different kinds of interfaces or for different technical
-platforms.  Applications can compete with services, libraries
-with plugins, frameworks with development tools, and so on,
-even if they're written in different programming languages
-or for different computer architectures.  Goods and services
-compete even when provided free of charge.  If you market a
-product as a practical substitute for the software or another
-product, it definitely competes.
+## Free Tier Condition
 
-## New Products
+Use for a permitted purpose is royalty-free under these terms if, and only
+if, your company and all companies that control, are controlled by, or are
+under common control with your company had, in total, less than
+**US $250,000** (2026 dollars, adjusted for inflation) in gross revenue plus
+gross funding received in the 12 months before the date you first distribute,
+publish, or commercially deploy a product incorporating the software, and in
+each 12-month period thereafter in which that product remains commercially
+available.
 
-If you are using the software to provide a product that does
-not compete, but the licensor or any of its affiliates brings
-your product into competition by providing a new version of
-the software or another product using the software, you may
-continue using versions of the software available under these
-terms beforehand to provide your competing product, but not
-any later versions.
+If you exceed this condition, your license under these terms continues for
+60 days from the date you exceed it, during which you must either obtain a
+commercial license from the licensor (see `LICENSE-COMMERCIAL.md`) or cease
+distribution and commercial deployment of products incorporating the
+software.
 
-## Discontinued Products
+Personal, educational, evaluation, and internal development use is
+royalty-free for everyone regardless of revenue: the Free Tier Condition
+applies only to distributing, publishing, or commercially deploying a
+product.
 
-You may begin using the software to compete with a product
-or service that the licensor or any of its affiliates has
-stopped providing, unless the licensor includes a plain-text
-line beginning with `Licensor Line of Business:` with the
-software that mentions that line of business.  For example:
+## Attribution
 
-> Licensor Line of Business: YoyodyneCMS Content Management
-System (http://example.com/cms)
-
-## Sales of Business
-
-If the licensor or any of its affiliates sells a line of
-business developing the software or using the software
-to provide a product, the buyer can also enforce
-[Noncompete](#noncompete) for that product.
+If you distribute or publish a product incorporating the software to end
+users, you must include the line "Made with ReactiveUI" (or "ReactiveUI for
+Godot") in the product's credits, about screen, or accompanying
+documentation, wherever other third-party software is credited. If the
+product credits no third-party software at all, this requirement is satisfied
+by the Notices section alone.
 
 ## Fair Use
 
-You may have "fair use" rights for the software under the
-law. These terms do not limit them.
+You may have "fair use" rights for the software under the law. These terms do
+not limit them.
 
 ## No Other Rights
 
-These terms do not allow you to sublicense or transfer any of
-your licenses to anyone else, or prevent the licensor from
-granting licenses to anyone else.  These terms do not imply
-any other licenses.
+These terms do not allow you to sublicense or transfer any of your licenses
+to anyone else, or prevent the licensor from granting licenses to anyone
+else. These terms do not imply any other licenses.
 
-## Patent Defense
+## Termination
 
-If you make any written claim that the software infringes or
-contributes to infringement of any patent, your patent license
-for the software granted under these terms ends immediately. If
-your company makes such a claim, your patent license ends
-immediately for work on behalf of your company.
-
-## Violations
-
-The first time you are notified in writing that you have
-violated any of these terms, or done anything with the software
-not covered by your licenses, your licenses can nonetheless
-continue if you come into full compliance with these terms,
-and take practical steps to correct past violations, within
-32 days of receiving notice.  Otherwise, all your licenses
-end immediately.
+The first time you are notified in writing that you have violated any of
+these terms, or done anything with the software not covered by your licenses,
+your licenses can nonetheless continue if you come into full compliance with
+these terms, and take practical steps to correct past violations, within
+32 days of receiving notice. Otherwise, all your licenses end immediately.
 
 ## No Liability
 
-***As far as the law allows, the software comes as is, without
-any warranty or condition, and the licensor will not be liable
-to you for any damages arising out of these terms or the use
-or nature of the software, under any kind of legal claim.***
+***As far as the law allows, the software comes as is, without any warranty
+or condition, and the licensor will not be liable to you for any damages
+arising out of these terms or the use or nature of the software, under any
+kind of legal claim.***
 
 ## Definitions
 
-The **licensor** is the individual or entity offering these
-terms, and the **software** is the software the licensor makes
-available under these terms.
+The **licensor** is the individual or entity offering these terms, and the
+**software** is the software the licensor makes available under these terms.
 
-A **product** can be a good or service, or a combination
-of them.
+**You** refers to the individual or entity agreeing to these terms.
 
-**You** refers to the individual or entity agreeing to these
-terms.
+**Your company** is any legal entity, sole proprietorship, or other kind of
+organization that you work for, plus all organizations that have control
+over, are under the control of, or are under common control with that
+organization. **Control** means ownership of substantially all the assets of
+an entity, or the power to direct its management and policies by vote,
+contract, or otherwise. Control can be direct or indirect.
 
-**Your company** is any legal entity, sole proprietorship,
-or other kind of organization that you work for, plus all
-its affiliates.
+**Your licenses** are all the licenses granted to you for the software under
+these terms.
 
-**Affiliates** means the other organizations than an
-organization has control over, is under the control of, or is
-under common control with.
+**Use** means anything you do with the software requiring one of your
+licenses.
 
-**Control** means ownership of substantially all the assets of
-an entity, or the power to direct its management and policies
-by vote, contract, or otherwise.  Control can be direct or
-indirect.
-
-**Your licenses** are all the licenses granted to you for the
-software under these terms.
-
-**Use** means anything you do with the software requiring one
-of your licenses.
+**A product** is any game, application, tool, or other work you distribute,
+publish, or deploy to parties outside your company.

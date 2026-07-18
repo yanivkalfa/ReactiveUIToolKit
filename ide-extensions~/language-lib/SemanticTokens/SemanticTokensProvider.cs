@@ -52,7 +52,8 @@ namespace ReactiveUITK.Language.SemanticTokens
         public SemanticTokenData[] GetTokens(
             ParseResult parseResult,
             string source,
-            HashSet<string>? knownElements = null
+            HashSet<string>? knownElements = null,
+            string? filePath = null
         )
         {
             var tokens = new List<SemanticTokenData>(64);
@@ -63,6 +64,13 @@ namespace ReactiveUITK.Language.SemanticTokens
 
             // 1b. import / export / from keywords + specifier strings (import/export grammar §10)
             CollectImportExportTokens(source, lineStarts, tokens);
+
+            // 1c. Imported binding names colored by the KIND of the export they bind (field
+            //     find, 0.9.1): components as elements, hooks/utils as functions, values as
+            //     variables — instead of the grammar's one-color-fits-all type tint. Needs the
+            //     importer's path to resolve targets; skipped when unavailable (pure callers).
+            if (filePath != null)
+                CollectImportBindingKindTokens(parseResult, source, lineStarts, tokens, filePath);
 
             // 2. AST markup nodes
             foreach (var node in parseResult.RootNodes)
@@ -145,7 +153,7 @@ namespace ReactiveUITK.Language.SemanticTokens
         // Full ES import surface (ES-modules campaign, G-05/M5): braced named lists (with
         // optional `as` renames), `* as X` namespace imports, and bare default imports.
         private static readonly Regex s_importTokenRe = new Regex(
-            @"^(?<lead>\s*)(?<import>import)\s*(?:\{(?<names>[^}]*)\}|\*\s*(?<staras>as)\s+[A-Za-z_]\w*|[A-Za-z_]\w*)\s*(?<from>from)\s*(?<spec>""[^""]*"")",
+            @"^(?<lead>\s*)(?<import>import)\s*(?:[A-Za-z_]\w*\s*,\s*)?(?:\{(?<names>[^}]*)\}|\*\s*(?<staras>as)\s+[A-Za-z_]\w*|[A-Za-z_]\w*)\s*(?<from>from)\s*(?<spec>""[^""]*"")",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
         );
 
@@ -193,6 +201,121 @@ namespace ReactiveUITK.Language.SemanticTokens
                 return;
             var (line0, col0) = OffsetToLineCol0(lineStarts, g.Index);
             EmitToken(tokens, line0, col0, g.Length, type, s_noMods);
+        }
+
+        /// <summary>Colors every imported BINDING name by the kind of the export it binds:
+        /// components as elements, hooks/utils as functions, values as variables, legacy
+        /// modules as types; star aliases are plain variable bindings. Resolves each import's
+        /// target from disk (same degrade-silently contract as ImportScopeFacts). Semantic
+        /// tokens override the grammar's uniform tint in every LSP client.</summary>
+        private static void CollectImportBindingKindTokens(
+            ParseResult parseResult,
+            string source,
+            int[] lineStarts,
+            List<SemanticTokenData> tokens,
+            string filePath)
+        {
+            var imports = parseResult.Directives.Imports;
+            if (imports.IsDefaultOrEmpty)
+                return;
+
+            string importerDir = (System.IO.Path.GetDirectoryName(filePath) ?? string.Empty)
+                .Replace('\\', '/');
+            string rootDir = EffectiveNamespace.UiSourceRootDir(filePath) ?? importerDir;
+
+            foreach (var imp in imports)
+            {
+                string? target;
+                try
+                {
+                    target = ImportResolver.MapSpecifierToPath(
+                        importerDir, imp.Specifier, rootDir, out _);
+                }
+                catch { continue; }
+                if (target == null || !System.IO.File.Exists(target))
+                    continue;
+
+                Parser.DirectiveSet tds;
+                try
+                {
+                    tds = Parser.DirectiveParser.Parse(
+                        System.IO.File.ReadAllText(target), target,
+                        new List<ParseDiagnostic>());
+                }
+                catch { continue; }
+
+                var kindOf = new Dictionary<string, string>(StringComparer.Ordinal);
+                if (!tds.ComponentDeclarations.IsDefaultOrEmpty)
+                    foreach (var c in tds.ComponentDeclarations)
+                        kindOf[c.Name] = SemanticTokenTypes.Element;
+                if (!tds.MemberDeclarations.IsDefaultOrEmpty)
+                    foreach (var mem in tds.MemberDeclarations)
+                        kindOf[mem.Name] = mem.Kind == Parser.DeclKind.Value
+                            ? SemanticTokenTypes.Variable
+                            : SemanticTokenTypes.Function;
+                if (!tds.HookDeclarations.IsDefaultOrEmpty)
+                    foreach (var h in tds.HookDeclarations)
+                        kindOf[h.Name] = SemanticTokenTypes.Function;
+                if (!tds.ModuleDeclarations.IsDefaultOrEmpty)
+                    foreach (var mo in tds.ModuleDeclarations)
+                        kindOf[mo.Name] = SemanticTokenTypes.Type;
+
+                int line0 = imp.Line - 1;
+                if (line0 < 0 || line0 >= lineStarts.Length)
+                    continue;
+                int lineStart = lineStarts[line0];
+                int lineEnd = line0 + 1 < lineStarts.Length ? lineStarts[line0 + 1] : source.Length;
+                string lineText = source.Substring(lineStart, lineEnd - lineStart);
+
+                void EmitAt(int col, string name, string type)
+                {
+                    if (col >= 0 && name.Length > 0)
+                        EmitToken(tokens, line0, col, name.Length, type, s_noMods);
+                }
+                int FindWord(string word, int fromCol)
+                {
+                    for (int idx = fromCol; idx >= 0 && idx < lineText.Length; )
+                    {
+                        idx = lineText.IndexOf(word, idx, StringComparison.Ordinal);
+                        if (idx < 0) return -1;
+                        bool leftOk = idx == 0 || !char.IsLetterOrDigit(lineText[idx - 1]) && lineText[idx - 1] != '_';
+                        int after = idx + word.Length;
+                        bool rightOk = after >= lineText.Length
+                            || !char.IsLetterOrDigit(lineText[after]) && lineText[after] != '_';
+                        if (leftOk && rightOk) return idx;
+                        idx = after;
+                    }
+                    return -1;
+                }
+
+                var aliases = imp.Aliases.IsDefaultOrEmpty
+                    ? System.Collections.Immutable.ImmutableArray<string?>.Empty : imp.Aliases;
+                for (int k = 0; k < imp.Names.Length; k++)
+                {
+                    string name = imp.Names[k];
+                    if (!kindOf.TryGetValue(name, out string? kind))
+                        continue;
+                    int nameCol = k < imp.NameColumns.Length ? imp.NameColumns[k] : FindWord(name, 0);
+                    EmitAt(nameCol, name, kind);
+                    string? alias = k < aliases.Length ? aliases[k] : null;
+                    if (alias != null && nameCol >= 0)
+                        EmitAt(FindWord(alias, nameCol + name.Length), alias, kind);
+                }
+                if (imp.IsStar && imp.StarAlias != null)
+                {
+                    int starIdx = lineText.IndexOf('*');
+                    if (starIdx >= 0)
+                        EmitAt(FindWord(imp.StarAlias, starIdx), imp.StarAlias,
+                            SemanticTokenTypes.Variable);
+                }
+                if (imp.IsDefault && imp.DefaultAlias != null)
+                {
+                    string defKind = tds.DefaultExportName != null
+                        && kindOf.TryGetValue(tds.DefaultExportName, out string? dk)
+                        ? dk : SemanticTokenTypes.Variable;
+                    EmitAt(FindWord(imp.DefaultAlias, 0), imp.DefaultAlias, defKind);
+                }
+            }
         }
 
         // ── Function-style declaration ───────────────────────────────────────

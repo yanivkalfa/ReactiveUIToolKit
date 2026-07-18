@@ -408,9 +408,15 @@ namespace ReactiveUITK.SourceGenerator
             // members (values/utils/hooks) AND any imported-member bridges bare-name — both live on
             // this file's __Exports container. This replaces what companion partial-merging used to
             // provide. Injected whenever the file emits an __Exports unit (members or bridges).
+            // Gate on what the __Exports unit will ACTUALLY contain — members or REAL
+            // bridges — not on the import's shape. A same-name default import produces NO
+            // bridge (it lowers to the container using), so a shape-based gate injected
+            // `using static {ns}.__Exports` against a unit that was never emitted → CS0234
+            // (field find).
             bool emitsOwnExports = !directives.UsesLegacySyntax
                 && (!directives.MemberDeclarations.IsDefaultOrEmpty
-                    || FileHasAliasedOrDefaultMemberImports(directives));
+                    || (FileHasAliasedOrDefaultMemberImports(directives)
+                        && ExportsEmitter.CollectBridges(directives, filePath, peerExports).Count > 0));
             if (emitsOwnExports)
             {
                 string ownExports = $"static {directives.Namespace}.__Exports";
@@ -712,6 +718,9 @@ namespace ReactiveUITK.SourceGenerator
                     bool AliasedAt(int k) =>
                         !imp.Aliases.IsDefaultOrEmpty && k < imp.Aliases.Length && imp.Aliases[k] != null;
 
+                    // No exclusive branching — a COMBINED import (`import Def, { a } from` /
+                    // `import Def, * as X from`) carries default + named/star parts in one
+                    // declaration and every part must yield its payload (LSP mirror identical).
                     if (imp.IsStar && imp.StarAlias != null)
                     {
                         // A component-only target emits NO __Exports unit — an alias to it would
@@ -728,21 +737,34 @@ namespace ReactiveUITK.SourceGenerator
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue;
                     }
 
                     if (imp.IsDefault && imp.DefaultAlias != null)
                     {
                         string? defName = pe.DefaultExportName;
-                        if (defName != null
-                            && pe.ExportedComponentNames.Contains(defName)
-                            && !ReservedTypeAliases.Contains(imp.DefaultAlias))
+                        bool defIsComponent = defName != null && pe.ExportedComponentNames.Contains(defName);
+                        if (defIsComponent && !ReservedTypeAliases.Contains(imp.DefaultAlias))
                         {
                             string line = $"{imp.DefaultAlias} = {pe.Namespace}.{defName}";
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue; // member defaults bridge (ExportsEmitter), no using
+                        else if (defName != null && !defIsComponent && imp.DefaultAlias == defName)
+                        {
+                            // Same-name member default ≡ named import: container using — a
+                            // bridge would CS0121-collide with the container's public member
+                            // (LSP mirror identical). Renamed member defaults still bridge.
+                            bool defIsMember = false;
+                            if (!pe.Members.IsDefaultOrEmpty)
+                                foreach (var m in pe.Members)
+                                    if (m.Name == defName) { defIsMember = true; break; }
+                            if (defIsMember)
+                            {
+                                string line = $"static {pe.Namespace}.__Exports";
+                                if (seen.Add(line))
+                                    result.Add(line);
+                            }
+                        }
                     }
 
                     bool exportsContainerAdded = false;
@@ -967,17 +989,17 @@ namespace ReactiveUITK.SourceGenerator
                 if (candidate == null || !exportsByPath.TryGetValue(NormalizeAbs(candidate), out var pe))
                     continue;
 
+                // No exclusive branching — combined imports contribute star AND default AND
+                // named tag bindings (LSP mirror identical).
                 if (imp.IsStar && imp.StarAlias != null)
                 {
                     (starNs ??= new Dictionary<string, string>(StringComparer.Ordinal))[imp.StarAlias] = pe.Namespace;
-                    continue;
                 }
                 if (imp.IsDefault && imp.DefaultAlias != null)
                 {
                     if (pe.DefaultExportName != null && pe.ExportedComponentNames.Contains(pe.DefaultExportName))
                         (aliasType ??= new Dictionary<string, string>(StringComparer.Ordinal))[imp.DefaultAlias] =
                             $"{pe.Namespace}.{pe.DefaultExportName}";
-                    continue;
                 }
                 for (int k = 0; k < imp.Names.Length && k < imp.Aliases.Length; k++)
                 {
@@ -1281,9 +1303,11 @@ namespace ReactiveUITK.SourceGenerator
                     // Heuristic findings (bare hook calls / module member access scanned out of
                     // C# expression text) are warnings — ambient C# legitimately produces those
                     // shapes, and a real missing import still fails the emitted C# (CS0103).
-                    Severity = f.Code == "UITKX2304" || f.IsHeuristic
-                        ? ParseSeverity.Warning
-                        : ParseSeverity.Error,
+                    // 2304 is ERROR-tier since 0.9.1 (owner decision, consistent with the other
+                    // import diagnostics): the reference universe over-approximates "used", so
+                    // a 2304 only fires when the binding truly appears nowhere — no
+                    // false-positive risk at error tier.
+                    Severity = f.IsHeuristic ? ParseSeverity.Warning : ParseSeverity.Error,
                     SourceLine = f.Line,
                     SourceColumn = Math.Max(0, f.Column),
                     EndLine = f.EndColumn > 0 ? f.Line : 0,

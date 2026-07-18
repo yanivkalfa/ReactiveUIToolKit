@@ -1,9 +1,9 @@
 ﻿{
   "name": "com.reactiveuitoolkit",
   "displayName": "Reactive UIToolKit",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "unity": "6000.2",
-  "license": "PolyForm-Shield-1.0.0",
+  "license": "SEE LICENSE IN LICENSE.md",
   "description": "Lightweight React-inspired component model for Unity UI Toolkit. Supports function components (V.Func), hooks (state, reducer, memo, effect, layoutEffect, context, deferred value, imperative handle), portals, suspense, snapshots, and a typed props model.",
   "author": {
     "name": "ReactiveUIToolKit"

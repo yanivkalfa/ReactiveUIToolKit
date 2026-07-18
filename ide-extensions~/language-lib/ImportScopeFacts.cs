@@ -116,6 +116,9 @@ namespace ReactiveUITK.Language
                         ? System.Collections.Immutable.ImmutableArray<string?>.Empty : imp.Aliases;
                     bool AliasedAt(int k) => k < aliasesN.Length && aliasesN[k] != null;
 
+                    // NOTE: no exclusive branching — a COMBINED import (`import Def, { a } from`
+                    // / `import Def, * as X from`) carries default + named/star parts in one
+                    // declaration and every part must yield its payload.
                     if (imp.IsStar && imp.StarAlias != null)
                     {
                         // `import * as X` → alias-to-type of the whole exports container.
@@ -129,24 +132,34 @@ namespace ReactiveUITK.Language
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue;
                     }
 
                     if (imp.IsDefault && imp.DefaultAlias != null)
                     {
                         // Default import: component default → alias to the component type;
-                        // member default → bridge (emitter-side, no using here).
+                        // RENAMED member default → bridge (emitter-side, no using here);
+                        // SAME-NAME member default → the container using, like a named import
+                        // (a bridge would CS0121-collide with the container's public member
+                        // whenever a named part or second import injects the container too —
+                        // field find).
                         string? defName = tds.DefaultExportName;
-                        if (defName != null
+                        bool defIsComponent = defName != null
                             && !tds.ComponentDeclarations.IsDefaultOrEmpty
-                            && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == defName)
-                            && !ReservedTypeAliases.Contains(imp.DefaultAlias))
+                            && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == defName);
+                        if (defIsComponent && !ReservedTypeAliases.Contains(imp.DefaultAlias))
                         {
                             string line = $"{imp.DefaultAlias} = {tns}.{defName}";
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue;
+                        else if (defName != null && !defIsComponent && imp.DefaultAlias == defName
+                            && !tds.MemberDeclarations.IsDefaultOrEmpty
+                            && System.Linq.Enumerable.Any(tds.MemberDeclarations, m => m.Name == defName))
+                        {
+                            string line = $"static {tns}.__Exports";
+                            if (seen.Add(line))
+                                result.Add(line);
+                        }
                     }
 
                     bool exportsContainerAdded = false;
@@ -269,7 +282,11 @@ namespace ReactiveUITK.Language
                     return null;
                 }
 
-                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null)
+                // No exclusive branching — combined imports need default AND named bridges.
+                // Same-name member defaults lower to the container using, not a bridge
+                // (CS0121 field find) — only RENAMED defaults bridge.
+                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null
+                    && imp.DefaultAlias != tds.DefaultExportName)
                 {
                     bool defaultIsComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
                         && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == tds.DefaultExportName);
@@ -281,7 +298,6 @@ namespace ReactiveUITK.Language
                                 dm.ReturnTypeText ?? ExtractNewInitializerTypeName(dm.BodyText),
                                 dm.ParamsText, dm.Kind == DeclKind.Value));
                     }
-                    continue;
                 }
 
                 if (!anyAlias)
@@ -332,11 +348,11 @@ namespace ReactiveUITK.Language
                     !tds.ComponentDeclarations.IsDefaultOrEmpty
                     && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.IsExported && c.Name == name);
 
+                // No exclusive branching — combined imports contribute default AND named tags.
                 if (imp.IsDefault && imp.DefaultAlias != null)
                 {
                     if (tds.DefaultExportName != null && IsExportedComponent(tds.DefaultExportName))
                         map[imp.DefaultAlias] = $"{tns}.{tds.DefaultExportName}";
-                    return;
                 }
                 if (imp.Aliases.IsDefaultOrEmpty)
                     return;
@@ -458,7 +474,11 @@ namespace ReactiveUITK.Language
                     lines.Add($"        internal static {ret} {alias}({pl}) => global::{tns}.__Exports.{m.Name}({an});");
                 }
 
-                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null)
+                // No exclusive branching — combined imports need default AND named bridges.
+                // Same-name member defaults lower to the container using, not a bridge
+                // (CS0121 field find) — only RENAMED defaults bridge.
+                if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null
+                    && imp.DefaultAlias != tds.DefaultExportName)
                 {
                     bool defaultIsComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
                         && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.Name == tds.DefaultExportName);
@@ -468,7 +488,6 @@ namespace ReactiveUITK.Language
                         if (dm != null)
                             Append(imp.DefaultAlias, dm);
                     }
-                    continue;
                 }
 
                 if (!anyAlias)

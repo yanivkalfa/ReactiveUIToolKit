@@ -1,4 +1,25 @@
-﻿## [0.9.0] - 2026-07-18
+﻿## [0.10.0] - 2026-07-18
+
+**License:** from 0.10.0 ReactiveUIToolKit ships under the **ReactiveUI Community License 1.0** (previously PolyForm Shield) — free to use and ship commercially for any team earning under **$250k/year**; above that, shipping takes a commercial license ($2,000/title or $2,500/studio/year — same mechanic on Godot, Unity, and Unreal). Development/evaluation stays free at any size; everything already downloaded keeps the license it shipped with. Ask of everyone: a "Made with ReactiveUI" credits line. Details: `LICENSE.md` + `LICENSE-COMMERCIAL.md` in the repo — full announcement posted separately.
+
+### Patch - field-testing wave on the ES-modules surface
+
+**Combined imports** - the last missing ES form:
+```
+import isSomethingEven, { getSomething } from "./SomeOtherName.utils"
+import Fallback, * as Deck from "./Deck"
+```
+One line, every part binds: the default plus named/namespace imports. Parses, formats, lowers, and colors as a single declaration.
+
+**Editor fixes** (found live, F5-testing the 0.9.0 release):
+- Named **value** imports resolve in the editor now - `import { container }` + bare `container` squiggled a false CS0103 (the build was always clean) because member-only files never entered the editor's semantic workspace.
+- No more false "unused import" on used value imports - bare references like `style={container}` now count.
+- Ctrl+Space inside `import Def, {} from` completes the target's remaining exports.
+- Import names **color by what they bind**: components like elements, hooks/utils like functions, values like variables - no more uniform type tint.
+
+Unity package **0.10.0** + extensions **1.6.0** (VS Code/VS2022), **1.3.0** (Rider).
+
+## [0.9.0] - 2026-07-18
 
 ### Minor - ES modules: a file IS a module
 

@@ -1,12 +1,13 @@
-import * as Halibanius from "./SomeOtherName.style"
+import { container } from "./SaaomeBla.style"
+import { getSomething } from "./someThingElse.util"
 
 export VirtualNode HmrTests() {
   var (count, setCount) = useState(0);
 
   return (
-    <VisualElement style={Halibanius.container}>
-      <Text text={$"Count: {count}"} />
-      <Button text="+" onClick={_ => setCount(count + 1)} />
+    <VisualElement style={container}>
+      <Text text={$"Csount: {count}"} />
+      <Button text="+" onClick={_ => setCount(getSomething())} />
     </VisualElement>
   );
 }

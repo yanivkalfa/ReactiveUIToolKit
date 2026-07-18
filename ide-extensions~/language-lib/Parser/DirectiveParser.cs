@@ -1156,6 +1156,74 @@ namespace ReactiveUITK.Language.Parser
                 i = savedI; line = savedLine; return false;
             }
             SkipSpaces(source, ref i);
+
+            // ES combined forms (field find, 0.9.0 F5 battery): `import Def, { a, b } from`
+            // and `import Def, * as X from` — one ImportDeclaration carrying the default
+            // binding PLUS the named/star surface (the record models them independently).
+            var combinedNames = new List<string>();
+            var combinedNameCols = new List<int>();
+            var combinedAliases = new List<string?>();
+            bool combinedStar = false;
+            string? combinedStarAlias = null;
+            if (i < source.Length && source[i] == ',')
+            {
+                i++;
+                SkipSpaces(source, ref i);
+                if (i < source.Length && source[i] == '{')
+                {
+                    i++; // past '{'
+                    while (true)
+                    {
+                        SkipSpaces(source, ref i);
+                        if (i < source.Length && source[i] == '}') { i++; break; }
+                        int nameCol = ColAtPos(source, i);
+                        if (!TryReadIdentifier(source, ref i, out string name))
+                        {
+                            i = savedI; line = savedLine; return false;
+                        }
+                        combinedNames.Add(name);
+                        combinedNameCols.Add(nameCol);
+                        SkipSpaces(source, ref i);
+                        string? alias = null;
+                        if (TryReadKeyword(source, ref i, "as"))
+                        {
+                            SkipSpaces(source, ref i);
+                            if (!TryReadIdentifier(source, ref i, out string aliasName))
+                            {
+                                i = savedI; line = savedLine; return false;
+                            }
+                            alias = aliasName;
+                            SkipSpaces(source, ref i);
+                        }
+                        combinedAliases.Add(alias);
+                        if (i < source.Length && source[i] == ',') { i++; continue; }
+                        if (i < source.Length && source[i] == '}') { i++; break; }
+                        i = savedI; line = savedLine; return false;
+                    }
+                }
+                else if (i < source.Length && source[i] == '*')
+                {
+                    i++;
+                    SkipSpaces(source, ref i);
+                    if (!TryReadKeyword(source, ref i, "as"))
+                    {
+                        i = savedI; line = savedLine; return false;
+                    }
+                    SkipSpaces(source, ref i);
+                    if (!TryReadIdentifier(source, ref i, out string starAliasName))
+                    {
+                        i = savedI; line = savedLine; return false;
+                    }
+                    combinedStar = true;
+                    combinedStarAlias = starAliasName;
+                }
+                else
+                {
+                    i = savedI; line = savedLine; return false;
+                }
+                SkipSpaces(source, ref i);
+            }
+
             if (!TryReadKeyword(source, ref i, "from"))
             {
                 i = savedI; line = savedLine; return false;
@@ -1183,13 +1251,15 @@ namespace ReactiveUITK.Language.Parser
                 ConsumeNewline(source, ref i, ref line);
 
             imports.Add(new ImportDeclaration(
-                ImmutableArray<string>.Empty,
+                combinedNames.ToImmutableArray(),
                 specifier,
                 importLine,
                 importCol,
-                ImmutableArray<int>.Empty,
+                combinedNameCols.ToImmutableArray(),
                 specQuoteCol,
-                Aliases: ImmutableArray<string?>.Empty,
+                Aliases: combinedAliases.ToImmutableArray(),
+                IsStar: combinedStar,
+                StarAlias: combinedStarAlias,
                 IsDefault: true,
                 DefaultAlias: defaultAlias));
             return true;

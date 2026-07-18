@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ReactiveUITK.Language")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+81c18954f7d56ecc22b3bc4f4a5ae26ac6ba76ff")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+60d92ed1ea525b4d9e7dd489f35e4ef783ce5dc8")]
 [assembly: System.Reflection.AssemblyProductAttribute("ReactiveUITK.Language")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ReactiveUITK.Language")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -1599,7 +1599,12 @@ public sealed class CompletionHandler : ICompletionHandler
         var empty = System.Array.Empty<string>();
         int braceOpen = lineText.IndexOf('{');
         if (braceOpen < 0) return empty;
-        if (!Regex.IsMatch(lineText.Substring(0, braceOpen), @"^\s*import\s*$")) return empty;
+        // Combined ES form (0.9.1): `import Def, { … } from` — an optional default binding
+        // (plus comma) may precede the brace list.
+        var prefix = Regex.Match(
+            lineText.Substring(0, braceOpen),
+            @"^\s*import\s*(?:(?<def>[A-Za-z_]\w*)\s*,\s*)?$");
+        if (!prefix.Success) return empty;
 
         int braceClose = lineText.IndexOf('}', braceOpen);
         int regionEnd = braceClose < 0 ? lineText.Length : braceClose;
@@ -1620,6 +1625,14 @@ public sealed class CompletionHandler : ICompletionHandler
         // Each listed entry may be aliased (`a as b`): the imported NAME is what must not be
         // re-suggested, and the bound ALIAS would collide with a same-named export — track both.
         var already = new HashSet<string>(StringComparer.Ordinal);
+        if (prefix.Groups["def"].Success)
+        {
+            // The default binding already covers the target's default export — re-suggesting
+            // it as a named entry is noise; the alias itself would collide too.
+            already.Add(prefix.Groups["def"].Value);
+            if (ds.DefaultExportName != null)
+                already.Add(ds.DefaultExportName);
+        }
         foreach (var entry in lineText.Substring(braceOpen + 1, regionEnd - braceOpen - 1).Split(','))
         {
             var tokens = entry.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
