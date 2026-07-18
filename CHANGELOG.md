@@ -8,6 +8,16 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 
 ## [0.9.0] - 2026-07-18
 
+### Changed — License: MIT → PolyForm Shield 1.0.0
+
+From 0.9.0 the package (and the IDE extensions) are licensed under the
+**PolyForm Shield License 1.0.0**: you may use, modify, and ship it inside your
+own projects and commercial games exactly as before, royalty-free — but you may
+not redistribute or sell it as a product that competes with ReactiveUIToolKit
+(e.g. reselling the library on an asset store). Versions released up to 0.8.3
+remain under their original MIT terms. Full text: `LICENSE.md`
+(<https://polyformproject.org/licenses/shield/1.0.0>).
+
 ### Changed — ES-modules redesign (family campaign; owner-approved plan `Plans~/ES_MODULES_GENERAL_PLAN.md`)
 
 - **A `.uitkx` file IS a module.** Plain typed `export` declarations replace the
