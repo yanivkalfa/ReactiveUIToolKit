@@ -1418,6 +1418,56 @@ namespace ReactiveUITK.EditorSupport.HMR
                     if (!string.IsNullOrEmpty((string)GetProp(companionDir, "ComponentName")))
                         continue;
 
+                    // NEW-MODE member files take their own branch (field find — the
+                    // copy-rename-to-style scenario): the legacy module/hook emitters below
+                    // were never meant to see plain-declaration sets (they crash on the
+                    // default legacy ImmutableArrays), and a file CREATED mid-session has no
+                    // {ns}.__Exports in the project assembly at all (reload locked) — the
+                    // injected using dangles into CS0234. When the container type is absent
+                    // from the AppDomain, inline the target's __Exports into the hot unit
+                    // (same-assembly precedent as own-exports inlining); when present, the
+                    // real assembly resolves it as usual.
+                    bool candUsesLegacy = !(GetProp(companionDir, "UsesLegacySyntax") is bool cl2) || cl2;
+                    if (!candUsesLegacy)
+                    {
+                        if (GetItems(GetProp(companionDir, "MemberDeclarations")).Count > 0)
+                        {
+                            string newModeNs = ComputeEffectiveNs(companionDir, file);
+                            if (!string.IsNullOrEmpty(newModeNs)
+                                && !TypeExistsInAppDomain(newModeNs + ".__Exports"))
+                            {
+                                string inlined = HmrHookEmitter.EmitExports(
+                                    companionDir, file,
+                                    effectiveNs: newModeNs,
+                                    hookKeyMap: BuildHookFamilyKeyMap(companionDir, file),
+                                    bridgeLines: ComputeBridgeLines(companionDir, file));
+                                if (!string.IsNullOrEmpty(inlined))
+                                {
+                                    if (_importScopePayloads != null)
+                                    {
+                                        try
+                                        {
+                                            var tp = _importScopePayloads.Invoke(
+                                                null, new object[] { companionDir, file }) as System.Collections.IEnumerable;
+                                            if (tp != null)
+                                            {
+                                                var tl = new List<string>();
+                                                foreach (object p in tp)
+                                                    if (p is string s && s.Length > 0) tl.Add(s);
+                                                if (tl.Count > 0)
+                                                    inlined = InjectUsings(inlined, newModeNs, tl, usesLegacySyntax: false);
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                    sources.Add(inlined);
+                                    try { inlinePaths.Add(Path.GetFullPath(file)); } catch { }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
                     // Emit module bodies (style constants, utility methods, etc.) under the
                     // companion's EFFECTIVE namespace — same folder as the component, so the
                     // partial-class fragment lands in the component's namespace and merges,
@@ -3456,6 +3506,26 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return lines.Count > 0 ? lines : null;
             }
             catch { return null; }
+        }
+
+        /// <summary>True when <paramref name="fullTypeName"/> resolves in any loaded assembly —
+        /// the "does the project assembly already carry this generated container" probe for
+        /// mid-session-created files (assembly reload is locked during an HMR session, so a
+        /// brand-new file's SG output is never compiled until the session ends).</summary>
+        private static bool TypeExistsInAppDomain(string fullTypeName)
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.IsDynamic)
+                    continue;
+                try
+                {
+                    if (asm.GetType(fullTypeName, throwOnError: false) != null)
+                        return true;
+                }
+                catch { }
+            }
+            return false;
         }
 
         /// <summary>Invokes one of the shared ImportScopeFacts tag-map helpers (audit H3).

@@ -95,6 +95,20 @@ public class HmrAuditWaveContractTests
     }
 
     [Fact]
+    public void FieldWave_NewModeImportTargets_InlineExportsWhenAbsentFromAppDomain()
+    {
+        // Copy-rename field scenario: a file CREATED mid-HMR-session (reload locked) has no
+        // {ns}.__Exports in the project assembly — the companion/import-target pass must
+        // inline its container into the hot unit instead of feeding the legacy emitters a
+        // plain-declaration set (which crashed) or letting the injected using dangle (CS0234).
+        var src = Src("UitkxHmrCompiler.cs");
+        Assert.Contains("TypeExistsInAppDomain(newModeNs + \".__Exports\")", src);
+        Assert.Contains("private static bool TypeExistsInAppDomain(string fullTypeName)", src);
+        // Legacy module/hook emitters are unreachable for new-mode candidates.
+        Assert.Contains("if (!candUsesLegacy)", src);
+    }
+
+    [Fact]
     public void M1_HookKeyMap_GatesOnExportedHooks_AndBindsAliases()
     {
         var src = Src("UitkxHmrCompiler.cs");
