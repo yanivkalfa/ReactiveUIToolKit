@@ -220,6 +220,13 @@ namespace ReactiveUITK.EditorSupport.HMR
             StringComparer.OrdinalIgnoreCase
         );
 
+        // Member-only new-mode files: full uitkx path → registry key ({ns}.__Exports).
+        // Lets a file-delete/rename event evict every registration of the dead path
+        // (EvictFileRegistration) without re-parsing a file that no longer exists.
+        private readonly Dictionary<string, string> _memberRegistryKeysByFile = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
         // Components that are genuinely new (not in any pre-existing assembly).
         // Only these need cross-references; existing components would cause CS0433.
         private readonly HashSet<string> _genuinelyNewComponents = new(
@@ -1176,9 +1183,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (!usesLegacy)
                 {
                     result.HookContainerClass = "__Exports";
-                    result.ComponentName = "__Exports";
 
                     string exNs = ComputeEffectiveNs(directives, uitkxPath);
+                    // Registry identity (rename-flow field find): the literal key "__Exports"
+                    // collided EVERY member-only file onto one _hmrAssemblyPaths slot — each
+                    // member compile deleted the previous file's DLL, hijacked its cached
+                    // compilation, and invalidated its cross-ref. The key is the container FQN
+                    // {ns}.__Exports: unique per file (new-mode namespaces are file-keyed),
+                    // stable across edits, and directly usable as the genuinely-new probe FQN.
+                    // Only the REGISTRY identity changes — the container TYPE NAME stays
+                    // "__Exports" (SwapHooks resolves the type by HookContainerClass).
+                    string exKey = string.IsNullOrEmpty(exNs) ? "__Exports" : exNs + ".__Exports";
+                    result.ComponentName = exKey;
                     var exStepSw = Stopwatch.StartNew();
                     string exportsCSharp = HmrHookEmitter.EmitExports(
                         directives, uitkxPath,
@@ -1230,7 +1246,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     exStepSw = Stopwatch.StartNew();
                     var exAsm = CompileSources(
-                        new[] { exportsCSharp }, "__Exports", uitkxPath, out string exCompileError);
+                        new[] { exportsCSharp }, exKey, uitkxPath, out string exCompileError);
                     exStepSw.Stop();
                     result.CompileMs = exStepSw.Elapsed.TotalMilliseconds;
                     if (exAsm == null)
@@ -1239,6 +1255,25 @@ namespace ReactiveUITK.EditorSupport.HMR
                         return result;
                     }
                     result.LoadedAssembly = exAsm;
+
+                    // Value/util/hook propagation contract for member files (rename flow, c):
+                    // consumers bind this file's members either through the PROJECT assembly
+                    // ({ns}.__Exports compiled before the session → SwapModuleStatics copies
+                    // the hot statics onto the project type in place, no consumer recompile
+                    // needed) or — for files created/renamed mid-session, where no project
+                    // type exists — through THIS hot DLL via the cross-ref registry. The
+                    // designed propagation path for the latter is the controller's import
+                    // fan-out: each importer recompiles fresh against the LATEST DLL
+                    // registered under exKey and re-renders. That path only exists with the
+                    // registration below — without the genuinely-new mark, BuildCrossRefs
+                    // never hands this DLL to any importer compile.
+                    _memberRegistryKeysByFile[NormalizeRegistryPath(uitkxPath)] = exKey;
+                    // Null namespace arg: exKey IS the container FQN, so the probe FQN equals
+                    // the registry key (CheckIfGenuinelyNew concatenates ns + "." + name when
+                    // a namespace is passed, which would double-qualify here).
+                    if (!_genuinelyNewComponents.Contains(exKey))
+                        CheckIfGenuinelyNew(exKey, null);
+
                     result.Success = true;
                     return result;
                 }
@@ -1423,18 +1458,25 @@ namespace ReactiveUITK.EditorSupport.HMR
                     // were never meant to see plain-declaration sets (they crash on the
                     // default legacy ImmutableArrays), and a file CREATED mid-session has no
                     // {ns}.__Exports in the project assembly at all (reload locked) — the
-                    // injected using dangles into CS0234. When the container type is absent
-                    // from the AppDomain, inline the target's __Exports into the hot unit
-                    // (same-assembly precedent as own-exports inlining); when present, the
-                    // real assembly resolves it as usual.
+                    // injected using dangles into CS0234. Inline the target's __Exports into
+                    // the hot unit ONLY while no assembly THIS compilation can reference
+                    // carries the container: the project assemblies always can, and the
+                    // target's own hot DLL can once it is registered genuinely-new (that is
+                    // exactly the set BuildCrossRefs hands to Roslyn — always the LATEST DLL
+                    // for that file). The previous gate probed the whole AppDomain, so the
+                    // target's own FIRST hot compile turned inlining off permanently while
+                    // nothing referenced its DLL — the rename-flow dead end (CS0234 on every
+                    // importer recompile).
                     bool candUsesLegacy = !(GetProp(companionDir, "UsesLegacySyntax") is bool cl2) || cl2;
                     if (!candUsesLegacy)
                     {
                         if (GetItems(GetProp(companionDir, "MemberDeclarations")).Count > 0)
                         {
                             string newModeNs = ComputeEffectiveNs(companionDir, file);
+                            string exportsFqn = newModeNs + ".__Exports";
                             if (!string.IsNullOrEmpty(newModeNs)
-                                && !TypeExistsInAppDomain(newModeNs + ".__Exports"))
+                                && !TypeExistsInProjectAssemblies(exportsFqn)
+                                && !HotExportsAvailable(exportsFqn))
                             {
                                 string inlined = HmrHookEmitter.EmitExports(
                                     companionDir, file,
@@ -1601,6 +1643,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             _cachedSyntaxTrees.Clear();
             _crossRefCache.Clear();
             _hmrAssemblyPaths.Clear();
+            _memberRegistryKeysByFile.Clear();
             _genuinelyNewComponents.Clear();
             _allowedRefsByAsmdef.Clear();
             _filteredMetaRefsByAsmdef.Clear();
@@ -1655,7 +1698,21 @@ namespace ReactiveUITK.EditorSupport.HMR
                     return;
                 string componentName = (string)GetProp(directives, "ComponentName");
                 if (string.IsNullOrEmpty(componentName))
-                    componentName = HmrHookEmitter.DeriveContainerClassName(uitkxPath); // hook/module-only file
+                {
+                    // Member-only files cache under their per-file registry key
+                    // ({ns}.__Exports) — mirror of CompileHookModuleFile's exKey.
+                    bool legacy = !(GetProp(directives, "UsesLegacySyntax") is bool ul) || ul;
+                    if (legacy)
+                    {
+                        componentName = HmrHookEmitter.DeriveContainerClassName(uitkxPath);
+                    }
+                    else
+                    {
+                        string invNs = ComputeEffectiveNs(directives, uitkxPath);
+                        componentName = string.IsNullOrEmpty(invNs)
+                            ? "__Exports" : invNs + ".__Exports";
+                    }
+                }
                 if (!string.IsNullOrEmpty(componentName))
                 {
                     _cachedCompilations.Remove(componentName);
@@ -1663,6 +1720,55 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
             }
             catch { /* best-effort — fresh vs incremental self-corrects on the emit result */ }
+        }
+
+        /// <summary>
+        /// Drops every registration keyed by <paramref name="uitkxPath"/>'s member-file
+        /// identity after the file is deleted or renamed away. Without this, a renamed
+        /// member file's OLD key ({old-ns}.__Exports) would keep its DLL registered as a
+        /// cross-reference for every later compile in the session. The loaded assembly
+        /// itself stays (already-bound consumers keep rendering); only the registry entries
+        /// and the on-disk DLL go. Keyed via <see cref="_memberRegistryKeysByFile"/> because
+        /// the dead file can no longer be parsed for its namespace.
+        /// </summary>
+        public void EvictFileRegistration(string uitkxPath)
+        {
+            if (string.IsNullOrEmpty(uitkxPath))
+                return;
+            string norm = NormalizeRegistryPath(uitkxPath);
+            if (!_memberRegistryKeysByFile.TryGetValue(norm, out string key))
+                return;
+            _memberRegistryKeysByFile.Remove(norm);
+            _cachedCompilations.Remove(key);
+            _cachedSyntaxTrees.Remove(key);
+            _crossRefCache.Remove(key);
+            // Removing from the genuinely-new set shifts the count against
+            // _lastGenuineComponentCount, which makes TryBuildIncremental rebuild
+            // dependents fresh — exactly right after a reference disappears.
+            _genuinelyNewComponents.Remove(key);
+            if (_hmrAssemblyPaths.TryGetValue(key, out string dll))
+            {
+                _hmrAssemblyPaths.Remove(key);
+                try
+                {
+                    File.Delete(dll);
+                }
+                catch
+                { /* may be locked by LoadFrom — cleaned on next session */
+                }
+            }
+        }
+
+        private static string NormalizeRegistryPath(string path)
+        {
+            try
+            {
+                return Path.GetFullPath(path);
+            }
+            catch
+            {
+                return path;
+            }
         }
 
         public void Dispose()
@@ -3508,15 +3614,19 @@ namespace ReactiveUITK.EditorSupport.HMR
             catch { return null; }
         }
 
-        /// <summary>True when <paramref name="fullTypeName"/> resolves in any loaded assembly —
-        /// the "does the project assembly already carry this generated container" probe for
-        /// mid-session-created files (assembly reload is locked during an HMR session, so a
-        /// brand-new file's SG output is never compiled until the session ends).</summary>
-        private static bool TypeExistsInAppDomain(string fullTypeName)
+        /// <summary>True when <paramref name="fullTypeName"/> resolves in a PROJECT (non-HMR)
+        /// assembly — the "does the real build already carry this generated container" probe
+        /// for mid-session-created files (assembly reload is locked during an HMR session, so
+        /// a brand-new file's SG output is never compiled until the session ends). Session-hot
+        /// hmr_* assemblies are excluded: their types are only referenceable through the
+        /// cross-ref registry, which <see cref="HotExportsAvailable"/> checks instead.</summary>
+        private static bool TypeExistsInProjectAssemblies(string fullTypeName)
         {
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (asm.IsDynamic)
+                    continue;
+                if (asm.GetName().Name.StartsWith("hmr_", StringComparison.OrdinalIgnoreCase))
                     continue;
                 try
                 {
@@ -3526,6 +3636,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                 catch { }
             }
             return false;
+        }
+
+        /// <summary>True when a member file's hot __Exports DLL is bindable by the NEXT
+        /// compile: registered under its container-FQN key, marked genuinely new, and still
+        /// on disk — the exact criteria <see cref="BuildCrossRefs"/> applies.</summary>
+        private bool HotExportsAvailable(string exportsFqn)
+        {
+            return _genuinelyNewComponents.Contains(exportsFqn)
+                && _hmrAssemblyPaths.TryGetValue(exportsFqn, out string dll)
+                && File.Exists(dll);
         }
 
         /// <summary>Invokes one of the shared ImportScopeFacts tag-map helpers (audit H3).

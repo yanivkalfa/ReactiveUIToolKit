@@ -26,17 +26,21 @@ namespace ReactiveUITK.EditorSupport.HMR
         public event Action<string> OnUssChanged;
 
         /// <summary>
-        /// Fires on the main thread (synchronously, no debounce) when a .uitkx
-        /// file is deleted or renamed away. Parameter is the absolute path of
-        /// the file that no longer exists. Used by the controller to evict
-        /// stale entries from <c>_pendingRetryPaths</c> so retries don't loop
-        /// on a missing file.
+        /// Fires on the main thread after debounce when a .uitkx file is
+        /// deleted or renamed away (FSW Deleted/Renamed old path, or the
+        /// AssetPostprocessor's deleted/moved-from lists). Parameter is the
+        /// absolute path of the file that no longer exists. Used by the
+        /// controller to evict stale per-file state (retry queue, compiler
+        /// registry, import edges). Suppressed when the file exists again by
+        /// pump time — editors that save via delete-and-replace must not tear
+        /// down live registrations on every save.
         /// </summary>
         public event Action<string> OnUitkxDeleted;
 
         private FileSystemWatcher _watcher;
         private readonly Dictionary<string, int> _pendingChanges = new();
         private readonly Dictionary<string, int> _pendingUssChanges = new();
+        private readonly Dictionary<string, int> _pendingDeletions = new();
         private readonly object _lock = new object();
         private bool _disposed;
 
@@ -57,7 +61,13 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             _watcher.Changed += OnFileSystemEvent;
             _watcher.Created += OnFileSystemEvent;
+            _watcher.Deleted += (s, e) => EnqueueDeletion(e.FullPath);
             _watcher.Renamed += (s, e) =>
+            {
+                // A rename is a change of the NEW path plus a deletion of the OLD
+                // path — without the second half, a renamed member file's previous
+                // identity (registry entries, import edges) is never evicted.
+                EnqueueDeletion(e.OldFullPath);
                 OnFileSystemEvent(
                     s,
                     new FileSystemEventArgs(
@@ -66,6 +76,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                         Path.GetFileName(e.FullPath)
                     )
                 );
+            };
 
             // Pump pending changes on every editor update
             EditorApplication.update += PumpPendingChanges;
@@ -99,6 +110,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 _pendingChanges.Clear();
                 _pendingUssChanges.Clear();
+                _pendingDeletions.Clear();
             }
         }
 
@@ -169,15 +181,24 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
         }
 
-        // Push a deletion notification from the AssetPostprocessor. Fires the
-        // OnUitkxDeleted event synchronously on the main thread (deletions
-        // are cleanup, not work — no need to debounce). Companion .cs
-        // deletions are intentionally ignored: there's no retry-state keyed
-        // by .cs path. Also evicts any pending change entry for the path so
-        // a stale debounced compile doesn't fire after the file is gone.
+        // Push a deletion notification from the AssetPostprocessor. Routes
+        // through the same debounced pending-deletion queue as the FSW
+        // Deleted/Renamed events so the pump's exists-again guard applies
+        // uniformly. Companion .cs deletions are intentionally ignored:
+        // there's no per-.cs-path state to evict.
         internal void EnqueueAssetDeletion(string absolutePath)
         {
-            if (_disposed || string.IsNullOrEmpty(absolutePath))
+            if (_disposed)
+                return;
+            EnqueueDeletion(absolutePath);
+        }
+
+        // Shared deletion intake (FSW threadpool thread or main thread). Also
+        // evicts any pending change entry for the path so a stale debounced
+        // compile doesn't fire after the file is gone.
+        private void EnqueueDeletion(string absolutePath)
+        {
+            if (string.IsNullOrEmpty(absolutePath))
                 return;
             string ext = Path.GetExtension(absolutePath);
             if (string.IsNullOrEmpty(ext))
@@ -188,9 +209,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             lock (_lock)
             {
                 _pendingChanges.Remove(absolutePath);
+                _pendingDeletions[absolutePath] = Environment.TickCount;
             }
-
-            OnUitkxDeleted?.Invoke(absolutePath);
         }
 
         // ── Main thread pump ──────────────────────────────────────────────────
@@ -202,12 +222,30 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             List<string> ready = null;
             List<string> readyUss = null;
+            List<string> readyDeleted = null;
             int now = Environment.TickCount;
 
             lock (_lock)
             {
-                if (_pendingChanges.Count == 0 && _pendingUssChanges.Count == 0)
+                if (
+                    _pendingChanges.Count == 0
+                    && _pendingUssChanges.Count == 0
+                    && _pendingDeletions.Count == 0
+                )
                     return;
+
+                foreach (var kvp in _pendingDeletions)
+                {
+                    if (now - kvp.Value >= DebounceMs)
+                    {
+                        readyDeleted ??= new List<string>();
+                        readyDeleted.Add(kvp.Key);
+                    }
+                }
+
+                if (readyDeleted != null)
+                    foreach (var path in readyDeleted)
+                        _pendingDeletions.Remove(path);
 
                 foreach (var kvp in _pendingChanges)
                 {
@@ -235,6 +273,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                     foreach (var path in readyUss)
                         _pendingUssChanges.Remove(path);
             }
+
+            // Deletions first: a rename delivers deletion(old) + change(new) in the
+            // same burst, and the old identity must be evicted before the new path's
+            // compile re-registers its dependents. Exists-again guard: editors that
+            // save via delete-and-replace surface a transient Deleted for a file
+            // that is back on disk by pump time — that is a save, not a deletion.
+            if (readyDeleted != null)
+                foreach (var path in readyDeleted)
+                    if (!File.Exists(path))
+                        OnUitkxDeleted?.Invoke(path);
 
             if (ready != null)
                 foreach (var path in ready)

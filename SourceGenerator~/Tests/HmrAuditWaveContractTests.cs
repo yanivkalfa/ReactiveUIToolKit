@@ -32,6 +32,7 @@ public class HmrAuditWaveContractTests
     [InlineData("HmrHookEmitter.cs")]
     [InlineData("HmrCSharpEmitter.cs")]
     [InlineData("UitkxHmrController.cs")]
+    [InlineData("UitkxHmrFileWatcher.cs")]
     public void EditorHmrSources_ParseClean(string file)
     {
         var tree = CSharpSyntaxTree.ParseText(
@@ -95,17 +96,87 @@ public class HmrAuditWaveContractTests
     }
 
     [Fact]
-    public void FieldWave_NewModeImportTargets_InlineExportsWhenAbsentFromAppDomain()
+    public void FieldWave_NewModeImportTargets_InlineExportsWhenUnreferenceable()
     {
         // Copy-rename field scenario: a file CREATED mid-HMR-session (reload locked) has no
         // {ns}.__Exports in the project assembly — the companion/import-target pass must
         // inline its container into the hot unit instead of feeding the legacy emitters a
         // plain-declaration set (which crashed) or letting the injected using dangle (CS0234).
+        // Rename-flow hardening: the gate probes what the compile can actually REFERENCE
+        // (project assemblies + the target's registered hot DLL), not the whole AppDomain —
+        // the old whole-AppDomain probe let the target's own first hot compile disable
+        // inlining forever while nothing referenced its DLL.
         var src = Src("UitkxHmrCompiler.cs");
-        Assert.Contains("TypeExistsInAppDomain(newModeNs + \".__Exports\")", src);
-        Assert.Contains("private static bool TypeExistsInAppDomain(string fullTypeName)", src);
+        Assert.Contains("!TypeExistsInProjectAssemblies(exportsFqn)", src);
+        Assert.Contains("&& !HotExportsAvailable(exportsFqn)", src);
+        Assert.Contains("private static bool TypeExistsInProjectAssemblies(string fullTypeName)", src);
+        Assert.DoesNotContain("TypeExistsInAppDomain", src);
         // Legacy module/hook emitters are unreachable for new-mode candidates.
         Assert.Contains("if (!candUsesLegacy)", src);
+    }
+
+    [Fact]
+    public void RenameWave_MemberRoute_RegistersPerFileIdentity()
+    {
+        // Rename-flow root cause: the literal registry key "__Exports" collided every
+        // member-only file onto one _hmrAssemblyPaths slot — each member compile deleted the
+        // previous file's DLL and hijacked its cached compilation and cross-ref. The key is
+        // now the per-file container FQN {ns}.__Exports; the container TYPE NAME stays
+        // "__Exports" so SwapHooks still resolves it by HookContainerClass.
+        var src = Src("UitkxHmrCompiler.cs");
+        Assert.Contains(
+            "string exKey = string.IsNullOrEmpty(exNs) ? \"__Exports\" : exNs + \".__Exports\";",
+            src);
+        Assert.Contains("result.ComponentName = exKey;", src);
+        Assert.Contains("new[] { exportsCSharp }, exKey, uitkxPath", src);
+        Assert.DoesNotContain("new[] { exportsCSharp }, \"__Exports\"", src);
+        Assert.Contains("result.HookContainerClass = \"__Exports\";", src);
+    }
+
+    [Fact]
+    public void RenameWave_MemberRoute_MarksGenuinelyNew_ForImporterCrossRefs()
+    {
+        // Mid-session member files have no project-assembly type, so importers can only bind
+        // their values through the cross-ref registry — which BuildCrossRefs gates on the
+        // genuinely-new set. Without this registration the import fan-out recompiles every
+        // importer against NOTHING that carries {ns}.__Exports (the rename-flow dead end).
+        // Null namespace arg: exKey already IS the container FQN the probe must check.
+        var src = Src("UitkxHmrCompiler.cs");
+        Assert.Contains("_memberRegistryKeysByFile[NormalizeRegistryPath(uitkxPath)] = exKey;", src);
+        Assert.Contains("CheckIfGenuinelyNew(exKey, null);", src);
+    }
+
+    [Fact]
+    public void RenameWave_DeleteAndRenameEvents_EvictStaleRegistrations()
+    {
+        // A rename (delete old path + create new path) must not leave the old identity's
+        // DLL registered as a cross-ref, its hook-container index entry, or its outgoing
+        // import edges. The watcher surfaces FSW Deleted and the Renamed OLD path through
+        // the debounced deletion queue (exists-again guarded — delete-and-replace saves are
+        // saves, not deletions); the controller evicts per-path state on that event.
+        var compiler = Src("UitkxHmrCompiler.cs");
+        Assert.Contains("public void EvictFileRegistration(string uitkxPath)", compiler);
+        var controller = Src("UitkxHmrController.cs");
+        Assert.Contains("_compiler?.EvictFileRegistration(uitkxPath);", controller);
+        Assert.Contains("HookContainerRegistry.Invalidate(uitkxPath);", controller);
+        var watcher = Src("UitkxHmrFileWatcher.cs");
+        Assert.Contains("_watcher.Deleted += (s, e) => EnqueueDeletion(e.FullPath);", watcher);
+        Assert.Contains("EnqueueDeletion(e.OldFullPath);", watcher);
+        Assert.Contains("if (!File.Exists(path))", watcher);
+    }
+
+    [Fact]
+    public void RenameWave_MemberValueEdits_PropagateViaImporterFanOutRecompile()
+    {
+        // Designed propagation for mid-session member files (no project type to static-swap
+        // onto): the controller fans the change out to importers, forces each to rebuild
+        // fresh, and the fresh build binds the latest hot DLL registered under the member
+        // file's key. The compiler-side invalidation must therefore compute the SAME
+        // per-file key for member files, or the fan-out invalidates a key nobody caches.
+        var controller = Src("UitkxHmrController.cs");
+        Assert.Contains("_compiler?.InvalidateCompilationForFile(importer);", controller);
+        var compiler = Src("UitkxHmrCompiler.cs");
+        Assert.Contains("? \"__Exports\" : invNs + \".__Exports\";", compiler);
     }
 
     [Fact]

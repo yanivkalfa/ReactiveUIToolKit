@@ -926,6 +926,19 @@ namespace ReactiveUITK.EditorSupport.HMR
                         + "removed from retry queue."
                 );
             }
+
+            // Rename/delete cleanup (rename-flow field find): drop every registration keyed
+            // by the dead path so a renamed member file's OLD identity cannot linger — its
+            // hot DLL as a cross-reference for later compiles, its hook-container index
+            // entry, or its own outgoing import edges. Reverse edges (consumers importing
+            // this path) deliberately stay: the map is keyed by target path, so they become
+            // live again if the file is re-created, and a consumer whose import line still
+            // names the dead file fails its own compile with the right diagnostic.
+            HookContainerRegistry.Invalidate(uitkxPath);
+            _compiler?.EvictFileRegistration(uitkxPath);
+            string importerAbs = NormalizeImportPath(uitkxPath);
+            foreach (var kv in _importDependents)
+                kv.Value.Remove(importerAbs);
         }
 
         // ── USS change handler ────────────────────────────────────────────────
