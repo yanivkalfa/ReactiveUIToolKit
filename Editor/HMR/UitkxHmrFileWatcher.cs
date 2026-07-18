@@ -41,6 +41,14 @@ namespace ReactiveUITK.EditorSupport.HMR
         private readonly Dictionary<string, int> _pendingChanges = new();
         private readonly Dictionary<string, int> _pendingUssChanges = new();
         private readonly Dictionary<string, int> _pendingDeletions = new();
+        // Last-seen write time per .uitkx path (ticks). Field find: Unity's Mono FSW can
+        // silently drop the FILE-level Changed for a save while still delivering the
+        // DIRECTORY-level Changed (the folder's LastWrite bump) — observed live for a
+        // mid-session-created file whose every save produced only directory events. The
+        // directory event triggers a single-folder mtime scan against this map, recovering
+        // the dropped save. Guarded by _lock (FSW threadpool + main thread).
+        private readonly Dictionary<string, long> _lastSeenWriteTicks = new(
+            StringComparer.OrdinalIgnoreCase);
         private readonly object _lock = new object();
         private bool _disposed;
 
@@ -50,11 +58,20 @@ namespace ReactiveUITK.EditorSupport.HMR
         internal volatile bool TraceEnabled;
 
         private const int DebounceMs = 50; // 50ms debounce
+        // Slow safety poll: catches a save even when BOTH the file-level and the
+        // directory-level FSW events are dropped. Editor-only, session-only cost.
+        private const int FullSweepMs = 2000;
+        private int _lastFullSweepTick;
+        private int _sweepRunning; // Interlocked reentrancy guard (threadpool sweep)
+        private string _watchRoot;
 
         public void Start(string watchRoot)
         {
             if (_watcher != null)
                 Stop();
+
+            _watchRoot = watchRoot;
+            _lastFullSweepTick = Environment.TickCount;
 
             _watcher = new FileSystemWatcher
             {
@@ -102,6 +119,31 @@ namespace ReactiveUITK.EditorSupport.HMR
                         + $"({e.GetException()?.Message ?? "unknown"})"
                 );
             };
+
+            // Seed the mtime map so the first directory-scan recovery pass has a baseline
+            // (otherwise every pre-existing file would look "changed" on the first folder
+            // event). One-time recursive enumeration at session start.
+            try
+            {
+                lock (_lock)
+                {
+                    _lastSeenWriteTicks.Clear();
+                    foreach (var f in Directory.EnumerateFiles(
+                                 watchRoot, "*.uitkx", SearchOption.AllDirectories))
+                    {
+                        try
+                        {
+                            _lastSeenWriteTicks[Path.GetFullPath(f)] =
+                                File.GetLastWriteTimeUtc(f).Ticks;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HMR] Watch: mtime baseline scan failed ({ex.Message}) — dropped-event recovery degraded.");
+            }
 
             // Pump pending changes on every editor update
             EditorApplication.update += PumpPendingChanges;
@@ -156,7 +198,13 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             string ext = Path.GetExtension(e.FullPath);
             if (string.IsNullOrEmpty(ext))
+            {
+                // Directory-level Changed (the folder's LastWrite bump). Unity's Mono FSW
+                // can drop the FILE event for the very save that caused this — scan the
+                // folder's .uitkx mtimes and recover anything the OS never delivered.
+                RecoverDroppedSavesInDirectory(e.FullPath);
                 return;
+            }
 
             // .uss file change
             if (ext.Equals(".uss", StringComparison.OrdinalIgnoreCase))
@@ -188,7 +236,61 @@ namespace ReactiveUITK.EditorSupport.HMR
             lock (_lock)
             {
                 _pendingChanges[uitkxPath] = Environment.TickCount;
+                RecordWriteTimeLocked(uitkxPath);
             }
+        }
+
+        // Caller holds _lock. Records the path's current on-disk write time so the
+        // directory-scan recovery pass doesn't re-enqueue a save that arrived normally.
+        private void RecordWriteTimeLocked(string uitkxPath)
+        {
+            try
+            {
+                _lastSeenWriteTicks[Path.GetFullPath(uitkxPath)] =
+                    File.GetLastWriteTimeUtc(uitkxPath).Ticks;
+            }
+            catch { }
+        }
+
+        /// <summary>Single-folder (non-recursive) mtime sweep triggered by a directory-level
+        /// FSW event: any .uitkx whose write time moved past the recorded baseline without a
+        /// corresponding file-level event is a save the OS dropped — enqueue it and say so.</summary>
+        private void RecoverDroppedSavesInDirectory(string directoryPath)
+        {
+            try
+            {
+                if (!Directory.Exists(directoryPath))
+                    return;
+                foreach (var f in Directory.GetFiles(directoryPath, "*.uitkx"))
+                    CheckFileForMissedWrite(f);
+            }
+            catch { /* recovery is best-effort; the normal event path is unaffected */ }
+        }
+
+        // Shared by the directory-event recovery scan and the slow full sweep.
+        private void CheckFileForMissedWrite(string filePath)
+        {
+            string full;
+            long ticks;
+            try
+            {
+                full = Path.GetFullPath(filePath);
+                ticks = File.GetLastWriteTimeUtc(filePath).Ticks;
+            }
+            catch { return; }
+
+            bool missed;
+            lock (_lock)
+            {
+                missed = (!_lastSeenWriteTicks.TryGetValue(full, out long seen) || ticks > seen)
+                    && !_pendingChanges.ContainsKey(full);
+                _lastSeenWriteTicks[full] = ticks;
+                if (missed)
+                    _pendingChanges[full] = Environment.TickCount;
+            }
+            if (missed)
+                Debug.Log(
+                    $"[HMR] Watch: recovered a save the OS never delivered — {Path.GetFileName(filePath)}");
         }
 
         // Push a synthetic change event from the AssetPostprocessor.
@@ -238,6 +340,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 _pendingChanges.Remove(absolutePath);
                 _pendingDeletions[absolutePath] = Environment.TickCount;
+                try { _lastSeenWriteTicks.Remove(Path.GetFullPath(absolutePath)); } catch { }
             }
         }
 
@@ -247,6 +350,35 @@ namespace ReactiveUITK.EditorSupport.HMR
         {
             if (_disposed)
                 return;
+
+            int sweepNow = Environment.TickCount;
+            if (sweepNow - _lastFullSweepTick >= FullSweepMs && _watchRoot != null
+                && System.Threading.Interlocked.CompareExchange(ref _sweepRunning, 1, 0) == 0)
+            {
+                _lastFullSweepTick = sweepNow;
+                string root = _watchRoot;
+                // Threadpool: a full Assets-tree stat walk must never hitch the editor
+                // frame. CheckFileForMissedWrite is lock-guarded and Debug.Log is
+                // thread-safe; recovered paths surface via the normal debounced pump.
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        foreach (var f in Directory.EnumerateFiles(
+                                     root, "*.uitkx", SearchOption.AllDirectories))
+                        {
+                            if (_disposed)
+                                break;
+                            CheckFileForMissedWrite(f);
+                        }
+                    }
+                    catch { /* best-effort safety net */ }
+                    finally
+                    {
+                        System.Threading.Interlocked.Exchange(ref _sweepRunning, 0);
+                    }
+                });
+            }
 
             List<string> ready = null;
             List<string> readyUss = null;

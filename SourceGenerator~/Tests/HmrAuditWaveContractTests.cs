@@ -116,6 +116,23 @@ public class HmrAuditWaveContractTests
     }
 
     [Fact]
+    public void FieldWave_DroppedFswEvents_RecoveredByMtimeScans()
+    {
+        // Field-verified: Unity's Mono FSW silently dropped the FILE-level Changed for a
+        // mid-session-created file's saves while still delivering the DIRECTORY-level
+        // Changed. Recovery is two-tier: a single-folder mtime scan triggered by each
+        // directory event, plus a slow threadpool full sweep so even a dropped directory
+        // event cannot lose a save. Recovered saves announce themselves.
+        var src = Src("UitkxHmrFileWatcher.cs");
+        Assert.Contains("RecoverDroppedSavesInDirectory(e.FullPath);", src);
+        Assert.Contains("private void CheckFileForMissedWrite(string filePath)", src);
+        Assert.Contains("recovered a save the OS never delivered", src);
+        Assert.Contains("_lastSeenWriteTicks", src);
+        Assert.Contains("SearchOption.AllDirectories))", src);
+        Assert.Contains("Interlocked.CompareExchange(ref _sweepRunning, 1, 0)", src);
+    }
+
+    [Fact]
     public void RenameWave_MemberRoute_RegistersPerFileIdentity()
     {
         // Rename-flow root cause: the literal registry key "__Exports" collided every
