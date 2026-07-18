@@ -116,6 +116,9 @@ namespace ReactiveUITK.Language
                         ? System.Collections.Immutable.ImmutableArray<string?>.Empty : imp.Aliases;
                     bool AliasedAt(int k) => k < aliasesN.Length && aliasesN[k] != null;
 
+                    // NOTE: no exclusive branching — a COMBINED import (`import Def, { a } from`
+                    // / `import Def, * as X from`) carries default + named/star parts in one
+                    // declaration and every part must yield its payload.
                     if (imp.IsStar && imp.StarAlias != null)
                     {
                         // `import * as X` → alias-to-type of the whole exports container.
@@ -129,7 +132,6 @@ namespace ReactiveUITK.Language
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue;
                     }
 
                     if (imp.IsDefault && imp.DefaultAlias != null)
@@ -146,7 +148,6 @@ namespace ReactiveUITK.Language
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue;
                     }
 
                     bool exportsContainerAdded = false;
@@ -269,6 +270,7 @@ namespace ReactiveUITK.Language
                     return null;
                 }
 
+                // No exclusive branching — combined imports need default AND named bridges.
                 if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null)
                 {
                     bool defaultIsComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
@@ -281,7 +283,6 @@ namespace ReactiveUITK.Language
                                 dm.ReturnTypeText ?? ExtractNewInitializerTypeName(dm.BodyText),
                                 dm.ParamsText, dm.Kind == DeclKind.Value));
                     }
-                    continue;
                 }
 
                 if (!anyAlias)
@@ -332,11 +333,11 @@ namespace ReactiveUITK.Language
                     !tds.ComponentDeclarations.IsDefaultOrEmpty
                     && System.Linq.Enumerable.Any(tds.ComponentDeclarations, c => c.IsExported && c.Name == name);
 
+                // No exclusive branching — combined imports contribute default AND named tags.
                 if (imp.IsDefault && imp.DefaultAlias != null)
                 {
                     if (tds.DefaultExportName != null && IsExportedComponent(tds.DefaultExportName))
                         map[imp.DefaultAlias] = $"{tns}.{tds.DefaultExportName}";
-                    return;
                 }
                 if (imp.Aliases.IsDefaultOrEmpty)
                     return;
@@ -458,6 +459,7 @@ namespace ReactiveUITK.Language
                     lines.Add($"        internal static {ret} {alias}({pl}) => global::{tns}.__Exports.{m.Name}({an});");
                 }
 
+                // No exclusive branching — combined imports need default AND named bridges.
                 if (imp.IsDefault && imp.DefaultAlias != null && tds.DefaultExportName != null)
                 {
                     bool defaultIsComponent = !tds.ComponentDeclarations.IsDefaultOrEmpty
@@ -468,7 +470,6 @@ namespace ReactiveUITK.Language
                         if (dm != null)
                             Append(imp.DefaultAlias, dm);
                     }
-                    continue;
                 }
 
                 if (!anyAlias)

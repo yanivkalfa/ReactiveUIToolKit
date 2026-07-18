@@ -254,6 +254,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (target == null || !byPath.TryGetValue(Norm(target), out var pe))
                     continue;
 
+                // No exclusive branching — combined imports (`import Def, { a as b } from`)
+                // need BOTH the default bridge and the named-alias bridges.
                 if (imp.IsDefault && imp.DefaultAlias != null && pe.DefaultExportName != null)
                 {
                     // Component defaults lower to a using-alias (ImportScopeFacts), not a bridge.
@@ -263,7 +265,6 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         if (target_ != null)
                             AppendBridge(result, imp.DefaultAlias, target_, pe.Namespace);
                     }
-                    continue;
                 }
 
                 if (!anyAlias)

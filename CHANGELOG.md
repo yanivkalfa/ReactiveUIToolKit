@@ -6,6 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.9.1] - Unreleased
+
+### Added
+
+- **ES combined import forms**: `import Def, { a, b as c } from "./file"` and
+  `import Def, * as X from "./file"` — one declaration carrying the default binding plus
+  the named/namespace surface, exactly as in ES. Parsed, formatted (single canonical
+  line), lowered (default alias/bridge + named payloads + star alias from the one
+  declaration), colored, and duplicate-checked across all parts.
+
+### Fixed — 0.9.0 F5 field battery
+
+- **Named VALUE imports resolve in the editor.** The LSP's Roslyn workspace only loaded
+  peer `.uitkx` files with legacy hooks/modules — a new-mode member file
+  (`export Style container = …`) never entered the compilation, so its `__Exports` didn't
+  exist and every bare member reference in an importer squiggled CS0103 while the build
+  was clean. Peer inclusion now covers new-mode member files.
+- **False `unused import` (UITKX2304) on used value imports.** The unused-import scan
+  only recognized references shaped like tags, hook calls, or dotted access — a bare
+  value reference (`style={container}`) was invisible. The scan now counts every
+  identifier.
+
+SG suite 1704/1704, LSP suite 151/151.
+
 ## [0.9.0] - 2026-07-18
 
 ### Changed — License: MIT → PolyForm Shield 1.0.0

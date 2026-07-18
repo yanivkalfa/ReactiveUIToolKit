@@ -145,7 +145,7 @@ namespace ReactiveUITK.Language.SemanticTokens
         // Full ES import surface (ES-modules campaign, G-05/M5): braced named lists (with
         // optional `as` renames), `* as X` namespace imports, and bare default imports.
         private static readonly Regex s_importTokenRe = new Regex(
-            @"^(?<lead>\s*)(?<import>import)\s*(?:\{(?<names>[^}]*)\}|\*\s*(?<staras>as)\s+[A-Za-z_]\w*|[A-Za-z_]\w*)\s*(?<from>from)\s*(?<spec>""[^""]*"")",
+            @"^(?<lead>\s*)(?<import>import)\s*(?:[A-Za-z_]\w*\s*,\s*)?(?:\{(?<names>[^}]*)\}|\*\s*(?<staras>as)\s+[A-Za-z_]\w*|[A-Za-z_]\w*)\s*(?<from>from)\s*(?<spec>""[^""]*"")",
             RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled
         );
 

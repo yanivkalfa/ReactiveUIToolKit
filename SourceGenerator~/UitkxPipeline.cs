@@ -712,6 +712,9 @@ namespace ReactiveUITK.SourceGenerator
                     bool AliasedAt(int k) =>
                         !imp.Aliases.IsDefaultOrEmpty && k < imp.Aliases.Length && imp.Aliases[k] != null;
 
+                    // No exclusive branching — a COMBINED import (`import Def, { a } from` /
+                    // `import Def, * as X from`) carries default + named/star parts in one
+                    // declaration and every part must yield its payload (LSP mirror identical).
                     if (imp.IsStar && imp.StarAlias != null)
                     {
                         // A component-only target emits NO __Exports unit — an alias to it would
@@ -728,7 +731,6 @@ namespace ReactiveUITK.SourceGenerator
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue;
                     }
 
                     if (imp.IsDefault && imp.DefaultAlias != null)
@@ -742,7 +744,7 @@ namespace ReactiveUITK.SourceGenerator
                             if (seen.Add(line))
                                 result.Add(line);
                         }
-                        continue; // member defaults bridge (ExportsEmitter), no using
+                        // member defaults bridge (ExportsEmitter), no using
                     }
 
                     bool exportsContainerAdded = false;
@@ -967,17 +969,17 @@ namespace ReactiveUITK.SourceGenerator
                 if (candidate == null || !exportsByPath.TryGetValue(NormalizeAbs(candidate), out var pe))
                     continue;
 
+                // No exclusive branching — combined imports contribute star AND default AND
+                // named tag bindings (LSP mirror identical).
                 if (imp.IsStar && imp.StarAlias != null)
                 {
                     (starNs ??= new Dictionary<string, string>(StringComparer.Ordinal))[imp.StarAlias] = pe.Namespace;
-                    continue;
                 }
                 if (imp.IsDefault && imp.DefaultAlias != null)
                 {
                     if (pe.DefaultExportName != null && pe.ExportedComponentNames.Contains(pe.DefaultExportName))
                         (aliasType ??= new Dictionary<string, string>(StringComparer.Ordinal))[imp.DefaultAlias] =
                             $"{pe.Namespace}.{pe.DefaultExportName}";
-                    continue;
                 }
                 for (int k = 0; k < imp.Names.Length && k < imp.Aliases.Length; k++)
                 {

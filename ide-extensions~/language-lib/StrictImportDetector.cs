@@ -56,6 +56,9 @@ namespace ReactiveUITK.Language
         // Module. — a module member access.
         private static readonly System.Text.RegularExpressions.Regex s_moduleRe =
             new(@"\b([A-Za-z_][A-Za-z0-9_]*)\s*\.", System.Text.RegularExpressions.RegexOptions.Compiled);
+        // Any identifier — the unused-import scan's reference universe (bare value refs included).
+        private static readonly System.Text.RegularExpressions.Regex s_identRe =
+            new(@"[A-Za-z_][A-Za-z0-9_]*", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         /// <summary>
         /// Detect unimported references in <paramref name="importerFilePath"/>'s code.
@@ -344,13 +347,14 @@ namespace ReactiveUITK.Language
             if (directives.Imports.IsDefaultOrEmpty)
                 return findings;
 
+            // Every identifier counts as a reference — new-mode VALUE imports are used as
+            // BARE identifiers (`style={container}`), which the tag/hook-call/dotted scans
+            // used by Detect() never see (field find, 0.9.0 F5 battery: false 2304 on every
+            // used value import). Over-approximating "used" is the right direction for a
+            // warning-tier check.
             var referenced = new HashSet<string>(StringComparer.Ordinal);
-            foreach (System.Text.RegularExpressions.Match m in s_tagRe.Matches(scannableCode))
-                referenced.Add(m.Groups[1].Value);
-            foreach (System.Text.RegularExpressions.Match m in s_hookRe.Matches(scannableCode))
-                referenced.Add(m.Groups[1].Value);
-            foreach (System.Text.RegularExpressions.Match m in s_moduleRe.Matches(scannableCode))
-                referenced.Add(m.Groups[1].Value);
+            foreach (System.Text.RegularExpressions.Match m in s_identRe.Matches(scannableCode))
+                referenced.Add(m.Value);
 
             foreach (var imp in directives.Imports)
             {

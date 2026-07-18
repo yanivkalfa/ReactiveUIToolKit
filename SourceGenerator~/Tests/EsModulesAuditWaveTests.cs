@@ -442,6 +442,135 @@ namespace ReactiveUITK.SourceGenerator.Tests
             Assert.EndsWith(".__Exports.Bump(ref counter);", lines[0]);
         }
 
+        // ── Field finds (F5 battery 2026-07-18): bare-value member imports ──
+
+        [Fact]
+        public void Field1_BareValueReference_MarksImportUsed()
+        {
+            var ds = DetectorDs() with
+            {
+                Imports = ImmutableArray.Create(new ImportDeclaration(
+                    ImmutableArray.Create("container"), "./SomeOtherName.style", 1, 0,
+                    ImmutableArray<int>.Empty)),
+            };
+            var findings = StrictImportDetector.DetectUnusedImports(
+                ds, "<VisualElement style={container}>");
+            Assert.Empty(findings);
+        }
+
+        [Fact]
+        public void Field1_MemberImport_FromDottedStemFile_GetsExportsPayload()
+        {
+            using var tmp = new TempUitkxDir();
+            tmp.Write("SomeOtherName.style.uitkx",
+                "export Style container = new Style {\n  Padding = 10f,\n};\n");
+            string importer = tmp.Write("HmrTests.uitkx",
+                "import { container } from \"./SomeOtherName.style\"\n" +
+                "\n" +
+                "export VirtualNode HmrTests() {\n" +
+                "  return (\n" +
+                "    <VisualElement style={container} />\n" +
+                "  );\n" +
+                "}\n");
+
+            var (ds, _) = Parse(File.ReadAllText(importer), importer);
+            var payloads = ImportScopeFacts.ComputeInjectedUsingPayloads(ds, importer);
+            Assert.Contains(payloads, p => p.StartsWith("static ") && p.EndsWith(".__Exports"));
+        }
+
+        // ── Field finds: ES combined import forms (import Def, { a } from) ──
+
+        [Fact]
+        public void Field2_CombinedDefaultAndNamed_Parses()
+        {
+            var (ds, diags) = Parse(
+                "import isSomethingEven, { getSomething as fetch } from \"./SomeOtherName.utils\"\n" +
+                "export int Y = 1;\n");
+            Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+            Assert.Single(ds.Imports);
+            var imp = ds.Imports[0];
+            Assert.True(imp.IsDefault);
+            Assert.Equal("isSomethingEven", imp.DefaultAlias);
+            Assert.Equal(new[] { "getSomething" }, imp.Names.ToArray());
+            Assert.Equal(new string?[] { "fetch" }, imp.Aliases.ToArray());
+        }
+
+        [Fact]
+        public void Field2_CombinedDefaultAndStar_Parses()
+        {
+            var (ds, diags) = Parse(
+                "import Def, * as Utils from \"./SomeOtherName.utils\"\n" +
+                "export int Y = 1;\n");
+            Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+            var imp = ds.Imports[0];
+            Assert.True(imp.IsDefault);
+            Assert.Equal("Def", imp.DefaultAlias);
+            Assert.True(imp.IsStar);
+            Assert.Equal("Utils", imp.StarAlias);
+        }
+
+        [Fact]
+        public void Field2_CombinedDuplicateBinding_IsReported()
+        {
+            var (_, diags) = Parse(
+                "import a, { b as a } from \"./x\"\n" +
+                "export int Y = 1;\n");
+            Assert.Contains(diags, d => d.Code == "UITKX2325" || d.Code == "UITKX2303");
+        }
+
+        [Fact]
+        public void Field2_CombinedImport_YieldsDefaultBridgeAndNamedPayload()
+        {
+            using var tmp = new TempUitkxDir();
+            tmp.Write("SomeOtherName.utils.uitkx",
+                "export int something = 42;\n" +
+                "\n" +
+                "export int getSomething() {\n" +
+                "  return something;\n" +
+                "}\n" +
+                "\n" +
+                "bool isSomethingEven() {\n" +
+                "  return something % 2 == 0;\n" +
+                "}\n" +
+                "\n" +
+                "export default isSomethingEven;\n");
+            string importer = tmp.Write("Screen.uitkx",
+                "import isSomethingEven, { getSomething } from \"./SomeOtherName.utils\"\n" +
+                "export VirtualNode Screen() {\n  return (<Box/>);\n}\n");
+
+            var (ds, diags) = Parse(File.ReadAllText(importer), importer);
+            Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+
+            var payloads = ImportScopeFacts.ComputeInjectedUsingPayloads(ds, importer);
+            Assert.Contains(payloads, p => p.StartsWith("static ") && p.EndsWith(".__Exports"));
+
+            var bridges = ImportScopeFacts.ComputeImportedMemberBridgeLines(ds, importer);
+            Assert.Single(bridges);
+            Assert.Contains("internal static bool isSomethingEven()", bridges[0]);
+            Assert.EndsWith(".__Exports.isSomethingEven();", bridges[0]);
+        }
+
+        [Fact]
+        public void Field2_CombinedImport_FormatsRoundTrip()
+        {
+            string src =
+                "import isSomethingEven, { getSomething } from \"./SomeOtherName.utils\"\n" +
+                "export int Y = 1;\n";
+            string formatted = N(s_fmt.Format(src));
+            Assert.Contains(
+                "import isSomethingEven, { getSomething } from \"./SomeOtherName.utils\"", formatted);
+            Assert.Equal(formatted, N(s_fmt.Format(formatted)));
+        }
+
+        [Fact]
+        public void Field2_CombinedDefaultStar_FormatsRoundTrip()
+        {
+            string src = "import D, * as X from \"./x\"\nexport int Y = 1;\n";
+            string formatted = N(s_fmt.Format(src));
+            Assert.Contains("import D, * as X from \"./x\"", formatted);
+            Assert.Equal(formatted, N(s_fmt.Format(formatted)));
+        }
+
         // ── F2/F3/F8/P2: formatter guarantees ───────────────────────────────
 
         [Fact]

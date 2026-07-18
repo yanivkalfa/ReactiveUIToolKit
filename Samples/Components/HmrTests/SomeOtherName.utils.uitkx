@@ -1,0 +1,11 @@
+export int something = 42;
+
+export int getSomething() {
+  return something;
+}
+
+bool isSomethingEven() {
+  return something % 2 == 0;
+}
+
+export default isSomethingEven;
