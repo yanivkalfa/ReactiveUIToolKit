@@ -271,12 +271,14 @@ export const StylingPage: FC = () => {
       all shortcuts are available without any <code>@using</code> directive.
     </Typography>
 
-    <Alert severity="warning" sx={{ mb: 3 }}>
-      <strong>Do not</strong> add <code>@using UnityEngine.UIElements</code> to{' '}
-      <code>.uitkx</code> files — it causes naming conflicts with{' '}
-      <code>using static StyleKeys</code> constants like{' '}
-      <code>FlexDirection</code> and <code>Position</code>. The SG already
-      imports the UIElements types it needs via targeted aliases.
+    <Alert severity="info" sx={{ mb: 3 }}>
+      You rarely need <code>import "@UnityEngine.UIElements"</code> in{' '}
+      <code>.uitkx</code> files — the generator already injects targeted aliases
+      for the UIElements types styles use. Adding it is supported (several
+      shipped samples do) — just note that a few names exist both as{' '}
+      <code>StyleKeys</code> constants and as UIElements enum types
+      (<code>FlexDirection</code>, <code>Position</code>); qualify those
+      explicitly if the compiler reports an ambiguity.
     </Alert>
 
     <Typography variant="h6" gutterBottom>Length helpers</Typography>
@@ -420,7 +422,7 @@ export const StylingPage: FC = () => {
       Basic usage
     </Typography>
     <Typography variant="body1" paragraph>
-      Add <code>@uss "path"</code> to the preamble (before the <code>component</code> keyword).
+      Add <code>@uss "path"</code> to the preamble (before the first declaration).
       Relative paths are resolved from the <code>.uitkx</code> file's location.
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_USS_BASIC} />

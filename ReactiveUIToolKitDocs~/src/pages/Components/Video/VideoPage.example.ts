@@ -1,8 +1,7 @@
-export const VIDEO_BASIC = `@namespace MyApp.Pages
-@using UnityEngine.Video
-@using ReactiveUITK.Core.Media
+export const VIDEO_BASIC = `import "@UnityEngine.Video"
+import "@ReactiveUITK.Core.Media"
 
-VirtualNode VideoDemo() {
+export VirtualNode VideoDemo() {
   var clip = Asset<VideoClip>("Assets/Resources/intro.mp4");
   var ctrl = useRef<VideoController>(null);
   var (playing, setPlaying) = useState(true);

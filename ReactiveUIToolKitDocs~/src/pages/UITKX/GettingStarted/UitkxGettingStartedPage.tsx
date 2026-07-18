@@ -39,25 +39,29 @@ export const UitkxGettingStartedPage: FC = () => (
       1. Create a UITKX component
     </Typography>
     <Typography variant="body1" paragraph>
-      A simple <code>.uitkx</code> file holds one component. (A file may declare more than one
-      component/hook/module, and matching the filename to the component name is a recommended
-      convention rather than a hard rule — see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.)
-      Setup code goes at the top; the component returns markup.
+      A <code>.uitkx</code> file <strong>is a module</strong>: a sequence of plain typed
+      declarations, each optionally <code>export</code>-prefixed. A simple file holds one
+      component. (A file may declare any mix of components, hooks, and values; matching the
+      filename to the primary component is a recommended convention rather than a hard rule —
+      see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.)
+      Setup code goes at the top of the body; the component returns markup.
     </Typography>
     <CodeBlock language="jsx" code={UITKX_HELLO_WORLD_COMPONENT} />
     <Typography variant="body1" paragraph>
       The source generator automatically discovers all <code>.uitkx</code> files in your{' '}
       <code>Assets/</code> directory — no registration needed. On the next Unity compile it emits a
       complete C# class (<code>HelloWorld.uitkx.g.cs</code>) with <code>namespace</code>, a{' '}
-      <code>partial class</code>, and a full <code>Render()</code> method. The class is{' '}
-      <code>internal</code> by default; prefix the declaration with <code>export</code> to make it{' '}
-      <code>public</code> and importable from other files. You don&rsquo;t need to create any
-      companion file for this to work.
+      <code>partial class</code>, and a full <code>Render()</code> method. The namespace is{' '}
+      <strong>file-keyed</strong> — derived from the file&rsquo;s folders plus its file stem
+      (here <code>ReactiveUITK.Uitkx.UI.HelloWorld</code>) — so no <code>@namespace</code>{' '}
+      directive is needed. <code>export</code> makes the class <code>public</code> and importable
+      from other files; without it the declaration is <code>internal</code> and file-private. You
+      don&rsquo;t need to create any companion file for this to work.
     </Typography>
     <Typography variant="body2" paragraph>
-      Upgrading an existing (pre-0.7.0) project? The bundled <code>UitkxMigrateImports</code>{' '}
-      codemod adds <code>export</code>s and <code>import</code>s to your <code>.uitkx</code> files
-      in one pass — see{' '}
+      Upgrading an existing project? The bundled <code>UitkxMigrateImports</code> codemod
+      migrates legacy wrapper-keyword files to plain <code>export</code> declarations in one pass
+      (<code>--es-modules</code>) — see{' '}
       <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports → Migrating an existing project</MuiLink>.
     </Typography>
 
@@ -95,10 +99,10 @@ export const UitkxGettingStartedPage: FC = () => (
       Companion files (optional)
     </Typography>
     <Typography variant="body1" paragraph>
-      The generator produces everything needed, but you can optionally add <code>.uitkx</code>{' '}
-      companion files using <code>hook</code> and <code>module</code> keywords to extract reusable
-      state logic, styles, types, or utilities. See the <strong>Companion Files</strong> page for
-      details.
+      The generator produces everything needed, but you can optionally extract reusable state
+      logic, styles, or utilities into sibling <code>.uitkx</code> files — each one is an ordinary
+      module whose <code>export</code>s you <code>import</code> from the component. See the{' '}
+      <strong>Companion Files</strong> page for details.
     </Typography>
   </Box>
 )

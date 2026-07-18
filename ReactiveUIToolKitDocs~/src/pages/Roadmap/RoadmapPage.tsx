@@ -13,7 +13,7 @@ export const RoadmapPage: FC = () => (
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 2 }}>
-      Completed (through 0.7.x)
+      Completed (through 0.9.x)
     </Typography>
     <List>
       <ListItem disablePadding>
@@ -21,6 +21,9 @@ export const RoadmapPage: FC = () => (
       </ListItem>
       <ListItem disablePadding>
         <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Imports &amp; exports: explicit cross-file references, path-derived namespaces, migration codemod (0.7.0)</>} />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />ES modules: a file IS a module — plain export declarations, file-keyed namespaces, full import surface (as / * as / default / export lists), namespace imports (0.9.0)</>} />
       </ListItem>
       <ListItem disablePadding>
         <ListItemText primary={<><Chip label="Done" size="small" color="success" sx={{ mr: 1 }} />Hot Module Replacement / Fast Refresh: edit-save hot-swap with state preservation, no domain reload</>} />

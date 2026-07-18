@@ -22,7 +22,7 @@ namespace MyGame.UI.PlayerCard.PlayerCard    // ← file-keyed: folders + FILE S
 {
     public partial class PlayerCard          // ← 'export' → public; no export → internal
     {
-        public static VisualElement Render(PlayerInfo player) { ... }
+        public static VirtualNode Render(PlayerInfo player) { ... }
     }
 }
 // Each companion file is its OWN module with its own namespace — its members live on a

@@ -11,7 +11,7 @@ public static class ButtonExamples
 {
   private static readonly Style ButtonStyle = new Style { (StyleKeys.MarginTop, 4f) };
 
-  // Function component �?" no Render method wrapper; pass this
+  // Function component — no Render method wrapper; pass this
   // function to V.Func when mounting.
   public static VirtualNode BasicButton(
     Dictionary<string, object> props,

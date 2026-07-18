@@ -64,10 +64,9 @@ public static class DrawHelpers
 }`
 
 // Vector drawing with Painter2D, driven by component state.
-export const CUSTOM_RENDERING_PAINTER_EXAMPLE = `@using System
-@using UnityEngine.UIElements
+export const CUSTOM_RENDERING_PAINTER_EXAMPLE = `import "@UnityEngine.UIElements"
 
-VirtualNode PolygonCanvas() {
+export VirtualNode PolygonCanvas() {
   var (sides, setSides) = useState(3);
 
   var canvas = new Style {
@@ -86,11 +85,9 @@ VirtualNode PolygonCanvas() {
 }`
 
 // Raw mesh via MeshGenerationContext.Allocate.
-export const CUSTOM_RENDERING_RAW_MESH_EXAMPLE = `@using System
-@using UnityEngine
-@using UnityEngine.UIElements
+export const CUSTOM_RENDERING_RAW_MESH_EXAMPLE = `import "@UnityEngine.UIElements"
 
-VirtualNode QuadCanvas() {
+export VirtualNode QuadCanvas() {
   var (blue, setBlue) = useState(true);
 
   var canvas = new Style { (StyleKeys.Height, 130f) };
@@ -107,10 +104,9 @@ VirtualNode QuadCanvas() {
 }`
 
 // Stable callback + redrawKey: repaint on demand without changing the callback.
-export const CUSTOM_RENDERING_REDRAW_KEY_EXAMPLE = `@using System
-@using UnityEngine.UIElements
+export const CUSTOM_RENDERING_REDRAW_KEY_EXAMPLE = `import "@UnityEngine.UIElements"
 
-VirtualNode ScatterCanvas() {
+export VirtualNode ScatterCanvas() {
   var (tick, setTick) = useState(0);
 
   // Stable delegate: its reference never changes between renders, so the

@@ -54,31 +54,33 @@ syntax highlighting, IntelliSense, and auto-format for `.uitkx` files.
 Add `MyComponent.uitkx` to your project (anywhere Unity picks up scripts):
 
 ```uitkx
-component MyComponent {
-    var (count, setCount) = Hooks.UseState(0);
+export VirtualNode MyComponent() {
+    var (count, setCount) = useState(0);
 
     return (
         <Box>
             <Label text={$"Count: {count}"}/>
-            <Button text="+" onClick={() => setCount(count + 1)}/>
+            <Button text="+" onClick={_ => setCount(count + 1)}/>
         </Box>
     );
 }
 ```
 
-The source generator emits `Render()` into the partial class automatically on
-the next Unity compile. The namespace is derived from the file's path relative to
-its owning `.asmdef` (the optional `@namespace` directive overrides it). Prefix a
-declaration with `export` to make its class `public` and importable from other
-`.uitkx` files (`import { X } from "./path"`); without `export` it is `internal`.
+A `.uitkx` file IS a module: it holds plain typed declarations, and its exports are
+its public surface. The source generator emits the complete class automatically on
+the next Unity compile. The namespace is file-keyed — derived from the file's folders
+relative to its owning `.asmdef` plus its file stem (the optional `@namespace`
+directive overrides it). `export` makes a declaration `public` and importable from
+other `.uitkx` files (`import { X } from "./path"`); without `export` it is `internal`
+and file-private.
 
-**Migrating a pre-0.7.0 project?** Run the bundled codemod once — it adds `export`
-everywhere, inserts the imports each file needs, and stamps each file's current
-`@namespace` so nothing changes identity (idempotent; `--check` for a dry run):
+**Migrating a pre-0.9.0 project?** Run the bundled codemod once — it rewrites legacy
+`component`/`hook`/`module` wrappers to plain `export` declarations and inserts the
+imports each file needs (idempotent; `--check` for a dry run):
 
 ```bash
-dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --check   # dry run
-dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets           # migrate
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --es-modules --check   # dry run
+dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --es-modules           # migrate
 ```
 
 See the [Imports & Exports docs](http://reactiveuitoolkit.info/#/imports) for the full model.
@@ -93,13 +95,12 @@ That's it — no reflection, no codegen at runtime.
 
 **4. Add companion files (optional)**
 
-Extract reusable logic into companion `.uitkx` files using `hook` and `module`:
+Extract reusable logic into sibling `.uitkx` files — each one is an ordinary module
+whose exports you import from the component:
 
 ```uitkx
 // MyComponent.hooks.uitkx — custom hooks
-@namespace MyGame.UI
-
-hook useCounter(int initial = 0) -> (int, Action) {
+export (int, Action) useCounter(int initial = 0) {
     var (count, setCount) = useState(initial);
     var increment = useCallback(() => setCount(count + 1), count);
     return (count, increment);
@@ -107,12 +108,14 @@ hook useCounter(int initial = 0) -> (int, Action) {
 ```
 
 ```uitkx
-// MyComponent.style.uitkx — styles and constants
-@namespace MyGame.UI
+// MyComponent.style.uitkx — style values and constants
+export Style CardStyle = new Style { (FlexDirection, "row") };
+```
 
-module MyComponent {
-    public static Style CardStyle => new Style { (FlexDirection, "row") };
-}
+```uitkx
+// MyComponent.uitkx — the component imports what it uses
+import { useCounter } from "./MyComponent.hooks"
+import { CardStyle } from "./MyComponent.style"
 ```
 
 ---
@@ -121,9 +124,9 @@ module MyComponent {
 
 | File | What it demonstrates |
 |---|---|
-| [`Samples/Components/UitkxCounterFunc.uitkx`](Samples/Components/UitkxCounterFunc.uitkx) | `@switch`, `@if/@else`, `@for`, nested conditionals |
-| [`Samples/Components/PlayerHUD.uitkx`](Samples/Components/PlayerHUD.uitkx) | `@foreach` with `key`, `@switch`, `@if/@else`, typed props |
-| [`Samples/Components/SimpleCounterFunc.cs`](Samples/Components/SimpleCounterFunc.cs) | Equivalent hand-written C# (migration starting point) |
+| [`Samples/Components/UitkxCounterFunc/UitkxCounterFunc.uitkx`](Samples/Components/UitkxCounterFunc/UitkxCounterFunc.uitkx) | Minimal counter — `useState` + markup |
+| [`Samples/Components/DirectiveSuccessDemo/DirectiveSuccessDemo.uitkx`](Samples/Components/DirectiveSuccessDemo/DirectiveSuccessDemo.uitkx) | `@if/@else`, `@for`, `@foreach`, `@switch`, `@while`, cross-file imports |
+| [`Samples/Components/PropTypesDemoFunc/PropTypesDemoFunc.uitkx`](Samples/Components/PropTypesDemoFunc/PropTypesDemoFunc.uitkx) | Typed props via declared component parameters |
 
 See [`Samples/README.md`](Samples/README.md) for a full breakdown of each sample category.
 

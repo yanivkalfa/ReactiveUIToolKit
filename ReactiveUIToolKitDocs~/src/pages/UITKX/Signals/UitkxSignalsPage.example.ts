@@ -1,7 +1,6 @@
-export const UITKX_SIGNALS_COMPONENT_EXAMPLE = `@using ReactiveUITK.Signals
-@using System
+export const UITKX_SIGNALS_COMPONENT_EXAMPLE = `import "@ReactiveUITK.Signals"
 
-VirtualNode SignalCounterDemo() {
+export VirtualNode SignalCounterDemo() {
   var counterSignal = useMemo(() => SignalFactory.Get<int>("demo.counter", 0), Array.Empty<object>());
   var count = useSignal(counterSignal);
 

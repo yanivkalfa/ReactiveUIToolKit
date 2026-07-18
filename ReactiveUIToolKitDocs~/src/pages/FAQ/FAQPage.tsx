@@ -34,15 +34,15 @@ export const FAQPage: FC = () => (
     </Typography>
 
     <Typography variant="body1" sx={Styles.question}>
-      How do I migrate an existing project to imports/exports (0.7.0)?
+      How do I migrate an existing project to the 0.9.0 ES-modules syntax?
     </Typography>
     <Typography variant="body2" paragraph>
       Run the bundled <code>UitkxMigrateImports</code> codemod once:{' '}
-      <code>dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets</code>{' '}
-      (add <code>--check</code> for a dry run). It adds <code>export</code> to every
-      declaration, inserts the <code>import</code> lines each file needs, and stamps each
-      file&rsquo;s current <code>@namespace</code> so nothing changes identity. It is idempotent
-      and formatter-stable. Details:{' '}
+      <code>dotnet run --project SourceGenerator~/Tools/UitkxMigrateImports -- Assets --es-modules</code>{' '}
+      (add <code>--check</code> for a dry run). It rewrites legacy <code>component</code>/
+      <code>hook</code>/<code>module</code> wrappers to plain <code>export</code> declarations,
+      inserts the <code>import</code> lines each file needs, and stamps <code>@namespace</code>{' '}
+      where needed so nothing changes identity. It is idempotent and formatter-stable. Details:{' '}
       <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports → Migrating an existing project</MuiLink>.
     </Typography>
 
@@ -135,7 +135,8 @@ export const FAQPage: FC = () => (
     <Typography variant="body2" paragraph>
       Yes. The setup code section (before the <code>return</code>) is standard
       C#. You can declare variables, call methods, use LINQ, and access any type
-      available via <code>@using</code> directives. Attribute values inside
+      available via namespace imports (<code>import &quot;@Ns&quot;</code> or the equivalent{' '}
+      <code>@using</code>). Attribute values inside
       markup also accept C# expressions via the <code>{'{expr}'}</code> syntax.
     </Typography>
 
@@ -191,8 +192,8 @@ export const FAQPage: FC = () => (
     </Typography>
     <Typography variant="body2" paragraph>
       Make sure the file is saved — the language server works on the last saved
-      content. Also check that the <code>component</code> keyword is present and
-      that any <code>@using</code> directives are correct.
+      content. Also check that each declaration is well-formed (e.g.{' '}
+      <code>export VirtualNode Name() {'{ … }'}</code>) and that any imports are correct.
     </Typography>
 
     <Typography variant="body1" sx={Styles.question}>

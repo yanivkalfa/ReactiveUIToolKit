@@ -56,9 +56,10 @@ export const UitkxConceptsPage: FC = () => (
           <ListItemText
             primary={
               <>
-                Three declaration kinds: <code>component</code> for UI, <code>hook</code> for
-                reusable state logic, and <code>module</code> for styles, types, and utilities. A
-                file may declare any mix; keeping one component per file with{' '}
+                Declarations are plain and typed, classified from the signature alone: a{' '}
+                <code>VirtualNode</code> return type is a component, a <code>use</code>-prefixed
+                name is a hook, an initializer is a value, anything else is a util. A file may
+                declare any mix; keeping one component per file with{' '}
                 <code>.hooks</code>/<code>.style</code>/<code>.utils</code> companions is the
                 recommended convention, not a compiler rule.
               </>
