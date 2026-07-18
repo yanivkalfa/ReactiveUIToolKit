@@ -3,7 +3,7 @@ import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import Styles from '../../Introduction/IntroductionPage.style'
 
-const QUICK_SAMPLE = `VirtualNode CounterCard() {
+const QUICK_SAMPLE = `export VirtualNode CounterCard() {
   var (count, setCount) = useState(0);
 
   return (

@@ -112,4 +112,6 @@ Manual route (if needed): upload the built VSIX using marketplace publishing tok
 
 ## License
 
-MIT
+PolyForm Shield 1.0.0 — free to use and to ship inside your own projects and
+commercial games; not to be redistributed or sold as a competing product. Full
+text in the repository's `LICENSE.md`.

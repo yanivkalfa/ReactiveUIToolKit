@@ -50,34 +50,30 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 ### After — `.uitkx` file
 
 ```uitkx
-component SimpleCounter {
-    var (count, setCount) = Hooks.UseState(0);
+export VirtualNode SimpleCounter() {
+    var (count, setCount) = useState(0);
 
     return (
         <VisualElement>
             <Text text={$"Count: {count}"}/>
-            <Button text="+" onClick={() => setCount(count + 1)}/>
+            <Button text="+" onClick={_ => setCount(count + 1)}/>
         </VisualElement>
     );
 }
 ```
 
-### After — companion `.cs` file (minimal)
-
-```csharp
-// SimpleCounter.cs — generated partial class is wired here
-namespace ReactiveUITK.Samples.FunctionalComponents
-{
-    public partial class SimpleCounter { }
-}
-```
-
-The source generator emits the `Render()` method into `SimpleCounter` automatically.
+That is the whole migration — no companion `.cs` file is needed. The source generator
+emits the complete class (namespace, `partial class`, `Render()`) automatically.
 You call it the same way:
 
 ```csharp
 V.Func(SimpleCounter.Render, props)
 ```
+
+The namespace is file-keyed (folders relative to the owning `.asmdef` plus the file
+stem), so the consumer's `using` changes — or add an explicit `@namespace` directive
+to pin the old one. A hand-written `partial .cs` in the matching namespace can still
+extend the generated class.
 
 ---
 
@@ -93,10 +89,10 @@ Find the `public static VirtualNode Render(...)` method you want to migrate. Con
 
 Create `<ComponentName>.uitkx` next to the existing `.cs` file.
 
-Use function-style component syntax:
+Use a plain typed declaration:
 
 ```uitkx
-component <ClassName> {
+export VirtualNode <ClassName>() {
     // setup C#
     return (
         <VisualElement />
@@ -104,14 +100,16 @@ component <ClassName> {
 }
 ```
 
-Namespace: since 0.7.0 the default is **path-derived** from the file's location relative
-to its owning `.asmdef` (the generator never reads a companion `.cs` for it). If you have
-a hand-written companion `partial .cs`, declare an explicit `@namespace` matching it so
-the two partials merge. `@component` is only needed for legacy directive-header files.
+Namespace: since 0.9.0 the default is **file-keyed** — derived from the file's folders
+relative to its owning `.asmdef` plus its file stem (the generator never reads a
+companion `.cs` for it). If you have a hand-written companion `partial .cs`, declare an
+explicit `@namespace` matching it so the two partials merge. The `component` wrapper
+keyword and the `@component` directive-header form are deprecated (`UITKX2320`).
 
-Since 0.7.0 cross-file references are explicit: prefix declarations with `export` and
-add `import { X } from "./path"` lines (or run the bundled `UitkxMigrateImports` codemod
-once over the project — it does both and stamps each file's current `@namespace`).
+Cross-file references are explicit: prefix declarations with `export` and add
+`import { X } from "./path"` lines (or run the bundled `UitkxMigrateImports --es-modules`
+codemod once over the project — it does all of this mechanically; see the 0.9.0 section
+at the end of this guide).
 
 #### Tidying `@using` → `import "@Ns"` (optional, `--tidy`)
 
@@ -135,12 +133,13 @@ import only when the editor red-squiggles a C# name (`UITKX2316`); most files ne
 ### Step 3 — Move hook calls to function setup section
 
 Everything that was inside `Render()` before the `return` statement goes into
-the setup section before `return (...)`:
+the setup section before `return (...)` (built-in hooks use their lowercase
+`useState`/`useEffect` names in `.uitkx`):
 
 ```uitkx
-component <ClassName> {
-    var (count, setCount) = Hooks.UseState(0);
-    var (mode,  setMode)  = Hooks.UseState("normal");
+export VirtualNode <ClassName>() {
+    var (count, setCount) = useState(0);
+    var (mode,  setMode)  = useState("normal");
 
     return (
         <VisualElement />
@@ -169,20 +168,12 @@ String literals can be unquoted plain values. C# expressions are wrapped in `{ }
 <Label text={$"dynamic: {count}"}/>
 ```
 
-### Step 5 — Replace the old `.cs` file with a companion stub
+### Step 5 — Delete the old `.cs` file
 
-Delete (or rename to `Legacy/`) the old static class.
-Replace it with an empty `partial` class:
-
-```csharp
-namespace <your.namespace>
-{
-    public partial class <ClassName> { }
-}
-```
-
-Unity will regenerate the `Render()` method from the `.uitkx` source on the next
-compile.
+Delete (or rename to `Legacy/`) the old static class — the generator emits the
+complete class from the `.uitkx` source on the next compile; no companion stub is
+required. If other hand-written C# referenced the old class, update its `using` to the
+new file-keyed namespace (or pin the old one with `@namespace`).
 
 ### Step 6 — Verify
 
@@ -198,11 +189,11 @@ compile.
 
 ```uitkx
 @if (health <= 0) {
-    <Label text="Game Over"/>
+    return (<Label text="Game Over"/>);
 } @else if (health < 20) {
-    <Label text="Low health!"/>
+    return (<Label text="Low health!"/>);
 } @else {
-    <Label text={$"HP: {health}"}/>
+    return (<Label text={$"HP: {health}"}/>);
 }
 ```
 
@@ -214,11 +205,11 @@ type at each child position stable across re-renders.
 ```uitkx
 @switch (mode) {
     @case "fireball":
-        <Label text="Fireball active"/>
+        return (<Label text="Fireball active"/>);
     @case "shield":
-        <Label text="Shield active"/>
+        return (<Label text="Shield active"/>);
     @default:
-        <Label text="No ability"/>
+        return (<Label text="No ability"/>);
 }
 ```
 
@@ -226,9 +217,11 @@ type at each child position stable across re-renders.
 
 ```uitkx
 @foreach (var item in inventory) {
-    <Box key={item.Id}>
-        <Label text={item.Name}/>
-    </Box>
+    return (
+        <Box key={item.Id}>
+            <Label text={item.Name}/>
+        </Box>
+    );
 }
 ```
 
@@ -240,11 +233,10 @@ type at each child position stable across re-renders.
 
 ```uitkx
 @for (int i = 0; i < count; i++) {
-    @if (i % 2 == 0) {
-        <Label text={$"Even: {i}"}/>
-    } @else {
-        <Label text={$"Odd: {i}"}/>
+    if (i % 2 == 0) {
+        return (<Label key={i} text={$"Even: {i}"}/>);
     }
+    return (<Label key={i} text={$"Odd: {i}"}/>);
 }
 ```
 
@@ -253,55 +245,45 @@ type at each child position stable across re-renders.
 ## Typed props + `PropsHelper.Bind`
 
 For components that receive external data (not just internal hooks state), declare
-a props class and pass it under the `"data"` key.
-
-### Props class
-
-```csharp
-// PlayerHUDProps.cs
-public sealed class PlayerHUDProps
-{
-    public int    Health        { get; set; } = 100;
-    public int    MaxHealth     { get; set; } = 100;
-    public string ActiveAbility { get; set; } = "";
-    public IReadOnlyList<InventoryItem> Inventory { get; set; } = new List<InventoryItem>();
-
-    public static readonly PlayerHUDProps Default = new PlayerHUDProps();
-}
-```
+the data as typed component parameters. The source generator derives a matching
+`<Component>Props` class (one PascalCase property per parameter, implementing
+`IProps`) — you do not hand-write it.
 
 ### UITKX component
 
-Extract the typed props in `@code`:
-
 ```uitkx
-@component PlayerHUD
+export VirtualNode PlayerHUD(
+    int health = 100,
+    int maxHealth = 100,
+    string activeAbility = "",
+    IReadOnlyList<InventoryItem> inventory = null) {
 
-@code {
-    var hud = (__rawProps.TryGetValue("data", out var __d) ? __d : null)
-              as PlayerHUDProps ?? PlayerHUDProps.Default;
+    return (
+        <Box>
+            <Label text={$"HP: {health} / {maxHealth}"}/>
+        </Box>
+    );
 }
-
-<Box>
-    <Label text={$"HP: {hud.Health} / {hud.MaxHealth}"}/>
-    ...
-</Box>
 ```
 
+From other `.uitkx` markup, pass the parameters as attributes:
+`<PlayerHUD health={hp} maxHealth={100}/>`.
+
 ### Presenter / MonoBehaviour
+
+From C#, construct the generated `PlayerHUDProps` and pass it to `V.Func`:
 
 ```csharp
 using ReactiveUITK.Props;
 
-// Create props once
+// Create props once (PlayerHUDProps is source-generated from the parameters)
 var props = new PlayerHUDProps { Health = 100, MaxHealth = 100 };
 
-// Bind a Signal<int> — re-renders when the signal fires
+// Bind a Signal<int> — fires onChange whenever the signal value changes
 _disposables.Add(PropsHelper.Bind(
-    propsInstance : props,
-    selector      : (PlayerHUDProps p) => p.Health,
-    signal        : _healthSignal,
-    onChanged     : RequestRender));
+    selector : (PlayerHUDProps p) => p.Health,
+    signal   : _healthSignal,
+    onChange : (propName, value) => { props.Health = value; RequestRender(); }));
 
 // Bind an INotifyPropertyChanged source
 _disposables.Add(PropsHelper.Bind(
@@ -311,8 +293,7 @@ _disposables.Add(PropsHelper.Bind(
     onChange       : (name, value) => { props.Health = (int)value; RequestRender(); }));
 
 // Render
-var node = V.Func(PlayerHUD.Render,
-    new Dictionary<string, object> { { "data", props } });
+var node = V.Func(PlayerHUD.Render, props);
 ```
 
 ---
@@ -341,15 +322,11 @@ file. A mismatch produces `CS0101: The namespace already contains a definition f
 
 ```uitkx
 @foreach (var item in list) {
-    <Box>                    ← UITKX0106 warning — missing key
-        ...
-    </Box>
+    return (<Box> ... </Box>);              ← UITKX0106 warning — missing key
 }
 
 @foreach (var item in list) {
-    <Box key={item.Id}>      ← Correct
-        ...
-    </Box>
+    return (<Box key={item.Id}> ... </Box>);  ← Correct
 }
 ```
 
@@ -363,32 +340,29 @@ Attribute values that are C# expressions must be wrapped in `{ }`:
 <Button onClick={() => setX(1)}/>  ← lambdas also need braces
 ```
 
-### 5. `@code` scope
+### 5. Setup-code scope
 
-Variables declared in `@code` are local to the generated `Render()` method.
-Do not declare instance fields there. For state shared across renders, use
-`Hooks.UseState` or `Hooks.UseRef`.
+Variables declared in the setup section (before `return (...)`) are local to the
+generated `Render()` method. Do not expect them to persist across renders. For state
+shared across renders, use `useState` or `useRef`.
 
-### 6. `__rawProps` vs typed props
+### 6. Parameters, not raw props
 
-Inside a UITKX component the raw dictionary is available as `__rawProps`.
-Access it in `@code` to extract typed props, as shown in the typed-props section above.
-Avoid accessing `__rawProps` directly inside markup expressions — extract into
-a local variable in `@code` first.
+Components receive external data through their declared, typed parameters — there is
+no raw props dictionary to unpack. If a C# consumer needs to pass data, it constructs
+the source-generated `<Component>Props` class (see the typed-props section above).
 
 ---
 
 ## Full example: counter migration
 
-See [UitkxCounterFunc.uitkx](../Samples/Components/UitkxCounterFunc.uitkx) and
-its companion [UitkxCounterFunc.cs](../Samples/Components/UitkxCounterFunc.cs).
+See [UitkxCounterFunc.uitkx](../Samples/Components/UitkxCounterFunc/UitkxCounterFunc.uitkx)
+and [SimpleCounterFunc.uitkx](../Samples/Components/SimpleCounterFunc/SimpleCounterFunc.uitkx).
 
-The original hand-written equivalent is
-[SimpleCounterFunc.cs](../Samples/Components/SimpleCounterFunc.cs).
-
-For a more complete example that covers all directives and typed props, see
-[PlayerHUD.uitkx](../Samples/Components/PlayerHUD.uitkx) and
-[PlayerHUDProps.cs](../Samples/Components/PlayerHUDProps.cs).
+For a complete directive tour see
+[DirectiveSuccessDemo.uitkx](../Samples/Components/DirectiveSuccessDemo/DirectiveSuccessDemo.uitkx);
+for typed props via declared parameters see
+[PropTypesDemoFunc.uitkx](../Samples/Components/PropTypesDemoFunc/PropTypesDemoFunc.uitkx).
 
 ---
 

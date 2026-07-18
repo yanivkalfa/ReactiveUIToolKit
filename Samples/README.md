@@ -6,8 +6,8 @@
 
 Declarative `.uitkx` components demonstrating hooks, fiber behavior,
 and runtime features. Each component has a `.uitkx` file, with optional
-companion `.hooks.uitkx` (hook declarations) and `.style.uitkx`
-(module declarations) files.
+companion `.hooks.uitkx` (hook exports) and `.style.uitkx`
+(style value exports) files imported by the component.
 
 Includes 25+ demos: counters, context, effects, portals, routing,
 signals, synthetic events, keyed diffing, and more.

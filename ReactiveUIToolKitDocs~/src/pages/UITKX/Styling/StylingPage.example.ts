@@ -28,9 +28,12 @@ var panelStyle = new Style {
     MarginBottom = 10f,
 };`
 
-export const EXAMPLE_IMPORT = `@using ReactiveUITK.Props.Typed      // Style (only needed in .cs files)
-@using UnityEngine                    // Color, Vector2, etc.
-// StyleKeys + CssHelpers are auto-imported — no @using needed`
+export const EXAMPLE_IMPORT = `// .uitkx — nothing to import: Style, StyleKeys, CssHelpers, UnityEngine
+// are all in scope automatically.
+
+// .cs — add:
+using ReactiveUITK.Props.Typed;                    // Style
+using static ReactiveUITK.Props.Typed.CssHelpers;  // Pct(), Px(), FlexRow, ...`
 
 export const EXAMPLE_LAYOUT = `var cardStyle = new Style {
     Width = Pct(100),
@@ -157,7 +160,7 @@ Rgba(1f, 0f, 0f, 0.5f)  → Color from 0-1 float values`
 
 export const EXAMPLE_USS_BASIC = `@uss "./Card.uss"
 
-VirtualNode Card() {
+export VirtualNode Card() {
   return (
     <VisualElement>
       <Label text="Styled with USS" className="card-title" />
@@ -181,7 +184,7 @@ VisualElement {
 export const EXAMPLE_USS_MULTIPLE = `@uss "./base.uss"
 @uss "./theme-dark.uss"
 
-VirtualNode ThemedPanel() {
+export VirtualNode ThemedPanel() {
   return (
     <VisualElement className="panel">
       <Label text="Multiple stylesheets applied in order" />
@@ -190,9 +193,8 @@ VirtualNode ThemedPanel() {
 }`
 
 export const EXAMPLE_USS_COMBINED = `@uss "./Card.uss"
-@using static ReactiveUITK.Props.Typed.CssHelpers
 
-VirtualNode Card() {
+export VirtualNode Card() {
   // USS handles static layout, typed Style handles dynamic values
   var highlight = new Style {
       BorderColor = isSelected ? Hex("#00AAFF") : ColorTransparent,

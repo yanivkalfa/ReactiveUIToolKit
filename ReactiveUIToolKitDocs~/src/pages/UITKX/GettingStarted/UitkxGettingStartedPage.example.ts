@@ -1,8 +1,7 @@
 export const UITKX_INSTALL_URL = 'https://github.com/yanivkalfa/ReactiveUIToolKit.git#dist'
 
-export const UITKX_HELLO_WORLD_COMPONENT = `@namespace MyGame.UI
-
-VirtualNode HelloWorld() {
+export const UITKX_HELLO_WORLD_COMPONENT = `// Assets/UI/HelloWorld.uitkx
+export VirtualNode HelloWorld() {
   var (count, setCount) = useState(0);
 
   return (
@@ -18,6 +17,8 @@ export const UITKX_HELLO_WORLD_BOOTSTRAP = `using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK;
 using ReactiveUITK.Core;
+// File-keyed namespace: <prefix>.<folders>.<file stem> for Assets/UI/HelloWorld.uitkx
+using ReactiveUITK.Uitkx.UI.HelloWorld;
 
 public sealed class HelloRuntime : MonoBehaviour
 {
@@ -50,6 +51,7 @@ using UnityEngine.UIElements;
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.EditorSupport;
+using ReactiveUITK.Uitkx.UI.HelloWorld;
 
 public sealed class HelloEditorWindow : EditorWindow
 {

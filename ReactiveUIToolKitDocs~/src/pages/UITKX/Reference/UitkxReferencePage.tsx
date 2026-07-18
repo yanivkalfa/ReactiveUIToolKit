@@ -14,16 +14,15 @@ import {
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import Styles from './UitkxReferencePage.style'
 
-const DIRECTIVE_HEADER_EXAMPLE = `@namespace My.Game.UI
+const DIRECTIVE_HEADER_EXAMPLE = `// LEGACY directive-header form (deprecated — write plain declarations instead)
+@namespace My.Game.UI
 @using System.Collections.Generic
 @component MyButton
 @props MyButtonProps
 @key "root-key"
 @inject ILogger logger`
 
-const FUNCTION_STYLE_EXAMPLE = `@using UnityEngine
-
-VirtualNode Counter(string label = "Count") {
+const FUNCTION_STYLE_EXAMPLE = `export VirtualNode Counter(string label = "Count") {
   var (count, setCount) = useState(0);
 
   return (
@@ -98,8 +97,14 @@ export const UitkxReferencePage: FC = () => (
       Header Directives
     </Typography>
     <Typography variant="body2" paragraph>
-      Header directives appear at the top of a <code>.uitkx</code> file, before
-      any markup. They configure the generated C# class.
+      Header directives appear in the preamble, at the top of a <code>.uitkx</code> file. Two
+      remain current: <code>@using</code> (for which the unified{' '}
+      <code>import &quot;@Ns&quot;</code> spelling is the recommended form — see{' '}
+      <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>) and{' '}
+      <code>@uss</code>. <code>@namespace</code> is an optional interop override (the namespace is
+      file-keyed when omitted). <code>@component</code>, <code>@props</code>, <code>@key</code>,
+      and <code>@inject</code> belong to the <strong>legacy directive-header form</strong>, kept
+      only for un-migrated files — new files use plain <code>export</code> declarations instead.
     </Typography>
     <TableContainer>
       <Table size="small" sx={Styles.table}>
@@ -114,32 +119,37 @@ export const UitkxReferencePage: FC = () => (
           <TableRow>
             <TableCell><code>@namespace</code></TableCell>
             <TableCell><code>@namespace My.Game.UI</code></TableCell>
-            <TableCell>Optional namespace override. If omitted, the namespace is derived from the file&rsquo;s path relative to its owning <code>.asmdef</code> (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>).</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell><code>@component</code></TableCell>
-            <TableCell><code>@component MyButton</code></TableCell>
-            <TableCell>Component class name. Matching it to the filename is a recommended convention (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>), not a compiler-enforced rule.</TableCell>
+            <TableCell>Optional namespace override (interop escape hatch). If omitted, the namespace is file-keyed — derived from the file&rsquo;s folders relative to its owning <code>.asmdef</code> plus its file stem (see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>).</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>@using</code></TableCell>
             <TableCell><code>@using System.Collections.Generic</code></TableCell>
-            <TableCell>Adds a using directive to the generated file. Note: <code>StyleKeys</code> and <code>CssHelpers</code> are auto-imported.</TableCell>
+            <TableCell>Adds a using directive to the generated file. <code>import "@Ns"</code> is the equivalent, recommended spelling. Note: <code>StyleKeys</code>, <code>CssHelpers</code>, <code>System</code>, <code>UnityEngine</code>, and the ReactiveUITK namespaces are auto-imported.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>@props</code></TableCell>
+            <TableCell><code>@uss</code></TableCell>
+            <TableCell><code>@uss "./Card.uss"</code></TableCell>
+            <TableCell>Attaches a USS stylesheet to the file&rsquo;s components (repeatable; applied in order). See <MuiLink component={RouterLink} to="/styling">Styling</MuiLink>.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><code>@component</code> <em>(legacy)</em></TableCell>
+            <TableCell><code>@component MyButton</code></TableCell>
+            <TableCell>Component class name in the deprecated directive-header form. New files declare <code>export VirtualNode MyButton() {'{ … }'}</code> instead.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><code>@props</code> <em>(legacy)</em></TableCell>
             <TableCell><code>@props MyButtonProps</code></TableCell>
-            <TableCell>Props type consumed by the component</TableCell>
+            <TableCell>Props type in the directive-header form. New files declare typed parameters on the component instead.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>@key</code></TableCell>
+            <TableCell><code>@key</code> <em>(legacy)</em></TableCell>
             <TableCell><code>@key "root-key"</code></TableCell>
-            <TableCell>Static key on the root element</TableCell>
+            <TableCell>Static key on the root element (directive-header form).</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>@inject</code></TableCell>
+            <TableCell><code>@inject</code> <em>(legacy)</em></TableCell>
             <TableCell><code>@inject ILogger logger</code></TableCell>
-            <TableCell>Dependency-injected field</TableCell>
+            <TableCell>Dependency-injected field (directive-header form).</TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -151,9 +161,10 @@ export const UitkxReferencePage: FC = () => (
       Function-Style Components
     </Typography>
     <Typography variant="body2" paragraph>
-      Components are plain typed declarations — <code>export VirtualNode Name(...) {'{ ... }'}</code> (the legacy <code>component Name {'{ ... }'}</code> wrapper still parses with a UITKX2320 deprecation warning){' '}
-      syntax with optional typed parameters. They replace the directive-header
-      form for most use cases.
+      Components are plain typed declarations — <code>export VirtualNode Name(...) {'{ ... }'}</code>{' '}
+      with optional typed parameters. The legacy <code>component Name {'{ ... }'}</code> wrapper
+      still parses through the deprecation window, with a <code>UITKX2320</code> warning; the{' '}
+      <code>UitkxMigrateImports --es-modules</code> codemod rewrites it.
     </Typography>
     <TableContainer>
       <Table size="small" sx={Styles.table}>
@@ -173,8 +184,8 @@ export const UitkxReferencePage: FC = () => (
             <TableCell><code>export VirtualNode Name(string text = "default") {'{ ... }'}</code></TableCell>
           </TableRow>
           <TableRow>
-            <TableCell>Preamble <code>@using</code></TableCell>
-            <TableCell>Before the <code>component</code> keyword</TableCell>
+            <TableCell>Preamble imports</TableCell>
+            <TableCell><code>import {'{ X }'} from "./file"</code> / <code>import "@Ns"</code> — before the first declaration</TableCell>
           </TableRow>
           <TableRow>
             <TableCell>Preamble <code>@namespace</code></TableCell>
@@ -399,12 +410,12 @@ var dict = new Dictionary<string, VirtualNode> { { "header", (<Label text="Title
       Rules & Gotchas
     </Typography>
     <Typography component="ul" variant="body2">
-      <li><code>@namespace</code> must appear before <code>@component</code> in directive-header form.</li>
+      <li><code>@namespace</code> must appear before <code>@component</code> in the legacy directive-header form.</li>
       <li>Hook calls must be unconditional at component top level — not inside <code>@if</code>, <code>@foreach</code>, etc.</li>
       <li>Each control block body must wrap its markup in <code>return (...);</code>. Setup code (variable declarations, computations) goes before <code>return</code>. Use <code>return null;</code> to skip rendering.</li>
       <li>Direct children of <code>@foreach</code> need a <code>key</code> attribute for stable reconciliation.</li>
       <li>Components must have a single root element.</li>
-      <li>Naming the file after its component (e.g. <code>MyButton.uitkx</code> for <code>component MyButton</code>) is a recommended convention, not a compiler rule — see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.</li>
+      <li>Naming the file after its component (e.g. <code>MyButton.uitkx</code> for <code>export VirtualNode MyButton()</code>) is a recommended convention, not a compiler rule — see <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.</li>
     </Typography>
   </Box>
 )

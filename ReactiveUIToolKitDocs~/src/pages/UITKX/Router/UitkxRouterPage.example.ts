@@ -1,6 +1,4 @@
-export const UITKX_ROUTER_EXAMPLE = `@using ReactiveUITK.Router
-
-VirtualNode RouterDemo() {
+export const UITKX_ROUTER_EXAMPLE = `export VirtualNode RouterDemo() {
   var navigate = RouterHooks.UseNavigate();
   var (query, setQuery) = RouterHooks.UseSearchParams();
 
@@ -40,6 +38,7 @@ VirtualNode RouterDemo() {
   );
 }
 
+// No export: UsersLayout and UserDetails stay file-private.
 VirtualNode UsersLayout() {
   return (
     <VisualElement>

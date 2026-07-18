@@ -40,17 +40,20 @@ export const CompanionFilesPage: FC = () => (
     </Typography>
     <Typography variant="body1" paragraph>
       Companion files are <strong>optional</strong> <code>.uitkx</code> files that live next to a
-      component using <code>hook</code> and <code>module</code> keywords. Use them to extract
-      reusable state logic, styles, type definitions, or utility functions.
+      component. Each one is an <strong>ordinary module</strong> — a file of plain{' '}
+      <code>export</code> declarations that the component <code>import</code>s. Use them to
+      extract reusable state logic, style values, or utility functions.
     </Typography>
     <Box sx={{ my: 2, p: 2, borderLeft: '4px solid', borderColor: 'primary.main', bgcolor: 'action.hover' }}>
       <Typography variant="body2">
-        <strong>As of 0.7.0</strong>, cross-file references are explicit — a component{' '}
-        <code>import</code>s the hooks and modules it uses, and the file-kind naming rules
-        below (one component per file, <code>.hooks</code>/<code>.style</code> suffixes,
-        filename == component) are now <strong>documentation conventions</strong> rather than
-        compiler-enforced requirements. A single file may declare any mix of components, hooks,
-        and modules. See <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink> for the model, the
+        <strong>As of 0.9.0</strong>, a file IS a module: cross-file references go through
+        explicit <code>import</code>s, and the legacy behaviour where a same-named companion
+        merged into the component&rsquo;s partial class is <strong>deprecated</strong>{' '}
+        (<code>UITKX2107</code>). The file-kind naming rules below (one component per file,{' '}
+        <code>.hooks</code>/<code>.style</code> suffixes, filename == component) are{' '}
+        <strong>documentation conventions</strong> rather than compiler-enforced requirements. A
+        single file may declare any mix of components, hooks, and values. See{' '}
+        <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink> for the model, the
         recommended conventions, and the migration codemod.
       </Typography>
     </Box>
@@ -75,12 +78,13 @@ export const CompanionFilesPage: FC = () => (
         <ListItemText
           primary={
             <>
-              <strong>Namespace</strong> — if the file has an <code>@namespace</code> directive it
-              wins; otherwise the namespace is <strong>derived from the file&rsquo;s path</strong>{' '}
-              relative to its owning <code>.asmdef</code> (e.g.{' '}
-              <code>ReactiveUITK.Uitkx.UI.PlayerCard</code>). A file with a hand-written companion{' '}
-              <code>.cs</code> should carry an explicit <code>@namespace</code> matching it so the
-              two partials merge. See <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.
+              <strong>Namespace</strong> — <strong>file-keyed</strong> by default: derived from
+              the file&rsquo;s folders relative to its owning <code>.asmdef</code> <em>plus its
+              file stem</em> (e.g. <code>ReactiveUITK.Uitkx.UI.PlayerCard.PlayerCard</code>), so
+              every file gets its own namespace. The optional <code>@namespace</code> directive
+              overrides it — useful interop escape hatch when a hand-written partial{' '}
+              <code>.cs</code> must share the generated class&rsquo;s namespace. See{' '}
+              <MuiLink component={RouterLink} to="/imports">Imports &amp; Exports</MuiLink>.
             </>
           }
         />
@@ -89,8 +93,10 @@ export const CompanionFilesPage: FC = () => (
         <ListItemText
           primary={
             <>
-              <strong>Class name</strong> — comes from the <code>component</code> name (the
-              identifier after the <code>component</code> keyword).
+              <strong>Class name</strong> — comes from the component declaration&rsquo;s name
+              (<code>export VirtualNode PlayerCard(...)</code> emits class{' '}
+              <code>PlayerCard</code>). Value/hook/util exports land on a per-file{' '}
+              <code>__Exports</code> container instead.
             </>
           }
         />
@@ -101,8 +107,7 @@ export const CompanionFilesPage: FC = () => (
             <>
               <strong>Accessibility</strong> — an <code>export</code>ed declaration emits a{' '}
               <code>public partial class</code>; without <code>export</code> it is{' '}
-              <code>internal</code> (file-private to its assembly). A same-named companion{' '}
-              <code>module</code> defers to the component&rsquo;s accessibility.
+              <code>internal</code> and invisible to imports (file-private).
             </>
           }
         />
@@ -130,34 +135,34 @@ export const CompanionFilesPage: FC = () => (
         <TableHead>
           <TableRow>
             <TableCell><strong>File</strong></TableCell>
-            <TableCell><strong>Keyword</strong></TableCell>
+            <TableCell><strong>Contains</strong></TableCell>
             <TableCell><strong>Purpose</strong></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           <TableRow>
             <TableCell><code>MyComponent.uitkx</code></TableCell>
-            <TableCell><code>component</code></TableCell>
+            <TableCell><code>export VirtualNode …</code></TableCell>
             <TableCell>UI markup + setup code</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>MyComponent.hooks.uitkx</code></TableCell>
-            <TableCell><code>hook</code></TableCell>
+            <TableCell><code>export (…) useX(…)</code></TableCell>
             <TableCell>Custom hooks — reusable state logic</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>MyComponent.style.uitkx</code></TableCell>
-            <TableCell><code>module</code></TableCell>
+            <TableCell><code>export Style x = …</code></TableCell>
             <TableCell>Style constants, helpers, colours, sizes</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>MyComponent.types.uitkx</code></TableCell>
-            <TableCell><code>module</code></TableCell>
-            <TableCell>Enums, structs, DTOs used by the component</TableCell>
+            <TableCell><code>MyComponentTypes.cs</code></TableCell>
+            <TableCell>ambient C#</TableCell>
+            <TableCell>Enums, structs, DTOs used by the component (nested types have no plain-declaration form)</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>MyComponent.utils.uitkx</code></TableCell>
-            <TableCell><code>module</code></TableCell>
+            <TableCell><code>export string F(…) =&gt; …</code></TableCell>
             <TableCell>Pure helper / formatting functions</TableCell>
           </TableRow>
         </TableBody>
@@ -173,29 +178,30 @@ export const CompanionFilesPage: FC = () => (
       Hooks — reusable state logic
     </Typography>
     <Typography variant="body1" paragraph>
-      Use the <code>hook</code> keyword to extract stateful logic into reusable functions. Hook
-      bodies are pure C# — they can call <code>useState</code>, <code>useEffect</code>,{' '}
-      <code>useMemo</code>, and any other built-in hooks. Use <code>{'-> ReturnType'}</code> to
-      declare the return type:
+      A <code>use</code>-prefixed export is a hook — reusable stateful logic. Hook bodies are
+      pure C# and can call <code>useState</code>, <code>useEffect</code>, <code>useMemo</code>,
+      and any other built-in hooks. The return type leads the declaration, tuple returns
+      included:
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_HOOKS} />
 
     <Typography variant="h5" component="h2" gutterBottom>
-      Modules — styles
+      Style values
     </Typography>
     <Typography variant="body1" paragraph>
-      Use the <code>module</code> keyword to add styles, constants, and helpers to your component.
-      When the module name matches the component name, it extends the component's partial class:
+      Style constants and helpers are plain value exports — the component imports the names it
+      uses. (The legacy behaviour where a same-named <code>module</code> merged into the
+      component&rsquo;s partial class is deprecated, <code>UITKX2107</code>.)
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_STYLES} />
 
     <Typography variant="h5" component="h2" gutterBottom>
-      Modules — type definitions
+      Type definitions
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_TYPES} />
 
     <Typography variant="h5" component="h2" gutterBottom>
-      Modules — utility functions
+      Utility functions
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_UTILS} />
 
@@ -203,8 +209,8 @@ export const CompanionFilesPage: FC = () => (
       Standalone modules
     </Typography>
     <Typography variant="body1" paragraph>
-      Not everything has to be tied to a component. Standalone modules with a unique name are useful
-      for types shared across multiple components:
+      Not everything has to be tied to a component. Any <code>.uitkx</code> file is a module, so
+      shared values can live wherever they read best and be imported from anywhere in the asmdef:
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_STANDALONE} />
 
