@@ -123,14 +123,22 @@
       }
     },
     "default-import-declaration": {
-      "comment": "Default import (ES-modules campaign, G-05): import X from \"./specifier\"",
+      "comment": "Default import + ES combined forms (G-05): import X from, import X, { a as b } from, import X, * as NS from \"./specifier\"",
       "name": "meta.import.default.uitkx",
-      "match": "^(\\s*)(import)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(from)\\s*(\"[^\"]*\")",
+      "match": "^(\\s*)(import)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:,\\s*(?:(\\{)([^}]*)(\\})|(\\*)\\s*(as)\\s+([A-Za-z_][A-Za-z0-9_]*)))?\\s+(from)\\s*(\"[^\"]*\")",
       "captures": {
         "2": { "name": "keyword.control.import.uitkx" },
         "3": { "name": "entity.name.type.uitkx" },
-        "4": { "name": "keyword.control.import.uitkx" },
-        "5": { "name": "string.quoted.double.uitkx" }
+        "5": {
+          "patterns": [
+            { "match": "\\bas\\b", "name": "keyword.control.import.uitkx" },
+            { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "entity.name.type.uitkx" }
+          ]
+        },
+        "8": { "name": "keyword.control.import.uitkx" },
+        "9": { "name": "entity.name.type.uitkx" },
+        "10": { "name": "keyword.control.import.uitkx" },
+        "11": { "name": "string.quoted.double.uitkx" }
       }
     },
     "export-default-declaration": {

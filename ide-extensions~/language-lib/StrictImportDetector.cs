@@ -56,6 +56,9 @@ namespace ReactiveUITK.Language
         // Module. — a module member access.
         private static readonly System.Text.RegularExpressions.Regex s_moduleRe =
             new(@"\b([A-Za-z_][A-Za-z0-9_]*)\s*\.", System.Text.RegularExpressions.RegexOptions.Compiled);
+        // Any identifier — the unused-import scan's reference universe (bare value refs included).
+        private static readonly System.Text.RegularExpressions.Regex s_identRe =
+            new(@"[A-Za-z_][A-Za-z0-9_]*", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         /// <summary>
         /// Detect unimported references in <paramref name="importerFilePath"/>'s code.
@@ -335,8 +338,11 @@ namespace ReactiveUITK.Language
         }
 
         /// <summary>
-        /// UITKX2304 (warning): an imported name never referenced in the file. <paramref name="scannableCode"/>
-        /// is the string/comment-scrubbed setup + markup text. Pure and unit-testable.
+        /// UITKX2304 (error since 0.9.1): an imported binding never referenced in the file — named
+        /// entries, star aliases, and default bindings alike. <paramref name="scannableCode"/>
+        /// is the string/comment-scrubbed FULL file text (line-aligned with the parse: the
+        /// scrub is offset-preserving), so import lines can be excluded from the reference
+        /// universe. Pure and unit-testable.
         /// </summary>
         public static List<Finding> DetectUnusedImports(DirectiveSet directives, string scannableCode)
         {
@@ -344,13 +350,27 @@ namespace ReactiveUITK.Language
             if (directives.Imports.IsDefaultOrEmpty)
                 return findings;
 
+            // Every identifier counts as a reference — new-mode VALUE imports are used as
+            // BARE identifiers (`style={container}`), which the tag/hook-call/dotted scans
+            // used by Detect() never see. Over-approximating "used" is the right direction
+            // for a warning-tier check — EXCEPT on the import lines themselves: a binding
+            // must not count ITSELF (field find: self-counting silenced 2304 entirely).
+            var importLines = new HashSet<int>();
+            foreach (var imp in directives.Imports)
+                importLines.Add(imp.Line);
+
             var referenced = new HashSet<string>(StringComparer.Ordinal);
-            foreach (System.Text.RegularExpressions.Match m in s_tagRe.Matches(scannableCode))
-                referenced.Add(m.Groups[1].Value);
-            foreach (System.Text.RegularExpressions.Match m in s_hookRe.Matches(scannableCode))
-                referenced.Add(m.Groups[1].Value);
-            foreach (System.Text.RegularExpressions.Match m in s_moduleRe.Matches(scannableCode))
-                referenced.Add(m.Groups[1].Value);
+            int scanLine = 1, scanIdx = 0;
+            foreach (System.Text.RegularExpressions.Match m in s_identRe.Matches(scannableCode))
+            {
+                while (scanIdx < m.Index)
+                {
+                    if (scannableCode[scanIdx] == '\n') scanLine++;
+                    scanIdx++;
+                }
+                if (!importLines.Contains(scanLine))
+                    referenced.Add(m.Value);
+            }
 
             foreach (var imp in directives.Imports)
             {
@@ -369,18 +389,45 @@ namespace ReactiveUITK.Language
                     findings.Add(new Finding("UITKX2304", $"unused import `{name}`", imp.Line,
                         Column: nameCol, EndColumn: nameCol >= 0 ? nameCol + name.Length : -1));
                 }
+
+                // Star and default BINDINGS are imports too (field find: an unused `* as X`
+                // or default binding was never flagged — including the default part of a
+                // combined import whose named part is used). The squiggle spans the WHOLE
+                // alias token, located textually on the (line-aligned) import line — the
+                // parse model does not track star/default alias columns.
+                if (imp.IsStar && imp.StarAlias != null && !referenced.Contains(imp.StarAlias))
+                {
+                    int col = FindTokenColumnOnLine(scannableCode, imp.Line, imp.StarAlias);
+                    findings.Add(new Finding("UITKX2304", $"unused import `{imp.StarAlias}`",
+                        imp.Line,
+                        Column: col >= 0 ? col : imp.Column,
+                        EndColumn: col >= 0 ? col + imp.StarAlias.Length : -1));
+                }
+                if (imp.IsDefault && imp.DefaultAlias != null && !referenced.Contains(imp.DefaultAlias))
+                {
+                    int col = FindTokenColumnOnLine(scannableCode, imp.Line, imp.DefaultAlias);
+                    findings.Add(new Finding("UITKX2304", $"unused import `{imp.DefaultAlias}`",
+                        imp.Line,
+                        Column: col >= 0 ? col : imp.Column,
+                        EndColumn: col >= 0 ? col + imp.DefaultAlias.Length : -1));
+                }
             }
 
             return findings;
         }
 
-        /// <summary>Blank C# string/char literals + comments (offset-preserving) so the scan ignores them.</summary>
+        /// <summary>Blank C# string/char literals + comments (offset-preserving) so the scan
+        /// ignores them — EXCEPT interpolation holes: identifiers inside <c>$"{Gap}"</c> are
+        /// real references and must survive the scrub (field find — with 2304 at error tier, a
+        /// binding used only inside an interpolated string would otherwise fail the build).</summary>
         public static string ScrubNonCode(string text)
         {
             var sb = new StringBuilder(text);
             int i = 0;
             while (i < text.Length)
             {
+                if (TryBlankInterpolatedString(text, sb, ref i))
+                    continue;
                 int start = i;
                 if (CSharpLexFacts.TrySkipNonCode(text, ref i, text.Length) && i > start)
                 {
@@ -391,6 +438,100 @@ namespace ReactiveUITK.Language
                 i++;
             }
             return sb.ToString();
+        }
+
+        /// <summary>Blanks an interpolated string's literal text while PRESERVING its
+        /// interpolation-hole contents (offset-preserving). Handles <c>$"…"</c>, <c>$@"…"</c>,
+        /// and <c>@$"…"</c>, the <c>{{</c>/<c>}}</c> escapes, nested braces inside holes, and
+        /// nested plain literals/comments inside holes (blanked recursively). Returns false
+        /// (cursor untouched) when <paramref name="i"/> is not at an interpolated string.</summary>
+        private static bool TryBlankInterpolatedString(string text, StringBuilder sb, ref int i)
+        {
+            int len = text.Length;
+            int start = i;
+            bool verbatim;
+            if (text[i] == '$' && i + 1 < len && text[i + 1] == '"')
+            { verbatim = false; i += 2; }
+            else if (text[i] == '$' && i + 2 < len && text[i + 1] == '@' && text[i + 2] == '"')
+            { verbatim = true; i += 3; }
+            else if (text[i] == '@' && i + 2 < len && text[i + 1] == '$' && text[i + 2] == '"')
+            { verbatim = true; i += 3; }
+            else
+                return false;
+
+            for (int k = start; k < i; k++) sb[k] = ' ';
+
+            int holeDepth = 0;
+            while (i < len)
+            {
+                char c = text[i];
+                if (holeDepth == 0)
+                {
+                    if (c == '{' && i + 1 < len && text[i + 1] == '{')
+                    { sb[i] = ' '; sb[i + 1] = ' '; i += 2; continue; }
+                    if (c == '}' && i + 1 < len && text[i + 1] == '}')
+                    { sb[i] = ' '; sb[i + 1] = ' '; i += 2; continue; }
+                    if (c == '{') { holeDepth = 1; sb[i] = ' '; i++; continue; }
+                    if (c == '"')
+                    {
+                        if (verbatim && i + 1 < len && text[i + 1] == '"')
+                        { sb[i] = ' '; sb[i + 1] = ' '; i += 2; continue; }
+                        sb[i] = ' '; i++; return true;
+                    }
+                    if (!verbatim && c == '\\')
+                    {
+                        sb[i] = ' ';
+                        if (i + 1 < len) sb[i + 1] = ' ';
+                        i += 2; continue;
+                    }
+                    if (!char.IsWhiteSpace(c)) sb[i] = ' ';
+                    i++;
+                }
+                else
+                {
+                    if (c == '{') { holeDepth++; i++; continue; }
+                    if (c == '}') { holeDepth--; if (holeDepth == 0) sb[i] = ' '; i++; continue; }
+                    if (TryBlankInterpolatedString(text, sb, ref i))
+                        continue;
+                    int before = i;
+                    if (CSharpLexFacts.TrySkipNonCode(text, ref i, len) && i > before)
+                    {
+                        for (int k = before; k < i && k < sb.Length; k++)
+                            if (!char.IsWhiteSpace(sb[k])) sb[k] = ' ';
+                        continue;
+                    }
+                    i++;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>0-based column of the first word-boundary occurrence of
+        /// <paramref name="word"/> on 1-based <paramref name="line1"/>; -1 when absent.</summary>
+        private static int FindTokenColumnOnLine(string text, int line1, string word)
+        {
+            int start = 0;
+            for (int l = 1; l < line1; l++)
+            {
+                start = text.IndexOf('\n', start);
+                if (start < 0) return -1;
+                start++;
+            }
+            int end = text.IndexOf('\n', start);
+            if (end < 0) end = text.Length;
+            for (int idx = start; idx < end; )
+            {
+                idx = text.IndexOf(word, idx, end - idx, StringComparison.Ordinal);
+                if (idx < 0) return -1;
+                bool leftOk = idx == 0
+                    || (!char.IsLetterOrDigit(text[idx - 1]) && text[idx - 1] != '_');
+                int after = idx + word.Length;
+                bool rightOk = after >= text.Length
+                    || (!char.IsLetterOrDigit(text[after]) && text[after] != '_');
+                if (leftOk && rightOk) return idx - start;
+                idx = after;
+            }
+            return -1;
         }
 
         /// <summary>1-based line of <paramref name="index"/> in <paramref name="text"/>.</summary>

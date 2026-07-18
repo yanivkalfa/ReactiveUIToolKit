@@ -395,6 +395,32 @@ namespace UitkxLanguageServer.Tests
             Assert.Contains("Pad", names);
         }
 
+        [Fact]
+        public void ImportBraceCompletion_CombinedDefaultForm_SuggestsRemainingExports()
+        {
+            F("SomeOtherName.utils.uitkx",
+                "export int something = 42;\n" +
+                "\n" +
+                "export int getSomething() {\n" +
+                "  return something;\n" +
+                "}\n" +
+                "\n" +
+                "bool isSomethingEven() {\n" +
+                "  return something % 2 == 0;\n" +
+                "}\n" +
+                "\n" +
+                "export default isSomethingEven;\n");
+            string importer = Path.Combine(_uiDir, "Screen.uitkx");
+            string line = "import isSomethingEven, {} from \"./SomeOtherName.utils\"";
+
+            var names = CompletionHandler.GetImportBraceCompletions(
+                importer, line, line.IndexOf('}'));
+
+            Assert.Contains("getSomething", names);
+            Assert.Contains("something", names);
+            Assert.DoesNotContain("isSomethingEven", names);
+        }
+
         // ── PC-7: UITKX2107 surfaces live on the merging legacy module file ─────
 
         [Fact]

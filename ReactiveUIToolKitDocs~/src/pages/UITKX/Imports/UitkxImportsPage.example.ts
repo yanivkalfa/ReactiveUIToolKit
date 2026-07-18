@@ -35,6 +35,8 @@ import * as Tokens from "../shared/Tokens"    // namespace import: Tokens.Gap in
                                               //   <Tokens.Circle /> in markup
 import ScorePanel from "./ScorePanel"         // default import — binds the target's
                                               //   'export default' declaration
+import Fallback, { Card, useDeck } from "./Deck"   // combined: default + named (0.9.1)
+import Fallback2, * as Deck from "./Deck"          // combined: default + namespace
 
 // Export forms compose the same way:
 export int MaxItems = 5;                      // inline export

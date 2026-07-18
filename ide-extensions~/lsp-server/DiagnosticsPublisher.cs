@@ -219,10 +219,9 @@ public sealed class DiagnosticsPublisher
             Code = f.Code,
             // Heuristic findings (hook-call / module member-access scans over C# expression
             // text) are warnings — ambient C# legitimately produces those shapes. Mirrors the
-            // SG pipeline's mapping.
-            Severity = f.Code == "UITKX2304" || f.IsHeuristic
-                ? ParseSeverity.Warning
-                : ParseSeverity.Error,
+            // SG pipeline's mapping. 2304 is ERROR-tier since 0.9.1 (owner decision — the
+            // "used" scan over-approximates, so a firing 2304 is always real).
+            Severity = f.IsHeuristic ? ParseSeverity.Warning : ParseSeverity.Error,
             SourceLine = f.Line,
             // Column span of the offending token (specifier string / imported name / referenced
             // identifier) when tracked; -1 → line-start fallback (a 1-char squiggle at col 0).
@@ -238,7 +237,7 @@ public sealed class DiagnosticsPublisher
                      directives, localPath, scannable, peerExports, s_builtinHooks.Contains))
             diags.Add(ToDiag(f));
 
-        // 2304 — imported name never referenced (warning).
+        // 2304 — imported binding never referenced (error since 0.9.1).
         foreach (var f in StrictImportDetector.DetectUnusedImports(directives, scannable))
             diags.Add(ToDiag(f));
 

@@ -141,7 +141,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
                     ("Tokens.uitkx", "@namespace Toks.Ns\nexport int Gap = 8;\n"),
                     ("Home.uitkx",
                         "import { Gap } from \"./Tokens\"\n" +
-                        "export VirtualNode Home() {\n  return (<VisualElement />);\n}\n"),
+                        "export VirtualNode Home() {\n  return (<Label text={$\"{Gap}\"} />);\n}\n"),
                 },
                 "Home.uitkx");
 
@@ -159,7 +159,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
                     ("Tokens.uitkx", "@namespace Toks.Ns\nexport int Gap = 8;\n"),
                     ("Home.uitkx",
                         "import * as Tokens from \"./Tokens\"\n" +
-                        "export VirtualNode Home() {\n  return (<VisualElement />);\n}\n"),
+                        "export VirtualNode Home() {\n  return (<Label text={$\"{Tokens.Gap}\"} />);\n}\n"),
                 },
                 "Home.uitkx");
 
@@ -176,7 +176,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
                     ("Scoring.uitkx", "@namespace Sco.Ns\nexport string FormatScore(int score) { return \"\"; }\n"),
                     ("Home.uitkx",
                         "import { FormatScore as fmt } from \"./Scoring\"\n" +
-                        "export VirtualNode Home() {\n  return (<VisualElement />);\n}\n"),
+                        "export VirtualNode Home() {\n  return (<Label text={fmt(1)} />);\n}\n"),
                 },
                 "Home.uitkx");
 
@@ -194,7 +194,7 @@ namespace ReactiveUITK.SourceGenerator.Tests
                     ("Tokens.uitkx", "@namespace Toks.Ns\nexport int Gap = 8;\n"),
                     ("Home.uitkx",
                         "import { Gap as Spacing } from \"./Tokens\"\n" +
-                        "export VirtualNode Home() {\n  return (<VisualElement />);\n}\n"),
+                        "export VirtualNode Home() {\n  return (<Label text={$\"{Spacing}\"} />);\n}\n"),
                 },
                 "Home.uitkx");
 

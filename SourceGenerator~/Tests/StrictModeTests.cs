@@ -167,8 +167,12 @@ namespace ReactiveUITK.SourceGenerator.Tests
         [Fact]
         public void ImportedNameReferenced_No2304()
         {
+            // scannableCode is the full, line-aligned file text (import lines are excluded
+            // from the reference universe so bindings can't self-count) — the reference
+            // must sit BELOW the import line, as in a real file.
             var ds = DsWithImports((new[] { "StatusChip" }, "./StatusChip"));
-            var findings = DetectUnusedImports(ds, "<StatusChip />");
+            var findings = DetectUnusedImports(
+                ds, "import { StatusChip } from \"./StatusChip\"\n<StatusChip />");
             Assert.Empty(findings);
         }
 

@@ -471,10 +471,10 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>The name is already imported (from another specifier). Remove the duplicate.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX2304" size="small" color="warning" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell><Chip label="UITKX2304" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Unused import</TableCell>
-            <TableCell>The imported name is never referenced. Remove it.</TableCell>
+            <TableCell>The imported binding (named, <code>* as</code>, or default) is never referenced. Remove it. Error since 0.9.1 — the reference scan over-approximates "used", so this only fires when the binding truly appears nowhere.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX2305" size="small" color="error" variant="outlined" /></TableCell>

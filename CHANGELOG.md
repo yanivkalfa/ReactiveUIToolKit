@@ -6,6 +6,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` â€” the single source of truth for extension releases.
 
+## [0.9.1] - Unreleased
+
+### Added
+
+- **ES combined import forms**: `import Def, { a, b as c } from "./file"` and
+  `import Def, * as X from "./file"` — one declaration carrying the default binding plus
+  the named/namespace surface, exactly as in ES. Parsed, formatted (single canonical
+  line), lowered (default alias/bridge + named payloads + star alias from the one
+  declaration), colored, and duplicate-checked across all parts.
+
+### Changed — UITKX2304 (unused import) is now an ERROR
+
+Severity bump (BREAKING for builds that carried unused imports as warnings): an unused
+imported binding — named, `* as`, or default — now fails the build like the other import
+diagnostics, in the editor and the generator alike. The promotion is safe from false
+positives: the reference scan over-approximates "used" (every identifier outside the
+import lines counts), so a firing 2304 means the binding truly appears nowhere. The
+squiggle now also spans the whole binding token instead of one character.
+
+### Fixed — 0.9.0 F5 field battery
+
+- **Same-name default imports no longer emit an ambiguous binding.** `import
+  isSomethingEven, { getSomething } from …` produced CS0121: the default lowered to a
+  bridge on the consumer's `__Exports` while the named part's container using ALSO exposed
+  the (default-exported, hence public) member — the same name visible twice. A member
+  default whose binding keeps the exported name now lowers to the container using, exactly
+  like a named import; only RENAMED defaults bridge.
+- **Unused star/default bindings are flagged.** `UITKX2304` only ever checked named
+  entries — an unused `* as X` or default binding (including the default part of a
+  combined import) was never reported. All binding forms are checked now, and the
+  reference scan excludes the import lines themselves so a binding can no longer count
+  itself as its own use.
+- **Import-brace completion works in the combined form.** Ctrl+Space inside the braces
+  of `import Def, {} from "./file"` returned nothing (the context check required a bare
+  `import` before `{`); it now recognizes the default-binding prefix and excludes both
+  the default alias and the target's default export from the suggestions.
+- **Imported bindings color by what they bind.** Import-list names all rendered with the
+  grammar's uniform type tint; the semantic-token layer now resolves each import's target
+  and colors every binding by its export kind — components as elements, hooks/utils as
+  functions, values as variables (star aliases as variables; a default binding takes the
+  kind of the default-exported declaration).
+- **Named VALUE imports resolve in the editor.** The LSP's Roslyn workspace only loaded
+  peer `.uitkx` files with legacy hooks/modules — a new-mode member file
+  (`export Style container = …`) never entered the compilation, so its `__Exports` didn't
+  exist and every bare member reference in an importer squiggled CS0103 while the build
+  was clean. Peer inclusion now covers new-mode member files.
+- **False `unused import` (UITKX2304) on used value imports.** The unused-import scan
+  only recognized references shaped like tags, hook calls, or dotted access — a bare
+  value reference (`style={container}`) was invisible. The scan now counts every
+  identifier.
+
+SG suite 1705/1705, LSP suite 152/152. Unity package **0.9.1**; VS Code + VS2022
+extensions **1.5.1**; Rider **1.2.1**.
+
 ## [0.9.0] - 2026-07-18
 
 ### Changed — License: MIT → PolyForm Shield 1.0.0

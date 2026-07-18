@@ -69,16 +69,17 @@ namespace ReactiveUITK.Language.Formatter
                 void EmitImport(ImportDeclaration imp)
                 {
                     // Canonical spellings (U-10): named (with `as` renames preserved), `* as`,
-                    // and default imports — all semicolon-less (the parser tolerates `;` on read).
-                    if (imp.IsStar && imp.StarAlias != null)
-                    {
-                        Ln($"import * as {imp.StarAlias} from \"{imp.Specifier}\"");
-                    }
-                    else if (imp.IsDefault && imp.DefaultAlias != null)
-                    {
-                        Ln($"import {imp.DefaultAlias} from \"{imp.Specifier}\"");
-                    }
-                    else
+                    // default, and the ES COMBINED forms (`import Def, { a } from` /
+                    // `import Def, * as X from`) — all semicolon-less (the parser tolerates
+                    // `;` on read). One declaration = one line; every part prints.
+                    bool isDef = imp.IsDefault && imp.DefaultAlias != null;
+                    bool isStar = imp.IsStar && imp.StarAlias != null;
+                    var pieces = new List<string>(2);
+                    if (isDef)
+                        pieces.Add(imp.DefaultAlias!);
+                    if (isStar)
+                        pieces.Add($"* as {imp.StarAlias}");
+                    if (imp.Names.Length > 0 || (!isDef && !isStar))
                     {
                         bool hasAliases = !imp.Aliases.IsDefaultOrEmpty;
                         var entries = new List<string>(imp.Names.Length);
@@ -87,8 +88,9 @@ namespace ReactiveUITK.Language.Formatter
                             string? alias = hasAliases && ni < imp.Aliases.Length ? imp.Aliases[ni] : null;
                             entries.Add(alias != null ? $"{imp.Names[ni]} as {alias}" : imp.Names[ni]);
                         }
-                        Ln($"import {{ {string.Join(", ", entries)} }} from \"{imp.Specifier}\"");
+                        pieces.Add($"{{ {string.Join(", ", entries)} }}");
                     }
+                    Ln($"import {string.Join(", ", pieces)} from \"{imp.Specifier}\"");
                     has = true;
                 }
 
@@ -96,7 +98,7 @@ namespace ReactiveUITK.Language.Formatter
                     if (!(imp.IsStar && imp.StarAlias != null) && !(imp.IsDefault && imp.DefaultAlias != null))
                         EmitImport(imp);
                 foreach (var imp in directives.Imports)
-                    if (imp.IsStar && imp.StarAlias != null)
+                    if (imp.IsStar && imp.StarAlias != null && !(imp.IsDefault && imp.DefaultAlias != null))
                         EmitImport(imp);
                 foreach (var imp in directives.Imports)
                     if (imp.IsDefault && imp.DefaultAlias != null)
