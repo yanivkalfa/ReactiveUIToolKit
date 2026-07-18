@@ -274,5 +274,72 @@ namespace ReactiveUITK.Language.Diagnostics
         /// nothing to the file. Never emitted by the source generator (a redundant using is a no-op),
         /// never build-breaking.</summary>
         public const string UnusedUsing = "UITKX2317";
+
+        // ── ES-modules family block — UITKX2320–2329 (ES-modules campaign) ────
+        // Codes + messages are identical family-wide (Unreal/Godot/Unity) modulo the
+        // UETKX|GUITKX|UITKX prefix. Harmonized 2026-07-17 to the family-canonical
+        // (Unreal-audited) allocation — see Plans~/ES_MODULES_EXECUTION_PLAN.md §3.1.
+        // Never renumber unilaterally; a family renumber is a STOP AND ASK event.
+
+        /// <summary>``the '{0}' wrapper keyword is deprecated — write a plain 'export' declaration
+        /// (the UitkxMigrateImports --es-modules codemod rewrites it); the wrapper is removed in a
+        /// later minor`` ({0} = <c>component</c> / <c>hook</c> / <c>module</c>). Severity: Warning.</summary>
+        public const string DeprecatedWrapperKeyword = "UITKX2320";
+
+        /// <summary>``'{0}' is 'use'-prefixed but returns VirtualNode — did you mean a component?
+        /// (components are PascalCase and return VirtualNode)``. Severity: Error.</summary>
+        public const string HookReturnsMarkup = "UITKX2321";
+
+        /// <summary>``value export '{0}' cannot infer its type — the initializer must name the type
+        /// ('= new T { … }'); otherwise declare 'export &lt;Type&gt; {0} = …'``. Severity: Error.
+        /// Emitted in Unity (typed dialect); Godot registers this meaning but never emits it
+        /// (recorded family divergence, §3.3).</summary>
+        public const string ValueExportTypeInference = "UITKX2322";
+
+        /// <summary>``{0} names '{1}', which is not a top-level declaration in this file`` ({0} =
+        /// <c>'export default'</c> / <c>'export { … }'</c>). Severity: Error.</summary>
+        public const string ExportOfUndeclaredName = "UITKX2323";
+
+        /// <summary>``'{0}' is already exported — remove the duplicate export``. Severity: Error.</summary>
+        public const string DuplicateExport = "UITKX2324";
+
+        /// <summary>``import alias '{0}' collides with {1} — rename the import`` ({1} = <c>a
+        /// declaration in this file</c> / <c>another import</c>). Severity: Error.</summary>
+        public const string ImportAliasCollision = "UITKX2325";
+
+        /// <summary>``'{0}' has no default export — use a named import: import { {1} } from "{2}"``
+        /// ({0} = target file, {1} = suggested name, {2} = specifier). Severity: Error.</summary>
+        public const string DefaultImportWithoutDefault = "UITKX2326";
+
+        /// <summary>``duplicate 'export default' — a file has at most one default export``.
+        /// Severity: Error.</summary>
+        public const string DuplicateDefaultExport = "UITKX2327";
+
+        // UITKX2328/2329 — reserved (family). Do not allocate.
+
+        // ── Unity-local declaration band — UITKX2107–2110 (ES-modules campaign) ──
+        // Unity-only concerns outside the family band (companion merge, mixed-style
+        // mode ambiguity, migrated-target import gate, hook-rename guard). Emitted
+        // as inline `Code = "UITKX21xx"` strings from DirectiveParser, same
+        // convention as the existing 2100/2105/2106 codes; declared here for the
+        // registry/docs surface only.
+
+        /// <summary>``companion partial-class merging is deprecated — '{0}' merges into '{1}' via
+        /// legacy folder namespaces; migrate the companion set to plain declarations and file
+        /// imports``. Severity: Warning.</summary>
+        public const string DeprecatedCompanionMerge = "UITKX2107";
+
+        /// <summary>``legacy wrapper declarations and plain declarations cannot be mixed in one
+        /// file — the file's first declaration sets its style``. Severity: Error. (Legal-with-
+        /// warnings in Unreal/Godot — recorded family divergence, §3.3.)</summary>
+        public const string MixedDeclarationStyles = "UITKX2108";
+
+        /// <summary>``namespace/default/renamed import of '{0}' requires the target file to use
+        /// plain-declaration syntax — migrate '{1}' first``. Severity: Error.</summary>
+        public const string ImportFormNeedsMigratedTarget = "UITKX2109";
+
+        /// <summary>``renaming hook '{0}' to '{1}' drops the 'use' prefix — hook bindings must stay
+        /// 'use'-prefixed``. Severity: Error.</summary>
+        public const string HookRenameDropsUsePrefix = "UITKX2110";
     }
 }

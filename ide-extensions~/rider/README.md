@@ -2,7 +2,7 @@
 
 Adds language support for `.uitkx` ReactiveUIToolKit component templates in **Rider 2024.1+**.
 
-💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+💬 Join the community on Discord: https://discord.gg/Knedqu4Wyv
 
 ## Features
 
@@ -47,4 +47,6 @@ Requires JDK 17 and a Rider 2024.1 download (handled automatically by
 
 ## License
 
-MIT
+PolyForm Shield 1.0.0 — free to use and to ship inside your own projects and
+commercial games; not to be redistributed or sold as a competing product. Full
+text in the repository's `LICENSE.md`.

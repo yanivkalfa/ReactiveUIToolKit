@@ -1,8 +1,9 @@
 import { NewGameButton } from "../../Components/NewGameButton/NewGameButton"
 import { TopNav } from "../../Components/TopNav/TopNav"
+import { Content, MenuPageWrap, Root } from "./MenuPage.style"
 import "@UnityEngine.UIElements"
 
-export component MenuPage {
+export VirtualNode MenuPage() {
   return (
     <VisualElement style={Root}>
       <VisualElement style={MenuPageWrap}>

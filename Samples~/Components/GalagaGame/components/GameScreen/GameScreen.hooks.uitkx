@@ -1,18 +1,14 @@
-import { GalagaGame } from "../../GalagaGame.style"
-import { GalagaTypes } from "../../GalagaTypes"
 import "@UnityEngine.UIElements"
 import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes"
 import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.C"
 import "@static ReactiveUITK.Samples.Components.GalagaGame.GameLogic"
 import "@GameState = ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.GameState"
 
-export hook useGalagaGame(
-  Ref<VisualElement?> boardRef
-) -> (
+export (
   GameState state,
   Action restart,
   KeyboardEventHandler onKeyDown
-) {
+) useGalagaGame(Ref<VisualElement?> boardRef) {
   var initialState = useMemo(() => Tick.CreateInitialState(), 0);
   var (state, setState) = useState<GameState>(initialState);
   var stateRef = useRef<GameState>(initialState);

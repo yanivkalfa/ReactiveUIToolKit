@@ -3,7 +3,7 @@ import { TreeViewStatefulDemoFunc } from "../../Shared/TreeViewStatefulDemoFunc"
 import "@UnityEngine.UIElements"
 import "@ReactiveUITK.Samples.UITKXShared"
 
-export component TabTreeDemoFunc {
+export VirtualNode TabTreeDemoFunc() {
   var (tabIndex, setTabIndex) = useState(0);
 
   var (treeRows, setTreeRows) = useState(new List<TreeViewRowState>());

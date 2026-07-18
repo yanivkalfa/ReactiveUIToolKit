@@ -1,6 +1,6 @@
 import { ThemeConsumer } from "./ThemeConsumer"
 
-export component MiddleLayer {
+export VirtualNode MiddleLayer() {
   var renderCountRef = useRef<int>(0);
   renderCountRef.Current++;
   var renderCount = renderCountRef.Current;

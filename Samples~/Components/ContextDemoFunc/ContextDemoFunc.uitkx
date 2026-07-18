@@ -1,6 +1,6 @@
 import { ContextConsumer } from "./ContextConsumer"
 
-export component ContextDemoFunc {
+export VirtualNode ContextDemoFunc() {
   var (usePrimaryTheme, setUsePrimaryTheme) = useState(true);
 
   var themeColor = usePrimaryTheme

@@ -1,4 +1,4 @@
-export component WelcomeScreen {
+export VirtualNode WelcomeScreen() {
   var navigate = RouterHooks.UseNavigate();
 
   return (

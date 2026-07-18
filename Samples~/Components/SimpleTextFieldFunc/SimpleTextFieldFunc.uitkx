@@ -1,4 +1,4 @@
-export component SimpleTextFieldFunc {
+export VirtualNode SimpleTextFieldFunc() {
   var (text, setText) = useState("");
 
   return (

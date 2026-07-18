@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.SyntheticEventDemoFunc;
+using ReactiveUITK.Samples.Components.SyntheticEventDemoFunc.SyntheticEventDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

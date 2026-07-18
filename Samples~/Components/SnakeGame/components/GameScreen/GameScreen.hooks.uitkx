@@ -1,15 +1,13 @@
 import "@UnityEngine.UIElements"
 
-export hook useSnakeGame(
-  Ref<VisualElement?> boardRef
-) -> (
+export (
   int score,
   bool gameOver,
   List<(int x, int y)> snake,
   (int x, int y) fruit,
   Action restart,
   KeyboardEventHandler onKeyDown
-) {
+) useSnakeGame(Ref<VisualElement?> boardRef) {
   int gridSize = 15;
   var initialSnake = new List<(int x, int y)> { (7, 7), (6, 7), (5, 7) };
   var rng = useMemo(() => new System.Random(), 0);

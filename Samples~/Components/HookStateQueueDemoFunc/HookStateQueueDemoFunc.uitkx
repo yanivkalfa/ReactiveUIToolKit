@@ -1,4 +1,4 @@
-export component HookStateQueueDemoFunc {
+export VirtualNode HookStateQueueDemoFunc() {
   var (value, setValue) = useState(0);
   var (flushCount, setFlushCount) = useState(0);
   var (logEntries, setLogEntries) = useState(new List<string> { "Click a button to queue multiple state updates." });

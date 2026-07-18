@@ -272,6 +272,13 @@ internal sealed class UitkxClassifier : IClassifier
         "ref",
         "hook",
         "module",
+        // ES-modules campaign (M6): plain-declaration + full-import-surface keywords.
+        // `export`/`from` were previously colored only inside the wrapper-keyword regex
+        // paths; `default` already doubles as the switch label. `component`/`hook`/`module`
+        // stay for the deprecation window.
+        "export",
+        "from",
+        "import",
     };
 
     private ITextSnapshot? _cachedSnapshot;

@@ -2,7 +2,7 @@ import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
 
-export component NestedSection {
+export VirtualNode NestedSection() {
   var (size, setSize) = useState(3);
   var items = new[] { "Alpha", "Beta", "Gamma", "Delta", "Epsilon" };
 

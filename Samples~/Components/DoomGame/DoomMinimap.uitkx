@@ -1,7 +1,7 @@
 import "@UnityEngine.UIElements"
 import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 
-export component DoomMinimap(GameState state) {
+export VirtualNode DoomMinimap(GameState state) {
   const int MAP_PX = 160;
 
   var bgClr = new Color(0.05f, 0.05f, 0.05f, 0.78f);

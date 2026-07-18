@@ -1,19 +1,7 @@
 import { IntroCounterFunc } from "./IntroCounterFunc"
 import "@ReactiveUITK.Samples.UITKXShared"
 
-export component MultiColumnListViewStatefulDemoFunc(
-  IReadOnlyList<MultiColumnListViewRowState>? items = null,
-  List<SortedColumnDef>? sortDefs = null,
-  Dictionary<string, float>? columnWidths = null,
-  Dictionary<string, bool>? columnVisibility = null,
-  Dictionary<string, int>? columnDisplayIndex = null,
-  Action? addItem = null,
-  Action? setTopItem = null,
-  Action? deleteLast = null,
-  ColumnSortEventHandler? onSortChanged = null,
-  ColumnLayoutEventHandler? onLayoutChanged = null,
-  Action<int>? onCountChanged = null
-) {
+export VirtualNode MultiColumnListViewStatefulDemoFunc(IReadOnlyList<MultiColumnListViewRowState>? items = null, List<SortedColumnDef>? sortDefs = null, Dictionary<string, float>? columnWidths = null, Dictionary<string, bool>? columnVisibility = null, Dictionary<string, int>? columnDisplayIndex = null, Action? addItem = null, Action? setTopItem = null, Action? deleteLast = null, ColumnSortEventHandler? onSortChanged = null, ColumnLayoutEventHandler? onLayoutChanged = null, Action<int>? onCountChanged = null) {
   var safeItems = items ?? Array.Empty<MultiColumnListViewRowState>();
 
   List<MultiColumnListViewProps.ColumnDef> BuildColumns() =>

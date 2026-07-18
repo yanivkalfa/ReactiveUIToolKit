@@ -1,7 +1,7 @@
 import { MainMenuLayout } from "./MainMenuLayout"
 import { MainMenuNavigationRow } from "./MainMenuNavigationRow"
 
-export component MainMenuRouterDemoFunc {
+export VirtualNode MainMenuRouterDemoFunc() {
   var rootStyle = new Style {
     (StyleKeys.FlexGrow, 1f),
     (StyleKeys.FlexDirection, "column"),

@@ -1,4 +1,4 @@
-export component HUD(int score, int lives) {
+export VirtualNode HUD(int score, int lives) {
   return (
     <VisualElement
       style={new Style {

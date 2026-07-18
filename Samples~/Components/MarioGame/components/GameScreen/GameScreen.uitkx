@@ -1,4 +1,3 @@
-import { MarioGame } from "../../MarioGame.style"
 import { Block } from "../Block/Block"
 import { Enemy } from "../Enemy/Enemy"
 import { HUD } from "../HUD/HUD"
@@ -9,7 +8,7 @@ import "@UnityEngine.UIElements"
 import "@static Samples.MarioGame.MarioConstants"
 import "@Samples.MarioGame"
 
-export component GameScreen(int restartVersion = 0, Action? onQuit = null) {
+export VirtualNode GameScreen(int restartVersion = 0, Action? onQuit = null) {
   var boardRef = useRef<VisualElement?>(null);
   var (state, restart, onKeyDown) = useMarioGame(boardRef);
 

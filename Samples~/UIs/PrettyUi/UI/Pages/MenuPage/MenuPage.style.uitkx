@@ -1,21 +1,19 @@
 import "@UnityEngine.UIElements"
 
-export module MenuPage {
-  public static readonly Style Root = new Style {
-    FlexGrow = 1f,
-    BackgroundImage = Asset<Texture2D>("../../../Resources/background-01.png"),
-    JustifyContent = JustifyCenter,
-    AlignItems = AlignCenter,
-  };
+export Style Root = new Style {
+  FlexGrow = 1f,
+  BackgroundImage = Asset<Texture2D>("../../../Resources/background-01.png"),
+  JustifyContent = JustifyCenter,
+  AlignItems = AlignCenter,
+};
 
-  public static readonly Style Content = new Style {
-    FlexGrow = 1f,
-    FlexDirection = FlexColumn,
-  };
+export Style Content = new Style {
+  FlexGrow = 1f,
+  FlexDirection = FlexColumn,
+};
 
-  public static readonly Style MenuPageWrap = new Style {
-    FlexDirection = FlexColumn,
-    Height = Pct(80f),
-    Width = Pct(80f),
-  };
-}
+export Style MenuPageWrap = new Style {
+  FlexDirection = FlexColumn,
+  Height = Pct(80f),
+  Width = Pct(80f),
+};

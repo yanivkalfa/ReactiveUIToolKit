@@ -1,18 +1,16 @@
-import { Theme } from "../../Theme"
+import * as Theme from "../../Theme"
 
-export module TopNav {
-  public static readonly Style Bar = new Style {
-    Height = Px(Theme.NavHeight),
-    FlexDirection = FlexRow,
-    AlignItems = AlignCenter,
-    PaddingLeft = 16f,
-    PaddingRight = 16f,
-    BorderBottomWidth = Theme.BorderWidth,
-    BorderBottomColor = Theme.BorderSoft,
-    FlexShrink = 0f,
-  };
+export Style Bar = new Style {
+  Height = Px(Theme.NavHeight),
+  FlexDirection = FlexRow,
+  AlignItems = AlignCenter,
+  PaddingLeft = 16f,
+  PaddingRight = 16f,
+  BorderBottomWidth = Theme.BorderWidth,
+  BorderBottomColor = Theme.BorderSoft,
+  FlexShrink = 0f,
+};
 
-  public static readonly Style ItemSpacing = new Style {
-    MarginRight = 8f,
-  };
-}
+export Style ItemSpacing = new Style {
+  MarginRight = 8f,
+};

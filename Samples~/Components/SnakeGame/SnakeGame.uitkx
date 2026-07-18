@@ -2,7 +2,7 @@ import { GameScreen } from "./components/GameScreen/GameScreen"
 import { Menu } from "./components/Menu/Menu"
 import { WelcomeScreen } from "./components/WelcomeScreen/WelcomeScreen"
 
-export component SnakeGame {
+export VirtualNode SnakeGame() {
   var (restartVersion, setRestartVersion) = useState(0);
 
   return (

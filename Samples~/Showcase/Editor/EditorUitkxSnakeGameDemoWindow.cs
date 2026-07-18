@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.SnakeGame;
+using ReactiveUITK.Samples.Components.SnakeGame.SnakeGame;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

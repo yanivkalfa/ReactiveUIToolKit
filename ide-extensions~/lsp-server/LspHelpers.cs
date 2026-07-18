@@ -47,6 +47,21 @@ internal static class LspHelpers
         return new LspRange(OffsetToPosition(text, start), OffsetToPosition(text, end));
     }
 
+    // ── Plain-declaration head matching ───────────────────────────────────
+
+    /// <summary>
+    /// Regex fragment for the TYPE position of a plain declaration head (ES-modules
+    /// grammar): a dotted/generic/array/nullable identifier type or a tuple type.
+    /// C# statement keywords are excluded, so statement-shaped lines (<c>if (…</c>,
+    /// <c>return foo(…</c>, <c>var c = …</c>, a bare <c>name(…)</c> call) can never
+    /// classify as declarations — a declaration head requires a real type token
+    /// BEFORE the name.
+    /// </summary>
+    internal const string DeclTypePattern =
+        @"(?:(?!(?:if|while|for|foreach|switch|using|return|lock|var|new|else|do|case|throw|await|yield)\b)"
+        + @"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:<(?:[^<>]|<[^<>]*>)*>)?(?:\[[^\]]*\])*\??"
+        + @"|\((?:[^()]|\([^()]*\))*\))";
+
     // ── Word / identifier helpers ─────────────────────────────────────────
 
     public static (string Word, int Start, int End) GetWordAtOffset(string text, int offset)

@@ -1,7 +1,7 @@
 import { Sidebar } from "../../Components/Sidebar/Sidebar"
-import { SidebarItem } from "../../Components/Sidebar/SidebarItem.types"
+import "@SidebarItem = ReactiveUITK.Samples.UIs.PrettyUi.UI.Components.Sidebar.SidebarItem"
 
-export component NewsPageSidebar {
+export VirtualNode NewsPageSidebar() {
   var navigate = RouterHooks.UseNavigate();
   var location = RouterHooks.UseLocation() ?? "/";
 

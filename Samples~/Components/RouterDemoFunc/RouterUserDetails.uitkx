@@ -1,4 +1,4 @@
-export component RouterUserDetails {
+export VirtualNode RouterUserDetails() {
   var match = RouterHooks.UseRouteMatch();
   var query = RouterHooks.UseQuery();
   var navState = RouterHooks.UseNavigationState();

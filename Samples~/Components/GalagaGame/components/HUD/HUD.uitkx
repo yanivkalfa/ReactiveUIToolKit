@@ -1,9 +1,7 @@
-import { GalagaGame } from "../../GalagaGame.style"
-import { GalagaTypes } from "../../GalagaTypes"
 import "@static ReactiveUITK.Samples.Components.GalagaGame.GalagaTypes.C"
 import "@static ReactiveUITK.Samples.Components.GalagaGame.SpriteAtlas"
 
-export component HUD(Texture2D spriteSheet, int score, int lives, int wave) {
+export VirtualNode HUD(Texture2D spriteSheet, int score, int lives, int wave) {
   return (
     <VisualElement style={HudStyles.Container}>
       <Label text={$"SCORE: {score}"} style={HudStyles.Text} />

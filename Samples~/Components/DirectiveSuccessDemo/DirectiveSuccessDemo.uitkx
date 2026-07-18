@@ -7,7 +7,7 @@ import { SetupCodeSection } from "./SetupCodeSection"
 import { SwitchSection } from "./SwitchSection"
 import { WhileSection } from "./WhileSection"
 
-export component DirectiveSuccessDemo {
+export VirtualNode DirectiveSuccessDemo() {
   var (tab, setTab) = useState("if");
   var tabs = new[] { "if", "foreach", "for", "while", "switch", "nested", "setup", "deep" };
 

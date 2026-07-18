@@ -4,6 +4,7 @@ using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Samples.Components.StressTest;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.StressTest.StressTest;
 
 namespace ReactiveUITK.Samples.FunctionalComponents
 {
@@ -27,9 +28,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
             if (uiDocument == null)
             {
-                Debug.LogError(
-                    "RuntimeAppExampleUIBootstrap: UIDocument not assigned"
-                );
+                Debug.LogError("RuntimeAppExampleUIBootstrap: UIDocument not assigned");
                 return;
             }
             rootRenderer.Initialize(uiDocument);

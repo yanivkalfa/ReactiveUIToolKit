@@ -1,4 +1,4 @@
-export component SectionBox {
+export VirtualNode SectionBox() {
   return (
     <VisualElement
       style={new Style {

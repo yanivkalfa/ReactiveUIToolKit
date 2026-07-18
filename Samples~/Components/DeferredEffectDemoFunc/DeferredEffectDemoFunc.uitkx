@@ -1,4 +1,4 @@
-export component DeferredEffectDemoFunc {
+export VirtualNode DeferredEffectDemoFunc() {
   var (commitCount, setCommitCount) = useState(0);
   var (effectCount, setEffectCount) = useState(0);
   var (lastCommitTime, setLastCommitTime) = useState("â€”");

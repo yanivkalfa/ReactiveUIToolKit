@@ -1,0 +1,6 @@
+export Style container = new Style {
+  BackgroundColor = ColorRed,
+  BorderColor = ColorBlack,
+  BorderWidth = 2f,
+  Padding = 10f,
+};

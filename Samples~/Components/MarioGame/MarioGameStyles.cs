@@ -1,0 +1,15 @@
+using UnityEngine;
+using ReactiveUITK.Props.Typed;
+
+namespace ReactiveUITK.Samples.Components.MarioGame {
+  public static class Styles {
+    public static readonly Style Root = new Style {
+      (StyleKeys.Display, "flex"),
+      (StyleKeys.FlexGrow, 1f),
+      (StyleKeys.FlexDirection, "column"),
+      (StyleKeys.BackgroundColor, new Color(0.05f, 0.05f, 0.08f, 1f)),
+      (StyleKeys.AlignItems, "center"),
+      (StyleKeys.JustifyContent, "center"),
+    };
+  }
+}

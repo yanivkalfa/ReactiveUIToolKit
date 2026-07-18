@@ -5,6 +5,7 @@ using ReactiveUITK.Samples.Components.PortalEventScopeDemoFunc;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Samples.Components.PortalEventScopeDemoFunc.PortalEventScopeDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

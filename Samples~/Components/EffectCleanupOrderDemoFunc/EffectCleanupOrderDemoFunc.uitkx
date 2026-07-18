@@ -1,6 +1,6 @@
 import { EffectPanel } from "./EffectPanel"
 
-export component EffectCleanupOrderDemoFunc {
+export VirtualNode EffectCleanupOrderDemoFunc() {
   var (generation, setGeneration) = useState(0);
   // Shared mutable log stored in a ref (mutations don't re-trigger renders).
   var logRef = useRef<List<string>>(new List<string>());

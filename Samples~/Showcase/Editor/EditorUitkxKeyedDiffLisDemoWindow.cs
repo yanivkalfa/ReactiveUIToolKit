@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.KeyedDiffLisDemoFunc;
+using ReactiveUITK.Samples.Components.KeyedDiffLisDemoFunc.KeyedDiffLisDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

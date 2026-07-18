@@ -1,4 +1,4 @@
-export component MainMenuNavigationRow {
+export VirtualNode MainMenuNavigationRow() {
   var navigate = RouterHooks.UseNavigate();
 
   var navRowStyle = new Style {

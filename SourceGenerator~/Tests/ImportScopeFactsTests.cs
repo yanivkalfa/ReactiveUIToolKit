@@ -122,6 +122,98 @@ namespace ReactiveUITK.SourceGenerator.Tests
             // Single-source guard: the SG-side view must BE the language-lib set, not a copy.
             Assert.Same(ImportScopeFacts.ReservedTypeAliases, UitkxPipeline.ReservedTypeAliases);
         }
+
+        // ── New-mode targets (ES-modules campaign, U-03 lowering table) ─────────
+
+        [Fact]
+        public void NewModeTarget_MemberImport_GetsStaticExportsContainer()
+        {
+            F("shared/Scoring.uitkx", "export string FormatScore(int s) { return $\"{s}\"; }\n");
+            string screen = F("screens/Home.uitkx",
+                "import { FormatScore } from \"../shared/Scoring\"\ncomponent Home {\n  return (<Box />);\n}\n");
+
+            Assert.Contains("static ReactiveUITK.Uitkx.shared.Scoring.__Exports", Payloads(screen));
+        }
+
+        [Fact]
+        public void NewModeTarget_HookImport_GetsStaticExportsContainer_NotStemHooks()
+        {
+            F("shared/Countdown.uitkx",
+                "export (int value, Action reset) useCountdown(int start) {\n  return (start, null);\n}\n");
+            string screen = F("screens/Home.uitkx",
+                "import { useCountdown } from \"../shared/Countdown\"\ncomponent Home {\n  return (<Box />);\n}\n");
+
+            var payloads = Payloads(screen);
+            Assert.Contains("static ReactiveUITK.Uitkx.shared.Countdown.__Exports", payloads);
+            Assert.DoesNotContain(payloads, p => p.Contains("CountdownHooks"));
+        }
+
+        [Fact]
+        public void NewModeTarget_ComponentImport_GetsAliasIntoFileKeyedNamespace()
+        {
+            F("widgets/Card.uitkx", "export VirtualNode Card(string title) {\n  return (<Box />);\n}\n");
+            string screen = F("screens/Home.uitkx",
+                "import { Card } from \"../widgets/Card\"\ncomponent Home {\n  return (<Card title=\"x\" />);\n}\n");
+
+            Assert.Contains("Card = ReactiveUITK.Uitkx.widgets.Card.Card", Payloads(screen));
+        }
+
+        [Fact]
+        public void NewModeTarget_ComponentRename_AliasUsesBoundName()
+        {
+            F("widgets/Card.uitkx", "export VirtualNode Card(string title) {\n  return (<Box />);\n}\n");
+            string screen = F("screens/Home.uitkx",
+                "import { Card as Tile } from \"../widgets/Card\"\ncomponent Home {\n  return (<Tile title=\"x\" />);\n}\n");
+
+            var payloads = Payloads(screen);
+            Assert.Contains("Tile = ReactiveUITK.Uitkx.widgets.Card.Card", payloads);
+            Assert.DoesNotContain("Card = ReactiveUITK.Uitkx.widgets.Card.Card", payloads);
+        }
+
+        [Fact]
+        public void NewModeTarget_StarImport_AliasesWholeExportsContainer()
+        {
+            F("shared/Tokens.uitkx", "export int Gap = 8;\nexport int Pad = 4;\n");
+            string screen = F("screens/Home.uitkx",
+                "import * as Tokens from \"../shared/Tokens\"\ncomponent Home {\n  return (<Box />);\n}\n");
+
+            Assert.Contains("Tokens = ReactiveUITK.Uitkx.shared.Tokens.__Exports", Payloads(screen));
+        }
+
+        [Fact]
+        public void NewModeTarget_DefaultComponentImport_AliasesToDefaultName()
+        {
+            F("widgets/Panel.uitkx",
+                "VirtualNode ScorePanel(string t) {\n  return (<Box />);\n}\nexport default ScorePanel;\n");
+            string screen = F("screens/Home.uitkx",
+                "import Panel from \"../widgets/Panel\"\ncomponent Home {\n  return (<Panel t=\"x\" />);\n}\n");
+
+            Assert.Contains("Panel = ReactiveUITK.Uitkx.widgets.Panel.ScorePanel", Payloads(screen));
+        }
+
+        [Fact]
+        public void NewModeTarget_AliasedMemberImport_NoUsing_BridgeIsEmitterSide()
+        {
+            F("shared/Scoring.uitkx", "export string FormatScore(int s) { return $\"{s}\"; }\n");
+            string screen = F("screens/Home.uitkx",
+                "import { FormatScore as fmt } from \"../shared/Scoring\"\ncomponent Home {\n  return (<Box />);\n}\n");
+
+            // Aliased member imports lower to typed bridges (consumer's __Exports, M3 emit) — the
+            // payload list must stay clean of both a static-container line and any alias line.
+            Assert.Empty(Payloads(screen));
+        }
+
+        [Fact]
+        public void NewModeTarget_SameFolder_StillGetsStaticContainer()
+        {
+            // File-keyed namespaces make even same-folder files DIFFERENT namespaces, so the
+            // legacy same-ns skip never suppresses a new-mode member payload.
+            F("screens/Home.style.uitkx", "export Style bg = new Style { };\n");
+            string screen = F("screens/Home.uitkx",
+                "import { bg } from \"./Home.style\"\ncomponent Home {\n  return (<Box />);\n}\n");
+
+            Assert.Contains("static ReactiveUITK.Uitkx.screens.Home_style.__Exports", Payloads(screen));
+        }
     }
 
     /// <summary>

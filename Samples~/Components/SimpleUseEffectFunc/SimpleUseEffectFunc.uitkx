@@ -1,4 +1,4 @@
-export component SimpleUseEffectFunc {
+export VirtualNode SimpleUseEffectFunc() {
   var (message, setMessage) = useState("Waiting...");
 
   useEffect(() => {

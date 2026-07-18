@@ -1,4 +1,54 @@
-﻿## [0.8.2] - 2026-07-16
+﻿## [0.9.0] - 2026-07-18
+
+### Minor - ES modules: a file IS a module
+
+**The wrapper keywords are gone (deprecated).** No more `component X {}`, `hook useX {}`, `module M {}` - you write plain typed declarations and the signature says what it is:
+
+```
+import { FormatTime } from "../Shared/TimeUtils"
+
+export Style container = new Style { Padding = 10f };
+export int MaxItems = 5;
+
+export string FormatScore(int s) { return $"Score: {s}"; }
+
+export (int value, Action reset) useCountdown(int start) { ... }
+
+export VirtualNode ScoreRow(string label) {
+  return ( <Label text={label} style={container} /> );
+}
+export default ScoreRow;
+```
+
+A `VirtualNode` return = component (PascalCase enforced). A `use`-prefixed name = hook. `= initializer` = value. Anything else = util. No `export` = file-private, for real.
+
+**Full ES import surface:** `import { a as b }`, `import * as X` (use `<X.Comp/>` in markup), default imports, and `export { a, b };` lists.
+
+**Every file gets its own namespace** (folder + file stem) - two files in one folder no longer share one, and companion partial-merging is deprecated (`UITKX2107`): a companion's members are imported like anything else.
+
+**Migration is one command:** `UitkxMigrateImports --es-modules` rewrites whole trees - wrappers to plain declarations, modules exploded member-by-member, `import { Module }` becomes `import * as Module` with call sites untouched, companion sets atomically, idempotent. Old syntax still parses this minor with `UITKX2320` warnings; removal comes later. Migrating a file resets its hot-reload state once.
+
+New diagnostics `UITKX2320-2327` + `2107-2110`. Full editor support in all three IDEs (grammar, completions, rename/go-to-def across both syntaxes). Samples fully migrated.
+
+Pre-release audit: four review agents swept the new surface; 50+ findings fixed (parser, hot reload, rename, codemod).
+
+Unity package **0.9.0** + IDE extensions **1.5.0** (VS Code/VS2022), **1.2.0** (Rider).
+
+## [0.8.3] - 2026-07-16
+
+### Patch - a trailing `;` no longer wrecks an import
+
+**If `import { X } from "./file";` blew up your whole file - this is the fix.** That trailing semicolon is the JS-canonical form, and pure muscle memory when the rest of the file is C# - but the file-import reader stopped right after the closing quote. The parser's cursor stalled on the `;`, the preamble loop bailed, and the entire file failed with a misleading `UITKX2105` ("no valid component declaration") plus phantom "single root element" errors on lines that were never markup.
+
+The fix is parity, not a patch: `@using Ns;` and `import "@Ns";` both already consumed to end-of-line - the file-import reader was the one sibling missing that step. Now all three preamble forms tolerate the semicolon, and the formatter re-emits the canonical, semicolon-less line on save.
+
+Bonus: with the parse meltdown gone, a genuinely wrong import gets its real diagnostic - e.g. importing a style-module field (`import { container } from "./X.style"`) now correctly reports `UITKX2301: not exported` instead of nuking the file. (Reminder: same-folder `X.style.uitkx` companions need **no import at all** - their module statics are visible bare, like `style={container}`.)
+
+**HMR - style/module companions hot-reload again.** The module leg of hot reload still emitted under the RAW parsed namespace while everything else moved to the EFFECTIVE one - so in a stamp-less project, a companion's partial class never merged with its component (bare `container` refs failed `CS0103` under HMR while the build was clean) and `.style` edits silently swapped nothing (the static swapper matches types by `FullName`). All namespace threading now goes through the same effective-namespace seam as the build; even a companion file created mid-session hot-compiles - no domain reload. Contract tests pin the seam.
+
+Unity package **0.8.3** + IDE extensions **1.4.4** (bundled LSP carries the same parser). SG suites green.
+
+## [0.8.2] - 2026-07-16
 
 ### Patch — HMR root reload + import parity
 

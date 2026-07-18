@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.HelloWorldFunc;
+using ReactiveUITK.Samples.Components.HelloWorldFunc.HelloWorldFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

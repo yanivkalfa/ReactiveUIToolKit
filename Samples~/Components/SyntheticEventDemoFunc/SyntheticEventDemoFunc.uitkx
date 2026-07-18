@@ -1,4 +1,4 @@
-export component SyntheticEventDemoFunc {
+export VirtualNode SyntheticEventDemoFunc() {
   var (log, setLog) = useState("Click, drag, or scroll inside the panel to inspect normalized synthetic events.");
 
   void UpdateLog(string label, ReactiveEvent evt)

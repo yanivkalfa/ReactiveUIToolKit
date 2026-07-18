@@ -77,31 +77,31 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         var path = request.TextDocument.Uri.GetFileSystemPath();
         if (path != null && path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
         {
-            // Companion .cs changed — store overlay and re-publish diagnostics
-            // for all .uitkx files in the same directory.
+            // Companion .cs changed — store the overlay inline (cheap), then let the
+            // dependent .uitkx files refresh via the debounced revalidation. Publishing
+            // them inline here serialized seconds of analysis into the notification
+            // pipeline and starved queued requests (see ScheduleRevalidation's doc).
             _roslynHost.SetCompanionOverlay(path, text);
-            foreach (var uitkxPath in _roslynHost.FindUitkxFilesForCompanion(path))
-            {
-                var uitkxUri = DocumentUri.FromFileSystemPath(uitkxPath);
-                if (_store.TryGet(uitkxUri, out var uitkxText) && uitkxText != null)
-                    _diagnostics.Publish(uitkxUri, uitkxText, _roslynHost);
-            }
+            _diagnostics.ScheduleRevalidation();
         }
         else
         {
+            // The CHANGED file keeps its immediate synchronous publish — per-keystroke
+            // feedback on the file being edited must not lag behind a debounce.
             _diagnostics.Publish(request.TextDocument.Uri, text, _roslynHost);
 
-            // When a .uitkx peer file changes, invalidate dependent
-            // workspaces and re-publish their diagnostics so stale errors clear.
+            // When a .uitkx peer file changes, invalidate dependent workspaces (cheap
+            // dictionary ops) but refresh their diagnostics via the debounced
+            // revalidation instead of inline — a companion consumed by open files
+            // otherwise turns every keystroke/save into a full dependents re-analysis
+            // INSIDE the notification handler, and a queued textDocument/formatting
+            // (format-on-save) misses the client budget: the edits come back correct
+            // but VS Code has already saved unformatted and drops them.
             if (path != null && path.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
             {
                 var invalidated = _roslynHost.InvalidatePeerDependents(path);
-                foreach (var depPath in invalidated)
-                {
-                    var depUri = DocumentUri.FromFileSystemPath(depPath);
-                    if (_store.TryGet(depUri, out var depText) && depText != null)
-                        _diagnostics.Publish(depUri, depText, _roslynHost);
-                }
+                if (invalidated.Count > 0)
+                    _diagnostics.ScheduleRevalidation();
             }
         }
 

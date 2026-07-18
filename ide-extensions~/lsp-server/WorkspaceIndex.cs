@@ -150,28 +150,31 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         RegexOptions.Compiled | RegexOptions.CultureInvariant
     );
 
-    // Matches function-style component declarations inside a .uitkx file:
-    //   component FooBar {
+    // Matches component declarations inside a .uitkx file, BOTH grammars
+    // (ES-modules campaign, M5):
+    //   component FooBar {                       (legacy wrapper)
+    //   export VirtualNode FooBar(...) {         (plain declaration)
     private static readonly Regex s_uitkxComponentPattern = new(
-        @"^(?:export\s+)?component\s+([A-Z][A-Za-z0-9_]*)",
+        @"^(?:export\s+)?(?:component|(?:global::)?(?:[\w.]+\.)?VirtualNode)\s+([A-Z][A-Za-z0-9_]*)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
     // Extended declaration pattern that also captures the optional parameter list.
     // Group "name" = component name.  Group "params" = raw param list if present.
     //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
+    //   export VirtualNode ShowcaseTopBar(string inputText = "")
     private static readonly Regex s_uitkxDeclPattern = new(
-        @"^(?:export\s+)?component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
+        @"^(?:export\s+)?(?:component|(?:global::)?(?:[\w.]+\.)?VirtualNode)\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
-    // Matches a top-level `module Foo {` or `hook fooBar(` declaration. Used
-    // to flag .uitkx files that contribute symbols (modules/hooks) which
-    // peer .uitkx files anywhere in the workspace may reference by namespace
-    // import. Multiline so `^` matches each logical line start; the directive
-    // grammar prohibits leading whitespace before `module`/`hook` keywords.
+    // Matches a top-level declaration that contributes non-component symbols, BOTH grammars:
+    //   module Foo { / hook fooBar(                       (legacy wrappers)
+    //   export <Type> useX( / export <Type> Name = ...    (plain hook/util/value declarations)
+    // Multiline so `^` matches each logical line start; both grammars prohibit leading
+    // whitespace before a top-level declaration head.
     private static readonly Regex s_uitkxModuleOrHookPattern = new(
-        @"^(?:export\s+)?(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])",
+        @"^(?:export\s+)?(?:module\s+[A-Za-z_]\w*\s*\{|hook\s+[A-Za-z_]\w*\s*[<\(])|^export\s+(?![A-Za-z_]\w*\s+from\b)[\w<>\[\],\s\.\?\(\)]+?\s[A-Za-z_]\w*\s*[=\(]",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -693,7 +696,13 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             string content = File.ReadAllText(filePath);
 
-            bool hasModuleOrHook = s_uitkxModuleOrHookPattern.IsMatch(content);
+            // Blank comments + string/char literals (offset-preserving) before the regex
+            // passes so a declaration-shaped line inside a /* */ block comment can't index
+            // a phantom element. The col-0 anchors stay; the parser below still reads the
+            // ORIGINAL content.
+            string scannable = StrictImportDetector.ScrubNonCode(content);
+
+            bool hasModuleOrHook = s_uitkxModuleOrHookPattern.IsMatch(scannable);
 
             // Exported declarations (import/export grammar): parse with the real directive parser so
             // the `export` flag + hook/module names (which the regex index doesn't capture) are known.
@@ -712,6 +721,15 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 if (!ds.ModuleDeclarations.IsDefaultOrEmpty)
                     foreach (var mod in ds.ModuleDeclarations)
                         if (mod.IsExported) exports.Add((mod.Name, StrictImportDetector.ExportKind.Module));
+                // Plain member declarations (ES-modules campaign, M5): hooks map to the Hook
+                // kind; values/utils map to Module (the closest reference-shape the strict
+                // detector scans — the kind mostly drives import-brace completion + 2305 hints).
+                if (!ds.MemberDeclarations.IsDefaultOrEmpty)
+                    foreach (var mem in ds.MemberDeclarations)
+                        if (mem.IsExported)
+                            exports.Add((mem.Name, mem.Kind == DeclKind.Hook
+                                ? StrictImportDetector.ExportKind.Hook
+                                : StrictImportDetector.ExportKind.Module));
                 if (!ds.Imports.IsDefaultOrEmpty)
                     foreach (var imp in ds.Imports)
                         imports.Add((imp.Specifier, imp.Names.ToArray()));
@@ -732,7 +750,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             }
             finally { _lock.ExitWriteLock(); }
 
-            foreach (Match m in s_uitkxDeclPattern.Matches(content))
+            foreach (Match m in s_uitkxDeclPattern.Matches(scannable))
             {
                 string componentName = m.Groups["name"].Value;
                 if (string.IsNullOrEmpty(componentName))
@@ -740,8 +758,8 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
                 // Find the 1-based line number of the match
                 int lineNumber = 1;
-                for (int i = 0; i < m.Index && i < content.Length; i++)
-                    if (content[i] == '\n')
+                for (int i = 0; i < m.Index && i < scannable.Length; i++)
+                    if (scannable[i] == '\n')
                         lineNumber++;
 
                 // Parse function-style params if present.

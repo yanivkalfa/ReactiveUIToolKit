@@ -1,4 +1,4 @@
-export component ShowcaseFieldsPanel {
+export VirtualNode ShowcaseFieldsPanel() {
   var groupStyle = new Style { (MarginTop, 8f) };
 
   return (

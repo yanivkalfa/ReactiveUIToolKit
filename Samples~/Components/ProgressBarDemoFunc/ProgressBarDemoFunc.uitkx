@@ -1,4 +1,4 @@
-export component ProgressBarDemoFunc {
+export VirtualNode ProgressBarDemoFunc() {
   var (progress, setProgress) = useState(15f);
 
   float Clamp(float v) => Mathf.Clamp(v, 0f, 100f);

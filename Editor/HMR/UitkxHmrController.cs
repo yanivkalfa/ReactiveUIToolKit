@@ -86,9 +86,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             StringComparer.OrdinalIgnoreCase
         );
 
-        // Matches a preamble `import { A, B } from "specifier"` line (single line).
+        // Matches a preamble file-import line (single line), covering the full ES import
+        // surface (ES-modules campaign, G-05): named `import { A, B as C } from "spec"`,
+        // namespace `import * as X from "spec"`, and default `import X from "spec"`. The
+        // namespace-import form `import "@Ns"` has no `from` clause and never matches.
         private static readonly Regex s_importLineRegex = new Regex(
-            @"^\s*import\s*\{[^}]*\}\s*from\s*""([^""]+)""",
+            @"^\s*import\s*(?:\{[^}]*\}|\*\s*as\s+[A-Za-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_]*)\s*from\s*""([^""]+)""",
             RegexOptions.Multiline | RegexOptions.CultureInvariant
         );
 
@@ -525,6 +528,21 @@ namespace ReactiveUITK.EditorSupport.HMR
             int dotIdx = withoutExt.IndexOf('.');
             if (dotIdx > 0)
             {
+                // LEGACY-ONLY redirect (ES-modules campaign, U-07/M4): the companion-merge
+                // model is what makes "compile the parent instead" correct — the companion's
+                // module partial merges into the parent's class. A NEW-MODE (plain-declaration)
+                // file is its own module: compile IT, and let the import reverse-edge fan-out
+                // recompile the parent. The check is content-based (a legacy wrapper keyword at
+                // any line start), not filename-based — the dotted-name convention is shared by
+                // both worlds.
+                try
+                {
+                    string content = File.ReadAllText(uitkxPath);
+                    if (!s_legacyWrapperKeywordRegex.IsMatch(content))
+                        return uitkxPath;
+                }
+                catch { /* unreadable mid-write — fall through to the legacy redirect */ }
+
                 string componentName = withoutExt.Substring(0, dotIdx); // "Foo"
                 string dir = Path.GetDirectoryName(uitkxPath);
                 string parentPath = Path.Combine(dir, componentName + ".uitkx");
@@ -533,6 +551,17 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
             return uitkxPath;
         }
+
+        // A legacy wrapper-keyword declaration head at a line start ([export] component/hook/
+        // module) — the file-mode discriminator ResolveParentComponentFile keys on (mirror of
+        // the parser's first-declaration mode rule, cheap enough for a per-save file event).
+        // The keyword must be followed by an identifier start (`component Foo`) so body text in
+        // a new-mode file (`module.Init();`, `component = Make();`) can never false-classify
+        // the file as legacy and misroute the save to the base file (audit L3).
+        private static readonly Regex s_legacyWrapperKeywordRegex = new Regex(
+            @"^\s*(?:export\s+)?(?:component|hook|module)\s+[A-Za-z_]",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant
+        );
 
         private void ProcessFileChange(string uitkxPath)
         {

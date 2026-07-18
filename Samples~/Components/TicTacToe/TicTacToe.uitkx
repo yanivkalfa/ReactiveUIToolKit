@@ -1,6 +1,7 @@
 import { useTestHomeState } from "./TicTacToe.hooks"
+import { ButtonStyles, ColumnStyles, DetailsStyles, GameWrapperStyles, PlayerTurnLabelStyles, PlayerTurnStyles, RowStyles, containerStyle } from "./TicTacToe.style"
 
-export component TicTacToe {
+export VirtualNode TicTacToe() {
   var (gameStarted, playerTurn, grid, winnerMessage, movesLeft, handleStartGame, handleRestartGame, handleColumnClick) = useTestHomeState();
 
   return (

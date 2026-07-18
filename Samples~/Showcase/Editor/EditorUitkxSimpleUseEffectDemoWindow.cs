@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.SimpleUseEffectFunc;
+using ReactiveUITK.Samples.Components.SimpleUseEffectFunc.SimpleUseEffectFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

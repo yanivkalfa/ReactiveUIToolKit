@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "description": "UITKX element and directive schema for IDE tooling",
   "structuralAttributes": [
     {
@@ -322,7 +322,7 @@
     },
     {
       "name": "component",
-      "description": "Name of the component class (must match the .uitkx filename)."
+      "description": "(deprecated — ES-modules campaign) Name of the component class. Write a plain `export VirtualNode Name(...) { ... }` declaration instead; kept for the deprecation window."
     },
     {
       "name": "using",
@@ -2066,6 +2066,718 @@
       "description": "Invisible wrapper that allows returning multiple root elements.",
       "acceptsChildren": true,
       "attributes": []
+    },
+    "BoundsField": {
+      "propsType": "BoundsFieldProps",
+      "description": "Editor field for a Bounds (center + size) value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "object",
+          "description": "Current value."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "BoundsIntField": {
+      "propsType": "BoundsIntFieldProps",
+      "description": "Editor field for a BoundsInt value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "object",
+          "description": "Current value."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "ColorField": {
+      "propsType": "ColorFieldProps",
+      "description": "Editor color picker field.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "object",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "onChangeCapture",
+          "type": "Action",
+          "description": "Capture-phase callback on value change."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "DoubleField": {
+      "propsType": "DoubleFieldProps",
+      "description": "Editor field for a double value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "double",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "onChangeCapture",
+          "type": "Action",
+          "description": "Capture-phase callback on value change."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "EnumFlagsField": {
+      "propsType": "EnumFlagsFieldProps",
+      "description": "Editor dropdown for a [Flags] enum value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "object",
+          "description": "Current value."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "IMGUIContainer": {
+      "propsType": "IMGUIContainerProps",
+      "description": "Hosts an IMGUI (OnGUI) callback inside UI Toolkit.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "onGUI",
+          "type": "Action",
+          "description": "onGUI (Action)."
+        }
+      ]
+    },
+    "InspectorElement": {
+      "propsType": "InspectorElementProps",
+      "description": "Renders the default inspector for a serialized object (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "target",
+          "type": "object",
+          "description": "target (Object)."
+        }
+      ]
+    },
+    "LongField": {
+      "propsType": "LongFieldProps",
+      "description": "Editor field for a long value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "long",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "onChangeCapture",
+          "type": "Action",
+          "description": "Capture-phase callback on value change."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "MinMaxSlider": {
+      "propsType": "MinMaxSliderProps",
+      "description": "Slider with a draggable min-max range.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "minValue",
+          "type": "float",
+          "description": "Current lower bound of the range."
+        },
+        {
+          "name": "maxValue",
+          "type": "float",
+          "description": "Current upper bound of the range."
+        },
+        {
+          "name": "lowLimit",
+          "type": "float",
+          "description": "Lower limit of the range."
+        },
+        {
+          "name": "highLimit",
+          "type": "float",
+          "description": "Upper limit of the range."
+        }
+      ]
+    },
+    "MultiColumnListView": {
+      "propsType": "MultiColumnListViewProps",
+      "description": "Virtualized list with multiple sortable columns.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "items",
+          "type": "object",
+          "description": "Item source."
+        },
+        {
+          "name": "selectedIndex",
+          "type": "int",
+          "description": "selectedIndex (int?)."
+        },
+        {
+          "name": "fixedItemHeight",
+          "type": "float",
+          "description": "fixedItemHeight (float?)."
+        },
+        {
+          "name": "selection",
+          "type": "object",
+          "description": "selection (SelectionType?)."
+        },
+        {
+          "name": "columns",
+          "type": "object",
+          "description": "Column definitions."
+        },
+        {
+          "name": "sortedColumns",
+          "type": "object",
+          "description": "sortedColumns (List<SortedColumnDef>)."
+        },
+        {
+          "name": "sortingMode",
+          "type": "object",
+          "description": "sortingMode (object)."
+        },
+        {
+          "name": "columnSortingChanged",
+          "type": "Action",
+          "description": "columnSortingChanged (ColumnSortEventHandler)."
+        },
+        {
+          "name": "columnWidths",
+          "type": "object",
+          "description": "columnWidths (Dictionary<string, float>)."
+        },
+        {
+          "name": "columnVisibility",
+          "type": "object",
+          "description": "columnVisibility (Dictionary<string, bool>)."
+        },
+        {
+          "name": "columnDisplayIndex",
+          "type": "object",
+          "description": "columnDisplayIndex (Dictionary<string, int>)."
+        },
+        {
+          "name": "columnLayoutChanged",
+          "type": "Action",
+          "description": "columnLayoutChanged (ColumnLayoutEventHandler)."
+        }
+      ]
+    },
+    "MultiColumnTreeView": {
+      "propsType": "MultiColumnTreeViewProps",
+      "description": "Virtualized tree with multiple sortable columns.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "rootItems",
+          "type": "object",
+          "description": "rootItems (IList)."
+        },
+        {
+          "name": "fixedItemHeight",
+          "type": "float",
+          "description": "fixedItemHeight (float?)."
+        },
+        {
+          "name": "selection",
+          "type": "object",
+          "description": "selection (SelectionType?)."
+        },
+        {
+          "name": "selectedIndex",
+          "type": "int",
+          "description": "selectedIndex (int?)."
+        },
+        {
+          "name": "columns",
+          "type": "object",
+          "description": "Column definitions."
+        },
+        {
+          "name": "expandedItemIds",
+          "type": "object",
+          "description": "expandedItemIds (IList<int>)."
+        },
+        {
+          "name": "stopTrackingUserChange",
+          "type": "bool",
+          "description": "stopTrackingUserChange (bool?)."
+        },
+        {
+          "name": "columnWidths",
+          "type": "object",
+          "description": "columnWidths (Dictionary<string, float>)."
+        },
+        {
+          "name": "columnVisibility",
+          "type": "object",
+          "description": "columnVisibility (Dictionary<string, bool>)."
+        },
+        {
+          "name": "columnDisplayIndex",
+          "type": "object",
+          "description": "columnDisplayIndex (Dictionary<string, int>)."
+        },
+        {
+          "name": "sortedColumns",
+          "type": "object",
+          "description": "sortedColumns (List<SortedColumnDef>)."
+        },
+        {
+          "name": "sortingMode",
+          "type": "object",
+          "description": "sortingMode (object)."
+        },
+        {
+          "name": "columnSortingChanged",
+          "type": "Action",
+          "description": "columnSortingChanged (ColumnSortEventHandler)."
+        },
+        {
+          "name": "columnLayoutChanged",
+          "type": "Action",
+          "description": "columnLayoutChanged (ColumnLayoutEventHandler)."
+        }
+      ]
+    },
+    "ObjectField": {
+      "propsType": "ObjectFieldProps",
+      "description": "Editor field for a UnityEngine.Object reference.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "object",
+          "description": "Current value."
+        },
+        {
+          "name": "objectType",
+          "type": "string",
+          "description": "objectType (string)."
+        },
+        {
+          "name": "allowSceneObjects",
+          "type": "bool",
+          "description": "allowSceneObjects (bool?)."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "PropertyField": {
+      "propsType": "PropertyFieldProps",
+      "description": "Binds and renders a single SerializedProperty (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "target",
+          "type": "object",
+          "description": "target (Object)."
+        },
+        {
+          "name": "bindingPath",
+          "type": "string",
+          "description": "bindingPath (string)."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "description": "Label sub-element props."
+        }
+      ]
+    },
+    "RectField": {
+      "propsType": "RectFieldProps",
+      "description": "Editor field for a Rect value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "object",
+          "description": "Current value."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "RectIntField": {
+      "propsType": "RectIntFieldProps",
+      "description": "Editor field for a RectInt value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "object",
+          "description": "Current value."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "RepeatButton": {
+      "propsType": "RepeatButtonProps",
+      "description": "Button that fires repeatedly while held.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Label text."
+        }
+      ]
+    },
+    "Scroller": {
+      "propsType": "ScrollerProps",
+      "description": "Standalone scrollbar control.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "lowValue",
+          "type": "float",
+          "description": "Minimum value."
+        },
+        {
+          "name": "highValue",
+          "type": "float",
+          "description": "Maximum value."
+        },
+        {
+          "name": "value",
+          "type": "float",
+          "description": "Current value."
+        }
+      ]
+    },
+    "TemplateContainer": {
+      "propsType": "TemplateContainerProps",
+      "description": "Container instantiated from a UXML template.",
+      "acceptsChildren": true,
+      "attributes": []
+    },
+    "ToggleButtonGroup": {
+      "propsType": "ToggleButtonGroupProps",
+      "description": "Group of toggle buttons with single or multi selection.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "int",
+          "description": "Current value."
+        }
+      ]
+    },
+    "Toolbar": {
+      "propsType": "ToolbarProps",
+      "description": "Editor toolbar container (editor only).",
+      "acceptsChildren": true,
+      "attributes": []
+    },
+    "ToolbarBreadcrumbs": {
+      "propsType": "ToolbarBreadcrumbsProps",
+      "description": "Breadcrumb trail inside an editor toolbar (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "items",
+          "type": "object",
+          "description": "Item source."
+        },
+        {
+          "name": "onItem",
+          "type": "Action",
+          "description": "Callback when an item is clicked (index)."
+        }
+      ]
+    },
+    "ToolbarButton": {
+      "propsType": "ToolbarButtonProps",
+      "description": "Button styled for an editor toolbar (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Label text."
+        }
+      ]
+    },
+    "ToolbarMenu": {
+      "propsType": "ToolbarMenuProps",
+      "description": "Dropdown menu button for an editor toolbar (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Label text."
+        },
+        {
+          "name": "populateMenu",
+          "type": "Action",
+          "description": "Callback that appends actions to the dropdown menu."
+        }
+      ]
+    },
+    "ToolbarPopupSearchField": {
+      "propsType": "ToolbarPopupSearchFieldProps",
+      "description": "Search field with a popup menu for an editor toolbar (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "string",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "onChangeCapture",
+          "type": "Action",
+          "description": "Capture-phase callback on value change."
+        }
+      ]
+    },
+    "ToolbarSearchField": {
+      "propsType": "ToolbarSearchFieldProps",
+      "description": "Search field styled for an editor toolbar (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "string",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "onChangeCapture",
+          "type": "Action",
+          "description": "Capture-phase callback on value change."
+        }
+      ]
+    },
+    "ToolbarSpacer": {
+      "propsType": "ToolbarSpacerProps",
+      "description": "Flexible spacer inside an editor toolbar (editor only).",
+      "acceptsChildren": false,
+      "attributes": []
+    },
+    "ToolbarToggle": {
+      "propsType": "ToolbarToggleProps",
+      "description": "Toggle styled for an editor toolbar (editor only).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Label text."
+        },
+        {
+          "name": "value",
+          "type": "bool",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "onChangeCapture",
+          "type": "Action",
+          "description": "Capture-phase callback on value change."
+        }
+      ]
+    },
+    "TwoPaneSplitView": {
+      "propsType": "TwoPaneSplitViewProps",
+      "description": "Container splitting exactly two children with a draggable divider.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "orientation",
+          "type": "string",
+          "description": "horizontal or vertical."
+        },
+        {
+          "name": "fixedPaneIndex",
+          "type": "int",
+          "description": "Index (0 or 1) of the fixed pane."
+        },
+        {
+          "name": "fixedPaneInitialDimension",
+          "type": "float",
+          "description": "Initial size in px of the fixed pane."
+        }
+      ]
+    },
+    "UnsignedIntegerField": {
+      "propsType": "UnsignedIntegerFieldProps",
+      "description": "Editor field for a uint value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "uint",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "UnsignedLongField": {
+      "propsType": "UnsignedLongFieldProps",
+      "description": "Editor field for a ulong value.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "ulong",
+          "description": "Current value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
     }
   },
   "styleKeyValues": {

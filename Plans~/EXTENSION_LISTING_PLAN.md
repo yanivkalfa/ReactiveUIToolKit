@@ -39,12 +39,12 @@ if 1.4.2 went out, bump both to 1.4.3 (listing-only changes still bump — shipp
 | vsixmanifest `<DisplayName>` | `UITKX (Unity - VS2022)` |
 | VS Code body H1 | `# Reactive UI - Unity - VS Code (UITKX)` |
 | VS2022 body H1 (overview-template) | `# Reactive UI - Unity - VS2022 (UITKX)` |
-| package.json `description` | `Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required.` |
-| vsixmanifest `<Description>` | same sentence |
+| package.json `description` | `Syntax highlighting + language intelligence for .uitkx markup (ReactiveUIToolKit for Unity). Completions, hover, diagnostics and formatting from the bundled language server — fully offline, no running Unity editor required. Discord: https://discord.gg/Knedqu4Wyv` |
+| vsixmanifest `<Description>` | same sentence (post-2026-07-16 update: Unity leg appends the Discord link; family parity with Unreal/Godot not yet reconciled). ⚠ HARD LIMIT: VS Marketplace rejects `<Description>` ≥ 280 chars (VsixPub0024, found the hard way in Publish #109) — repo link deliberately NOT in the description (it lives in the dedicated `repository.url`/`<MoreInfo>` fields both marketplaces already display). |
 
 Body structure (both templates, this exact order): H1 → description paragraph(s) →
 `## Features` → `## Requirements` → Changelog section (generated — the template file ENDS
-after Requirements). Keep the Discord link line (`https://discord.gg/QyydtqM3p9`) in the
+after Requirements). Keep the Discord link line (`https://discord.gg/Knedqu4Wyv`) in the
 description block — it is this repo's convention.
 
 **Content rule: PRESERVE existing prose.** The current README's feature bullets
@@ -102,7 +102,7 @@ verbatim; the VS2022 template gets fleshed out to the SAME feature list (it is c
   owner wants matching names there.
 - The lsp-server, grammar, icons, categories.
 
-## §5 Doc upkeep (part of this campaign — this repo has no skills dir)
+## §5 Doc upkeep (part of this campaign; DONE — see also `.claude/skills/changelog/SKILL.md`, which now carries these rules)
 
 Add a **"Marketplace listing surfaces"** section to
 `ide-extensions~/docs/VS2022_PUBLISH_GUIDE.md` carrying the §0 table + the §1 naming scheme +

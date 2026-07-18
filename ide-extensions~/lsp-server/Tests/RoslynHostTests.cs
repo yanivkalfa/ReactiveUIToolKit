@@ -202,6 +202,36 @@ public sealed class RoslynHostTests : IAsyncLifetime
         Assert.NotNull(doc);
     }
 
+    // ── CS1662 state-setter cascade (block-bodied lambda) ─────────────────
+
+    [Fact]
+    public async Task CS1662_StateSetterCascade_InBlockBodiedLambda_IsSuppressed()
+    {
+        // Mirror of the TicTacToe.hooks shape: a curried, BLOCK-BODIED lambda whose
+        // body mixes bare `return;` with value-form state-setter calls. The setter
+        // calls are the suppressed CS1503 sugar; Roslyn then anchors a cascade
+        // CS1662 on the inner lambda's PARAMETER/ARROW tokens only — a span that
+        // can never contain the CS1503, so the mapper's containment check misses
+        // it. The host must drop it via the enclosing-lambda-node check instead.
+        var source =
+            "component Test {\n"
+            + "  var (playerTurn, setPlayerTurn) = useState<string>(\"X\");\n"
+            + "  System.Func<int, System.Action<int>> handleClick = row => col2 => {\n"
+            + "    if (row > 2) {\n"
+            + "      return;\n"
+            + "    }\n"
+            + "    setPlayerTurn(\"O\");\n"
+            + "    setPlayerTurn(prev => prev == \"X\" ? \"O\" : \"X\");\n"
+            + "  };\n"
+            + "  return (\n"
+            + "    <Button text=\"go\" onClick={_ => handleClick(1)(2)}/>\n"
+            + "  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.DoesNotContain(diags, d => d.Diagnostic.Id == "CS1662");
+    }
+
     // ── UITKX0112 data-flow analysis ──────────────────────────────────────
 
     [Fact]

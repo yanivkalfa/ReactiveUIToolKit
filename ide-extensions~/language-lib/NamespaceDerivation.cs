@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace ReactiveUITK.Language
@@ -44,6 +45,36 @@ namespace ReactiveUITK.Language
             var sb = new StringBuilder(root);
             foreach (var seg in segments)
                 sb.Append('.').Append(Sanitize(seg));
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// File-keyed namespace derivation (ES-modules campaign, U-01): identical to
+        /// <see cref="Derive"/> except the file's own (sanitized) module stem is appended as the
+        /// final segment, so every NEW-SYNTAX file gets a namespace unique to itself — two files
+        /// in the same folder no longer share one. <c>Derive</c> itself is UNCHANGED (legacy files
+        /// keep folder-keyed derivation verbatim, deprecation window). <c>fileModuleStem</c> = the
+        /// file name minus its <c>.uitkx</c> extension, sanitized as ONE token (dots inside the
+        /// stem are literal characters here, not segment separators — <c>AppRoot.style</c> →
+        /// <c>AppRoot_style</c>, matching a companion-style filename that used to merge via
+        /// folder-namespace ambience under the legacy model).
+        /// </summary>
+        public static string? DeriveFileModule(
+            string fileAbsolutePath, string? owningAsmdefDirAbsolutePath, string? prefix = null)
+        {
+            if (string.IsNullOrEmpty(owningAsmdefDirAbsolutePath))
+                return null;
+
+            string root = string.IsNullOrEmpty(prefix) ? Root : SanitizeDottedName(prefix!);
+
+            var segments = RelativeDirSegments(fileAbsolutePath, owningAsmdefDirAbsolutePath!);
+            string stem = Path.GetFileNameWithoutExtension(fileAbsolutePath.Replace('\\', '/'));
+            string sanitizedStem = Sanitize(stem);
+
+            var sb = new StringBuilder(root);
+            foreach (var seg in segments)
+                sb.Append('.').Append(Sanitize(seg));
+            sb.Append('.').Append(sanitizedStem);
             return sb.ToString();
         }
 

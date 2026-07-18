@@ -300,6 +300,54 @@ public sealed class DiagnosticsAnalyzerTests
         Assert.False(HasDiag(diags, DiagnosticCodes.UnusedParameter));
     }
 
+    // ── ES-modules campaign (M1 audit item, §1.5): plain-declaration components must
+    // still receive UITKX0107/0111 — DiagnosticsAnalyzer reads d.FunctionReturnEndLine/
+    // FunctionBodyEndLine/FunctionParams off the singular DirectiveSet fields, which the
+    // plain-declaration parser mirrors from the first ComponentDeclaration (parity with the
+    // legacy `component X(...) {...}` path). ──────────────────────────────────────────
+
+    [Fact]
+    public void UITKX0111_UnusedParam_PlainDeclarationComponent()
+    {
+        var source = "export VirtualNode Foo(string name) {\n  return (\n    <Label text=\"static\"/>\n  );\n}";
+        var diags = Analyze(source);
+        Assert.True(HasDiag(diags, DiagnosticCodes.UnusedParameter));
+    }
+
+    [Fact]
+    public void UITKX0111_UsedParam_PlainDeclarationComponent_NoWarning()
+    {
+        var source = "export VirtualNode Foo(string name) {\n  return (\n    <Label text={name}/>\n  );\n}";
+        var diags = Analyze(source);
+        Assert.False(HasDiag(diags, DiagnosticCodes.UnusedParameter));
+    }
+
+    [Fact]
+    public void UITKX0107_UnreachableAfterReturn_PlainDeclarationComponent()
+    {
+        var source = "export VirtualNode Foo() {\n  return (\n    <Label/>\n  );\n  var dead = 1;\n}";
+        var diags = Analyze(source);
+        Assert.True(HasDiag(diags, DiagnosticCodes.UnreachableAfterReturn));
+    }
+
+    [Fact]
+    public void UITKX0013_HookInConditional_PlainDeclarationComponent()
+    {
+        var source =
+            "export VirtualNode Foo() {\n"
+            + "    var (n, setN) = useState(0);\n"
+            + "    return (\n"
+            + "        <Box>\n"
+            + "            @if (n > 0) {\n"
+            + "                <Label text={useState(1).ToString()} />\n"
+            + "            }\n"
+            + "        </Box>\n"
+            + "    );\n"
+            + "}";
+        var diags = Analyze(source);
+        Assert.True(HasDiag(diags, DiagnosticCodes.HookInConditional));
+    }
+
     // ── Severity checks ────────────────────────────────────────────────────
 
     [Fact]

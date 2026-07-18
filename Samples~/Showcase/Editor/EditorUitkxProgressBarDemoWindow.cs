@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.ProgressBarDemoFunc;
+using ReactiveUITK.Samples.Components.ProgressBarDemoFunc.ProgressBarDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

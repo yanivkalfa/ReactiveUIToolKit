@@ -1,4 +1,4 @@
-export component MainMenuSidebar {
+export VirtualNode MainMenuSidebar() {
   var navigate = RouterHooks.UseNavigate();
 
   var sidebarStyle = new Style {

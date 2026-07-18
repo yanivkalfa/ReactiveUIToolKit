@@ -24,8 +24,9 @@ namespace ReactiveUITK.SourceGenerator.Tools
         {
             if (args.Length == 0)
             {
-                Console.Error.WriteLine("usage: UitkxMigrateImports <dir> [--check] [--tidy]");
-                Console.Error.WriteLine("  --tidy  also canonicalize usings: @using X -> import \"@X\", drop baseline-redundant usings");
+                Console.Error.WriteLine("usage: UitkxMigrateImports <dir> [--check] [--tidy] [--es-modules] [--format]");
+                Console.Error.WriteLine("  --tidy        also canonicalize usings: @using X -> import \"@X\", drop baseline-redundant usings");
+                Console.Error.WriteLine("  --es-modules  rewrite wrapper keywords (component/hook/module) to plain declarations (ES-modules campaign)");
                 return 2;
             }
 
@@ -33,6 +34,7 @@ namespace ReactiveUITK.SourceGenerator.Tools
             bool check = args.Contains("--check");
             bool tidy = args.Contains("--tidy");
             bool format = args.Contains("--format");
+            bool esModules = args.Contains("--es-modules");
             if (!Directory.Exists(root))
             {
                 Console.Error.WriteLine($"error: directory not found: {root}");
@@ -69,7 +71,9 @@ namespace ReactiveUITK.SourceGenerator.Tools
                 return check && fmtChanged.Count > 0 ? 1 : 0;
             }
 
-            var changed = UitkxMigrator.Migrate(files, out var errors, tidyUsings: tidy);
+            var changed = esModules
+                ? EsModulesMigrator.Migrate(files, out var errors)
+                : UitkxMigrator.Migrate(files, out errors, tidyUsings: tidy);
 
             foreach (var e in errors)
                 Console.Error.WriteLine($"warn: {e.FilePath}: {e.Message}");

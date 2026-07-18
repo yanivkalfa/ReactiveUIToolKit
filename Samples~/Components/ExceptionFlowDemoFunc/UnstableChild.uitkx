@@ -1,4 +1,4 @@
-export component UnstableChild(bool shouldThrow = false) {
+export VirtualNode UnstableChild(bool shouldThrow = false) {
   if (shouldThrow) {
     throw new System.InvalidOperationException("Simulated child exception.");
   }

@@ -26,6 +26,7 @@
     <!-- Link the codemod core (its own project is a net8.0 Exe) so CodemodTests can
          exercise UitkxMigrator directly without a cross-TFM Exe reference. -->
     <Compile Include="../Tools/UitkxMigrateImports/UitkxMigrator.cs" Link="Tools/UitkxMigrator.cs" />
+    <Compile Include="../Tools/UitkxMigrateImports/EsModulesMigrator.cs" Link="Tools/EsModulesMigrator.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- Use the same Roslyn version so types unify correctly. -->

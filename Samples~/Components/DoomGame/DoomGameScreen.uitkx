@@ -1,19 +1,12 @@
 import { useDoomGame } from "./DoomGameScreen.hooks"
-import { DoomGameScreenLogic } from "./DoomGameScreenLogic"
 import { DoomHUD } from "./DoomHUD"
 import { DoomMinimap } from "./DoomMinimap"
-import { DoomTextures } from "./DoomTextures"
+import * as DoomGameScreenLogic from "./DoomGameScreenLogic"
 import "@UnityEngine.UIElements"
 import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTypes"
 import "@static ReactiveUITK.Samples.Components.DoomGame.DoomTextures"
 
-export component DoomGameScreen(
-  int restartVersion,
-  int level,
-  Difficulty difficulty,
-  Action onExit,
-  Action onNextLevel
-) {
+export VirtualNode DoomGameScreen(int restartVersion, int level, Difficulty difficulty, Action onExit, Action onNextLevel) {
   var viewRef = useRef<VisualElement?>(null);
   var (state, restart, onKeyDown, onPointerMove, onPointerDown, onPointerUp) = useDoomGame(viewRef, level, difficulty);
 

@@ -4,7 +4,7 @@ ReactiveUIToolKit brings a React-like component model to Unity UI Toolkit, with 
 
 👉 Full documentation, guides, and examples: http://reactiveuitoolkit.info/
 
-💬 Join the community on Discord: https://discord.gg/QyydtqM3p9
+💬 Join the community on Discord: https://discord.gg/Knedqu4Wyv
 
 ---
 

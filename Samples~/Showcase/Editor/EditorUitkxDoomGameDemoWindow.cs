@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.DoomGame;
+using ReactiveUITK.Samples.Components.DoomGame.DoomGame;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

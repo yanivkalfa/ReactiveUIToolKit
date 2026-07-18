@@ -4,16 +4,16 @@ This project includes automation tooling for maintaining Unity version compatibi
 
 ## When a New Unity Version is Released
 
-### For AI (Copilot Chat)
+### For AI (Claude Code)
 
-In VS Code, open Copilot Chat and type:
+In Claude Code, invoke the skill:
 
 ```
 /add-unity-version Unity 6.5 (6000.5) has been released
 ```
 
-This runs a structured prompt that walks through discovery, classification, and implementation.
-The prompt is at `.github/prompts/add-unity-version.prompt.md`.
+This runs a structured runbook that walks through discovery, classification, and implementation.
+The skill is at `.claude/skills/add-unity-version/SKILL.md`.
 
 ### For Humans
 
@@ -35,7 +35,7 @@ The prompt is at `.github/prompts/add-unity-version.prompt.md`.
 
 | Path | What | Audience |
 |------|------|----------|
-| `.github/prompts/add-unity-version.prompt.md` | Copilot prompt — full runbook | AI |
+| `.claude/skills/add-unity-version/SKILL.md` | Claude Code skill — full runbook | AI |
 | `automation~/unity-api-diff.ps1` | Assembly diff script (PowerShell) | Both |
 | `automation~/apply-diff-to-schema.mjs` | Patch schema with version annotations from diff | Both |
 | `automation~/diff-reports/` | Generated JSON reports (gitignored) | Both |

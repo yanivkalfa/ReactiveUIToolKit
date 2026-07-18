@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.TabTreeDemoFunc;
+using ReactiveUITK.Samples.Components.TabTreeDemoFunc.TabTreeDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

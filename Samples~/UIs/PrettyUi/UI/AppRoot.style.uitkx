@@ -1,6 +1,4 @@
-export module AppRoot {
-  public static readonly Style Root = new Style {
-    FlexGrow = 1f,
-    Position = PosRelative,
-  };
-}
+export Style Root = new Style {
+  FlexGrow = 1f,
+  Position = PosRelative,
+};

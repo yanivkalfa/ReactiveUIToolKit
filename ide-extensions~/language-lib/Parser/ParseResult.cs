@@ -105,7 +105,25 @@ namespace ReactiveUITK.Language.Parser
         /// <summary>0-based column of the specifier's opening quote (<c>-1</c> = untracked). The full
         /// specifier span is <c>[SpecifierColumn, SpecifierColumn + Specifier.Length + 2)</c> — both
         /// quotes included. For unresolved-specifier (2300/2308/2314) squiggles.</summary>
-        int SpecifierColumn = -1
+        int SpecifierColumn = -1,
+        /// <summary>ES-modules full import surface (G-05). Rename-on-import target, parallel to
+        /// <see cref="Names"/> — <c>null</c> at an index when that name has no <c>as</c> alias
+        /// (<c>import { a as b }</c> → <c>Names[i] == "a"</c>, <c>Aliases[i] == "b"</c>). Empty
+        /// (not length-matched to <see cref="Names"/>) when the file has no aliased named imports —
+        /// callers must guard on <c>Aliases.Length &gt; i</c> before indexing.</summary>
+        ImmutableArray<string?> Aliases = default,
+        /// <summary>True for <c>import * as X from "specifier"</c> (namespace import). When true,
+        /// <see cref="Names"/> is empty and <see cref="StarAlias"/> carries the bound name.</summary>
+        bool IsStar = false,
+        /// <summary>The bound name for a <c>* as X</c> namespace import. <c>null</c> unless
+        /// <see cref="IsStar"/>.</summary>
+        string? StarAlias = null,
+        /// <summary>True for <c>import X from "specifier"</c> (default import). When true,
+        /// <see cref="Names"/> is empty and <see cref="DefaultAlias"/> carries the local binding name.</summary>
+        bool IsDefault = false,
+        /// <summary>The local binding name for a default import. <c>null</c> unless
+        /// <see cref="IsDefault"/>.</summary>
+        string? DefaultAlias = null
     );
 
     // ── Using directive ──────────────────────────────────────────────────────
@@ -180,6 +198,80 @@ namespace ReactiveUITK.Language.Parser
         public int FunctionSetupGapOffset { get; init; } = -1;
         /// <summary>Length of the removed <c>return (…);</c> statement.</summary>
         public int FunctionSetupGapLength { get; init; } = 0;
+        /// <summary>True when <see cref="IsExported"/> was set only by an <c>export { … }</c> list
+        /// or <c>export default</c> marking — no inline <c>export</c> prefix exists in source, so
+        /// the formatter must not synthesize one.</summary>
+        public bool IsExportImplied { get; init; }
+    };
+
+    // ── Plain declaration (ES-modules, U-04) ─────────────────────────────────
+
+    /// <summary>
+    /// Classification of a plain (wrapper-keyword-free) top-level declaration, read from the
+    /// SIGNATURE ALONE at parse time (G-03): a <c>VirtualNode</c> return classifies as
+    /// <see cref="Component"/>; a <c>use</c>-prefixed name classifies as <see cref="Hook"/>; a
+    /// bare <c>= initializer</c> classifies as <see cref="Value"/>; anything else is
+    /// <see cref="Util"/>.
+    /// </summary>
+    public enum DeclKind
+    {
+        Component,
+        Hook,
+        Value,
+        Util
+    }
+
+    /// <summary>
+    /// A single plain <c>export &lt;Type&gt; Name(...) { ... }</c> / <c>export Type Name = ...;</c>
+    /// top-level declaration (ES-modules campaign, U-04). Covers hook/value/util kinds; a
+    /// <c>VirtualNode</c>-returning declaration classifies as <see cref="DeclKind.Component"/> but
+    /// is parsed into <see cref="ComponentDeclaration"/> instead (its body machinery is unchanged
+    /// from the wrapper-keyword form). Legacy <c>hook</c>/<c>module</c> keyword parses keep using
+    /// <see cref="HookDeclaration"/>/<see cref="ModuleDeclaration"/> — this record is new-mode only.
+    /// </summary>
+    public sealed record MemberDeclaration(
+        /// <summary>Declared name.</summary>
+        string Name,
+        /// <summary>Classification read from the signature (G-03).</summary>
+        DeclKind Kind,
+        /// <summary>True when prefixed with <c>export</c>.</summary>
+        bool IsExported,
+        /// <summary>Declared type text: the return type for <see cref="DeclKind.Hook"/>/
+        /// <see cref="DeclKind.Util"/>, or the declared value type for <see cref="DeclKind.Value"/>
+        /// (<c>null</c> when the value uses inference sugar — <c>= new T { ... }</c>).</summary>
+        string? ReturnTypeText,
+        /// <summary>Raw parameter-list text (between the parens), or <c>null</c> for
+        /// <see cref="DeclKind.Value"/> (values have no parameter list).</summary>
+        string? ParamsText,
+        /// <summary>Raw body text: block-body content between <c>{ }</c>, expression-body text
+        /// after <c>=&gt;</c>, or the initializer expression after <c>=</c> for values.</summary>
+        string BodyText,
+        /// <summary>True when written as <c>=&gt; expr;</c> (expression-bodied); false for a
+        /// balanced <c>{ ... }</c> block or a value's <c>= initializer;</c>.</summary>
+        bool IsExpressionBodied,
+        /// <summary>1-based line of the declaration head (the leading <c>export</c>/type token).</summary>
+        int DeclarationLine,
+        /// <summary>0-based column of the NAME token.</summary>
+        int NameColumn,
+        /// <summary>1-based line where the body/initializer begins.</summary>
+        int BodyStartLine,
+        /// <summary>Absolute char offset just after the opening <c>{</c>/<c>=&gt;</c>/<c>=</c>.</summary>
+        int BodyStartOffset,
+        /// <summary>Absolute char offset just before the closing <c>}</c>/<c>;</c>.</summary>
+        int BodyEndOffset
+    )
+    {
+        /// <summary>
+        /// Typed parameters parsed from the head (function-shaped members only; empty for
+        /// <see cref="DeclKind.Value"/>). The raw <c>ParamsText</c> stays authoritative for
+        /// re-emission (formatter); this parsed view feeds the emitters (trampoline param
+        /// lists, delegate types, bridges) exactly like <see cref="HookDeclaration.Params"/>.
+        /// </summary>
+        public ImmutableArray<FunctionParam> Params { get; init; } = ImmutableArray<FunctionParam>.Empty;
+        /// <summary>True when <see cref="IsExported"/> was set only by an <c>export { … }</c> list
+        /// or <c>export default</c> marking — no inline <c>export</c> prefix exists in source, so
+        /// the formatter must not synthesize one.</summary>
+        public bool IsExportImplied { get; init; }
     };
 
     // ── Directive data ────────────────────────────────────────────────────────
@@ -367,6 +459,37 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         public ImmutableArray<ComponentDeclaration> ComponentDeclarations { get; init; }
             = ImmutableArray<ComponentDeclaration>.Empty;
+
+        /// <summary>
+        /// Plain hook/value/util declarations parsed from this file (ES-modules campaign, U-04).
+        /// Empty for legacy-mode files (their hooks/modules stay in <see cref="HookDeclarations"/>/
+        /// <see cref="ModuleDeclarations"/>) and for component-only new-mode files.
+        /// </summary>
+        public ImmutableArray<MemberDeclaration> MemberDeclarations { get; init; }
+            = ImmutableArray<MemberDeclaration>.Empty;
+
+        /// <summary>
+        /// The name bound by <c>export default &lt;Name&gt;;</c>, or <c>null</c> when the file has
+        /// no default export. Must match a declaration in this file (else UITKX2323).
+        /// </summary>
+        public string? DefaultExportName { get; init; } = null;
+
+        /// <summary>
+        /// Names exported via deferred <c>export { a, b };</c> lists, in source order (G-05).
+        /// The matching declarations are ALSO marked <c>IsExported</c>; this list preserves the
+        /// author's chosen spelling so the formatter re-emits the list (at end of file, U-10)
+        /// instead of silently converting to inline <c>export</c> prefixes.
+        /// </summary>
+        public ImmutableArray<string> ExportListNames { get; init; } = ImmutableArray<string>.Empty;
+
+        /// <summary>
+        /// True when the file's first declaration used a legacy wrapper keyword
+        /// (<c>component</c>/<c>hook</c>/<c>module</c>) — U-08. Drives folder-keyed namespace
+        /// derivation, legacy emission, and legacy import payloads for the WHOLE file (mixing
+        /// styles in one file is UITKX2108, Unity-local). A file with no declarations at all is
+        /// new-mode (<c>false</c>).
+        /// </summary>
+        public bool UsesLegacySyntax { get; init; } = false;
     };
 
     // ── Full parse result ─────────────────────────────────────────────────────

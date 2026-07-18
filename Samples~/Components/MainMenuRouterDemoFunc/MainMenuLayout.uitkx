@@ -1,6 +1,6 @@
 import { MainMenuSidebar } from "./MainMenuSidebar"
 
-export component MainMenuLayout {
+export VirtualNode MainMenuLayout() {
   var location = RouterHooks.UseLocationInfo();
 
   var layoutRowStyle = new Style {

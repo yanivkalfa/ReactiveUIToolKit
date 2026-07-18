@@ -2,7 +2,7 @@ import "@System.Threading"
 import "@System.Threading.Tasks"
 import "@ReactiveUITK.Core.Fiber"
 
-export component LatestFeaturesDemoFunc {
+export VirtualNode LatestFeaturesDemoFunc() {
   var defaultItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta" };
 
   var (items, setItems) = useState(new List<string>(new string[] { "Alpha", "Bravo", "Charlie", "Delta" }));

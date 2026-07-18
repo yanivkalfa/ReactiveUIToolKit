@@ -2,7 +2,7 @@ import { SectionBox } from "./SectionBox"
 import { SectionHeading } from "./SectionHeading"
 import { SectionNote } from "./SectionNote"
 
-export component SwitchSection {
+export VirtualNode SwitchSection() {
   var modes = new[] { "normal", "squared", "doubled", "unknown" };
   var (modeIdx, setModeIdx) = useState(0);
   var mode = modes[modeIdx % modes.Length];

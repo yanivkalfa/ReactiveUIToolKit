@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.Components.DeferredEffectDemoFunc;
+using ReactiveUITK.Samples.Components.DeferredEffectDemoFunc.DeferredEffectDemoFunc;
 
 namespace ReactiveUITK.Samples.UITKX.Editor
 {

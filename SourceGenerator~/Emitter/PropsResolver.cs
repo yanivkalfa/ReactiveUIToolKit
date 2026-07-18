@@ -57,9 +57,19 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private static readonly IReadOnlyDictionary<string, TagResolution> s_fallbackMap =
             BuildFallbackMap();
 
+        // ── Import-alias tag maps (ES-modules campaign, U-05/U-03) ────────────
+        // starImportNamespaces: `* as X` binding → target file's effective namespace, so a
+        // dotted tag <X.Comp/> resolves as {ns}.Comp. importAliasTypeMap: bound component
+        // name (default import / `as`-rename) → target metadata type name, so <Tile/> bound
+        // by `import { Card as Tile }` resolves as the target's Card.
+        private readonly IReadOnlyDictionary<string, string> _starImportNamespaces;
+        private readonly IReadOnlyDictionary<string, string> _importAliasTypeMap;
+
         public PropsResolver(
             Compilation compilation,
-            ImmutableArray<PeerComponentInfo>? peerComponents = null
+            ImmutableArray<PeerComponentInfo>? peerComponents = null,
+            IReadOnlyDictionary<string, string>? starImportNamespaces = null,
+            IReadOnlyDictionary<string, string>? importAliasTypeMap = null
         )
         {
             _compilation = compilation;
@@ -69,6 +79,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 p => p,
                 StringComparer.Ordinal
             );
+            _starImportNamespaces = starImportNamespaces
+                ?? System.Collections.Immutable.ImmutableDictionary<string, string>.Empty;
+            _importAliasTypeMap = importAliasTypeMap
+                ?? System.Collections.Immutable.ImmutableDictionary<string, string>.Empty;
             _builtinMap = BuildBuiltinMapFromCompilation(compilation);
         }
 
@@ -377,6 +391,22 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             string lookupTypeName = s_componentTagAliases.TryGetValue(tagName, out var aliased)
                 ? aliased
                 : tagName;
+
+            // ── Import-alias resolution (ES-modules campaign) ────────────────
+            // U-05 dotted tag: <X.Comp/> where X is a `* as X` binding → {targetNs}.Comp.
+            // U-03 bound-name tag: <Tile/> where Tile is a default import or `as`-rename of
+            // a component → the target's metadata type name. An unresolvable dotted head
+            // falls through unchanged into the existing unknown-tag diagnostics path.
+            int tagDot = lookupTypeName.IndexOf('.');
+            if (tagDot > 0 && tagDot < lookupTypeName.Length - 1
+                && _starImportNamespaces.TryGetValue(lookupTypeName.Substring(0, tagDot), out string? starNs))
+            {
+                lookupTypeName = starNs + "." + lookupTypeName.Substring(tagDot + 1);
+            }
+            else if (tagDot < 0 && _importAliasTypeMap.TryGetValue(lookupTypeName, out string? boundFqn))
+            {
+                lookupTypeName = boundFqn;
+            }
 
             string resolvedTypeName = ResolveFuncComponentTypeName(
                 lookupTypeName,
