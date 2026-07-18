@@ -1,4 +1,4 @@
-export int something = 42;
+export int something = 13;
 
 export int getSomething() {
   return something;
