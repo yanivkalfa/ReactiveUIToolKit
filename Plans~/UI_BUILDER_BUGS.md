@@ -74,6 +74,9 @@ the defects AS FOUND; current state lives here.
 | UB-224 | `FIXED` | edit-session overwrite; snapshot now carries its file, 22 out-of-Unity checks |
 | UB-225 | `FIXED` | library refreshes on every graph change, not only on mount |
 | UB-226 | `UNVERIFIED` | union compile wired; owner saw the parent render its children unsaved, wants a clean run |
+| UB-227 | `FIXED` | the union dropped every inlined companion; source and path now travel together |
+| UB-228 | `FIXED` | module-static swap wrote to an arbitrary `hmr_` copy instead of the project type |
+| UB-229 | `FIXED` | hot assembly names repeated after an HMR restart, so `LoadFrom` returned the previous session's assembly |
 
 ---
 
@@ -271,7 +274,7 @@ version still on DISK, which had no parameters and therefore no nested
 `LeftSideProps`. So its freshly built swap was deliberately not referenced and
 the parent compiled against the stale type. That assumption held for as long as
 HMR only ever swapped method bodies; adding a prop to a child became a
-first-class gesture in 0.19.0, so it is now the main path, not an edge.
+first-class gesture in 0.19.1, so it is now the main path, not an edge.
 
 It is also the isolation principle with one seam left in it: the builder rendered
 children from unsaved buffers, but a parent's compile still took each child's
@@ -4032,6 +4035,77 @@ RECOVERY: the owner's four displaced cards were put back by re-keying the
 orphaned entries onto the saved tree (their coordinates were never lost, only
 unaddressable) and the duplicate config deleted. Backup in
 `UserSettings/ReactiveUIToolkit/Builder/.backup-ub220/`.
+---
+
+### UB-227/228/229 — a saved style edit rendered the PREVIOUS colour `FIXED` `HIGH`
+
+Owner report 2026-09-05: edit a style entry, the preview shows the new colour,
+then it reverts. With HMR stopped the preview held; with HMR running, Save put
+the old colour back about two seconds later. The card and the source pane kept
+the NEW value throughout, so this was never an edit being rolled back.
+
+Three independent defects wearing one symptom. Each was found only after the
+compile path was instrumented end to end - what was read, what was emitted, what
+the built assembly actually held, and what the swap wrote where.
+
+**UB-227 — the union dropped the inlined companion.** `ComponentBuildArtifacts`
+tracked inlined companions in two collections: the sources came from the
+emitter's import-target discovery, the paths from a separate same-stem sibling
+scan. Those answer different questions - an IMPORTED module is inlined but is
+not a name-prefixed sibling - so a component whose only companion was an import
+produced one source and ZERO paths. The batch guarded on
+`Sources.Count > 0 && Paths.Count > 0`, so the whole block was skipped and every
+inlined companion vanished from the union with nothing logged. The component
+bound to whatever `__Exports` was already loaded. The single-file path has no
+such guard, which is exactly why the first round rendered correctly and the
+split-assembly rebuild that followed did not.
+
+FIX: one collection of (path, source) pairs, filled by the emitter as it
+inlines. The parallel scan, the positional zip and its "defensive fallback if
+the order assumption above is off" all went with it.
+
+**UB-228 — the module-static swap wrote to the wrong copy.**
+`SwapModuleStatics` copies a fresh module static onto the project-loaded type,
+but `FindProjectType` returned the FIRST assembly in app-domain order with a
+matching name. A session accumulates many copies of one `__Exports`: one per hot
+style compile, plus the copy the builder inlines into every component unit. So
+the new value landed on an arbitrary hot copy while the project type - the one
+the recompiled importer binds to - kept the old one. It counted as a success and
+logged `Module statics re-init: 1`.
+
+FIX: skip `hmr_`-prefixed assemblies, the same test the compiler already uses in
+three other places to exclude its own output.
+
+**UB-229 — the real one.** Read, emit and compile were all verified correct: the
+save wrote 198 bytes, the watcher dispatched 198 bytes, the compiler read 198
+bytes, and the emitted C# said `BackgroundColor = ColorRed`. The freshly loaded
+assembly held grey.
+
+ROOT CAUSE: each hot compile writes `hmr_{name}_{n}.dll` to a FIXED temp
+directory and loads it with `Assembly.LoadFrom`, which returns an ALREADY-LOADED
+assembly of the same identity and ignores the new bytes on disk. An assembly can
+never be unloaded. `_swapCounter` was per-instance and zeroed by `Reset()`, which
+runs on every HMR stop/start - so each restart replayed 1, 2, 3... and the first
+compiles after a restart resolved to the previous session's assemblies.
+
+It reproduced every time only because the owner was restarting HMR between
+attempts. The builder's own compiler instance is never `Reset()`, so its counter
+kept climbing and never collided - which is why "it works with HMR off" was true
+and misleading.
+
+FIX: the counter is static and never reset. Static also removes a latent
+collision between the builder's compiler instance and HMR's, which had separate
+counters over one shared temp directory.
+
+LESSON: three of these are the same shape - two mechanisms that must agree about
+one fact, kept in separate places. Sources vs paths, the swap's target vs the
+importer's binding, the assembly name vs the assembly identity. None of the
+three failed loudly.
+
+TEST DEBT: none of the three is covered. Nothing under `Editor/HMR/` is
+reachable from either suite (the Editor asmdef pulls in `UnityEditor`), which is
+also why they survived this long. Tracked as RT-BLD in `Plans~/REMAINING_WORK.md`.
+
 ### UB-219 — the window ate the menu's Escape `FIXED` `MED`
 
 Owner report 2026-08-26, after UB-217: arrows and Enter work, Escape still does

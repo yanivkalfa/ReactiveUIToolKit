@@ -28,6 +28,13 @@ namespace Ruitk.Builder
             /// <summary>POC ".ctx .mh" inline section header inside the list.</summary>
             public string Header;
 
+            /// <summary>Why this row cannot be picked. Non-null greys the row,
+            /// shows the reason where the detail goes and makes the row inert in
+            /// BOTH activation paths (pointer and keyboard). A row that states why
+            /// it is unavailable beats one that is absent: the reason is usually
+            /// the next thing the user has to do.</summary>
+            public string DisabledReason;
+
             /// <summary>A SUBMENU. The row shows an arrow and opens these beside
             /// it. Honoured by the plain context menu; the searchable menus do not
             /// nest, and a search that could not see past a fold would be a search
@@ -520,9 +527,14 @@ namespace Ruitk.Builder
                     paddingTop = 3f, paddingBottom = 3f,
                 },
             };
-            row.Add(new Label(item.Label) { style = { color = color, flexGrow = 1f } });
-            if (!string.IsNullOrEmpty(item.Detail))
-                row.Add(new Label(item.Detail)
+            bool disabled = !string.IsNullOrEmpty(item.DisabledReason);
+            row.Add(new Label(item.Label)
+            {
+                style = { color = disabled ? BuilderPalette.Dim : color, flexGrow = 1f },
+            });
+            string detail = disabled ? item.DisabledReason : item.Detail;
+            if (!string.IsNullOrEmpty(detail))
+                row.Add(new Label(detail)
                 {
                     style = { color = new Color(0.55f, 0.55f, 0.59f), fontSize = 10f },
                 });
@@ -530,6 +542,10 @@ namespace Ruitk.Builder
             row.RegisterCallback<PointerDownEvent>(evt =>
             {
                 evt.StopPropagation();
+                // Inert, and the menu STAYS OPEN - closing on a dead row reads as
+                // "that worked" when nothing happened.
+                if (disabled)
+                    return;
                 if (submitsName)
                 {
                     SubmitName();

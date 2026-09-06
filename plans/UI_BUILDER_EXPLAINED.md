@@ -312,9 +312,19 @@ L2 and a floating editor opens over it, seeded with the current text.
   modules actually ended up, so the string surgery only has to be right about
   names, not paths.
 - **Delete** — refused while another module imports it, naming the referrers.
+- **Copy namespace / Copy mount snippet** — the C# namespace the module
+  compiles into, or that plus the render call, for pasting into a host script.
+  Computed from the module's PATH through the same `EffectiveNamespace` call the
+  generator and the language server make, so an unsaved module answers with the
+  namespace it WILL compile into. A module created before a folder was chosen
+  has no answer — it sits under the provisional `~` root the asset database
+  ignores — and the rows are greyed with that reason rather than inventing one.
+- **Names are checked against C# reserved keywords**, for modules and props
+  alike, because both are emitted verbatim into generated code. Case-sensitive,
+  like C#: `new` is refused and `New` is not.
 
 ### 7.6 Props (the signature row)
-Added in 0.19.0. Click the signature or use **Props…**:
+Added in 0.19.1. Click the signature or use **Props…**:
 
 - **Add** — searchable type menu (types the tree already uses, then common ones,
   then free text) → name → required or default. A required prop is inserted
@@ -424,6 +434,43 @@ round forces a full rebuild.
 If the union declines (parse failure, duplicate namespace+name, Roslyn error) the
 per-file path runs instead, because that is what surfaces the real error.
 
+### 9.4b Companion modules are INLINED, and the pairing is structural
+A style/hook/util module a component imports is emitted into the component's own
+compile unit as a per-file `__Exports` container, because the assembly holding
+the saved copy is stale by construction while the builder holds a live buffer.
+
+The batch dedupes those inlines so a module imported by two components in one
+round is emitted once. That dedupe must key on **the path the emitter actually
+inlined**, carried alongside its source. It used to key on a separate same-stem
+sibling scan, which answers a different question — an IMPORTED module is inlined
+but is not a name-prefixed sibling — so a component whose only companion was an
+import produced one source and zero paths, a count guard failed, and every
+inlined companion was silently dropped from the union. The component then bound
+to whatever `__Exports` was already loaded and rendered the PREVIOUS value,
+while the single-file path, which has no such guard, rendered correctly.
+
+### 9.4c A hot assembly's identity is its file path
+Each hot compile writes `hmr_{name}_{n}.dll` to a FIXED temp directory and loads
+it with `Assembly.LoadFrom`. **`LoadFrom` returns an already-loaded assembly of
+the same identity and ignores the new bytes on disk**, and an assembly can never
+be unloaded. So any counter value reused inside one app domain resolves to the
+STALE assembly — with a correct read, a correct emit and a successful compile.
+
+The counter is therefore **static and never reset**. It used to be per-instance
+and zeroed when HMR stopped, so every HMR restart replayed 1, 2, 3… and the
+first compiles after a restart loaded the previous session's assemblies. Static
+also keeps the builder's compiler instance from colliding with HMR's, which was
+the same defect waiting on a coincidence between two counters.
+
+Two rules follow, and they are cheap to violate:
+- a hot assembly name must be unique for the life of the app domain, not the
+  life of a session;
+- `SwapModuleStatics` copies a fresh module static onto the PROJECT-loaded type,
+  so its type lookup must skip `hmr_` assemblies. A session accumulates many
+  copies of the same `__Exports`, and writing to an arbitrary one counts as a
+  success while the type the recompiled importer actually binds to keeps the old
+  value.
+
 ### 9.5 Language version
 The hot compile pins to the version Unity reports via `CompilationPipeline`
 (C# 9.0 on Unity 6), not `latest`. A preview that accepts more than the compiler
@@ -451,7 +498,7 @@ Three tiers, merged in the source pane:
 | Tier | Source | Examples |
 |---|---|---|
 | **T1** | The parser | unclosed tag, bad expression |
-| **T2** | The shared analyzer | UITKX0105 unknown element, 0109 unknown attribute, 0111 unused parameter, **0115 missing required prop** |
+| **T2** | The shared analyzer | UITKX0105 unknown element, 0109 unknown attribute, 0111 unused parameter, **0115 missing required prop**, **2114 export named a C# keyword** |
 | **T3** | Roslyn, via the language server | CS errors in C# expressions |
 
 T2 needs to know what exists: the **known-element set** and the **attribute
@@ -491,6 +538,13 @@ once, then moves the pending modules there before writing.
 6. **A gesture is one undo entry** — never half.
 7. **Silence is a bug.** A refusal, a fall-through, a declined union, a skipped
    module: each says so.
+8. **A hot assembly name is unique for the life of the app domain** — never for
+   the life of a session. `Assembly.LoadFrom` resolves a repeated identity to the
+   already-loaded assembly and discards the new bytes.
+9. **Two collections that must agree are one collection.** Where a source and
+   its path, or a value and its target, have to line up, they are produced
+   together — never rediscovered by a second mechanism answering a similar
+   question.
 
 ---
 
@@ -509,6 +563,9 @@ Useful because they recur, and because they are what a newcomer reinvents.
 | Parent won't compile against a child's new prop (UB-226) | The compile asked "is this child new?" when the question was "has its shape changed?" |
 | Preview accepted code Unity rejected | Hot compile at `-langversion:latest`. |
 | Every click rebuilt everything | Non-component modules counted in the same-assembly check, so the closure looked permanently split. |
+| A saved style edit rendered the PREVIOUS colour, only with HMR running | The hot assembly counter reset on every HMR stop/start, so `Assembly.LoadFrom` returned the previous session's assembly for the same file name. Read, emit and compile were all correct. |
+| The same edit reverted a second after the preview showed it | The union dropped the inlined companion because the source list and the path list were built by two different mechanisms. |
+| A module static swapped "successfully" and changed nothing | The project-type lookup returned the first assembly in app-domain order, which by then was one of many `hmr_` copies. |
 
 ---
 
