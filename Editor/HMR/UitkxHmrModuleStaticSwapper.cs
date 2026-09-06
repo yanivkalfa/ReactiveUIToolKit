@@ -334,6 +334,19 @@ namespace Ruitk.EditorSupport.HMR
         /// project's loaded (non-dynamic) assemblies. Skips dynamic assemblies
         /// (which includes the HMR assembly itself and prior HMR generations).
         /// </summary>
+        /// <summary>The PROJECT-loaded type of this name - the one compiled into a
+        /// real Unity assembly, which is what non-HMR code and every un-recompiled
+        /// component reads.
+        ///
+        /// HMR-generated assemblies are skipped by name. They are excluded because a
+        /// session accumulates MANY copies of the same module type: every hot compile
+        /// of a style module emits its own __Exports, and the RUITK Builder inlines a
+        /// further copy into each component unit it builds. This walk returned the
+        /// FIRST match in AppDomain order, so the fresh value was written onto an
+        /// arbitrary hot copy while the project type - the one the recompiled importer
+        /// actually binds to - kept the OLD value. The swap counted as successful, so
+        /// the render silently showed the previous value with "Module statics re-init:
+        /// 1" in the log (UB-228).</summary>
         private static Type FindProjectType(string fullName)
         {
             if (string.IsNullOrEmpty(fullName))
@@ -342,6 +355,8 @@ namespace Ruitk.EditorSupport.HMR
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (asm.IsDynamic)
+                    continue;
+                if (IsHmrAssembly(asm))
                     continue;
 
                 Type t;
@@ -358,6 +373,22 @@ namespace Ruitk.EditorSupport.HMR
                     return t;
             }
             return null;
+        }
+
+        /// <summary>An assembly this pipeline produced, rather than one Unity
+        /// compiled. Same "hmr_" prefix test the compiler uses to exclude its own
+        /// output from reference and type probes.</summary>
+        private static bool IsHmrAssembly(Assembly asm)
+        {
+            try
+            {
+                return asm.GetName().Name
+                    .StartsWith("hmr_", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>

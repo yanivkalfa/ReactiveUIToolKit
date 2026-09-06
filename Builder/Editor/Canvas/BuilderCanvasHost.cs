@@ -82,6 +82,14 @@ namespace Ruitk.Builder
         /// add, rename, make required/optional, remove.</summary>
         public Action<string> OnEditProps;
 
+        /// <summary>Copy the module's effective C# namespace, or the whole mount
+        /// snippet (the 'using' plus the V.Func line), to the clipboard. The
+        /// namespace is DERIVED FROM THE PATH, so it exists as soon as the module
+        /// has one - saved or not. What it cannot survive is having no path at
+        /// all: see <see cref="MountUnavailableReason"/>.</summary>
+        public Action<string> OnCopyNamespace;
+        public Action<string> OnCopyMountSnippet;
+
         /// <summary>Fired whenever the graph changes, mount or re-populate. The
         /// library list, the known-element set and the preview's module notes are
         /// all PROJECTIONS of the graph, and a projection that only updates on
@@ -902,6 +910,25 @@ namespace Ruitk.Builder
                     OnPick = () => OnEditProps?.Invoke(targetPath),
                 });
             }
+            string mountBlocked = MountUnavailableReason(targetPath);
+            items.Add(BuilderSearchMenu.Separator);
+            items.Add(new BuilderSearchMenu.Item
+            {
+                Label = "Copy namespace",
+                Detail = mountBlocked == null ? "the C# namespace this compiles into" : null,
+                DisabledReason = mountBlocked,
+                OnPick = () => OnCopyNamespace?.Invoke(targetPath),
+            });
+            if (node.Kind == BuilderNodeKind.Component)
+            {
+                items.Add(new BuilderSearchMenu.Item
+                {
+                    Label = "Copy mount snippet",
+                    Detail = mountBlocked == null ? "using + V.Func(...) for a MonoBehaviour" : null,
+                    DisabledReason = mountBlocked,
+                    OnPick = () => OnCopyMountSnippet?.Invoke(targetPath),
+                });
+            }
             // A real submenu, opening BESIDE the menu rather than on top of it.
             // The kinds will not stay at four, so they belong behind one row.
             if (node.Kind == BuilderNodeKind.Component)
@@ -930,6 +957,19 @@ namespace Ruitk.Builder
             // card is called something other than NewComponent (UB-218).
             BuilderSearchMenu.ShowSimple(System.IO.Path.GetFileName(targetPath), items);
         }
+
+        /// <summary>Why this module has no namespace to copy, or null when it has
+        /// one. A namespace is a pure function of the module's PATH, so being
+        /// unsaved is not a reason - the builder computes it from the tree exactly
+        /// as the generator will. Having no path is the one real reason: a module
+        /// created before a folder was picked sits under the provisional root,
+        /// whose name ends in "~", which the Asset Database ignores wholesale.
+        /// Any namespace shown for it would name a compilation that never
+        /// happens.</summary>
+        private static string MountUnavailableReason(string filePath) =>
+            BuilderWorkspace.IsUnlocated(filePath)
+                ? "pick a folder first - the namespace comes from the path"
+                : null;
 
         /// <summary>The card delete plus its referenced-by guard, in one place so
         /// the keyboard path (UB-74) cannot drift from the menu's rules. The sink

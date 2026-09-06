@@ -211,7 +211,7 @@ namespace Ruitk.Builder
             if (s_highlight < 0 || s_highlight >= s_walk.Count)
                 return;
             var item = s_walk[s_highlight].Item;
-            if (item == null)
+            if (item == null || !string.IsNullOrEmpty(item.DisabledReason))
                 return;
             if (item.Children != null && item.Children.Count > 0)
             {
@@ -257,6 +257,7 @@ namespace Ruitk.Builder
             }
 
             bool nests = item.Children != null && item.Children.Count > 0;
+            bool disabled = !string.IsNullOrEmpty(item.DisabledReason);
             var row = new VisualElement
             {
                 style =
@@ -269,10 +270,11 @@ namespace Ruitk.Builder
             };
             row.Add(new Label(item.Label)
             {
-                style = { color = BuilderPalette.Text, flexGrow = 1f },
+                style = { color = disabled ? BuilderPalette.Dim : BuilderPalette.Text, flexGrow = 1f },
             });
-            if (!string.IsNullOrEmpty(item.Detail))
-                row.Add(new Label(item.Detail)
+            string detail = disabled ? item.DisabledReason : item.Detail;
+            if (!string.IsNullOrEmpty(detail))
+                row.Add(new Label(detail)
                 {
                     style = { color = BuilderPalette.Dim, fontSize = 10f, marginLeft = 8f },
                 });
@@ -282,15 +284,19 @@ namespace Ruitk.Builder
                     style = { color = BuilderPalette.Dim, marginLeft = 8f },
                 });
 
-            BuilderCursor.Set(row, MouseCursor.Link);
+            if (!disabled)
+                BuilderCursor.Set(row, MouseCursor.Link);
             (isFlyout ? s_flyoutRows : s_mainRows).Add((row, item));
             row.RegisterCallback<MouseEnterEvent>(_ =>
             {
-                row.style.backgroundColor = new Color(0.31f, 0.76f, 0.97f, 0.14f);
+                if (!disabled)
+                    row.style.backgroundColor = new Color(0.31f, 0.76f, 0.97f, 0.14f);
                 // Resting on a nesting row opens its flyout; resting on any other
                 // row of the SAME menu closes it. A row of the flyout itself is
-                // neither, so the flyout survives the trip across to it.
-                if (nests)
+                // neither, so the flyout survives the trip across to it. A disabled
+                // row still CLOSES one - it is a normal row that cannot be picked,
+                // not a hole the pointer passes through.
+                if (nests && !disabled)
                     OpenFlyout(row, item);
                 else if (!isFlyout)
                     CloseFlyout();
@@ -300,6 +306,10 @@ namespace Ruitk.Builder
             row.RegisterCallback<PointerDownEvent>(evt =>
             {
                 evt.StopPropagation();
+                // Inert, and the menu STAYS OPEN - closing on a dead row reads as
+                // "that worked" when nothing happened.
+                if (disabled)
+                    return;
                 if (nests)
                 {
                     OpenFlyout(row, item);

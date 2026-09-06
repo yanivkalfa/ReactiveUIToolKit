@@ -144,6 +144,11 @@ namespace Ruitk.EditorSupport.HMR
             }
         }
 
+        /// <summary>A capped, indented excerpt for the compile trace. What a round
+        /// INLINED is the only thing that decides what a style edit renders as, and a
+        /// line saying only that an inline happened cannot tell a fresh buffer from a
+        /// stale one - which is exactly the question a "reverts to the previous value"
+        /// report asks.</summary>
         private string ReadUitkxText(string path)
         {
             // SourceOverlay is still consulted first so an existing caller that sets
@@ -201,7 +206,24 @@ namespace Ruitk.EditorSupport.HMR
 
         // ── Reference cache (built once per session) ──────────────────────────
         private List<string> _referenceLocations;
-        private int _swapCounter;
+
+        /// <summary>Distinguishes one emitted hot assembly from the next.
+        ///
+        /// STATIC, and never reset. The emitted DLL is written to a FIXED temp path
+        /// (<c>hmr_{name}_{n}.dll</c>) and loaded with <see cref="Assembly.LoadFrom"/>,
+        /// which returns an ALREADY-LOADED assembly of the same identity and ignores
+        /// the new bytes on disk. An assembly cannot be unloaded, so any counter value
+        /// reused inside one AppDomain resolves to the stale assembly - silently, with
+        /// a successful compile and a correct emit.
+        ///
+        /// It used to be per-instance and zeroed by <c>Reset()</c>, so every HMR
+        /// stop/start replayed 1, 2, 3... and the first compiles after a restart loaded
+        /// the PREVIOUS session's assemblies. That is the "saves show the previous
+        /// value" defect: the read, the emit and the compile were all correct and the
+        /// loaded assembly was somebody else's (UB-229). Static also keeps the RUITK
+        /// Builder's compiler instance from colliding with HMR's, which was the same
+        /// bug waiting on a counter collision between two instances.</summary>
+        private static int _swapCounter;
         private string _dotnetPath;
         private string _cscPath;
         private string _tempDir;
@@ -669,11 +691,12 @@ namespace Ruitk.EditorSupport.HMR
             public string Namespace;
             public string FullyQualifiedName;
             public string EmittedComponentSource;
-            public List<string> CompanionUitkxSources = new();
+            /// <summary>Companion .uitkx modules inlined into this component's unit,
+            /// each paired with the path it came from. ONE collection: the source and
+            /// its path are produced together by the emitter, so they cannot disagree
+            /// about how many there are (UB-227).</summary>
+            public List<(string Path, string Source)> CompanionUitkxInlined = new();
             public List<string> CompanionCsSources = new();
-            public HashSet<string> CompanionUitkxPathsConsumed = new HashSet<string>(
-                StringComparer.OrdinalIgnoreCase
-            );
             public double ParseMs;
             public double EmitMs;
             public string Error;
@@ -858,35 +881,19 @@ namespace Ruitk.EditorSupport.HMR
                 // the sources list; we tee into our per-file bundle and remember
                 // which companion paths we consumed so the batch can dedupe
                 // shared style/hook files across members.
-                var companionInline = new List<string>();
                 EmitCompanionUitkxSources(
                     directives,
                     uitkxPath,
                     componentName,
-                    companionInline
+                    sources: null,
+                    inlinedByPath: artifacts.CompanionUitkxInlined
                 );
 
-                // Track which companion paths were inlined. The companion file
-                // discovery is path-based (same dir, prefix match) so the same
-                // path appears once per parent component file.
-                var compDir = Path.GetDirectoryName(uitkxPath);
-                if (compDir != null)
-                {
-                    string prefix = componentName + ".";
-                    // A module the builder is holding as a pending buffer can
-                    // sit in a directory that does not exist on disk yet (a new
-                    // component owns a fresh folder, and so does a rename). An
-                    // absent directory HAS no companions - that is an answer,
-                    // not a failure - but the unguarded scan threw
-                    // DirectoryNotFoundException on every debounced recompile,
-                    // which killed the preview and made typing crawl.
-                    foreach (var file in CompanionSiblings(compDir, prefix))
-                    {
-                        if (!string.Equals(file, uitkxPath, StringComparison.OrdinalIgnoreCase))
-                            artifacts.CompanionUitkxPathsConsumed.Add(Path.GetFullPath(file));
-                    }
-                }
-                artifacts.CompanionUitkxSources = companionInline;
+                // The paths are recorded BY THE EMITTER above, as it inlines. They
+                // used to come from a separate same-stem sibling scan, which answers a
+                // different question: an IMPORTED module is inlined but is not a
+                // name-prefixed sibling, so the two counts disagreed and the batch
+                // dropped the inline (UB-227).
 
                 // Same import-scope aliases the single-file path applies. Without
                 // them a parent in this batch cannot name its own children.
@@ -1011,43 +1018,13 @@ namespace Ruitk.EditorSupport.HMR
                 {
                     allSources.Add(art.EmittedComponentSource);
 
-                    // Dedupe shared companion .uitkx emissions (e.g. a
-                    // shared theme module across two components in the
-                    // batch). We track BY PATH on the parent companion
-                    // file rather than by emitted text because the emit
-                    // is path-bound (file headers, line directives).
-                    if (
-                        art.CompanionUitkxSources.Count > 0
-                        && art.CompanionUitkxPathsConsumed.Count > 0
-                    )
-                    {
-                        var newOnes = new List<string>(art.CompanionUitkxSources.Count);
-                        int idx = 0;
-                        foreach (var compPath in art.CompanionUitkxPathsConsumed)
-                        {
-                            if (idx >= art.CompanionUitkxSources.Count)
-                                break;
-                            if (consumedCompanionPaths.Add(compPath))
-                                newOnes.Add(art.CompanionUitkxSources[idx]);
-                            idx++;
-                        }
-                        // Defensive fallback: if the path/source order
-                        // assumption above is off, fall back to text dedupe.
-                        if (
-                            newOnes.Count == 0
-                            && art.CompanionUitkxPathsConsumed.Count
-                                < art.CompanionUitkxSources.Count
-                        )
-                        {
-                            foreach (var s in art.CompanionUitkxSources)
-                                if (consumedCompanionCsTexts.Add(s))
-                                    allSources.Add(s);
-                        }
-                        else
-                        {
-                            allSources.AddRange(newOnes);
-                        }
-                    }
+                    // Dedupe shared companion .uitkx emissions - a style module two
+                    // components in the batch both import is inlined once. Keyed on the
+                    // path the emitter ACTUALLY inlined, which now travels WITH its
+                    // source instead of being rediscovered by a parallel scan.
+                    foreach (var companion in art.CompanionUitkxInlined)
+                        if (consumedCompanionPaths.Add(companion.Path))
+                            allSources.Add(companion.Source);
 
                     // Companion .cs sources — dedupe by raw text (file path
                     // isn't tracked through to here, but identical companion
@@ -1420,8 +1397,10 @@ namespace Ruitk.EditorSupport.HMR
             object componentDirectives,
             string uitkxPath,
             string componentName,
-            List<string> sources
+            List<string> sources,
+            List<(string Path, string Source)> inlinedByPath = null
         )
+
         {
             var dir = Path.GetDirectoryName(uitkxPath);
             if (dir == null)
@@ -1566,7 +1545,11 @@ namespace Ruitk.EditorSupport.HMR
                                     }
                                     catch { }
                                 }
-                                sources.Add(inlined);
+                                // The single-file path collects a flat source list; the
+                                // batch needs each source paired with its path to dedupe
+                                // across components. Both are filled HERE, together.
+                                sources?.Add(inlined);
+                                inlinedByPath?.Add((Path.GetFullPath(file), inlined));
                                 Trace?.Invoke(
                                     "inlined " + Path.GetFileName(file) + " into "
                                     + Path.GetFileName(uitkxPath)
@@ -1600,7 +1583,6 @@ namespace Ruitk.EditorSupport.HMR
             _filteredMetaRefsByAsmdef.Clear();
             _filteredRefLocsByAsmdef.Clear();
             _lastGenuineComponentCount = 0;
-            _swapCounter = 0;
 
             // Clean up temp DLLs from this session
             if (_tempDir != null && Directory.Exists(_tempDir))
