@@ -40,7 +40,7 @@ sitting in the project.
 
 Proof this is not hypothetical: `ruitkUiBuiler/` (the browser POC at the package
 root) shipped in 0.18.1 and was still in the staged project afterwards. It was
-excluded from 0.19.0 onward in `config.json` — and that fix only lands if the old
+excluded from 0.19.1 onward in `config.json` — and that fix only lands if the old
 folder is deleted before the import.
 
 ### 2. Import the new package

@@ -1,43 +1,45 @@
-## [0.19.0] - 2026-08-31
+## [0.19.1] - 2026-09-06
 
-### Component props, router hooks, and a builder that stops lying to you
+### Props, router hooks, namespaces, and a builder that stops lying
 
-**Props are an authoring gesture now.** The signature row was a label. Click it
-to add, rename or remove a prop. A rename rewrites the declaration, its uses in
-the body, and every call site's attribute as ONE undo.
+**Props are an authoring gesture now.** Click the signature row to add, rename
+or remove a prop; a rename rewrites the declaration, its body uses and every
+call site's attribute as ONE undo.
 
-**Breaking - a parameter with no default is REQUIRED.**
-
-```
-export VirtualNode Card(string label)               // required
-export VirtualNode Card(string label = "Untitled")  // optional
-```
-
-`int x` and `int x = 0` were indistinguishable to the generator - both emit
-`public int X { get; set; } = 0;` - so a forgotten prop silently rendered
+**Breaking - a parameter with no default is REQUIRED.** `int x` and `int x = 0`
+were indistinguishable to the generator, so a forgotten prop rendered
 `default(T)`. Omitting one is now `UITKX0115`.
 
+**Breaking - an export named a C# keyword is `UITKX2114`.** It is emitted
+verbatim as C#, so `export Style default = ...` did not compile. `new` is
+reserved, `New` is fine.
+
 **Router hooks are hooks.** All 16 joined the shared registry: hover,
-completion, and the rules of hooks. `UseBlocker` composes `UseEffect`, so
-calling one in an `@if` breaks effect ordering - and nothing said so.
+completion, and the rules of hooks - an `@if` around `UseBlocker` breaks effect
+ordering.
 
-**Builder fixes, all the same shape - the editor said one thing, did another:**
+**Cards hand you their namespace.** Copy namespace / Copy mount snippet, from
+the TREE - an unsaved component reports what it WILL compile into.
 
-- A NEW tree rendered ANOTHER tree's components. Every hot swap stays loaded,
-  so resolving a child by simple name reached whichever tree opened first. A
-  child now resolves through the import that names it.
-- The builder asks the TREE, not the disk. A module created, renamed, moved or
-  deleted in the session could still answer as the stale file on disk said.
-- A source edit could overwrite a DIFFERENT module: edit one, click another
-  card, press Esc, and the first one's whole text landed in the second.
+**Fix - a saved style edit rendered the PREVIOUS value.** Three defects; the
+decisive one: hot assembly names repeated after an HMR restart, so
+`Assembly.LoadFrom` returned the previous session's assembly.
+
+**Builder fixes - the editor said one thing, did another:**
+
+- A NEW tree rendered ANOTHER tree's components; a child now resolves through
+  its import.
+- The builder asks the TREE, not the disk, for a module changed in the session.
+- A source edit could overwrite a DIFFERENT module: edit one, click another,
+  press Esc, and the first's text landed in it.
 - A parent could not see a child's new props without saving.
 - Every click rebuilt every component.
-- The preview compiled at `latest` while Unity compiles at C# 9.
-- Dropping a row into a self-closing tag did nothing, and said it worked.
-- The library list kept exports the tree no longer had.
+- The preview compiled at `latest`; Unity compiles at C# 9.
+- Dropping a row into a self-closing tag did nothing, but said it worked.
+- The library list kept exports the tree had dropped.
 - Undo history died on every domain reload.
 
-**Tests.** 1892/1892 SG, 185/185 LSP, plus out-of-Unity model checks.
+**Tests.** 1915/1915 SG, 185/185 LSP, plus builder model checks.
 
 VS Code **1.11.0 -> 1.12.0** | VS 2022 **1.11.0 -> 1.12.0**.
 

@@ -378,7 +378,7 @@ export const UitkxDiagnosticsPage: FC = () => (
       </Table>
     </TableContainer>
 
-    {/* ── Function-Style Component Diagnostics (UITKX2100–2106) ─────────── */}
+    {/* ── Function-Style Component Diagnostics (UITKX2100–2114) ─────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
       Function-Style Component Diagnostics
     </Typography>
@@ -432,6 +432,12 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Missing parameter name</TableCell>
             <TableCell>Each parameter in the component signature must have a name: <code>export VirtualNode Name(string text)</code>.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2114" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Export named a C# reserved keyword</TableCell>
+            <TableCell>An export name is emitted verbatim as a C# class or member name, so a keyword produces code that cannot compile. Rename the export. The check is case-sensitive, like C# itself: <code>new</code> is reserved, <code>New</code> is a legal name, and contextual keywords such as <code>value</code> or <code>record</code> are allowed.</TableCell>
           </TableRow>
         </TableBody>
       </Table>

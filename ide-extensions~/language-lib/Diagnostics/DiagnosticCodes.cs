@@ -366,5 +366,10 @@ namespace Ruitk.Language.Diagnostics
         /// <summary>``renaming hook '{0}' to '{1}' drops the 'use' prefix — hook bindings must stay
         /// 'use'-prefixed``. Severity: Error.</summary>
         public const string HookRenameDropsUsePrefix = "UITKX2110";
+
+        /// <summary>``export name '{0}' is a C# reserved keyword``. An export name is emitted
+        /// verbatim as a C# class or member name, so a keyword produces uncompilable code.
+        /// Case-sensitive: 'new' is reserved, 'New' is a legal name. Severity: Error.</summary>
+        public const string ReservedIdentifierName = "UITKX2114";
     }
 }
