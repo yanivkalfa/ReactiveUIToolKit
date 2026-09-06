@@ -209,7 +209,7 @@ against elsewhere.
 
 ## Part 2 — Component signatures (#2)
 
-**Settled 2026-08-28. IMPLEMENTED and shipped in 0.19.0 on 2026-08-29.**
+**Settled 2026-08-28. IMPLEMENTED and shipped in 0.19.1 on 2026-08-29.**
 
 ### 2.1 The gap
 
@@ -293,7 +293,7 @@ Both were **genuine defects, not false positives**. `HUD` renders
 and the call site passed neither — so the shipped Galaga sample rendered
 "WAVE 0" with a null sprite sheet, and had since it was written. Both values were
 already in scope at the call site (`spriteSheet` on line 11, `state.Wave`). Fixed
-in 0.19.0.
+in 0.19.1.
 
 The package's own `.uitkx` files (`Builder/Editor/**`) have **no
 component-to-component markup call sites at all** — every one of them is mounted
@@ -304,7 +304,7 @@ the whole corpus, is the strongest evidence available that the convention was
 already being followed by hand and that enforcing it is correction rather than
 disruption.
 
-### 2.5 The work — DONE (0.19.0)
+### 2.5 The work — DONE (0.19.1)
 
 **Analyzer (language-wide):**
 
@@ -312,7 +312,7 @@ disruption.
 |---|---|---|
 | **SIG-A** | `UITKX0115` — a call site omitting a parameter with no written default. Error tier, no deprecation window. | `SourceGenerator~/Diagnostics/UitkxDiagnostics.cs`, `PropsResolver.GetRequiredPropNamesByQualifiedName`, `CSharpEmitter.EmitFuncComponent`; `language-lib/Diagnostics/DiagnosticCodes.cs` + `DiagnosticsAnalyzer.CheckElement` |
 | **SIG-B** | Parity. Only TWO of the four layers ever validated attributes — the SG emitter and the analyzer (`UITKX0109` lives in both). The HMR emitters and the IDE virtual doc do no attribute checking at all, so leaving them untouched is consistency, not drift. Verified by grep before writing anything. | — |
-| **SIG-C** | CHANGELOG states the breaking change with the migration and the exemptions; minor version 0.19.0; extensions 1.12.0. | `CHANGELOG.md`, `changelog.json`, `DISCORD_CHANGELOG.md` |
+| **SIG-C** | CHANGELOG states the breaking change with the migration and the exemptions; minor version 0.19.1; extensions 1.12.0. | `CHANGELOG.md`, `changelog.json`, `DISCORD_CHANGELOG.md` |
 
 The decisive design point: the generated `*Props` class **cannot** answer
 "was a default written", because it emits an initialiser either way. So the
@@ -585,7 +585,7 @@ is missing, which is also the information the eventual UI would need to collect.
 ## Order
 
 1. ~~**Part 1** — ISO-A through ISO-F.~~ **DONE**, shipped 0.18.x.
-2. ~~**Part 2** — SIG-A..C and SIG-1..4.~~ **DONE**, shipped 0.19.0. It ran
+2. ~~**Part 2** — SIG-A..C and SIG-1..4.~~ **DONE**, shipped 0.19.1. It ran
    before Part 3 rather than after: the signature gestures were what the owner
    needed next, and they turned out to depend on nothing in Part 3.
 3. **Part 3** — RTR-1 first (framework-wide, benefits everything), then RTR-2/3

@@ -183,6 +183,12 @@ submenu, Left or Escape backs out one level, Escape again closes. Menus with a
 long vocabulary — style keys, elements, attributes — open with a search field
 instead, and keep the freeform fallback entry.
 
+A row that cannot be picked right now is shown GREYED WITH ITS REASON in place
+of its usual detail text, rather than hidden. It is inert to both the pointer
+and the keyboard, and clicking it leaves the menu OPEN so the reason can be
+read — a menu that closed on a dead row would read as though something had
+happened. The reason is normally the next thing the user has to do.
+
 ### Props (the signature row)
 The signature row is a gesture, not a label. Clicking it — or **Props…** on the
 card's own menu — opens the props of a component or hook module:
@@ -251,15 +257,38 @@ limit of what the builder can see.
   sub-components, companion modules, and files the builder does not manage —
   as a single move, so child GUIDs survive and nothing is left behind. The
   saved card layout follows the rename, out and back again through undo.
+- **Copy namespace / Copy mount snippet** — on a card's menu. Mounting a
+  component from C# needs the namespace it compiles into, and that is derived:
+  the configured prefix, plus the folders between the file and its owning
+  assembly definition, plus the file's own stem. The snippet is the `using` and
+  the render call together, ready to paste into a host script.
+
+  It is computed from the TREE, so a component created seconds ago and never
+  saved reports the namespace it WILL compile into — the file existing is not
+  what makes the answer knowable, the path is. An explicit namespace stamp in
+  the file, or a configured prefix, is honoured without the builder knowing
+  those features exist.
+
+  A module created before a folder was chosen has no answer: it sits at the
+  provisional location, which the asset database ignores, so no namespace it
+  could be given would ever compile. Those rows are greyed with that reason
+  rather than showing a plausible-looking lie.
 - **Import .uxml** — one-way conversion to a `.uitkx` module, from the
   toolbar or from a `.uxml` asset's context menu. The result arrives as a
   pending module like anything else the builder creates: Save writes it,
-  Abort drops it, Ctrl+Z takes it back.
+  Abort drops it, Ctrl+Z takes it back. The component's name is folded out of
+  the source file's stem into a legal PascalCase identifier — a `.uxml` file
+  name is arbitrary, and an export name is emitted verbatim as a type name, so
+  `my-panel.uxml` becomes `MyPanel`.
 - **Create module** — component / style / hook / util, from a right-click or
   the library's "+ new", named through a validating prompt (PascalCase
-  components, camelCase style/util, `use…` hooks). A name is taken only when the
-  FILE it would produce is taken, so `SomeComponent` the component and
-  `someComponent` the style module coexist. A component and a hook start with
+  components, camelCase style/util, `use…` hooks). A C# reserved keyword is
+  refused at the prompt, for module names and for prop names alike: an export
+  name and a parameter name are both emitted verbatim into generated code, so a
+  keyword produces code that cannot compile. The check is case-sensitive because
+  C# is — `new` is refused, `New` is a perfectly good component name. A name is
+  taken only when the FILE it would produce is taken, so `SomeComponent` the
+  component and `someComponent` the style module coexist. A component and a hook start with
   exactly the export just named and the smallest legal body; a style and a util
   module start EMPTY. Like every other edit, the file is a pending buffer with a
   real card on the canvas.

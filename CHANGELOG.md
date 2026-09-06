@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
-## [0.19.0] - 2026-08-31
+## [0.19.1] - 2026-09-06
 
 ### Added
 
@@ -33,6 +33,48 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   Every gesture reads and writes the tree's in-memory buffers, never a file: a
   caller the user has not opened is still a caller. Nothing reaches disk until
   Save.
+
+- **A card can tell you the namespace it compiles into.** Mounting a `.uitkx`
+  component from a `MonoBehaviour` needs its C# namespace, and nothing in the
+  tooling said what that was &mdash; no hover, no code lens, no generated file
+  to read &mdash; so you had to run the derivation in your head: the prefix,
+  plus the folders between the file and its owning `.asmdef`, plus the file
+  stem. The card menu now has **Copy namespace** and, for a component,
+  **Copy mount snippet** (the `using` and the `V.Func(...)` line together).
+
+  Both read the tree, not the disk, through the same `EffectiveNamespace` call
+  the generator and the language server make &mdash; so a component created a
+  second ago and never saved reports the namespace it WILL compile into, and
+  an explicit `@namespace` stamp or a configured prefix is honoured without
+  the builder knowing they exist.
+
+  The one case with no answer is a module created before a folder was picked:
+  it sits under the provisional root, whose name ends in `~`, so the Asset
+  Database ignores it and no namespace it could be given would ever compile.
+  Those rows are greyed with the reason ("pick a folder first &mdash; the
+  namespace comes from the path") rather than hidden or filled with a
+  plausible-looking lie.
+
+- **A card can tell you the namespace it compiles into.** Mounting a `.uitkx`
+  component from a `MonoBehaviour` needs its C# namespace, and nothing in the
+  tooling said what that was &mdash; no hover, no code lens, no file to read
+  &mdash; so you had to run the derivation in your head: the configured prefix,
+  the folders between the file and its owning `.asmdef`, then the file stem. A
+  card's menu now offers **Copy namespace** and, for a component, **Copy mount
+  snippet** &mdash; the `using` and the `V.Func(...)` call together.
+
+  Both read the tree through the same `EffectiveNamespace` call the generator
+  and the language server make, so a component created seconds ago and never
+  saved reports the namespace it WILL compile into, and an explicit
+  `@namespace` or a configured prefix is honoured without the builder knowing
+  those features exist.
+
+  A module created before a folder was chosen has no answer &mdash; it sits at
+  the provisional location, which the Asset Database ignores, so no namespace it
+  could be given would ever compile. Those rows are greyed with that reason.
+  More generally, a context-menu row that cannot be picked is now shown greyed
+  with its reason instead of hidden, is inert to pointer and keyboard, and
+  leaves the menu open so the reason can be read.
 
 - **Router hooks are hooks now, as far as the tooling is concerned.** All 16 of
   `RouterHooks` (`UseNavigate`, `UseParams`, `UseBlocker`, …) joined the shared
@@ -170,11 +212,68 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
   `.uitkx` files have no component-to-component markup call sites at all, so
   their blast radius is zero.
 
+- **An export named with a C# reserved keyword is now an error (`UITKX2114`).**
+  An export name is emitted VERBATIM as a C# class or member name, so
+  `export Style default = …` produced uncompilable generated code and a storm
+  of `CS` errors pointing at a file the author never wrote. Components were
+  already shielded by the PascalCase rule &mdash; every C# keyword is
+  lowercase &mdash; so the reachable hole was the camelCase kinds: style,
+  utils and value exports. Now one precise error names the culprit.
+
+  The comparison is ORDINAL, which is the whole point: `new` is reserved,
+  `New` is a perfectly legal component name and stays one. Contextual
+  keywords (`value`, `var`, `record`) are legal identifiers and are
+  deliberately absent from the set. No valid file changes behaviour: code this
+  rejects did not compile before either.
+
 ### Fixed
 
 - **The attribute menu mis-read generic props.** A `Dictionary<string, int>`
   parameter was split on its own comma and offered as two nonsense rows; the
   signature scanner the prop gestures use now backs that menu too.
+
+- **Importing a `.uxml` could author an uncompilable component name.** The
+  importer derived the component name by upper-casing the file stem's first
+  character, so `my-panel.uxml` produced `export VirtualNode My-panel()`. It
+  was the one create path that never reached the builder's name validation.
+  The stem is now folded into a legal PascalCase identifier (`MyPanel`), and
+  an empty stem no longer throws.
+
+- **The builder's create, rename and add-prop prompts accepted C# keywords.**
+  They now refuse one at the gesture, using the same shared table the
+  generator and the namespace sanitizer read, so a name can never be accepted
+  by the editor and then rejected by the compiler.
+
+- **A saved style edit rendered the PREVIOUS value.** Change a colour, watch the
+  preview take it, press Save, and a second later the old colour was back
+  &mdash; while the card and the source pane still showed the new one. Three
+  independent defects wearing one symptom, found by instrumenting the compile
+  path end to end:
+  - The union build **dropped every inlined companion module**. Inlined sources
+    and their paths were tracked in two collections filled by two different
+    mechanisms &mdash; import-target discovery and a same-stem sibling scan
+    &mdash; which answer different questions, so a component whose only
+    companion was an import produced one source and zero paths, a count guard
+    failed, and the inline vanished from the union with nothing logged. They are
+    now one collection of pairs, filled as the emitter inlines.
+  - The module-static swap **wrote to an arbitrary hot copy**. A session
+    accumulates many copies of one `__Exports`, and the project-type lookup
+    returned the first match in app-domain order, so the fresh value landed
+    anywhere while the type the recompiled importer binds to kept the old one.
+    It now skips HMR-generated assemblies, as the compiler already does
+    elsewhere.
+  - **Hot assembly names repeated after an HMR restart.** Each hot compile
+    writes `hmr_{name}_{n}.dll` to a fixed temp directory and loads it with
+    `Assembly.LoadFrom`, which returns an already-loaded assembly of the same
+    identity and ignores the new bytes &mdash; and an assembly can never be
+    unloaded. The counter was zeroed whenever HMR stopped, so every restart
+    replayed `1, 2, 3…` and the first compiles after a restart resolved to the
+    PREVIOUS session's assemblies. It is now allocated once per app domain,
+    which also removes a latent collision between the builder's compiler and
+    HMR's over one shared temp directory.
+
+  Read, emit and compile were correct throughout in all three cases, which is
+  why this took instrumentation rather than inspection.
 
 ## [0.18.1] - 2026-08-27
 

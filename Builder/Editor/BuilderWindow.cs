@@ -839,6 +839,8 @@ namespace Ruitk.Builder
             // the asset is never re-created, so no GUID ever churns.
             _canvasHost.OnRenameCard = ShowRenamePrompt;
             _canvasHost.OnEditProps = ShowPropsMenu;
+            _canvasHost.OnCopyNamespace = path => CopyMountText(path, snippet: false);
+            _canvasHost.OnCopyMountSnippet = path => CopyMountText(path, snippet: true);
             _canvasHost.Modules = () => _workspace.Modules;
             _canvasHost.ModuleAt = path => _workspace.TryGet(path);
             _canvasHost.OnDeleteFile = path =>
@@ -4181,6 +4183,8 @@ namespace Ruitk.Builder
             foreach (char c in trimmed)
                 if (!char.IsLetterOrDigit(c) && c != '_')
                     return "letters, digits and _ only";
+            if (Ruitk.Language.CSharpIdentifiers.IsReservedKeyword(trimmed))
+                return trimmed + " is a C# keyword - pick another name";
             foreach (var prop in existing)
                 if (string.Equals(prop.Name, trimmed, System.StringComparison.Ordinal))
                     return trimmed + " is already declared";
@@ -5387,7 +5391,10 @@ namespace Ruitk.Builder
             if (string.IsNullOrEmpty(source))
                 return;
             string stem = Path.GetFileNameWithoutExtension(source);
-            string componentName = char.ToUpperInvariant(stem[0]) + stem.Substring(1);
+            // A .uxml stem is an arbitrary filename, not an identifier: my-panel.uxml used to
+            // emit "export VirtualNode My-panel()", which is uncompilable C#. This is the one
+            // create path that never reaches ValidateNewName, so it folds the stem itself.
+            string componentName = Ruitk.Language.CSharpIdentifiers.ToPascalIdentifier(stem);
             var result = Ruitk.Language.Import.UxmlToUitkx.Convert(
                 File.ReadAllText(source), componentName);
             if (string.IsNullOrEmpty(result.UitkxText))
@@ -5428,6 +5435,53 @@ namespace Ruitk.Builder
         /// <summary>POC "#toast": a panel2 pill with an accent border, bottom
         /// centre, fading out after 3.2s — never Unity's centred notification
         /// overlay.</summary>
+        /// <summary>Puts a module's effective C# namespace - or the whole mount
+        /// snippet - on the clipboard.
+        ///
+        /// Derived from the TREE, never from disk: the path comes from the module
+        /// (folder + name), and the asmdef anchor and namespace prefix are read
+        /// from ancestors that already exist. So a component created a second ago
+        /// and never saved reports the namespace it WILL compile into, which is
+        /// the whole point - asking whether the file exists would be the exact
+        /// mistake the isolation rule exists to prevent.
+        ///
+        /// Same call the source generator and the language server make
+        /// (<c>EffectiveNamespace.Resolve</c> with <c>fileKeyed: true</c>), so an
+        /// explicit <c>@namespace</c> stamp and a configured prefix are both
+        /// honoured without this knowing they exist.</summary>
+        private void CopyMountText(string path, bool snippet)
+        {
+            var module = _workspace.TryGet(path);
+            if (module == null)
+            {
+                Toast("That module is no longer in the tree.");
+                return;
+            }
+
+            string filePath = module.FilePath;
+            var parsed = BuilderLanguage.Parse(
+                BuilderModule.NormalizeLf(module.BufferText ?? ""), filePath);
+            string ns = Ruitk.Language.EffectiveNamespace.Resolve(
+                parsed.Directives.HasExplicitNamespace,
+                parsed.Directives.Namespace,
+                filePath,
+                fileKeyed: true);
+
+            if (string.IsNullOrEmpty(ns))
+            {
+                // No owning asmdef and no resolvable root - the same condition the
+                // generator reports as UITKX2310. Naming it beats copying "".
+                Toast("No namespace: nothing above this file declares one (UITKX2310).");
+                return;
+            }
+
+            string text = snippet
+                ? "using " + ns + ";\n\nrootRenderer.Render(V.Func(" + module.Name + ".Render));"
+                : ns;
+            EditorGUIUtility.systemCopyBuffer = text;
+            Toast(snippet ? "Copied mount snippet - " + ns : "Copied " + ns);
+        }
+
         internal void Toast(string message)
         {
             var root = rootVisualElement;
@@ -6773,6 +6827,12 @@ namespace Ruitk.Builder
             if (!hook && !pascal
                 && !System.Text.RegularExpressions.Regex.IsMatch(name, "^[a-z][A-Za-z0-9]*$"))
                 return "camelCase identifier required";
+            // An export name is emitted VERBATIM as a C# class or member name, so a
+            // reserved keyword produces uncompilable generated code. PascalCase already
+            // excludes every keyword (they are all lowercase); the camelCase kinds -
+            // style, utils and value exports - are the reachable hole.
+            if (Ruitk.Language.CSharpIdentifiers.IsReservedKeyword(name))
+                return name + " is a C# keyword - pick another name";
             // A name is taken only when the FILE it would produce is already
             // taken. This used to compare DISPLAY names, which have their
             // .style/.hooks stripped and are matched case-insensitively - so a

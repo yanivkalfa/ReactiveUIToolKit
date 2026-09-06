@@ -169,7 +169,7 @@ export const UiBuilderEditingPage: FC = () => (
           <ListItemText primary="On a markup row: typed attributes for that element, directives, delete." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary="On a card: create a module under or beside it, rename it, delete it." />
+          <ListItemText primary="On a card: create a module under or beside it, rename it, delete it, copy the namespace it compiles into or a ready-to-paste mount snippet." />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary="On an import row: copy the alias, remove the import, jump to the target." />
@@ -182,6 +182,14 @@ export const UiBuilderEditingPage: FC = () => (
         The menus are keyboard-drivable: up/down to move, right or Enter to open a submenu, left or
         Escape to back out one level, Escape again to close. Menus with a long list &mdash; style
         keys, elements &mdash; open with a search field instead.
+      </Typography>
+      <Typography variant="body2" paragraph>
+        A row that cannot be used right now is greyed with the reason in place of its usual detail
+        text rather than hidden, and clicking it leaves the menu open so the reason can be read.
+        <b>Copy namespace</b> and <b>Copy mount snippet</b> are greyed that way until the tree has
+        been given a folder, because the namespace is derived from the file&rsquo;s path &mdash; the
+        configured prefix, the folders between it and its owning assembly definition, then the file
+        stem. Once the path exists the answer is available whether or not you have saved.
       </Typography>
     </Section>
 

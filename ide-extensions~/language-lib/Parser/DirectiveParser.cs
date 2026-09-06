@@ -2382,6 +2382,20 @@ namespace Ruitk.Language.Parser
 
                 parsedAnyDeclaration = true;
 
+                if (CSharpIdentifiers.IsReservedKeyword(declName))
+                {
+                    diagnosticBag.Add(new ParseDiagnostic
+                    {
+                        Code = "UITKX2114",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = declLine,
+                        SourceColumn = declNameCol,
+                        EndLine = declLine,
+                        EndColumn = declNameCol + declName.Length,
+                        Message = $"export name '{declName}' is a C# reserved keyword — it is emitted verbatim as a C# name, so pick another (keywords are lowercase and case-sensitive: '{declName}' is reserved, '{char.ToUpperInvariant(declName[0]) + declName.Substring(1)}' is not)",
+                    });
+                }
+
                 if (delimiter == '=')
                 {
                     i++; // past '='
