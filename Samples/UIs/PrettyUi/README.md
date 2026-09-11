@@ -1,9 +1,17 @@
 # PrettyUi sample
 
-Faithful in-repo mirror of an external consumer project's `Assets/UI` tree.
+In-repo mirror of the `Assets/UI` tree of one of OUR OWN consumer projects.
 Exists so HMR-time bugs that only surface against this exact shape can be
 reproduced and iterated on inside this repo, without round-tripping through
 publish → install → Unity launch.
+
+Everything here is original work by this project's authors - the markup, the
+styles and the four background images, which were generated with OpenAI image
+generation and are owned by us under their terms. The project being mirrored is
+another one of ours, not a third party's; nothing in this folder came from
+anyone else. Stated explicitly because the previous wording called it "an
+external consumer project", which reads as though it had - and that is exactly
+what an asset-store review asks about.
 
 ## Shape
 
