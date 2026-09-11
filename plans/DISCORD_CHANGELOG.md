@@ -1,45 +1,109 @@
+## [0.19.2] - 2026-09-12
+
+### Store compliance - new icon, and three samples pulled
+
+**New package icon.** The old mark put Unity's logo in the middle of the atom,
+which the Asset Store only permits for packages Unity publishes themselves. It
+is a game controller now. Swapped everywhere: the `.uitkx` file icon that ships
+in the package, the VS Code marketplace and file icons, the docs logo and
+favicon.
+
+**Three game samples no longer ship in the Asset Store build.** `MarioGame`,
+`GalagaGame` and `DoomGame`, plus their editor demo windows, are excluded. The
+names and sprite art reference other companies' properties. `SnakeGame` and
+every other sample are untouched, and all three stay in the repo for
+development.
+
+**New `Third-Party Notices.txt`** at the package root, carrying the full MIT
+text for the one binary the package redistributes
+(`System.Collections.Immutable`). It also names what is NOT redistributed - the
+Newtonsoft dependency Unity resolves, and the Roslyn assemblies the generator
+compiles against - and records that the package ships no third-party fonts,
+audio or imagery.
+
+No code changes. Nothing in the API, the compiler or the builder moved.
+
+VS Code **1.12.0 -> 1.12.1** (icon only).
+
+---
+
 ## [0.19.1] - 2026-09-06
 
-### Props, router hooks, namespaces, and a builder that stops lying
+### Hot-reload staleness, reserved export names, namespace copy
 
-**Props are an authoring gesture now.** Click the signature row to add, rename
-or remove a prop; a rename rewrites the declaration, its body uses and every
-call site's attribute as ONE undo.
+**Fix - a saved style edit rendered the PREVIOUS value.** Change a colour, watch
+the preview take it, hit Save, and a second later the old value was back while
+the card still showed the new one. Three defects, one symptom. The decisive one:
+each hot compile writes `hmr_{name}_{n}.dll` to a fixed temp directory and loads
+it with `Assembly.LoadFrom`, which returns an ALREADY-LOADED assembly of the
+same identity and ignores the new bytes - and the counter was reset every time
+HMR stopped, so a restart replayed 1, 2, 3... and resolved to the previous
+session's assemblies. It is now allocated once per app domain.
 
-**Breaking - a parameter with no default is REQUIRED.** `int x` and `int x = 0`
-were indistinguishable to the generator, so a forgotten prop rendered
+The other two: the union build dropped every inlined companion module, because
+the inlined sources and their paths were tracked by two different mechanisms
+that answer different questions; and the module-static swap wrote to an
+arbitrary hot copy instead of the project-loaded type.
+
+Read, emit and compile were correct throughout in all three. This one needed
+instrumentation, not inspection.
+
+**Breaking - an export named a C# keyword is `UITKX2114`.** The name is emitted
+verbatim as C#, so `export Style default = ...` did not compile. Ordinal, like
+C# itself: `new` is reserved, `New` is a fine component name.
+
+**Cards hand you their namespace.** Copy namespace / Copy mount snippet on a
+card's menu, computed from the TREE - a component created seconds ago and never
+saved reports the namespace it WILL compile into. A menu row that cannot be
+picked is now greyed with its reason instead of hidden.
+
+**Fix -** importing a `.uxml` could author an uncompilable component name;
+`my-panel.uxml` now becomes `MyPanel`.
+
+**Tests.** 1915/1915 SG, 185/185 LSP.
+
+---
+
+## [0.19.0] - 2026-08-31
+
+### Component props, router hooks, and a builder that stops lying to you
+
+**Props are an authoring gesture now.** The signature row was a label. Click it
+to add, rename or remove a prop. A rename rewrites the declaration, its uses in
+the body, and every call site's attribute as ONE undo.
+
+**Breaking - a parameter with no default is REQUIRED.**
+
+```
+export VirtualNode Card(string label)               // required
+export VirtualNode Card(string label = "Untitled")  // optional
+```
+
+`int x` and `int x = 0` were indistinguishable to the generator - both emit
+`public int X { get; set; } = 0;` - so a forgotten prop silently rendered
 `default(T)`. Omitting one is now `UITKX0115`.
 
-**Breaking - an export named a C# keyword is `UITKX2114`.** It is emitted
-verbatim as C#, so `export Style default = ...` did not compile. `new` is
-reserved, `New` is fine.
-
 **Router hooks are hooks.** All 16 joined the shared registry: hover,
-completion, and the rules of hooks - an `@if` around `UseBlocker` breaks effect
-ordering.
+completion, and the rules of hooks. `UseBlocker` composes `UseEffect`, so
+calling one in an `@if` breaks effect ordering - and nothing said so.
 
-**Cards hand you their namespace.** Copy namespace / Copy mount snippet, from
-the TREE - an unsaved component reports what it WILL compile into.
+**Builder fixes, all the same shape - the editor said one thing, did another:**
 
-**Fix - a saved style edit rendered the PREVIOUS value.** Three defects; the
-decisive one: hot assembly names repeated after an HMR restart, so
-`Assembly.LoadFrom` returned the previous session's assembly.
-
-**Builder fixes - the editor said one thing, did another:**
-
-- A NEW tree rendered ANOTHER tree's components; a child now resolves through
-  its import.
-- The builder asks the TREE, not the disk, for a module changed in the session.
-- A source edit could overwrite a DIFFERENT module: edit one, click another,
-  press Esc, and the first's text landed in it.
+- A NEW tree rendered ANOTHER tree's components. Every hot swap stays loaded,
+  so resolving a child by simple name reached whichever tree opened first. A
+  child now resolves through the import that names it.
+- The builder asks the TREE, not the disk. A module created, renamed, moved or
+  deleted in the session could still answer as the stale file on disk said.
+- A source edit could overwrite a DIFFERENT module: edit one, click another
+  card, press Esc, and the first one's whole text landed in the second.
 - A parent could not see a child's new props without saving.
 - Every click rebuilt every component.
-- The preview compiled at `latest`; Unity compiles at C# 9.
-- Dropping a row into a self-closing tag did nothing, but said it worked.
-- The library list kept exports the tree had dropped.
+- The preview compiled at `latest` while Unity compiles at C# 9.
+- Dropping a row into a self-closing tag did nothing, and said it worked.
+- The library list kept exports the tree no longer had.
 - Undo history died on every domain reload.
 
-**Tests.** 1915/1915 SG, 185/185 LSP, plus builder model checks.
+**Tests.** 1892/1892 SG, 185/185 LSP, plus out-of-Unity model checks.
 
 VS Code **1.11.0 -> 1.12.0** | VS 2022 **1.11.0 -> 1.12.0**.
 
